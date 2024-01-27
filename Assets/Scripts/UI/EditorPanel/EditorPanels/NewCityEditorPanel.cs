@@ -9,6 +9,7 @@ namespace EditorPanels {
     public class NewCityEditorPanel : EditorPanel {
         EditorPanelElements.InputField sizeField;
         EditorPanelElements.Dropdown resField, coreField, templateField;
+        EditorPanelElements.Button createButton;
         int terrSize, heightmapRes;
         string selectedCore, selectedTemplate;
         List<string> resolutionList = new List<string> { "128", "256", "512", "1024", "2048", "4096" };
@@ -26,7 +27,7 @@ namespace EditorPanels {
             p0.IncreaseRow();
             templateField = p0.AddDropdown(SM.Get("NC_TEMPLATES"), new List<string>(), SetTemplate, width);
             p0.IncreaseRow();
-            p0.AddButton(SM.Get("NC_CREATE"), NewCity, width);
+            createButton = p0.AddButton(SM.Get("NC_CREATE"), NewCity, width);
             p0.IncreaseRow();
             p0.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, width);
             p0.IncreaseRow();
@@ -41,6 +42,7 @@ namespace EditorPanels {
             templateField.SetOptions(templates.names);
             templateField.SetValue(0);
             SetTemplate(0);
+            createButton.SetInteractable(selectedCore != null);
         }
 
         void SetTemplate(int value) {
@@ -49,19 +51,22 @@ namespace EditorPanels {
         }
 
         (List<string> names, List<string> folders) GetTemplates() {
+            if (selectedCore == null) {
+                return (new List<string>() { SM.Get("NONE") }, new List<string>() { "NONE" });
+            }
             var path = new DirectoryInfo(Application.dataPath);
             var filesPath = Path.Combine(path.Parent.ToString(), "Files");
             var corePath = Path.Combine(filesPath, "cores", selectedCore);
             var dirs = Directory.GetDirectories(Path.Combine(corePath, "templates"));
-            var res1 = new List<string>();
-            var res2 = new List<string>();
+            var shownNames = new List<string>();
+            var directories = new List<string>();
             foreach (var dir in dirs) {
                 if (Path.GetFileName(dir) != "_common") {
                     var stringName = "TEMPLATE_NAME_" + Path.GetFileName(dir);
                     var translString = SM.Get(stringName, corePath);
                     if (translString == stringName) translString = Path.GetFileName(dir);
-                    res1.Add(translString);
-                    res2.Add(dir);
+                    shownNames.Add(translString);
+                    directories.Add(dir);
                 }
             }
 
@@ -71,12 +76,12 @@ namespace EditorPanels {
             dirs = Directory.GetDirectories(customTemplatePath);
             foreach (var dir in dirs) {
                 if (Path.GetFileName(dir) != "_common") {
-                    res1.Add(Path.GetFileName(dir));
-                    res2.Add(dir);
+                    shownNames.Add(Path.GetFileName(dir));
+                    directories.Add(dir);
                 }
             }
 
-            return (res1, res2);
+            return (shownNames, directories);
         }
 
         int FindResolution(int trueValue) {
@@ -99,7 +104,10 @@ namespace EditorPanels {
                 }
                 return;
             }
-            coreField.SetOptions(cores.names);
+            coreList.Insert(0, null);
+            var fullNames = new List<string>(cores.names);
+            fullNames.Insert(0, SM.Get("SELECT_CORE"));
+            coreField.SetOptions(fullNames);
             coreField.SetValue(0);
             SetCore(0);
             sizeField.SetValue(CityGroundHelper.terrainSize);
@@ -124,6 +132,7 @@ namespace EditorPanels {
         }
 
         void SetupCity(string folder) {
+            if (selectedCore == null) return;
             builder.helper.StartCoroutine(SetupCityCoroutine(folder));
         }
 

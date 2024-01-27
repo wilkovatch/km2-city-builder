@@ -241,6 +241,7 @@
 	"NC_CREATE": "Select directory and create",
 	"NC_TEMPLATES": "Templates",
 	"NC_CORES": "Cores",
+	"SELECT_CORE": "Select a core",
 	"END": "End",
 	"START": "Start",
 	"RD_TAB_MAIN": "Main",
