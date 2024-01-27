@@ -264,6 +264,9 @@ class PythonManager { //TODO: make it work for Mac and Linux too
 
     public static void StartServer() {
         if (halt || !PathHelper.CoreAvailable()) return;
+        var customMeshFormats = CoreManager.GetList("customMeshFormats", new List<string>());
+        var customTextureFormats = CoreManager.GetList("customTextureFormats", new List<string>());
+        if (customMeshFormats.Count == 0 && customTextureFormats.Count == 0) return;
         if (serverProcess != null && serverProcess.HasExited) {
             GetProcessData(serverProcess);
         } else if (serverProcess != null && !serverProcess.HasExited) {
