@@ -52,6 +52,7 @@ public class TerrainPatchGenerator : MonoBehaviour {
         }
         m.RecalculateNormals();
         m.RecalculateBounds();
+        m.name = gameObject.name;
 
         //refresh the collider
         mc.enabled = false;

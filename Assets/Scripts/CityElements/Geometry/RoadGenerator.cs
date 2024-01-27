@@ -522,6 +522,7 @@ public class RoadGenerator : MonoBehaviour {
         mr.materials = realMats;
         m.RecalculateNormals();
         m.RecalculateBounds();
+        m.name = gameObject.name;
         //refresh the collider
         mc.enabled = false;
         if (segments > 1 && valid) mc.enabled = true;

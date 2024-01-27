@@ -290,6 +290,7 @@ public class IntersectionGenerator : MonoBehaviour {
         m.SetUVs(0, uvs);
         m.RecalculateNormals();
         m.RecalculateBounds();
+        m.name = parentIntersection.geo.name;
 
         //refresh the collider
         mc.enabled = false;

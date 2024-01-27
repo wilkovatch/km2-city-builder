@@ -622,6 +622,7 @@ public class BuildingSideGenerator: IObjectWithState {
         colliderMesh.triangles = indices.ToArray();
         colliderMesh.RecalculateBounds();
         colliderMesh.RecalculateNormals();
+        colliderMesh.name = lineContainer.name;
         mc.enabled = true;
     }
 
