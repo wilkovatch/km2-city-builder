@@ -47,7 +47,10 @@ public static class PathHelper {
         if (!CoreAvailable()) return;
         var core = PreferencesManager.Get("core", "");
         var trueFolder = GetTrueFolder("./" + core);
-        if (!Directory.Exists(trueFolder)) DirectoryCopy(Path.Combine(FilesPath(false), "baseCommon"), trueFolder);
+        if (!Directory.Exists(trueFolder)) {
+            Directory.CreateDirectory(trueFolder);
+            DirectoryCopy(Path.Combine(FilesPath(false), "baseCommon"), trueFolder);
+        }
     }
 
     public static string FindInFolders(string name) {
