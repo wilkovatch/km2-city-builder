@@ -145,6 +145,7 @@ public class CoreManager {
     static void DoAuthGitOperation(CoreInfo core, System.Action action, System.Action<string, string> actionAuth, System.Action<CoreInfo, bool> post, CityBuilderMenuBar menuBar) {
         try {
             action.Invoke();
+            if (post != null) post.Invoke(core, true);
         } catch (LibGit2SharpException ex) {
             if (ex.Message.Contains("authentication")) {
                 menuBar.CreateInput(SM.Get("PREF_CORES_AUTH_REQUIRED"), SM.Get("PREF_CORES_USERNAME_PH"), SM.Get("CONTINUE"), SM.Get("CANCEL"), username => {
