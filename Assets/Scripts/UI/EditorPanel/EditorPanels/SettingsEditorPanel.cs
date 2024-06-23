@@ -91,7 +91,9 @@ namespace EditorPanels {
                                     builder.CreateAlert(
                                         SM.Get("ERROR"),
                                         SM.Get("PREF_UNINSTALL_CORE_ERROR_GENERIC"),
-                                        SM.Get("OK")
+                                        SM.Get("OK"),
+                                        null,
+                                        240f
                                     );
                                 });
                             }

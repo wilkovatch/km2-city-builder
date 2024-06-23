@@ -158,7 +158,7 @@
 	"PREF_CORE_INPUT_ADD": "Add",
 	"PREF_UNINSTALL_CORE_WARNING": "Are you really sure you want to uninstall the selected core?",
 	"PREF_UNINSTALL_CORE_ERROR": "The selected core is currently in use, close the current city before retrying.",
-	"PREF_UNINSTALL_CORE_ERROR_GENERIC": "An error occurred, see the log for details.",
+	"PREF_UNINSTALL_CORE_ERROR_GENERIC": "An error occurred, see the log for details.\nTo avoid issues, close the city builder and remove the core folder manually. (it's in the folder where the city builder is located, inside Files\\cores)",
 	"PREF_CORES_UPDATE_AVAILABLE_TITLE": "Update available",
 	"PREF_CORES_UPDATE_AVAILABLE_TEXT": "An update is available for the core $CORE, do you wish to install it?",
 	"PREF_CORES_UPDATE_DIRTY_TITLE": "Update available",
