@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 
 public class TerrainClick : MonoBehaviour {
     public CityGroundHelper helper;
-    RaycastHit hit;
+    RaycastHit hit, projectedHit;
     public TerrainAction modifier = null;
     public bool editEnabled = false;
     bool isModifying = false;
@@ -27,13 +27,32 @@ public class TerrainClick : MonoBehaviour {
         var masks = modifier.GetLayerMasks();
         var hits = new List<RaycastHit?>();
         foreach (var mask in masks) {
-            if (!onUI && editEnabled && Physics.Raycast(transform.position, ray.direction, out hit, float.MaxValue, mask, QueryTriggerInteraction.Ignore)) {
-                hits.Add(hit);
-                isModifying = true;
-            } else {
-                hits.Add(null);
+            var foundHit = false;
+            if (!onUI && editEnabled) {
+                var found = Physics.Raycast(transform.position, ray.direction, out hit, float.MaxValue, mask, QueryTriggerInteraction.Ignore);
+                if (found) {
+                    foundHit = true;
+                    if (Input.GetKey(KeyCode.LeftShift)) {
+                        SnapToGrid(hit, hits, mask);
+                    } else {
+                        hits.Add(hit);
+                    }
+                    isModifying = true;
+                }
             }
+            if (!foundHit) hits.Add(null);
         }
         modifier.Apply(hits);
+    }
+
+    void SnapToGrid(RaycastHit hit, List<RaycastHit?> hits, int mask) {
+        var pos = hit.point + Vector3.up * 1000000;
+        pos = new Vector3(Mathf.Round(pos.x), pos.y, Mathf.Round(pos.z));
+        var found = Physics.Raycast(pos, Vector3.down, out projectedHit, float.MaxValue, mask, QueryTriggerInteraction.Ignore);
+        if (found) {
+            hits.Add(projectedHit);
+        } else {
+            hits.Add(hit);
+        }
     }
 }
