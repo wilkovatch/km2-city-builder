@@ -4,7 +4,7 @@ using UnityEngine;
 using SubMeshData = GeometryHelpers.SubMesh.SubMeshData;
 using RC = RuntimeCalculator;
 
-public class BuildingSideGenerator: IObjectWithState {
+public class BuildingSideGenerator : IObjectWithState {
     public Mesh colliderMesh;
     SubMeshData m;
     public MeshCollider mc;
@@ -205,7 +205,7 @@ public class BuildingSideGenerator: IObjectWithState {
         paramMesh.vertices = gen.tempVertices.ToArray();
         paramMesh.uvs = gen.tempUVs.ToArray();
         paramMesh.indices = new int[gen.tempIndices.Count][];
-        for(int i = 0; i < gen.tempIndices.Count; i++) {
+        for (int i = 0; i < gen.tempIndices.Count; i++) {
             paramMesh.indices[i] = gen.tempIndices[i].ToArray();
         }
         paramMesh.materials = gen.GetMaterialSet();
@@ -323,14 +323,14 @@ public class BuildingSideGenerator: IObjectWithState {
         var lengthLeft = sideLength;
         var okBlocks = new List<int>();
         var slices = floor.Array<ObjectState>("Slices", false);
-		for (int i = 0; i < slices.Length && lengthLeft > 0; i++) {
-			var s = slices[i];
-			for (int j = 0; j < s.Int("Repetitions") && lengthLeft > 0; j++) {
-				okBlocks.Add(i);
-				lengthLeft -= s.Float("Width");
-			}
-			if (lengthLeft > 0 && i == slices.Length - 1) i = -1;
-		}
+        for (int i = 0; i < slices.Length && lengthLeft > 0; i++) {
+            var s = slices[i];
+            for (int j = 0; j < s.Int("Repetitions") && lengthLeft > 0; j++) {
+                okBlocks.Add(i);
+                lengthLeft -= s.Float("Width");
+            }
+            if (lengthLeft > 0 && i == slices.Length - 1) i = -1;
+        }
         if (okBlocks.Count > 1) okBlocks.RemoveAt(okBlocks.Count - 1);
 
         var trueCurLength = 0.0f;
