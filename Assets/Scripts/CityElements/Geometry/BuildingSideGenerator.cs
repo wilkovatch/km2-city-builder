@@ -325,6 +325,7 @@ public class BuildingSideGenerator : IObjectWithState {
         var slices = floor.Array<ObjectState>("Slices", false);
         for (int i = 0; i < slices.Length && lengthLeft > 0; i++) {
             var s = slices[i];
+            if (s.Float("Width") <= 0) continue;
             for (int j = 0; j < s.Int("Repetitions") && lengthLeft > 0; j++) {
                 okBlocks.Add(i);
                 lengthLeft -= s.Float("Width");
