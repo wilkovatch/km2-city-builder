@@ -109,7 +109,7 @@ namespace CityDecoder {
             //show progress bar
             progressBar.SetActive(true);
             yield return new WaitForEndOfFrame();
- 
+
             //load
             LoadPreferences();
             yield return new WaitForEndOfFrame();
@@ -237,19 +237,19 @@ namespace CityDecoder {
                 var newPatch = curTerrain.AddComponent<TerrainPatch>();
                 newPatch.Initialize(manager.GetTerrainPointContainer(), manager.GetTerrainContainer());
                 foreach (var point in patch.perimeterPointsIds) {
-                    var tp = GetTerrainPoint(loadedTerrainPoints[point], pointDict);
+                    var tp = GetTerrainPoint(loadedTerrainPoints[point], pointDict, loadedTerrainPoints);
                     var res = newPatch.AddPerimeterPoint(tp.gameObject, tp.GetPoint(), true);
                     if (res == null) tp.Delete(); //duplicate point for some reason, delete it (otherwise it remains dangling)
                 }
                 foreach (var point in patch.internalPointsIds) {
-                    var tp = GetTerrainPoint(loadedTerrainPoints[point], pointDict);
+                    var tp = GetTerrainPoint(loadedTerrainPoints[point], pointDict, loadedTerrainPoints);
                     newPatch.AddInternalPoint(tp.gameObject, tp.GetPoint(), true);
                 }
                 var ri = 0;
                 foreach (var borderMesh in patch.borderMeshes) {
                     newPatch.AddBorderMesh(borderMesh.state);
                     foreach (var p in borderMesh.segmentPointsIds) {
-                        newPatch.AddPointToBorderMesh(ri, GetTerrainPoint(loadedTerrainPoints[p], pointDict));
+                        newPatch.AddPointToBorderMesh(ri, GetTerrainPoint(loadedTerrainPoints[p], pointDict, loadedTerrainPoints));
                     }
                     ri++;
                 }
@@ -272,7 +272,7 @@ namespace CityDecoder {
                 newLine.Initialize(manager.GetTerrainPointContainer());
                 newLine.state = line.state;
                 foreach (var p in line.linePoints) {
-                    var tp = GetTerrainPoint(loadedTerrainPoints[p], pointDict);
+                    var tp = GetTerrainPoint(loadedTerrainPoints[p], pointDict, loadedTerrainPoints);
                     var res = newLine.AddPoint(tp.gameObject, tp.GetPoint(), true);
                     if (res == null) tp.Delete(); //duplicate point for some reason, delete it (otherwise it remains dangling)
                 }
@@ -305,40 +305,43 @@ namespace CityDecoder {
             SettingsManager.Set("LastCity", filename);
         }
 
-        TerrainPoint GetTerrainPoint(IO.SavedCity.TerrainPoint inPoint, Dictionary<int, TerrainPoint> dict) {
-            if (dict.ContainsKey(inPoint.id)) {
-                return dict[inPoint.id];
-            } else {
-                IAnchorable anchor = null;
-                if (inPoint.linkType != IO.SavedCity.LinkType.None) {
-                    if (inPoint.elementType != IO.SavedCity.LinkElementType.TerrainPoint) {
-                        List<TerrainAnchor> anchors = new List<TerrainAnchor>();
-                        if (inPoint.elementType == IO.SavedCity.LinkElementType.Road) {
-                            anchors = loadedRoads[inPoint.elementId].Item1.anchorManager.GetTerrainAnchors();
-                        } else if (inPoint.elementType == IO.SavedCity.LinkElementType.Intersection) {
-                            anchors = loadedIntersections[inPoint.elementId].Item1.anchorManager.GetTerrainAnchors();
-                        }
-                        if (inPoint.anchorIndex == -1) anchor = TerrainAnchorLineManager.FindMatching(inPoint.position.GetVector(), anchors);
-                        else anchor = anchors[inPoint.anchorIndex];
-                    } else {
-                        var linkedPoint1 = dict[inPoint.elementId];
-                        var linkedPoint2 = dict[inPoint.anchorIndex];
-                        foreach (var link in linkedPoint1.gameObject.transform.GetComponentsInChildren<PointLink>()) {
-                            if (link.next == linkedPoint2.gameObject) {
-                                anchor = new LineAnchor(linkedPoint1.gameObject, linkedPoint2.gameObject, inPoint.percent);
-                                break;
-                            }
-                        }
+        void CreateTerrainPoint(IO.SavedCity.TerrainPoint inPoint, Dictionary<int, TerrainPoint> dict, Dictionary<int, IO.SavedCity.TerrainPoint> loadedTerrainPoints) {
+            IAnchorable anchor = null;
+            if (inPoint.linkType != IO.SavedCity.LinkType.None) {
+                if (inPoint.elementType != IO.SavedCity.LinkElementType.TerrainPoint) {
+                    List<TerrainAnchor> anchors = new List<TerrainAnchor>();
+                    if (inPoint.elementType == IO.SavedCity.LinkElementType.Road) {
+                        anchors = loadedRoads[inPoint.elementId].Item1.anchorManager.GetTerrainAnchors();
+                    } else if (inPoint.elementType == IO.SavedCity.LinkElementType.Intersection) {
+                        anchors = loadedIntersections[inPoint.elementId].Item1.anchorManager.GetTerrainAnchors();
                     }
+                    if (inPoint.anchorIndex == -1) anchor = TerrainAnchorLineManager.FindMatching(inPoint.position.GetVector(), anchors);
+                    else anchor = anchors[inPoint.anchorIndex];
+                } else {
+                    if (!dict.ContainsKey(inPoint.elementId)) {
+                        CreateTerrainPoint(loadedTerrainPoints[inPoint.elementId], dict, loadedTerrainPoints);
+                    }
+                    if (!dict.ContainsKey(inPoint.anchorIndex)) {
+                        CreateTerrainPoint(loadedTerrainPoints[inPoint.anchorIndex], dict, loadedTerrainPoints);
+                    }
+                    var linkedPoint1 = dict[inPoint.elementId];
+                    var linkedPoint2 = dict[inPoint.anchorIndex];
+                    anchor = new LineAnchor(linkedPoint1.gameObject, linkedPoint2.gameObject, inPoint.percent);
                 }
-                if (inPoint.linkType == IO.SavedCity.LinkType.Line && anchor != null && anchor is TerrainAnchor ta) {
-                    anchor = new LineAnchor(ta.gameObject, ta.next.gameObject, inPoint.percent);
-                }
-                var newPoint = TerrainPoint.Create(inPoint.position.GetVector(), null, manager.GetTerrainPointContainer(), anchor);
-                newPoint.dividing = inPoint.dividing;
-                dict[inPoint.id] = newPoint;
-                return newPoint;
             }
+            if (inPoint.linkType == IO.SavedCity.LinkType.Line && anchor != null && anchor is TerrainAnchor ta) {
+                anchor = new LineAnchor(ta.gameObject, ta.next.gameObject, inPoint.percent);
+            }
+            var newPoint = TerrainPoint.Create(inPoint.position.GetVector(), null, manager.GetTerrainPointContainer(), anchor);
+            newPoint.dividing = inPoint.dividing;
+            dict[inPoint.id] = newPoint;
+        }
+
+        TerrainPoint GetTerrainPoint(IO.SavedCity.TerrainPoint inPoint, Dictionary<int, TerrainPoint> dict, Dictionary<int, IO.SavedCity.TerrainPoint> loadedTerrainPoints) {
+            if (!dict.ContainsKey(inPoint.id)) {
+                CreateTerrainPoint(inPoint, dict, loadedTerrainPoints);
+            }
+            return dict[inPoint.id];
         }
 
         byte[] Decompress(byte[] data) {

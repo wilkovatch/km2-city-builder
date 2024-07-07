@@ -222,71 +222,81 @@ namespace CityEncoder {
             return res;
         }
 
-        int GetTerrainPoint(TerrainPoint p, Dictionary<TerrainPoint, (int, IO.SavedCity.TerrainPoint)> dict, ElementManager manager) {
-            var exists = dict.ContainsKey(p);
-            if (!exists) {
-                var newElem = new IO.SavedCity.TerrainPoint();
-                newElem.anchorIndex = -1;
-                newElem.elementId = -1;
-                newElem.elementType = IO.SavedCity.LinkElementType.None;
-                newElem.linkType = IO.SavedCity.LinkType.None;
+        void AddTerrainPointToDict(TerrainPoint p, Dictionary<TerrainPoint, (int, IO.SavedCity.TerrainPoint)> dict, ElementManager manager) {
+            var newElem = new IO.SavedCity.TerrainPoint();
+            newElem.anchorIndex = -1;
+            newElem.elementId = -1;
+            newElem.elementType = IO.SavedCity.LinkElementType.None;
+            newElem.linkType = IO.SavedCity.LinkType.None;
 
-                newElem.id = dict.Keys.Count;
-                newElem.dividing = p.dividing;
-                newElem.position = new States.SerializableVector3(p.GetPoint());
-                if (p.anchor != null) {
-                    GameObject parent = null;
-                    TerrainAnchor realAnchor = null;
-                    TerrainPoint realPoint1 = null, realPoint2 = null;
-                    if (p.anchor is TerrainAnchor terrainAnchor && terrainAnchor != null) {
-                        newElem.linkType = IO.SavedCity.LinkType.Point;
-                        parent = terrainAnchor.transform.parent.gameObject;
-                        realAnchor = terrainAnchor;
-                    } else if (p.anchor is LineAnchor lineAnchor && lineAnchor != null) {
-                        newElem.linkType = IO.SavedCity.LinkType.Line;
-                        parent = lineAnchor.start.transform.parent.gameObject;
-                        realAnchor = lineAnchor.start.GetComponent<TerrainAnchor>();
-                        if (realAnchor == null) {
-                            realPoint1 = lineAnchor.start.GetComponent<TerrainPoint>();
-                            realPoint2 = lineAnchor.end.GetComponent<TerrainPoint>();
-                        }
-                        newElem.percent = lineAnchor.percent;
+            newElem.dividing = p.dividing;
+            newElem.position = new States.SerializableVector3(p.GetPoint());
+            if (p.anchor != null) {
+                GameObject parent = null;
+                TerrainAnchor realAnchor = null;
+                TerrainPoint realPoint1 = null, realPoint2 = null;
+                if (p.anchor is TerrainAnchor terrainAnchor && terrainAnchor != null) {
+                    newElem.linkType = IO.SavedCity.LinkType.Point;
+                    parent = terrainAnchor.transform.parent.gameObject;
+                    realAnchor = terrainAnchor;
+                } else if (p.anchor is LineAnchor lineAnchor && lineAnchor != null) {
+                    newElem.linkType = IO.SavedCity.LinkType.Line;
+                    parent = lineAnchor.start.transform.parent.gameObject;
+                    realAnchor = lineAnchor.start.GetComponent<TerrainAnchor>();
+                    if (realAnchor == null) {
+                        realPoint1 = lineAnchor.start.GetComponent<TerrainPoint>();
+                        realPoint2 = lineAnchor.end.GetComponent<TerrainPoint>();
                     }
-                    if (realAnchor != null && parent != null) {
-                        var road = parent.GetComponent<Road>();
-                        var intersection = parent.GetComponentInChildren<Intersection.IntersectionComponent>();
-                        if (road != null) {
-                            var idx = road.anchorManager.GetTerrainAnchors().IndexOf(realAnchor);
-                            var mIdx = manager.roads.IndexOf(road);
-                            if (idx >= 0 && mIdx >= 0) {
-                                newElem.anchorIndex = idx;
-                                newElem.elementId = mIdx;
-                                newElem.elementType = IO.SavedCity.LinkElementType.Road;
-                            } else {
-                                newElem.linkType = IO.SavedCity.LinkType.None;
-                            }
-                        } else if (intersection != null) {
-                            var idx = intersection.intersection.anchorManager.GetTerrainAnchors().IndexOf(realAnchor);
-                            var mIdx = manager.intersections.IndexOf(intersection.intersection);
-                            if (idx >= 0 && mIdx >= 0) {
-                                newElem.anchorIndex = idx;
-                                newElem.elementId = mIdx;
-                                newElem.elementType = IO.SavedCity.LinkElementType.Intersection;
-                            } else {
-                                newElem.linkType = IO.SavedCity.LinkType.None;
-                            }
+                    newElem.percent = lineAnchor.percent;
+                }
+                if (realAnchor != null && parent != null) {
+                    var road = parent.GetComponent<Road>();
+                    var intersection = parent.GetComponentInChildren<Intersection.IntersectionComponent>();
+                    if (road != null) {
+                        var idx = road.anchorManager.GetTerrainAnchors().IndexOf(realAnchor);
+                        var mIdx = manager.roads.IndexOf(road);
+                        if (idx >= 0 && mIdx >= 0) {
+                            newElem.anchorIndex = idx;
+                            newElem.elementId = mIdx;
+                            newElem.elementType = IO.SavedCity.LinkElementType.Road;
                         } else {
                             newElem.linkType = IO.SavedCity.LinkType.None;
                         }
-                    } else if (realPoint1 != null) {
-                        newElem.elementId = dict[realPoint1].Item1;
-                        newElem.anchorIndex = dict[realPoint2].Item1;
-                        newElem.elementType = IO.SavedCity.LinkElementType.TerrainPoint;
+                    } else if (intersection != null) {
+                        var idx = intersection.intersection.anchorManager.GetTerrainAnchors().IndexOf(realAnchor);
+                        var mIdx = manager.intersections.IndexOf(intersection.intersection);
+                        if (idx >= 0 && mIdx >= 0) {
+                            newElem.anchorIndex = idx;
+                            newElem.elementId = mIdx;
+                            newElem.elementType = IO.SavedCity.LinkElementType.Intersection;
+                        } else {
+                            newElem.linkType = IO.SavedCity.LinkType.None;
+                        }
                     } else {
                         newElem.linkType = IO.SavedCity.LinkType.None;
                     }
+                } else if (realPoint1 != null) { //only happens with line anchors
+                    if (!dict.ContainsKey(realPoint1)) {
+                        AddTerrainPointToDict(realPoint1, dict, manager);
+                    }
+                    if (!dict.ContainsKey(realPoint2)) {
+                        AddTerrainPointToDict(realPoint2, dict, manager);
+                    }
+                    newElem.elementId = dict[realPoint1].Item1;
+                    newElem.anchorIndex = dict[realPoint2].Item1;
+                    newElem.elementType = IO.SavedCity.LinkElementType.TerrainPoint;
+                } else {
+                    newElem.linkType = IO.SavedCity.LinkType.None;
                 }
-                dict[p] = (dict.Keys.Count, newElem);
+            }
+            newElem.id = dict.Keys.Count;
+            dict[p] = (dict.Keys.Count, newElem);
+        }
+
+        int GetTerrainPoint(TerrainPoint p, Dictionary<TerrainPoint, (int, IO.SavedCity.TerrainPoint)> dict, ElementManager manager) {
+            var exists = dict.ContainsKey(p);
+            if (!exists) {
+                AddTerrainPointToDict(p, dict, manager);
             }
             return dict[p].Item1;
         }
