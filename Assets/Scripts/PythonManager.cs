@@ -308,7 +308,7 @@ class PythonManager { //TODO: make it work for Mac and Linux too
 
     public static void StopServer() {
         if (serverProcess != null && !serverProcess.HasExited) {
-            client.Dispose();
+            if (client != null) client.Dispose();
             serverProcess.CloseMainWindow();
         }
     }
