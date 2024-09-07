@@ -42,6 +42,7 @@ namespace EditorPanelElements {
 
         public override void SetInteractable(bool interactable) {
             slider.interactable = interactable;
+            inputField.interactable = interactable;
         }
 
         public override bool GetInteractable() {
