@@ -32,6 +32,7 @@ namespace CityEncoder {
             savedCity.heightmapResolution = CityGroundHelper.heightmapResolution;
             savedCity.terrainSize = CityGroundHelper.terrainSize;
             savedCity.heightMap = GetEncodedHeights(manager);
+            savedCity.maxHeight = CityGroundHelper.maxHeight;
 
             var meshArray = new IO.SavedCity.MeshInstance[manager.meshes.Count];
             for (int i = 0; i < manager.meshes.Count; i++) {

@@ -126,13 +126,14 @@ namespace CityDecoder {
                 }
             }
             loadedCity = Newtonsoft.Json.JsonConvert.DeserializeObject<IO.SavedCity.SavedCity>(json);
+            if (loadedCity.maxHeight == 0.0f) loadedCity.maxHeight = 1000.0f; //default value
 
             CityGroundHelper.heightmapResolution = loadedCity.heightmapResolution;
             CityGroundHelper.terrainSize = loadedCity.terrainSize;
             if (loadedCity.heightMap != "") {
-                manager.builder.helper.StartCoroutine(manager.builder.helper.SetHeightsCoroutine(GetDecodedHeights(loadedCity.heightMap), Post));
+                manager.builder.helper.StartCoroutine(manager.builder.helper.SetHeightsCoroutine(GetDecodedHeights(loadedCity.heightMap), loadedCity.maxHeight, Post));
             } else {
-                manager.builder.helper.StartCoroutine(manager.builder.helper.SetDefaultHeights(Post));
+                manager.builder.helper.StartCoroutine(manager.builder.helper.SetDefaultHeights(loadedCity.maxHeight, Post));
             }
         }
 

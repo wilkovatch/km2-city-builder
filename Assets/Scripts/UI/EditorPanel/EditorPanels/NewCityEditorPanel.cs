@@ -7,10 +7,11 @@ using SM = StringManager;
 
 namespace EditorPanels {
     public class NewCityEditorPanel : EditorPanel {
-        EditorPanelElements.InputField sizeField;
+        EditorPanelElements.InputField sizeField, maxHeightField;
         EditorPanelElements.Dropdown resField, coreField, templateField;
         EditorPanelElements.Button createButton;
         int terrSize, heightmapRes;
+        float maxHeight;
         string selectedCore, selectedTemplate;
         List<string> resolutionList = new List<string> { "128", "256", "512", "1024", "2048", "4096" };
         List<string> coreList, templateList;
@@ -22,6 +23,8 @@ namespace EditorPanels {
             var width = 2.0f;
             sizeField = p0.AddInputField(SM.Get("NC_SIZE"), SM.Get("SIZE_PH"), "4096", UnityEngine.UI.InputField.ContentType.DecimalNumber, SetTerrainSize, width / 2);
             resField = p0.AddDropdown(SM.Get("NC_HM_RES"), resolutionList, SetHeightmapResolution, width / 2);
+            p0.IncreaseRow();
+            maxHeightField = p0.AddInputField(SM.Get("NC_MAX_HEIGHT"), SM.Get("VALUE_PH"), "1000", UnityEngine.UI.InputField.ContentType.DecimalNumber, SetTerrainMaxHeight, width);
             p0.IncreaseRow();
             coreField = p0.AddDropdown(SM.Get("NC_CORES"), new List<string>(), SetCore, width);
             p0.IncreaseRow();
@@ -112,14 +115,21 @@ namespace EditorPanels {
             SetCore(0);
             sizeField.SetValue(CityGroundHelper.terrainSize);
             resField.SetValue(FindResolution(CityGroundHelper.heightmapResolution));
+            maxHeightField.SetValue(CityGroundHelper.maxHeight);
             terrSize = CityGroundHelper.terrainSize;
             heightmapRes = CityGroundHelper.heightmapResolution;
+            maxHeight = CityGroundHelper.maxHeight;
             base.SetActive(active);
         }
 
         void SetTerrainSize(string value) {
             int val = int.Parse(value);
             terrSize = val;
+        }
+
+        void SetTerrainMaxHeight(string value) {
+            float val = float.Parse(value);
+            maxHeight = val;
         }
 
         void SetHeightmapResolution(int value) {
@@ -153,6 +163,7 @@ namespace EditorPanels {
             savedCity.heightmapResolution = heightmapRes;
             savedCity.terrainSize = terrSize;
             savedCity.heightMap = "";
+            savedCity.maxHeight = maxHeight;
 
             var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.Indented);
             var bytes = System.Text.Encoding.ASCII.GetBytes(json);

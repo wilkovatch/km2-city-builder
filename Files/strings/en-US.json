@@ -240,6 +240,7 @@
 	"IS_HAS_TRAFFIC_LIGHTS": "Enable traffic lights",
 	"CW_TEX": "Crosswalk texture",
 	"NC_SIZE": "Terrain size",
+	"NC_MAX_HEIGHT": "Maximum terrain height",
 	"NC_HM_RES": "Heightmap resolution",
 	"NC_CREATE": "Select directory and create",
 	"NC_TEMPLATES": "Templates",

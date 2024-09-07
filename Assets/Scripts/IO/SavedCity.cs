@@ -92,6 +92,7 @@ namespace IO.SavedCity {
     [System.Serializable]
     public struct SavedCity {
         public int heightmapResolution;
+        public float maxHeight;
         public int terrainSize;
         public string heightMap;
         public MeshInstance[] meshes;

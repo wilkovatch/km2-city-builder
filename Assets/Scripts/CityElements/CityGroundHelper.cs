@@ -30,7 +30,7 @@ public class CityGroundHelper : MonoBehaviour {
 
     public ProgressBar curProgressBar = null;
 
-    public const float maxHeight = 1000;
+    public static float maxHeight = 1000;
 
     public GameObject terrainObj;
 
@@ -82,7 +82,8 @@ public class CityGroundHelper : MonoBehaviour {
         mat2.SetVector("_Size", new Vector4(terrainSize, -terrainSize * 0.5f, terrainSize, -terrainSize * 0.5f));
     }
 
-    public IEnumerator SetHeightsCoroutine(float[,] heights, System.Func<IEnumerator> post) {
+    public IEnumerator SetHeightsCoroutine(float[,] heights, float scale, System.Func<IEnumerator> post) {
+        maxHeight = scale;
         curProgressBar.SetText(SM.Get("GENERATING_TERRAIN"));
         curProgressBar.SetActive(true);
         curProgressBar.SetProgress(0);
@@ -95,7 +96,8 @@ public class CityGroundHelper : MonoBehaviour {
         yield return null;
     }
 
-    public IEnumerator SetDefaultHeights(System.Func<IEnumerator> post) {
+    public IEnumerator SetDefaultHeights(float scale, System.Func<IEnumerator> post) {
+        maxHeight = scale;
         curProgressBar.SetText(SM.Get("GENERATING_TERRAIN"));
         curProgressBar.SetActive(true);
         curProgressBar.SetProgress(0);
