@@ -10,7 +10,7 @@ namespace TerrainModifier {
 
         public Level(CityGroundHelper helper, float range, float intensity, bool singleStep, bool terrainHeightActive, float terrainHeight) : base(helper, range, intensity, singleStep) {
             manualHeight = terrainHeightActive;
-            height = 0.5f + terrainHeight / CityGroundHelper.maxHeight; //the value to be inserted is the heightmap value (0-1, with default being 0.5), not an absolute value
+            height = 0.5f + terrainHeight / (CityGroundHelper.maxHeight * 2); //the value to be inserted is the heightmap value (0-1, with default being 0.5), not an absolute value
         }
 
         public override void ShowOnMap(List<RaycastHit?> hits) {

@@ -24,7 +24,7 @@ namespace TerrainModifier {
                 for (int y = 0; y < size; y++) {
                     var d = Vector3.Distance(new Vector3(x, 0, y), loopPos);
                     if (d < scaledRange) {
-                        heights[y, x] += delta / CityGroundHelper.maxHeight; //the value to be inserted is the heightmap value (0-1), not an absolute value
+                        heights[y, x] += delta / (CityGroundHelper.maxHeight * 2); //the value to be inserted is the heightmap value (0-1), not an absolute value
                     }
                 }
             }
