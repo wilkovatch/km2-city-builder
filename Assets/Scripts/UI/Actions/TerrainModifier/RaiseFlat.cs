@@ -4,7 +4,7 @@ using UnityEngine;
 namespace TerrainModifier {
     public class RaiseFlat : TerrainModifier {
 
-        public RaiseFlat(CityGroundHelper helper, float range, float intensity) : base(helper, range, intensity) {
+        public RaiseFlat(CityGroundHelper helper, float range, float intensity, bool singleStep) : base(helper, range, intensity, singleStep) {
 
         }
 
@@ -24,7 +24,7 @@ namespace TerrainModifier {
                 for (int y = 0; y < size; y++) {
                     var d = Vector3.Distance(new Vector3(x, 0, y), loopPos);
                     if (d < scaledRange) {
-                        heights[y, x] += delta / CityGroundHelper.maxHeight;
+                        heights[y, x] += delta / CityGroundHelper.maxHeight; //the value to be inserted is the heightmap value (0-1), not an absolute value
                     }
                 }
             }

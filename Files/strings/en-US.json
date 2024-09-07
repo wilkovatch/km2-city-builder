@@ -215,6 +215,9 @@
 	"TE_MODIFIER": "Terrain modifier",
 	"TE_INTENSITY": "Intensity",
 	"TE_RANGE": "Range",
+	"TE_HEIGHT": "Height",
+	"TE_LEVEL_TO_HEIGHT": "Level to height",
+	"TE_CONTINUOUS": "Continuous",
 	"INTERSECTION_PRESET": "Intersection preset",
 	"EDIT_INTERSECTION_PRESETS": "Edit intersection presets",
 	"PRESET": "Preset",
@@ -480,5 +483,6 @@
 	"OVERLAY_TOOLTIP": "Example of usage: select a map to make it appear on the ground (the toggle is in the View menu), and then use it as a guide to place roads",
 	"TRANSF_P_SNAPTOGRID_TOOLTIP": "If checked, when moving the point while holding the Shift key, the position will be snapped to the grid, if deselected, the Shift key will instead restrict the movement to increments of 1 (basically the same thing, but not aligned to the grid)",
 	"PROP_ELEM_RND_TOOLTIP": "If unchecked, meshes are chosen sequentially, if checked, randomly.",
-	"RD_SW_RD_UV_TOOLTIP": "Uses road-style UV coordinates for the sidewalks. Use sparingly, as it may look bad when the sidewalk does not have 4 distinct sides (e.g. when going from a road with sidewalks to another without them)"
+	"RD_SW_RD_UV_TOOLTIP": "Uses road-style UV coordinates for the sidewalks. Use sparingly, as it may look bad when the sidewalk does not have 4 distinct sides (e.g. when going from a road with sidewalks to another without them)",
+	"TE_CONTINUOUS_TOOLTIP": "If checked, the modifier is applied while holding the left mouse button (by intensity/second), if unchecked it's applied once per click. (by intensity)",
 }

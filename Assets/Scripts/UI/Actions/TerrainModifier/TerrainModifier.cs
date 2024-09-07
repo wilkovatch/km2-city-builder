@@ -7,19 +7,25 @@ namespace TerrainModifier {
         protected CityGroundHelper helper;
         public float range = 3.0f;
         public float intensity = 1.0f;
+        public bool singleStep = false;
 
         protected int xBase, yBase, size, scaledRange;
         protected Vector3 loopPos;
 
-        public TerrainModifier(CityGroundHelper helper, float range, float intensity) {
+        public TerrainModifier(CityGroundHelper helper, float range, float intensity, bool singleStep) {
             this.helper = helper;
             this.range = range;
             this.intensity = intensity;
+            this.singleStep = singleStep;
         }
 
         public override void Apply(List<RaycastHit?> hits) {
             ShowOnMap(hits);
-            if (!Input.GetMouseButton(0)) return;
+            if (singleStep) {
+                if (!Input.GetMouseButtonDown(0)) return;
+            } else {
+                if (!Input.GetMouseButton(0)) return;
+            }
             if (!hits[0].HasValue) return;
             var hit = hits[0].Value;
             Reset();
@@ -36,7 +42,7 @@ namespace TerrainModifier {
             loopPos = new Vector3(1, 0, 1) * scaledRange + new Vector3(xBaseDiff, 0, yBaseDiff);
 
             Scan(tData, hit.point);
-            Deform(tData, hit.point, intensity * Time.deltaTime);
+            Deform(tData, hit.point, singleStep ? intensity : (intensity * Time.deltaTime));
         }
 
         public virtual void Reset() {

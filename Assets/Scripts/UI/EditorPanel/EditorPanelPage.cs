@@ -180,6 +180,12 @@ public class EditorPanelPage {
         return element;
     }
 
+    public EditorPanelElements.SliderWithInputField AddSliderWithInputField(string title, float min, float max, System.Action<float> action, float widthFactor = 1.0f, string tooltip = null, string tag = null) {
+        var element = new EditorPanelElements.SliderWithInputField(title, min, max, value => { BaseExtraAction(value, action); }, panel, GetPosition(curRow), null, widthFactor, tooltip, tag);
+        AddElement(element, curRow);
+        return element;
+    }
+
     public EditorPanelElements.InputField AddInputField(string title, string placeholder, string defaultValue,
         InputField.ContentType contentType, System.Action<string> action, float widthFactor = 1.0f, string tooltip = null, string tag = null) {
 

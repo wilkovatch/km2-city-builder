@@ -8,7 +8,7 @@ namespace TerrainModifier {
         System.Action<RaycastHit> action;
         public bool groundOnly;
 
-        public Null(CityGroundHelper helper, System.Action<RaycastHit> action) : base(helper, 0, 0) {
+        public Null(CityGroundHelper helper, System.Action<RaycastHit> action) : base(helper, 0, 0, false) {
             this.action = action;
         }
 
