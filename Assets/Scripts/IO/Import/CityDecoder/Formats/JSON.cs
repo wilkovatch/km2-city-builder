@@ -202,6 +202,8 @@ namespace CityDecoder {
                 manager.intersections.Add(intersectionElem);
                 intersectionElem.geo.transform.parent = manager.GetRoadContainer().transform;
                 intersectionElem.state = intersection.state;
+                intersectionElem.instanceState = intersection.instanceState;
+                if (intersectionElem.instanceState == null) intersectionElem.instanceState = new ObjectState(); //for backwards compatibility
                 if (intersection.name != null && intersection.name != "") intersectionElem.geo.name = intersection.name;
                 else intersectionElem.geo.name = "Intersection " + n;
                 foreach (var r in intersection.roads) {

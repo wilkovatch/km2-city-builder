@@ -25,9 +25,10 @@ namespace RoadParts {
                 for (int swi = 0; swi < g.sidewalkVertices.Count; swi++) {
                     var junction = g.GetJunctionType(curType, swi);
                     var tempState = g.GetJunctionState(curType, swi);
+                    var tempIState = g.GetJunctionInstanceState();
                     subGen.Reset(junction, tempState, null, 1, junction.typeData.textures.Length);
                     var ends = g.sidewalkEnds[swi];
-                    junction.FillInitialVariables(subGen.variableContainer, tempState, null, 0, 1, ends.Item1.generator.subGen, ends.Item2.generator.subGen);
+                    junction.FillInitialVariables(subGen.variableContainer, tempState, tempIState, 0, 1, ends.Item1.generator.subGen, ends.Item2.generator.subGen);
                     var jvc = subGen.variableContainer;
                     if (jvc.floats[jvc.floatIndex[piece.junctionCondition]] > 0) {
                         matchingIndices.Add(swi);
@@ -76,7 +77,8 @@ namespace RoadParts {
                     var pieceSubroad = g.srManager.CreateSubRoad(pieceTex, false, false, pieceUVmult, null, piece.facingUp ? 2 : 1);
                     for (int swi = 0; swi < g.sidewalkVertices.Count; swi++) {
                         var tempState = (srcJState != null && piece.splineOverride) ? srcJState : g.GetJunctionState(curType, swi);
-                        var junctionInfo = GetPreparedJunction(swi, g, curType, subGen, tempState);
+                        var tempIState = g.GetJunctionInstanceState();
+                        var junctionInfo = GetPreparedJunction(swi, g, curType, subGen, tempState, tempIState);
                         var spline = new List<Vector3>();
                         for (int i = 0; i < junctionInfo.segments; i++) {
                             subGen.InitSection(i);
@@ -155,7 +157,8 @@ namespace RoadParts {
             int i0;
             for (int swi = 0; swi < g.sidewalkVertices.Count; swi++) {
                 var tempState = g.GetJunctionState(curType, swi);
-                var junctionInfo = GetPreparedJunction(swi, g, curType, subGen, tempState);
+                var tempIState = g.GetJunctionInstanceState();
+                var junctionInfo = GetPreparedJunction(swi, g, curType, subGen, tempState, tempIState);
                 var junction = junctionInfo.junction;
                 i0 = vertices.Count;
                 var anchors = junction.anchorsCalculators.GetValues(subGen.variableContainer);
@@ -222,7 +225,7 @@ namespace RoadParts {
         }
 
         static (CityElements.Types.Runtime.JunctionType junction, int segments, (Road, Road) ends) GetPreparedJunction(int swi, IntersectionGenerator.GeneratorState g,
-            CityElements.Types.Runtime.IntersectionType curType, RoadLikeGenerator<CityElements.Types.JunctionType> subGen, ObjectState tempState) {
+            CityElements.Types.Runtime.IntersectionType curType, RoadLikeGenerator<CityElements.Types.JunctionType> subGen, ObjectState tempState, ObjectState tempIState) {
 
             var junction = g.GetJunctionType(curType, swi);
             var vn = junction.typeData.sectionVertices.Length;
@@ -251,7 +254,7 @@ namespace RoadParts {
                 subGen.curveRightVectors.Add(Vector3.zero);
             }
             var ends = g.sidewalkEnds[swi];
-            junction.FillInitialVariables(subGen.variableContainer, tempState, null, totLength, segments, ends.Item1.generator.subGen, ends.Item2.generator.subGen);
+            junction.FillInitialVariables(subGen.variableContainer, tempState, tempIState, totLength, segments, ends.Item1.generator.subGen, ends.Item2.generator.subGen);
             subGen.InitBaseSectionsInfo();
             return (junction, segments, ends);
         }

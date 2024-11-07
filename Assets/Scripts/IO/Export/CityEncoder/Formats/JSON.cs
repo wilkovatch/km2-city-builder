@@ -85,6 +85,7 @@ namespace CityEncoder {
                 elem.id = i;
                 elem.name = intersection.geo.name;
                 elem.state = intersection.state;
+                elem.instanceState = intersection.instanceState;
                 elem.center = new States.SerializableVector3(intersection.point.transform.position);
                 var iRoadsArray = new int[intersection.roads.Count];
                 for (int j = 0; j < intersection.roads.Count; j++) {

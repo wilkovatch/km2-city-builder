@@ -12,7 +12,7 @@ public class Intersection: IObjectWithState {
     public int minI = -1;
 
     public IntersectionGenerator generator;
-    public ObjectState state;
+    public ObjectState state, instanceState;
     public bool forceRemesh = false;
     bool deleted = false;
 
@@ -29,6 +29,7 @@ public class Intersection: IObjectWithState {
     public Intersection(GameObject point, GameObject container) {
         if (PresetManager.lastIntersection == null) PresetManager.lastIntersection = PresetManager.GetPreset("intersection", 0);
         state = (ObjectState)PresetManager.lastIntersection.Clone();
+        instanceState = new ObjectState();
         this.point = point;
         oldPointPos = point.transform.position;
         geo = new GameObject();

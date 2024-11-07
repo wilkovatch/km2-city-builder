@@ -31,6 +31,7 @@ namespace IO.SavedCity {
         public int[] roads; //references to roads
         public SVector3 center;
         public ObjectState state;
+        public ObjectState instanceState;
     }
 
     [System.Serializable]

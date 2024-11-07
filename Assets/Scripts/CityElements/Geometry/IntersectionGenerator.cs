@@ -44,7 +44,7 @@ public class IntersectionGenerator : MonoBehaviour {
         public List<bool> selfIntersectingSplines = new List<bool>();
         public List<bool> convexes = new List<bool>();
         public List<bool> notDefaultTexes = new List<bool>();
-        public ObjectState state;
+        public ObjectState state, instanceState;
         IntersectionGenerator parent;
 
         public GeneratorState(IntersectionGenerator generator) {
@@ -67,9 +67,14 @@ public class IntersectionGenerator : MonoBehaviour {
             return curType.junctionTypes[(sidewalkEnds[i].Item1.GetRoadType().name, sidewalkEnds[i].Item2.GetRoadType().name)];
         }
 
+        public ObjectState GetJunctionInstanceState() {
+            return (ObjectState)instanceState.Clone();
+        }
+
         public ObjectState GetJunctionState(CityElements.Types.Runtime.IntersectionType curType, int i) {
             var junction = GetJunctionType(curType, i);
             var tempState = (ObjectState)state.Clone();
+            var tempIState = (ObjectState)instanceState.Clone();
             var ends = sidewalkEnds[i];
             tempState.SetBool("thisIsEndA", ends.Item1.endIntersection == parent.parentIntersection);
             tempState.SetBool("thisIsEndB", ends.Item2.endIntersection == parent.parentIntersection);
@@ -102,7 +107,7 @@ public class IntersectionGenerator : MonoBehaviour {
                         break;
                 }
             }
-            junction.FillInitialVariables(junction.variableContainer, tempState, null, 0, tempState.Int("sidewalkSegments"), ends.Item1.generator.subGen, ends.Item2.generator.subGen);
+            junction.FillInitialVariables(junction.variableContainer, tempState, tempIState, 0, tempState.Int("sidewalkSegments"), ends.Item1.generator.subGen, ends.Item2.generator.subGen);
             foreach (var d in junction.textureDefinitions) {
                 var index = (int)d.Value.index.GetValue(junction.variableContainer);
                 var trueName = d.Value.options[index];
@@ -174,6 +179,7 @@ public class IntersectionGenerator : MonoBehaviour {
         sortOrder = GeometryHelper.SortClockwise(roadCenters, pointCenter);
         var roads = parentIntersection.roads;
         genState.state = parentIntersection.state;
+        genState.instanceState = parentIntersection.instanceState;
         for (int i = 0; i < roads.Count; i++) {
             ProcessRoad(i, roads, sortOrder, isThroughRoad, throughDirections, roadsThrough, startRoads, endRoad);
         }
@@ -272,7 +278,7 @@ public class IntersectionGenerator : MonoBehaviour {
 
         var outTris = new List<List<int>>();
 
-        curType.FillInitialVariables(curType.variableContainer, parentIntersection.state, null);
+        curType.FillInitialVariables(curType.variableContainer, parentIntersection.state, parentIntersection.instanceState);
 
         RoadParts.IntersectionGroup.Generate(genState, vertices, uvs, outTris, partsInfo, discordRoads, curType, sidePoints, sidePointStartRoads, sidePointEndRoads);
 
