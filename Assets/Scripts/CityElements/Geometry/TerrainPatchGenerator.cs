@@ -35,28 +35,33 @@ public class TerrainPatchGenerator : MonoBehaviour {
 
         Clear();
 
-        var terrain = GeometryHelpers.TerrainGeneration.GetMesh(perimeterPoints, internalPoints, borderMeshes, tex, smooth, uMult, vMult);
-        if (terrain.res == 0) return;
-        lr.positionCount = terrain.linePoints.Count;
-        lr.SetPositions(terrain.linePoints.ToArray());
+        try {
+            var terrain = GeometryHelpers.TerrainGeneration.GetMesh(perimeterPoints, internalPoints, borderMeshes, tex, smooth, uMult, vMult);
+            if (terrain.res == 0) return;
+            lr.positionCount = terrain.linePoints.Count;
+            lr.SetPositions(terrain.linePoints.ToArray());
 
-        mr.materials = terrain.materials.ToArray();
-        m.Clear();
-        m.indexFormat = terrain.vertices.Count > 65535 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
-        m.subMeshCount = terrain.numMeshes;
-        m.vertices = terrain.vertices.ToArray();
-        m.SetUVs(0, terrain.uvs.ToArray());
-        var indices = terrain.GetIndices();
-        for (int i = 0; i < indices.Count; i++) {
-            m.SetIndices(indices[i], MeshTopology.Triangles, i);
+            mr.materials = terrain.materials.ToArray();
+            m.Clear();
+            m.indexFormat = terrain.vertices.Count > 65535 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+            m.subMeshCount = terrain.numMeshes;
+            m.vertices = terrain.vertices.ToArray();
+            m.SetUVs(0, terrain.uvs.ToArray());
+            var indices = terrain.GetIndices();
+            for (int i = 0; i < indices.Count; i++) {
+                m.SetIndices(indices[i], MeshTopology.Triangles, i);
+            }
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            m.name = gameObject.name;
+
+            //refresh the collider
+            mc.enabled = false;
+            mc.enabled = true;
+        } catch (System.Exception e) {
+            Debug.LogWarning("Error during mesh generation on patch " + gameObject.name + ": " + e.StackTrace.ToString());
+            mc.enabled = false;
         }
-        m.RecalculateNormals();
-        m.RecalculateBounds();
-        m.name = gameObject.name;
-
-        //refresh the collider
-        mc.enabled = false;
-        mc.enabled = true;
     }
 
     public void Clear() {

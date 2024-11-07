@@ -272,35 +272,39 @@ public class IntersectionGenerator : MonoBehaviour {
     }
 
     void GenerateMesh() {
-        var discordRoads = AreThereDiscordRoads();
-        var vertices = new List<Vector3>();
-        var uvs = new List<Vector2>();
+        try {
+            var discordRoads = AreThereDiscordRoads();
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
 
-        var outTris = new List<List<int>>();
+            var outTris = new List<List<int>>();
 
-        curType.FillInitialVariables(curType.variableContainer, parentIntersection.state, parentIntersection.instanceState);
+            curType.FillInitialVariables(curType.variableContainer, parentIntersection.state, parentIntersection.instanceState);
 
-        RoadParts.IntersectionGroup.Generate(genState, vertices, uvs, outTris, partsInfo, discordRoads, curType, sidePoints, sidePointStartRoads, sidePointEndRoads);
+            RoadParts.IntersectionGroup.Generate(genState, vertices, uvs, outTris, partsInfo, discordRoads, curType, sidePoints, sidePointStartRoads, sidePointEndRoads);
+            //TODO: minimize submeshes if needed
 
-        //TODO: minimize submeshes if needed
+            //assign all
+            mr.materials = GetMaterialSet(genState.srManager.subRoadTextures, genState.sidewalkEnds);
+            m.Clear();
+            m.indexFormat = vertices.Count > 65535 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+            m.subMeshCount = outTris.Count;
+            m.vertices = vertices.ToArray();
+            for (int i = 0; i < outTris.Count; i++) {
+                m.SetIndices(outTris[i], MeshTopology.Triangles, i);
+            }
+            m.SetUVs(0, uvs);
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            m.name = parentIntersection.geo.name;
 
-        //assign all
-        mr.materials = GetMaterialSet(genState.srManager.subRoadTextures, genState.sidewalkEnds);
-        m.Clear();
-        m.indexFormat = vertices.Count > 65535 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
-        m.subMeshCount = outTris.Count;
-        m.vertices = vertices.ToArray();
-        for (int i = 0; i < outTris.Count; i++) {
-            m.SetIndices(outTris[i], MeshTopology.Triangles, i);
+            //refresh the collider
+            mc.enabled = false;
+            mc.enabled = true;
+        } catch (System.Exception e) {
+            Debug.LogWarning("Error during mesh generation on intersection " + gameObject.name + ": " + e.StackTrace.ToString());
+            mc.enabled = false;
         }
-        m.SetUVs(0, uvs);
-        m.RecalculateNormals();
-        m.RecalculateBounds();
-        m.name = parentIntersection.geo.name;
-
-        //refresh the collider
-        mc.enabled = false;
-        mc.enabled = true;
     }
 
     void ProcessRoad(int i, List<Road> roads, List<int> sortOrder, bool isThroughRoad, List<List<Vector3>> throughDirections,

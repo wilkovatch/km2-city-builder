@@ -286,7 +286,13 @@ public class BuildingLine : MonoBehaviour, IGroundable, IObjectWithState {
             }
 
             var vc = variableContainer;
-            if (roof != null && fullSpline.Count > 2) roof.UpdateMesh(roofSpline, state.Str("roofTex"), vc.floats[vc.floatIndex["uMult"]], vc.floats[vc.floatIndex["vMult"]]);
+            if (roof != null && fullSpline.Count > 2) {
+                try {
+                    roof.UpdateMesh(roofSpline, state.Str("roofTex"), vc.floats[vc.floatIndex["uMult"]], vc.floats[vc.floatIndex["vMult"]]);
+                } catch (System.Exception e) {
+                    Debug.LogWarning("Error during mesh generation on building line" + gameObject.name + ": " + e.StackTrace.ToString());
+                }
+            }
         }
         for (int i = 0; i < buildings.Count; i++) {
             var elem = buildings[i];

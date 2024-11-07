@@ -290,19 +290,25 @@ public class Building: IObjectWithState {
         var fS = state.State("frontState", false);
         var olfFChanged = fS.HasChanged();
         var allEqual = state.Bool("allSidesEqual");
-        
+
         if (front != null) res += front.UpdateMesh(vecSpline, height, trueHeight, maxHeight, fS);
         if (allEqual && olfFChanged) fS.FlagAsChanged();
-        
+
         if (left != null) res += left.UpdateMesh(leftSpline, height, trueHeight, maxHeight, allEqual ? fS : state.State("leftState"));
         if (allEqual && olfFChanged) fS.FlagAsChanged();
-        
+
         if (right != null) res += right.UpdateMesh(rightSpline, height, trueHeight, maxHeight, allEqual ? fS : state.State("rightState"));
         if (allEqual && olfFChanged) fS.FlagAsChanged();
-        
+
         if (back != null) res += back.UpdateMesh(backSpline, height, trueHeight, maxHeight, allEqual ? fS : state.State("backState"));
 
-        if (roof != null) res += roof.UpdateMesh(topSpline, state.Str("topTexture"), vc.floats[vc.floatIndex["uMult"]], vc.floats[vc.floatIndex["vMult"]]);
+        if (roof != null) {
+            try {
+                res += roof.UpdateMesh(topSpline, state.Str("topTexture"), vc.floats[vc.floatIndex["uMult"]], vc.floats[vc.floatIndex["vMult"]]);
+            } catch (System.Exception e) {
+                Debug.LogWarning("Error during mesh generation on building " + container.name + ": " + e.StackTrace.ToString());
+            }
+        }
 
         old_enabled = enabled;
         changed = false;
