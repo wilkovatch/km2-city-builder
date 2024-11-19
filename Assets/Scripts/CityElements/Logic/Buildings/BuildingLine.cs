@@ -9,7 +9,7 @@ public class BuildingLine : MonoBehaviour, IGroundable, IObjectWithState {
     List<TerrainPoint> linePoints = new List<TerrainPoint>();
     public List<Building> buildings = new List<Building>();
     public List<BuildingSideGenerator> buildingSides = new List<BuildingSideGenerator>();
-    public ObjectState state;
+    public ObjectState state, instanceState;
     bool deleted = false;
     public TerrainSubmeshGenerator roof;
     public ObjectState stateForNewBuildings;
@@ -39,6 +39,7 @@ public class BuildingLine : MonoBehaviour, IGroundable, IObjectWithState {
         mf.sharedMesh = m;
         state = PresetManager.GetPreset("buildingLine", 0);
         stateForNewBuildings = PresetManager.GetPreset("building", 0);
+        instanceState = new ObjectState();
         this.container = container;
         InitializeLineRenderer();
     }
@@ -53,7 +54,7 @@ public class BuildingLine : MonoBehaviour, IGroundable, IObjectWithState {
             variableContainer = GetLineType().variableContainer.GetClone();
             curType = type;
         }
-        curType.FillInitialVariables(variableContainer, state);
+        curType.FillInitialVariables(variableContainer, state, instanceState);
     }
 
     public CityElements.Types.Runtime.Buildings.BuildingType.Line GetLineType() {

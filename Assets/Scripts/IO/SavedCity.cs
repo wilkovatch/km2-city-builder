@@ -77,6 +77,7 @@ namespace IO.SavedCity {
         public int id;
         public string name;
         public ObjectState state;
+        public ObjectState instanceState;
         public int[] linePoints; //references to terrain points
         public ObjectState[] buildings;
         public ObjectState[] sides;

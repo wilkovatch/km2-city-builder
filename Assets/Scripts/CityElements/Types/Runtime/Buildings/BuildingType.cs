@@ -56,8 +56,8 @@ namespace CityElements.Types.Runtime.Buildings {
                 SetBaseIndices();
             }
 
-            public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state) {
-                FillBaseInitialVariables(variableContainer, state, null);
+            public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState) {
+                FillBaseInitialVariables(variableContainer, state, instanceState);
             }
         }
 

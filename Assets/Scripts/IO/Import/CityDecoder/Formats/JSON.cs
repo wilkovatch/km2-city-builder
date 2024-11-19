@@ -274,6 +274,8 @@ namespace CityDecoder {
                 var newLine = curBuilding.AddComponent<BuildingLine>();
                 newLine.Initialize(manager.GetTerrainPointContainer());
                 newLine.state = line.state;
+                newLine.instanceState = line.instanceState;
+                if (newLine.instanceState == null) newLine.instanceState = new ObjectState(); //for backwards compatibility
                 foreach (var p in line.linePoints) {
                     var tp = GetTerrainPoint(loadedTerrainPoints[p], pointDict, loadedTerrainPoints);
                     var res = newLine.AddPoint(tp.gameObject, tp.GetPoint(), true);

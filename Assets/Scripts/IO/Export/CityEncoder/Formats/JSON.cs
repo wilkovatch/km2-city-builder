@@ -154,6 +154,7 @@ namespace CityEncoder {
                 elem.id = i;
                 elem.name = line.gameObject.name;
                 elem.state = line.state;
+                elem.instanceState = line.instanceState;
 
                 var linePoints = line.GetPointsComponents();
                 var elemPoints = new int[linePoints.Count];
