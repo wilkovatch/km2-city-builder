@@ -48,13 +48,15 @@ class MigrationHelper:
         core_path = os.path.normpath(os.path.dirname(os.path.realpath(__file__)) + '/../cores/' + core) + '/'
         settings = self.read(core_path + 'settings.json', False)
         v_core = self.get_value(settings, 'coreVersion', 0)
+        v_crft = self.get_value(settings, 'coreFeatureVersion', 0)
         v_prog = self.get_value(settings, 'programVersion', 0)
         v_feat = self.get_value(settings, 'featureVersion', 0)
         city_v_core = self.get_pref('coreVersion', 0)
+        city_v_crft = self.get_pref('coreFeatureVersion', 0)
         if v_prog > cur_v_prog or v_feat > cur_v_feat: raise Exception("MIGRATION_ERROR_CORE_IS_FOR_NEWER_PROGRAM")
         elif v_prog < cur_v_prog: raise Exception("MIGRATION_ERROR_CORE_IS_FOR_OLDER_PROGRAM")
-        elif v_core == city_v_core: return []
-        elif v_core < city_v_core: raise Exception("MIGRATION_ERROR_CITY_IS_FOR_NEWER_CORE")
+        elif v_core == city_v_core and v_crft >= city_v_crft: return []
+        elif v_core < city_v_core or v_crft < city_v_crft: raise Exception("MIGRATION_ERROR_CITY_IS_FOR_NEWER_CORE")
         migrations_path = core_path + '/migrations/*.py'
         files = glob.glob(migrations_path)
         res = []
