@@ -68,7 +68,7 @@ namespace GeometryHelpers {
         }
 
         public static TerrainGenerationResult GetMesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints,
-            List<(List<Vector3> segment, List<Vector3> lefts, ObjectState state)> borderMeshes, string tex, int smooth, float uMult, float vMult) {
+            List<(List<Vector3> segment, List<Vector3> lefts, ObjectState state, ObjectState instanceState)> borderMeshes, string tex, int smooth, float uMult, float vMult) {
 
             perimeterPoints = CleanPerimeterPoints(perimeterPoints);
             var res = new TerrainGenerationResult();
@@ -162,7 +162,7 @@ namespace GeometryHelpers {
                         texIndexMap.Add(i, index);
                     }
                     var len = GH.GetPathLength(borderMesh.segment.ToArray());
-                    curType.FillInitialVariables(subGen.variableContainer, borderMesh.state, null, len, borderMesh.segment.Count);
+                    curType.FillInitialVariables(subGen.variableContainer, borderMesh.state, borderMesh.instanceState, len, borderMesh.segment.Count);
                     var z = 0.0f;
                     for (int i = 0; i < borderMesh.segment.Count; i++) {
                         if (i > 0) z += Vector3.Distance(borderMesh.segment[i - 1], borderMesh.segment[i]);
@@ -200,7 +200,7 @@ namespace GeometryHelpers {
         }
 
         public static SubMeshData GetSubmesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints, List<(List<Vector3> segment,
-            List<Vector3> lefts, ObjectState state)> borderMeshes, string tex, bool invisible, int smooth, float uMult, float vMult) {
+            List<Vector3> lefts, ObjectState state, ObjectState instanceState)> borderMeshes, string tex, bool invisible, int smooth, float uMult, float vMult) {
 
             var terrain = GetMesh(perimeterPoints, internalPoints, borderMeshes, tex, smooth, uMult, vMult);
             var m = new SubMeshData();

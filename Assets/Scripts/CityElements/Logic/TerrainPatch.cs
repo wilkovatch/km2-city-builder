@@ -46,9 +46,11 @@ public class TerrainPatch : MonoBehaviour, IGroundable, IObjectWithState {
         return state;
     }
 
-    public void AddBorderMesh(ObjectState state) {
+    public void AddBorderMesh(ObjectState state, ObjectState instanceState) {
         var borderMesh = new TerrainBorderMesh();
         borderMesh.state = state;
+        borderMesh.instanceState = instanceState;
+        if (borderMesh.instanceState == null) borderMesh.instanceState = new ObjectState(); //for backwards compatibility
         borderMeshes.Add(borderMesh);
     }
 
@@ -252,8 +254,8 @@ public class TerrainPatch : MonoBehaviour, IGroundable, IObjectWithState {
         }
     }
 
-    List<(List<Vector3>, List<Vector3>, ObjectState)> GetBorderMeshes() {
-        var res = new List<(List<Vector3>, List<Vector3>, ObjectState)>();
+    List<(List<Vector3>, List<Vector3>, ObjectState, ObjectState)> GetBorderMeshes() {
+        var res = new List<(List<Vector3>, List<Vector3>, ObjectState, ObjectState)>();
         for (int i = 0; i < borderMeshes.Count; i++) {
             var lefts = new List<Vector3>();
             var points = new List<Vector3>();
@@ -271,7 +273,7 @@ public class TerrainPatch : MonoBehaviour, IGroundable, IObjectWithState {
                 var left = Vector3.Cross(dir, Vector3.up).normalized;
                 lefts.Add(left);
             }
-            res.Add((points, lefts, borderMeshes[i].state));
+            res.Add((points, lefts, borderMeshes[i].state, borderMeshes[i].instanceState));
         }
         return res;
     }

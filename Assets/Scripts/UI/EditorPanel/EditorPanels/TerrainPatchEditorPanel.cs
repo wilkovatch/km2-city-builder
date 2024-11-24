@@ -117,7 +117,7 @@ namespace EditorPanels {
                 return;
             }
             var state = PresetManager.GetPreset("terrainPatchBorderMesh", 0);
-            GetCurPatch().AddBorderMesh(state);
+            GetCurPatch().AddBorderMesh(state, new ObjectState());
             builder.NotifyChange();
             UpdateBorderMeshesList();
             borderMeshDropdown.SetValue(GetCurPatch().GetBorderMeshCount());

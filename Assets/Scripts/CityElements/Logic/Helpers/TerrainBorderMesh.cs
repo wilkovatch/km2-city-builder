@@ -5,7 +5,7 @@ using States;
 
 [System.Serializable]
 public class TerrainBorderMesh {
-    public ObjectState state;
+    public ObjectState state, instanceState;
     public List<TerrainPoint> segment = new List<TerrainPoint>();
     public List<Vector3> oldSegment = new List<Vector3>();
 

@@ -250,7 +250,7 @@ namespace CityDecoder {
                 }
                 var ri = 0;
                 foreach (var borderMesh in patch.borderMeshes) {
-                    newPatch.AddBorderMesh(borderMesh.state);
+                    newPatch.AddBorderMesh(borderMesh.state, borderMesh.instanceState);
                     foreach (var p in borderMesh.segmentPointsIds) {
                         newPatch.AddPointToBorderMesh(ri, GetTerrainPoint(loadedTerrainPoints[p], pointDict, loadedTerrainPoints));
                     }

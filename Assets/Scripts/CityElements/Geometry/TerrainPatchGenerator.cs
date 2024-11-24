@@ -31,7 +31,7 @@ public class TerrainPatchGenerator : MonoBehaviour {
     }
 
     public void RebuildMesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints, List<(List<Vector3> segment,
-        List<Vector3> lefts, ObjectState state)> borderMeshes, string tex, int smooth, float uMult, float vMult) {
+        List<Vector3> lefts, ObjectState state, ObjectState instanceState)> borderMeshes, string tex, int smooth, float uMult, float vMult) {
 
         Clear();
 

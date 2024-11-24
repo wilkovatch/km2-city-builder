@@ -130,6 +130,7 @@ namespace CityEncoder {
                 for (int j = 0; j < patchBorderMeshes.Count; j++) {
                     var borderMesh = new IO.SavedCity.TerrainBorderMesh();
                     borderMesh.state = patchBorderMeshes[j].state;
+                    borderMesh.instanceState = patchBorderMeshes[j].instanceState;
                     borderMesh.segmentPointsIds = new int[patchBorderMeshes[j].segment.Count];
                     for (int k = 0; k < patchBorderMeshes[j].segment.Count; k++) {
                         borderMesh.segmentPointsIds[k] = GetTerrainPoint(patchBorderMeshes[j].segment[k], pointsList, manager);

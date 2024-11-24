@@ -59,6 +59,7 @@ namespace IO.SavedCity {
     [System.Serializable]
     public struct TerrainBorderMesh {
         public ObjectState state;
+        public ObjectState instanceState;
         public int[] segmentPointsIds; //references to terrain points
     }
 
