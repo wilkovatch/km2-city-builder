@@ -94,10 +94,18 @@ namespace CityEncoder {
         }
 
         IO.ExportedCity.MeshData GetMeshColliderData(GameObject obj) {
-            var mesh = obj.GetComponent<MeshCollider>();
-            if (mesh == null) return null;
-            var m = mesh.sharedMesh;
-            return GetMeshData(m, null);
+            var meshes = obj.GetComponents<MeshCollider>();
+            if (meshes == null || meshes.Length == 0) return null;
+            var sharedMeshes = new CombineInstance[meshes.Length];
+            for (int i = 0; i < meshes.Length; i++) {
+                sharedMeshes[i].mesh = meshes[i].sharedMesh;
+                sharedMeshes[i].transform = meshes[i].transform.localToWorldMatrix;
+            }
+            var m = new Mesh();
+            m.CombineMeshes(sharedMeshes);
+            var res = GetMeshData(m, null);
+            Object.Destroy(m);
+            return res;
         }
 
         IO.ExportedCity.MeshData GetMeshData(GeometryHelpers.SubMesh.SubMeshData smd) {
