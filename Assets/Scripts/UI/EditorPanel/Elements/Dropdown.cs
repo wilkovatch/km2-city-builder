@@ -32,7 +32,9 @@ namespace EditorPanelElements {
         }
 
         public override void SetValue(object value) {
-            if (value is long valueL) {
+            if (value is null) {
+                dropdown.value = 0;
+            } else if (value is long valueL) {
                 dropdown.value = (int)valueL;
             } else {
                 dropdown.value = (int)value;
