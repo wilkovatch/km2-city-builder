@@ -91,7 +91,7 @@ namespace CityDecoder {
                 if (checkResult.code == 1) {
                     manager.builder.CreateAlert(SM.Get("MIGRATION_NEEDED_TITLE"), SM.Get(checkResult.message), SM.Get("YES"), SM.Get("NO"), MigrateCityDelayed, delegate { progressBar.SetActive(false); }, 250);
                 } else {
-                    manager.builder.CreateAlert(SM.Get("ERROR"), SM.Get(checkResult.message), SM.Get("OK"), delegate { progressBar.SetActive(false); }, 250);
+                    manager.builder.CreateAlert(SM.Get("ERROR"), SM.Get(checkResult.message), SM.Get("OK"), delegate { progressBar.SetActive(false); manager.CloseCity(); }, 250);
                 }
                 yield break;
             }
