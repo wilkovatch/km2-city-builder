@@ -277,6 +277,9 @@ public class CoreManager {
                 var repo = new Repository(repoPath);
                 var signature = new Signature("km2cb", "kmc2b", System.DateTimeOffset.UtcNow);
                 repo.Merge(repo.Head.TrackedBranch.Tip, signature);
+                foreach (Submodule submodule in repo.Submodules) {
+                    UpdateSubModule(repo, submodule);
+                }
                 if (post != null) post.Invoke(core, true);
             } catch (System.Exception ex) {
                 MonoBehaviour.print(ex.Message);
@@ -284,6 +287,15 @@ public class CoreManager {
             }
         } else {
             if (post != null) post.Invoke(core, false);
+        }
+    }
+
+    private static void UpdateSubModule(Repository repo, Submodule submodule) {
+        var subrepoPath = Path.Combine(repo.Info.WorkingDirectory, submodule.Path);
+        using (Repository subRepo = new Repository(subrepoPath)) {
+            string commitHash = submodule.IndexCommitId.ToString();
+            Commit commit = subRepo.Lookup<Commit>(commitHash);
+            subRepo.Reset(ResetMode.Hard, commit);
         }
     }
 }
