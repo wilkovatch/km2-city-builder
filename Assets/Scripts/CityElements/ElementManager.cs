@@ -257,6 +257,7 @@ public class ElementManager : MonoBehaviour {
 
     public void CloseCity() {
         PreferencesManager.workingDirectory = "";
+        PreferencesManager.Unload();
         CoreManager.Reset();
         EraseCity();
     }

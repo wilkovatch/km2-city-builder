@@ -38,6 +38,10 @@ public class PreferencesManager {
         }
     }
 
+    public static void Unload() {
+        instance = null;
+    }
+
     static GenericSettingsManager GetInstance() {
         if (instance == null) {
             instance = new GenericSettingsManager(workingDirectory + "/preferences.json");
