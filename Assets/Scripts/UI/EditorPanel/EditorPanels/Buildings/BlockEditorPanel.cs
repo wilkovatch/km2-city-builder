@@ -68,6 +68,7 @@ namespace EditorPanels {
             }
 
             public override void Terminate() {
+                keepActive = false;
                 SetActive(false);
                 parentPanel.Terminate();
             }

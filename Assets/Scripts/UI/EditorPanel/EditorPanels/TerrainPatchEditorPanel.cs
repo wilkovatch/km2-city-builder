@@ -262,6 +262,7 @@ namespace EditorPanels {
         }
 
         public override void Terminate() {
+            keepActive = false;
             Terminate(false);
         }
 

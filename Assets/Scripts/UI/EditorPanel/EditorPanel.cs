@@ -292,6 +292,7 @@ public abstract partial class EditorPanel {
         if (parentPanel != null) {
             parentPanel.Terminate();
         }
+        keepActive = false;
         SetActive(false);
     }
 

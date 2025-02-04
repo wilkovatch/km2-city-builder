@@ -61,6 +61,7 @@ namespace EditorPanels.Props {
         }
 
         public override void Terminate() {
+            keepActive = false;
             SetActive(false);
             parentPanel.Terminate();
         }
