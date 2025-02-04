@@ -57,7 +57,13 @@ public abstract partial class EditorPanel {
             }
             type = tS.types[tS.curType];
         } else {
-            type = typesGetter.Invoke(false)[fallbackType];
+            var types = typesGetter.Invoke(false);
+            if (!types.ContainsKey(fallbackType)) {
+                Initialize(canvas, 1, width);
+                return false;
+            } else {
+                type = types[fallbackType];
+            }
         }
         foreach (var tab in type.typeData.GetUI().tabs) {
             pageButtonNames.Add(tab.label != "" ? SM.Get(tab.label) : "");
@@ -90,44 +96,48 @@ public abstract partial class EditorPanel {
                         delegate { FlagParentChange(getObject); }, w);
 
                 } else {
-                    curW += w;
-                    if (curW > totW) {
-                        p.IncreaseRow();
-                        curW = w;
-                    }
                     var parameters = type.typeData.GetParameters().parameters;
-                    foreach (var param in parameters) {
-                        if (param.fullName() == elem.name) {
-                            var pFullName = (param.instanceSpecific ? "instanceState" : "state") + ".properties." + param.fullName();
-                            switch (param.type) {
-                                case "bool":
-                                    p.AddFieldCheckbox(SM.Get(param.label), getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                    break;
-                                case "float":
-                                    p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), InputField.ContentType.DecimalNumber, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                    break;
-                                case "texture":
-                                    p.AddFieldTextureField(builder, SM.Get(param.label), SM.Get(param.placeholder), getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                    break;
-                                case "string":
-                                    p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), InputField.ContentType.Standard, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                    break;
-                                case "int":
-                                    p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), InputField.ContentType.IntegerNumber, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                    break;
-                                case "enum":
-                                    var typesNames = new List<string>();
-                                    foreach (var t in param.enumLabels) typesNames.Add(SM.Get(t));
-                                    p.AddFieldDropdown(SM.Get(param.label), typesNames, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                    break;
-                            }
-                            break;
-                        }
-                    }
+                    AddParameters(p, ref curW, totW, parameters, elem, getObject, true);
                 }
             }
         }
         return true;
+    }
+
+    protected void AddParameters(EditorPanelPage p, ref float curW, float totW, CityElements.Types.Parameter[] parameters, CityElements.Types.TabElement elem, System.Func<IObjectWithState> getObject, bool prependstate) {
+        curW += elem.width;
+        if (curW > totW) {
+            p.IncreaseRow();
+            curW = elem.width;
+        }
+        foreach (var param in parameters) {
+            if (param.fullName() == elem.name) {
+                var pFullName = (prependstate ? (param.instanceSpecific ? "instanceState." : "state.") : "") + "properties." + param.fullName();
+                switch (param.type) {
+                    case "bool":
+                        p.AddFieldCheckbox(SM.Get(param.label), getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        break;
+                    case "float":
+                        p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), InputField.ContentType.DecimalNumber, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        break;
+                    case "texture":
+                        p.AddFieldTextureField(builder, SM.Get(param.label), SM.Get(param.placeholder), getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        break;
+                    case "string":
+                        p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), InputField.ContentType.Standard, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        break;
+                    case "int":
+                        p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), InputField.ContentType.IntegerNumber, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        break;
+                    case "enum":
+                        var typesNames = new List<string>();
+                        foreach (var t in param.enumLabels) typesNames.Add(SM.Get(t));
+                        p.AddFieldDropdown(SM.Get(param.label), typesNames, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        break;
+                }
+                break;
+            }
+        }
     }
 
     protected void AddComplexElement<T>(T elem) where T: ComplexElement {

@@ -36,39 +36,8 @@ namespace EditorPanels.Props {
             var curW = 0.0f;
             for (int i = 0; i < settings.typeData.uiInfo.Length; i++) {
                 var uiInfo = settings.typeData.uiInfo[i];
-                curW += uiInfo.width;
-                if (curW > width) {
-                    p0.IncreaseRow();
-                    curW = uiInfo.width;
-                }
-                foreach (var param in settings.typeData.parametersInfo.parameters) {
-                    if (param.name == uiInfo.name) {
-                        var pFullName = "properties." + param.fullName();
-                        switch (param.type) {
-                            case "bool":
-                                p0.AddFieldCheckbox(SM.Get(param.label), GetCurElem, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
-                                break;
-                            case "float":
-                                p0.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), UnityEngine.UI.InputField.ContentType.DecimalNumber, GetCurElem, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
-                                break;
-                            case "texture":
-                                p0.AddFieldTextureField(builder, SM.Get(param.label), SM.Get(param.placeholder), GetCurElem, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
-                                break;
-                            case "string":
-                                p0.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), UnityEngine.UI.InputField.ContentType.Standard, GetCurElem, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
-                                break;
-                            case "int":
-                                p0.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), UnityEngine.UI.InputField.ContentType.IntegerNumber, GetCurElem, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
-                                break;
-                            case "enum":
-                                var typesNames = new List<string>();
-                                foreach (var t in param.enumLabels) typesNames.Add(SM.Get(t));
-                                p0.AddFieldDropdown(SM.Get(param.label), typesNames, GetCurElem, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
-                                break;
-                        }
-                        break;
-                    }
-                }
+                var parameters = settings.typeData.parametersInfo.parameters;
+                AddParameters(p0, ref curW, width, parameters, uiInfo, GetCurElem, false);
                 if (i == settings.typeData.uiInfo.Length - 1) p0.IncreaseRow();
             }
 
