@@ -70,40 +70,7 @@ namespace EditorPanels {
                         pS.AddPresetLoadAndSaveDropdown(p, parts[1].ToUpper() + "_PRESET", true, parts[1], setter, getter, true, x => { var obj = getter.Invoke(); obj.Name = x; setter.Invoke(obj); }, null, null, w);
 
                     } else {
-                        curW += w;
-                        if (curW > totW) {
-                            p.IncreaseRow();
-                            curW = w;
-                        }
-                        var parameters = type.typeData.parameters.parameters;
-                        foreach (var param in parameters) {
-                            if (param.fullName() == elem.name) {
-                                var pFullName = (param.instanceSpecific ? "instanceState" : "state") + ".properties." + param.fullName();
-                                switch (param.type) {
-                                    case "bool":
-                                        p.AddFieldCheckbox(SM.Get(param.label), GetCurMesh, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                        break;
-                                    case "float":
-                                        p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), UnityEngine.UI.InputField.ContentType.DecimalNumber, GetCurMesh, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                        break;
-                                    case "texture":
-                                        p.AddFieldTextureField(builder, SM.Get(param.label), SM.Get(param.placeholder), GetCurMesh, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                        break;
-                                    case "string":
-                                        p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), UnityEngine.UI.InputField.ContentType.Standard, GetCurMesh, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                        break;
-                                    case "int":
-                                        p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), UnityEngine.UI.InputField.ContentType.IntegerNumber, GetCurMesh, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                        break;
-                                    case "enum":
-                                        var typesNames = new List<string>();
-                                        foreach (var t in param.enumLabels) typesNames.Add(SM.Get(t));
-                                        p.AddFieldDropdown(SM.Get(param.label), typesNames, GetCurMesh, pFullName, null, elem.width, SM.Get(param.tooltip));
-                                        break;
-                                }
-                                break;
-                            }
-                        }
+                        AddParameters(p, ref curW, totW, type.typeData.parameters.parameters, elem, delegate { return GetCurMesh().state; }, true);
                     }
                 }
             }
