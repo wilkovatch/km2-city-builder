@@ -22,13 +22,12 @@ public class TerrainClick : MonoBehaviour {
             helper.terrainObj.GetComponent<Terrain>().terrainData.SyncHeightmap();
             isModifying = false;
         }
-        bool onUI = UIDetection.OnUI();
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
         var masks = modifier.GetLayerMasks();
         var hits = new List<RaycastHit?>();
         foreach (var mask in masks) {
             var foundHit = false;
-            if (!onUI && editEnabled) {
+            if (!OnUI() && editEnabled) {
                 var found = Physics.Raycast(transform.position, ray.direction, out hit, float.MaxValue, mask, QueryTriggerInteraction.Ignore);
                 if (found) {
                     foundHit = true;
@@ -43,6 +42,13 @@ public class TerrainClick : MonoBehaviour {
             if (!foundHit) hits.Add(null);
         }
         modifier.Apply(hits);
+    }
+
+    bool OnUI() {
+        var pos = Input.mousePosition;
+        var xOut = pos.x < 0 || pos.x > Screen.width;
+        var yOut = pos.y < 0 || pos.y > Screen.height;
+        return UIDetection.OnUI() || xOut || yOut;
     }
 
     void SnapToGrid(RaycastHit hit, List<RaycastHit?> hits, int mask) {
