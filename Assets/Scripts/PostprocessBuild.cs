@@ -13,7 +13,7 @@ class PostprocessBuild : IPostprocessBuildWithReport {
         var files = new List<(string origin, string destination)>() {
             ("coreRepos.json", "coreRepos.json"),
             ("defaultSettings.json", "settings.json"),
-            ("License.txt", "License.txt"),
+            ("LicenseFull.txt", "License.txt"),
             ("Quickstart guide.pdf", "Quickstart guide.pdf")
         };
         var folders = new List<(string origin, string destination, List<string> exceptFiles, List<string> exceptFolders)>() {
@@ -22,6 +22,7 @@ class PostprocessBuild : IPostprocessBuildWithReport {
         };
         var srcPath = Directory.GetParent(Application.dataPath).FullName;
         var dstPath = Path.GetDirectoryName(report.summary.outputPath);
+        ProcessLicense(srcPath);
         foreach (var file in files) {
             var srcFile = Path.Combine(srcPath, file.origin);
             var dstFile = Path.Combine(dstPath, file.destination);
@@ -32,6 +33,7 @@ class PostprocessBuild : IPostprocessBuildWithReport {
                 Debug.LogWarning("Warning: the file " + srcFile + " has not been found, the build will not contain it.");
             }
         }
+        ClearTempFiles(srcPath);
         foreach (var folder in folders) {
             var srcFolder = Path.Combine(srcPath, folder.origin);
             var dstFolder = Path.Combine(dstPath, folder.destination);
@@ -51,6 +53,31 @@ class PostprocessBuild : IPostprocessBuildWithReport {
                 Directory.CreateDirectory(Path.Combine(dstFolder, subFolder));
             }
         }
+    }
+
+    private void ProcessLicense(string srcPath) {
+        var mainLicFile = Path.Combine(srcPath, "License.txt");
+        var licText = File.ReadAllText(mainLicFile);
+        licText += "\n\n\n\n\n\nThis program includes software licensed under terms that require to display the following notices:\n\n\n";
+
+        var licFiles = Directory.GetFiles(Path.Combine(srcPath, "Licenses"));
+        foreach (var licFile in licFiles) {
+            var name = Path.GetFileNameWithoutExtension(licFile);
+            var notice = " The below notice is for \"" + name + "\" ";
+            var separatorLen = Mathf.Max(2, (90 - notice.Length) / 2);
+            for(int i = 0; i < separatorLen; i++) {
+                notice = "=" + notice + "=";
+            }
+            var subLicText = File.ReadAllText(licFile);
+            licText += notice + "\n\n" + subLicText + "\n\n";
+        }
+        var fullLicFile = Path.Combine(srcPath, "LicenseFull.txt");
+        File.WriteAllText(fullLicFile, licText);
+    }
+
+    private void ClearTempFiles(string srcPath) {
+        var licFile = Path.Combine(srcPath, "LicenseFull.txt");
+        if (File.Exists(licFile)) File.Delete(licFile);
     }
 
     static void ClearReadOnly(string dir) {

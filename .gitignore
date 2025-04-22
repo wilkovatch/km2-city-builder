@@ -82,3 +82,4 @@ crashlytics-build.properties
 /[Pp]ython/*
 /[Ff]iles/[Cc]ustom/[Ttemplates]/*
 /Quickstart guide.pdf
+/LicenseFull.txt
