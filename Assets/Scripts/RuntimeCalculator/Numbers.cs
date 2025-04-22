@@ -34,7 +34,7 @@ namespace RuntimeCalculator.Numbers {
 
         public static string Regex() {
             string[] list = {
-                "pi", "deg2rad"
+                "pi", "deg2rad", "rad2deg"
             };
             return RegexHelper.ListRegex(list);
         }
@@ -46,6 +46,9 @@ namespace RuntimeCalculator.Numbers {
                     break;
                 case "deg2rad":
                     value = Mathf.Deg2Rad;
+                    break;
+                case "rad2deg":
+                    value = Mathf.Rad2Deg;
                     break;
             }
         }
