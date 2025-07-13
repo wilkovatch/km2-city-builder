@@ -390,7 +390,6 @@ namespace EditorPanels {
                 }
                 GetCurLine()?.SetActive(false, false);
                 ClearEmptyLine();
-                builder.UnsetModifier();
                 builder.helper.elementManager.ShowAnchors(false);
                 if (!auto) SetActive(false);
                 Camera.main.GetComponent<RuntimeGizmos.TransformGizmo>()?.ClearTargets();

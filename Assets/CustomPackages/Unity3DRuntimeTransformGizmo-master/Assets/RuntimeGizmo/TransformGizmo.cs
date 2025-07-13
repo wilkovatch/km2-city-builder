@@ -136,7 +136,12 @@ namespace RuntimeGizmos
 		static Material lineMaterial;
 		static Material outlineMaterial;
 
-		void Awake()
+        public EditorPanels.TransformPropertiesEditorPanel transformPanel = null;
+        public bool[] posAxesAllowed = new bool[3] { true, true, true };
+        public bool[] rotAxesAllowed = new bool[3] { true, true, true };
+        public bool[] scaleAxesAllowed = new bool[3] { true, true, true };
+
+        void Awake()
 		{
 			myCamera = GetComponent<Camera>();
 			SetMaterial();
@@ -161,7 +166,7 @@ namespace RuntimeGizmos
 
 		void Update()
 		{
-			HandleUndoRedo();
+			//HandleUndoRedo();
 
 			SetSpaceAndType();
 
@@ -205,9 +210,16 @@ namespace RuntimeGizmos
 			Color zColor = (nearAxis == Axis.Z) ? (isTransforming) ? selectedColor : hoverColor : this.zColor;
 			Color allColor = (nearAxis == Axis.Any) ? (isTransforming) ? selectedColor : hoverColor : this.allColor;
 
-			//Note: The order of drawing the axis decides what gets drawn over what.
+            //hide disabled axes
+            bool[] axesAllowed = GetAxesAllowed(translatingType);
+            if (!axesAllowed[0]) xColor = Color.clear;
+            if (!axesAllowed[1]) yColor = Color.clear;
+            if (!axesAllowed[2]) zColor = Color.clear;
+            if (!(axesAllowed[0] && axesAllowed[1] && axesAllowed[2])) allColor = Color.clear;
 
-			TransformType moveOrScaleType = (transformType == TransformType.Scale || (isTransforming && translatingType == TransformType.Scale)) ? TransformType.Scale : TransformType.Move;
+            //Note: The order of drawing the axis decides what gets drawn over what.
+
+            TransformType moveOrScaleType = (transformType == TransformType.Scale || (isTransforming && translatingType == TransformType.Scale)) ? TransformType.Scale : TransformType.Move;
 			DrawQuads(handleLines.z, GetColor(moveOrScaleType, this.zColor, zColor, hasTranslatingAxisPlane));
 			DrawQuads(handleLines.x, GetColor(moveOrScaleType, this.xColor, xColor, hasTranslatingAxisPlane));
 			DrawQuads(handleLines.y, GetColor(moveOrScaleType, this.yColor, yColor, hasTranslatingAxisPlane));
@@ -343,7 +355,9 @@ namespace RuntimeGizmos
 			{
 				if(space == TransformSpace.Global) space = TransformSpace.Local;
 				else if(space == TransformSpace.Local) space = TransformSpace.Global;
-			}
+                else if (space == TransformSpace.Parent) space = TransformSpace.Parent;
+                if (transformPanel != null) transformPanel.UpdateSpaceLabel();
+            }
 
 			if(Input.GetKeyDown(SetScaleTypeToggle))
 			{
@@ -361,23 +375,44 @@ namespace RuntimeGizmos
 		{
 			if(mainTargetRoot != null)
 			{
-				if(nearAxis != Axis.None && Input.GetMouseButtonDown(0))
+				if(nearAxis != Axis.None && Input.GetMouseButtonDown(0) && GetNearAxisAllowed(GetAxesAllowed(translatingType)))
 				{
 					StartCoroutine(TransformSelected(translatingType));
 				}
 			}
 		}
+
+        bool[] GetAxesAllowed(TransformType transType)
+        {
+            bool[] axesAllowed;
+            switch (transType) {
+                case TransformType.Move:
+                    axesAllowed = posAxesAllowed;
+                    break;
+                case TransformType.Rotate:
+                    axesAllowed = rotAxesAllowed;
+                    break;
+                case TransformType.Scale:
+                    axesAllowed = scaleAxesAllowed;
+                    break;
+                default:
+                    axesAllowed = new bool[] { true, true, true };
+                    break;
+            }
+            return axesAllowed;
+        }
 		
 		IEnumerator TransformSelected(TransformType transType)
 		{
-			isTransforming = true;
+            isTransforming = true;
 			totalScaleAmount = 0;
 			totalRotationAmount = Quaternion.identity;
 
 			Vector3 originalPivot = pivotPoint;
 
 			Vector3 otherAxis1, otherAxis2;
-			Vector3 axis = GetNearAxisDirection(out otherAxis1, out otherAxis2);
+
+            Vector3 axis = GetNearAxisDirection(out otherAxis1, out otherAxis2);
 			Vector3 planeNormal = hasTranslatingAxisPlane ? axis : (transform.position - originalPivot).normalized;
 			Vector3 projectedAxis = Vector3.ProjectOnPlane(axis, planeNormal).normalized;
 			Vector3 previousMousePosition = Vector3.zero;
@@ -586,13 +621,13 @@ namespace RuntimeGizmos
 				yield return null;
 			}
 
-			for(int i = 0; i < transformCommands.Count; i++)
+			/*for(int i = 0; i < transformCommands.Count; i++)
 			{
 				((TransformCommand)transformCommands[i]).StoreNewTransformValues();
 			}
 			CommandGroup commandGroup = new CommandGroup();
 			commandGroup.Set(transformCommands);
-			UndoRedoManager.Insert(commandGroup);
+			UndoRedoManager.Insert(commandGroup);*/
 
 			totalRotationAmount = Quaternion.identity;
 			totalScaleAmount = 0;
@@ -654,8 +689,28 @@ namespace RuntimeGizmos
 
 			return Vector3.zero;
 		}
-	
-		void GetTarget()
+
+        bool GetNearAxisAllowed(bool[] axesAllowed) {
+
+            if (nearAxis != Axis.None) {
+                if (nearAxis == Axis.X) {
+                    return axesAllowed[0];
+                }
+                if (nearAxis == Axis.Y) {
+                    return axesAllowed[1];
+                }
+                if (nearAxis == Axis.Z) {
+                    return axesAllowed[2];
+                }
+                if (nearAxis == Axis.Any) {
+                    return axesAllowed[0] && axesAllowed[1] && axesAllowed[2];
+                }
+            }
+
+            return false;
+        }
+
+        void GetTarget()
 		{
             if (!allowDeselect || UIDetection.OnUI()) return;
 			if(nearAxis == Axis.None && Input.GetMouseButtonDown(0))

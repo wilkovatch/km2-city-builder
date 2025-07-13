@@ -57,7 +57,7 @@ public class MeshManager {
         GameObject res = null;
         if (name == null) return res;
         if (meshes.TryGetValue(name, out res)) {
-            return Object.Instantiate(res, parent.transform);
+            return res != null ? Object.Instantiate(res, parent.transform) : null;
         } else {
             res = MeshImporter.LoadMesh(name, this.parent);
             meshes.Add(name, res);
@@ -66,7 +66,7 @@ public class MeshManager {
             } catch (System.Exception) {
 
             }
-            return Object.Instantiate(res, parent.transform);
+            return res != null ? Object.Instantiate(res, parent.transform) : null;
         }
     }
 }

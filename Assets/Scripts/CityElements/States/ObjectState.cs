@@ -15,6 +15,12 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
     [JsonIgnore]
     public ObjectState state { get => this; set => ReplaceWith(value); }
 
+    [JsonIgnore]
+    ObjectState parent = null;
+
+    [JsonIgnore]
+    HashSet<ObjectState> children = new HashSet<ObjectState>();
+
     public ObjectState() {
         properties = new Dictionary<string, object>();
     }
@@ -53,9 +59,9 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
         else return defaultValue;
     }
 
-    public void SetProperty(string name, object value) {
+    public void SetProperty(string name, object value, bool setDirty = true) {
         properties[name] = value;
-        dirty = true;
+        if (setDirty) SetDirty();
     }
 
     object GetAdjusted(object obj) {
@@ -87,6 +93,7 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
                     var subState = new ObjectState();
                     subState.properties = dict;
                     subState.AdjustTypes();
+                    subState.SetParent(this);
                     newValues.Add((k, subState));
                 } else if (val is object[] arr) {
                     if (arr.Length > 0) {
@@ -101,6 +108,7 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
                                 var subState = new ObjectState();
                                 subState.properties = subObj;
                                 subState.AdjustTypes();
+                                subState.SetParent(this);
                                 newArr[i] = subState;
                             }
                             newValues.Add((k, newArr));
@@ -127,11 +135,11 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
     }
 
     public void FlagAsChanged() {
-        dirty = true;
+        SetDirty();
     }
 
     public void FlagAsUnchanged() {
-        dirty = false;
+        UnsetDirty();
     }
 
     public int Int(string name, int defaultValue = 0) {
@@ -159,11 +167,23 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
     }
 
     public Vector2 Vector2(string name, Vector2 defaultValue) {
-        return GetProperty(name, defaultValue);
+        //duplicated GetProperty to handle the conversion from ObjectState
+        if (!properties.ContainsKey(name)) return defaultValue;
+        var obj = properties[name];
+        if (obj is Vector2 objT) return objT;
+        else if (obj is States.SerializableVector2 objV) return objV.GetVector();
+        else if (obj is ObjectState objS) return new Vector2(objS.Float("x"), objS.Float("y"));
+        else return defaultValue;
     }
 
     public Vector3 Vector3(string name, Vector3 defaultValue) {
-        return GetProperty(name, defaultValue);
+        //duplicated GetProperty to handle the conversion from ObjectState
+        if (!properties.ContainsKey(name)) return defaultValue;
+        var obj = properties[name];
+        if (obj is Vector3 objT) return objT;
+        else if (obj is States.SerializableVector3 objV) return objV.GetVector();
+        else if (obj is ObjectState objS) return new Vector3(objS.Float("x"), objS.Float("y"), objS.Float("z"));
+        else return defaultValue;
     }
 
     public ObjectState State(string name, bool defaultNull = true) {
@@ -191,19 +211,36 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
     }
 
     public void SetVector2(string name, Vector2 value) {
-        SetProperty(name, value);
+        SetProperty(name, new States.SerializableVector2(value));
     }
 
-    public void SetVector3(string name, Vector3 value) {
-        SetProperty(name, value);
+    public void SetVector3(string name, Vector3 value, bool setDirty = true) {
+        SetProperty(name, new States.SerializableVector3(value), setDirty);
     }
 
     public void SetState(string name, ObjectState value) {
+        var oldValue = State(name);
+        oldValue?.UnsetParent();
         SetProperty(name, value);
+        value.SetParent(this);
+        value.dirty = dirty;
     }
 
     public void SetArray<T>(string name, T[] value) {
+        if (value is ObjectState[]) {
+            var oldArr = Array<ObjectState>(name);
+            if (oldArr != null) {
+                foreach (var elem in oldArr) {
+                    elem?.UnsetParent();
+                }
+            }
+        }
         SetProperty(name, value);
+        if (value is ObjectState[] arr) {
+            foreach (var obj in arr) {
+                obj.SetParent(this);
+            }
+        }
     }
 
     static T[] DeepCloneArray<T>(T[] origArray) {
@@ -231,6 +268,11 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
         res.dirty = dirty;
         foreach (var key in properties.Keys) {
             var clonedProperty = DeepCloneObject(properties[key]);
+            if (clonedProperty is ObjectState[] objArr) {
+                foreach (var obj in objArr) {
+                    obj.SetParent(res);
+                }
+            }
             res.properties.Add(key, clonedProperty);
         }
         return res;
@@ -281,6 +323,18 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
         }
     }
 
+    void SetDirty() {
+        dirty = true;
+        parent?.SetDirty();
+    }
+
+    void UnsetDirty() {
+        dirty = false;
+        foreach (var child in children) {
+            child.UnsetDirty();
+        }
+    }
+
     public ObjectState GetState() {
         return this;
     }
@@ -288,5 +342,95 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
     public void ReplaceWith(ObjectState state) {
         var tmp = (ObjectState)state.Clone();
         properties = tmp.properties;
+    }
+
+    public static T SearchArray<T>(ObjectState[] states, string name, T defaultValue) {
+        T foundVal = defaultValue;
+        foreach (var state in states) {
+            var val = state.GetProperty<T>(name, defaultValue);
+            if (val != null) {
+                foundVal = val;
+                break;
+            }
+        }
+        return foundVal;
+    }
+
+    public static ObjectState CreateFromDefaultProperties(CityElements.Types.Parameter[] properties) {
+        var res = new ObjectState();
+        foreach (var p in properties) {
+            switch(p.type) {
+                case "objectInstance":
+                    var s = p.objectInstanceSettings;
+                    if (s != null) {
+                        res.SetStr(p.name, s.defaultModel.model);
+                    }
+                    break;
+                case "float":
+                    if (p.defaultValueInArray != null) {
+                        try {
+                            var dvf = (float)((double)p.defaultValueInArray);
+                            res.SetFloat(p.fullName(), dvf);
+                        } catch (InvalidCastException) {
+                            Debug.LogWarning("Invalid default value for parameter: " + p.fullName());
+                        }
+                    }
+                    break;
+                case "int":
+                case "enum":
+                    if (p.defaultValueInArray != null) {
+                        try {
+                            var dvi = (int)((double)p.defaultValueInArray);
+                            res.SetInt(p.fullName(), dvi);
+                        } catch (InvalidCastException) {
+                            Debug.LogWarning("Invalid default value for parameter: " + p.fullName());
+                        }
+                    }
+                    break;
+                case "string":
+                    if (p.defaultValueInArray != null) {
+                        if (p.defaultValueInArray is string dvs) {
+                            res.SetStr(p.fullName(), dvs);
+                        } else {
+                            Debug.LogWarning("Invalid default value for parameter: " + p.fullName());
+                        }
+                    }
+                    break;
+                case "bool":
+                    if (p.defaultValueInArray != null) {
+                        if (p.defaultValueInArray is bool dvb) {
+                            res.SetBool(p.fullName(), dvb);
+                        } else {
+                            Debug.LogWarning("Invalid default value for parameter: " + p.fullName());
+                        }
+                    }
+                    break;
+                case "array":
+                    //todo
+                    break;
+            }
+        }
+        return res;
+    }
+
+    public void SetParent(ObjectState parent) {
+        this.parent = parent;
+        parent.children.Add(this);
+    }
+
+    public void UnsetParent() {
+        if (parent == null) return;
+        if (parent.children.Contains(this)) parent.children.Remove(this);
+        this.parent = null;
+    }
+
+    public ObjectState GetParent() {
+        return parent;
+    }
+
+    public bool IsContainedIn(ObjectState parentState) {
+        if (parent == null) return false;
+        else if (parent == parentState || this == parentState) return true;
+        else return parent.IsContainedIn(parentState);
     }
 }

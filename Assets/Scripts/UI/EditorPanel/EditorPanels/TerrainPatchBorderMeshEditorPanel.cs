@@ -17,6 +17,10 @@ namespace EditorPanels {
         }
 
         public override void Initialize(GameObject canvas) {
+            if (PreferencesManager.workingDirectory == "") {
+                Initialize(canvas, 1, 1.5f);
+                return;
+            }
             titleActive = false;
             var pS = GetComplexElement<PresetSelector>();
             var tS = TS();

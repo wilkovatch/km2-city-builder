@@ -8,8 +8,9 @@ using UnityEngine.EventSystems;
 using SM = StringManager;
 
 public class FileBrowserHelper : MonoBehaviour {
-    Action<string> post;
     public Action<bool> enableMenuUI;
+    public CityBuilderMenuBar builder = null;
+    Action<string> post;
     EventSystem eventSystem = null;
 
     public void LoadImageFile(Action<string> post) {
@@ -65,6 +66,7 @@ public class FileBrowserHelper : MonoBehaviour {
         public string label;
         public string tooltip;
         public string[] disables;
+        public string[] enables;
         public bool defaultValue;
     }
 
@@ -96,18 +98,37 @@ public class FileBrowserHelper : MonoBehaviour {
         return res;
     }
 
+    string GetDefaultFilename() {
+        var filename = "city";
+        if (builder != null) {
+            var cityProperties = builder.helper.elementManager.GetDummy<CityProperties>();
+            if (cityProperties != null) {
+                var newName = cityProperties.GetState().Str("cityFileName");
+                if (!string.IsNullOrEmpty(newName)) {
+                    if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) < 0) {
+                        filename = newName;
+                    } else {
+                        Debug.LogWarning("Invalid city file name provided in city properties: " + newName);
+                    }
+                }
+            }
+        }
+        return filename;
+    }
+
     IEnumerator ShowSaveFileDialogCoroutine() {
         var filters = new List<FileBrowser.Filter>();
-        filters.Add(new FileBrowser.Filter("JSON", ".json"));
         var list = GetCustomExporters();
         if (list != null) {
             foreach (var elem in list) {
                 filters.Add(new FileBrowser.Filter(SM.Get(elem.settings.label), "." + elem.settings.format));
             }
         }
+        filters.Add(new FileBrowser.Filter("JSON", ".json"));
         FileBrowser.SetFilters(false, filters);
         EnableOtherUI(false);
-        yield return FileBrowser.WaitForSaveDialog(FileBrowser.PickMode.Files, false, null, "city", SM.Get("SELECT_FILE"));
+        var ext = filters[0].defaultExtension;
+        yield return FileBrowser.WaitForSaveDialog(FileBrowser.PickMode.Files, false, null, GetDefaultFilename() + ext, SM.Get("SELECT_FILE"));
         EnableOtherUI(true);
         if (FileBrowser.Success) {
             post.Invoke(FileBrowser.Result[0]);

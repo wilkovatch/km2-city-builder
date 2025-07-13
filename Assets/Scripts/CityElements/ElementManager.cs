@@ -11,20 +11,27 @@ public class ElementManager : MonoBehaviour {
     public List<BuildingLine> buildings = new List<BuildingLine>();
     public bool worldChanged = false;
     public bool propsChanged = false;
+    public bool visibilityChanged = false;
     GameObject terrainPointContainer = null;
     GameObject terrainContainer = null;
     GameObject roadContainer = null;
     GameObject meshContainer = null;
     GameObject buildingContainer = null;
     GameObject dummyContainer = null;
+    GameObject activeDummyContainer = null;
     Dictionary<System.Type, GameObject> dummies = new Dictionary<System.Type, GameObject>();
     public CityBuilderMenuBar builder;
     float lastGCTime = 0.0f;
 
-    public GameObject GetDummyContainer() {
-        var obj = GetObject("Dummies", ref dummyContainer);
-        if (obj.activeSelf) obj.SetActive(false);
-        return obj;
+    public GameObject GetDummyContainer<T>() {
+        if (typeof(T) == typeof(CityProperties)) {
+            var obj = GetObject("ActiveDummies", ref activeDummyContainer);
+            return obj;
+        } else {
+            var obj = GetObject("Dummies", ref dummyContainer);
+            if (obj.activeSelf) obj.SetActive(false);
+            return obj;
+        }
     }
 
     public GameObject GetTerrainPointContainer() {
@@ -49,7 +56,7 @@ public class ElementManager : MonoBehaviour {
 
     bool IsDummyPossible<T>() {
         var t = typeof(T);
-        if (t == typeof(Road)) {
+        if (t == typeof(Road) || t == typeof(CityProperties)) {
             return true;
         } else if (t == typeof(BuildingLine)) {
             var preset = PresetManager.GetPreset("buildingLine", 0);
@@ -64,8 +71,8 @@ public class ElementManager : MonoBehaviour {
         if (dummies.ContainsKey(typeof(T)) && dummies[typeof(T)] != null) {
             dummy = dummies[typeof(T)];
         } else {
-            dummy = new GameObject("dummy");
-            dummy.transform.parent = GetDummyContainer().transform;
+            dummy = new GameObject("dummy (" + typeof(T).ToString() + ")");
+            dummy.transform.parent = GetDummyContainer<T>().transform;
             var c = dummy.AddComponent<T>();
             dummies[typeof(T)] = dummy;
             if (c is Road r) {
@@ -75,6 +82,9 @@ public class ElementManager : MonoBehaviour {
                 bl.AddPoint(null, new Vector3(0, 0, 0), true);
                 bl.AddPoint(null, new Vector3(1, 0, 0), true);
                 bl.UpdateLine();
+            } else if (c is CityProperties cp) {
+                cp.Initialize();
+                cp.state.FlagAsChanged();
             }
         }
         var res = dummy.GetComponent<T>();
@@ -88,10 +98,10 @@ public class ElementManager : MonoBehaviour {
             dummy = dummies[typeof(Intersection)];
             intersection = dummy.GetComponent<Intersection.IntersectionComponent>().intersection;
         } else {
-            dummy = new GameObject("dummy");
+            dummy = new GameObject("dummy (Intersection)");
             intersection = new Intersection(dummy, null);
             dummies[typeof(Intersection)] = dummy;
-            dummy.transform.parent = GetDummyContainer().transform;
+            dummy.transform.parent = GetDummyContainer<Intersection>().transform;
         }
         return intersection;
     }
@@ -128,6 +138,9 @@ public class ElementManager : MonoBehaviour {
     public void DeselectMeshes() {
         foreach (var mesh in meshes) {
             mesh.SetMoveable(false);
+        }
+        foreach (var road in roads) {
+            road.SetParametricObjectsMoveable(false);
         }
     }
 
@@ -175,8 +188,30 @@ public class ElementManager : MonoBehaviour {
         }
     }
 
+    void PropagateCityProperties() {
+        var cityProperties = GetDummy<CityProperties>();
+        if (cityProperties && cityProperties.state.HasChanged()) {
+            cityProperties.SyncSettings();
+            foreach (var key in cityProperties.injectableParamMap.Keys) {
+                if (cityProperties.ParameterHasChanged(key)) {
+                    var entry = cityProperties.injectableParamMap[key];
+                    var param = entry.injection;
+                    if (param.onRoads) {
+                        foreach (var road in roads) {
+                            cityProperties.InjectParameter(key, road.runtimeState);
+                            road.state.FlagAsChanged();
+                        }
+                    }
+                }
+            }
+            cityProperties.state.FlagAsUnchanged();
+            cityProperties.UpdateOlds();
+        }
+    }
+
     public void FlagAsChanged(bool propsChanged = false) {
         worldChanged = true;
+        visibilityChanged = true;
         this.propsChanged = propsChanged;
     }
 
@@ -205,9 +240,19 @@ public class ElementManager : MonoBehaviour {
     }
 
     public void ProcessUpdate() {
-        if (!worldChanged || PreferencesManager.workingDirectory == "") return;
+        if (PreferencesManager.workingDirectory == "") return;
+        if (visibilityChanged) {
+            visibilityChanged = false;
+            foreach (var road in roads) {
+                road.SyncVisibility();
+            }
+            GetDummy<CityProperties>().SyncVisibility();
+        }
+        if (!worldChanged) return;
         worldChanged = false;
         Cleanup();
+
+        PropagateCityProperties();
 
         foreach (var road in roads) {
             road.UpdateLine();
@@ -241,12 +286,18 @@ public class ElementManager : MonoBehaviour {
         foreach (var mesh in meshes) {
             instancesUpdated += mesh.ManualUpdate();
         }
+        var objectsUpdated = 0;
+        foreach (var road in roads) {
+            objectsUpdated += road.UpdateObjects();
+        }
+        objectsUpdated += GetDummy<CityProperties>().UpdateObjects();
         if (Application.isEditor) print(
             "rebuilt " + roadsRebuilt + " roads, "
             + intersectionsRebuilt + " intersections, "
             + patchesRebuilt + " patches, "
             + buildingsRebuilt + " building sides, "
-            + instancesUpdated + " meshes"
+            + instancesUpdated + " meshes, "
+            + objectsUpdated + " parametric objects"
         );
         if (builder != null) builder.NotifyUpdateCompleted();
         if (Time.time > lastGCTime + 10.0f) {
@@ -265,6 +316,10 @@ public class ElementManager : MonoBehaviour {
     public void EraseCity() {
         MaterialManager.ClearCache();
         PresetManager.loaded = false;
+
+        ArrayObject.DeselectAll();
+        builder.NotifyVisibilityChange();
+
         foreach (var elem in meshes) {
             elem.Delete();
         }
@@ -289,6 +344,8 @@ public class ElementManager : MonoBehaviour {
             elem.Delete();
         }
         buildings.Clear();
+
+        GetDummy<CityProperties>().Delete();
 
         MaterialManager.GetInstance().UnloadAll();
         MeshManager.GetInstance().UnloadAll();

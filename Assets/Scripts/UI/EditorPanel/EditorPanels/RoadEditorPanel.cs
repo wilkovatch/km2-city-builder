@@ -256,19 +256,20 @@ namespace EditorPanels {
             Delete(false);
         }
 
-        public void Delete(bool deletePointIfSelected) {
+        public bool Delete(bool deletePointIfSelected) {
             if (deletePointIfSelected && builder.gizmo.mainTargetRoot != null && GetCurRoad(false) != null && GetCurRoad(false).points.Count > 2) {
                 var point = builder.gizmo.mainTargetRoot.gameObject;
                 if (GetCurRoad().points.Contains(point)) {
                     GetCurRoad().points.Remove(point);
                     Object.Destroy(point);
                     builder.NotifyChange();
-                    return;
+                    return false;
                 }
             }
             GetCurRoad().Delete();
             builder.NotifyChange();
             Terminate();
+            return true;
         }
 
         void RemovePoint() {
@@ -286,7 +287,6 @@ namespace EditorPanels {
             SetPlacePoint(false);
             ClearEmptyRoad();
             GetCurRoad()?.SetActive(false);
-            builder.UnsetModifier();
             builder.helper.elementManager.ShowIntersections(false);
             if (!auto) SetActive(false);
             Camera.main.GetComponent<RuntimeGizmos.TransformGizmo>()?.ClearTargets();

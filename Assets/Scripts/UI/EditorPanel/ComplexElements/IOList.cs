@@ -5,6 +5,12 @@ using SM = StringManager;
 using EPM = EditorPanelElements;
 
 public abstract partial class EditorPanel {
+    public enum IOListButtonMode {
+        AlwaysEnabled,
+        ElementSelected,
+        NotFull, //TODO: not showing at all if used
+        ElementSelectedAndNotFull,
+    }
     protected class IOList : ComplexElement {
         public class ListTuple {
             public EPM.ScrollList list;
@@ -35,6 +41,7 @@ public abstract partial class EditorPanel {
         Dictionary<string, int> selectedIs = new Dictionary<string, int>();
         Dictionary<string, ListTuple> listControls = new Dictionary<string, ListTuple>();
         Dictionary<string, List<string>> curNames = new Dictionary<string, List<string>>();
+        List<(IOListButtonMode mode, EPM.Button btn)> extraButtons = new List<(IOListButtonMode mode, EPM.Button btn)>();
 
         public IOList(EditorPanel panel) : base(panel) { }
 
@@ -53,9 +60,9 @@ public abstract partial class EditorPanel {
 
         public void AddFullEditableList(EditorPanelPage p, string key, string listName, string addText, string selectText, string deleteText, int maxNumber,
             System.Action<string> addAction, System.Action<string, int> selectAction, System.Action<string, int> deleteAction, System.Func<List<string>> listGetter,
-            float height, float width, string emptyLabel = null, List<(string, System.Action)> extraButtons = null) {
+            float height, float width, string tooltip, string emptyLabel = null, List<(string, System.Action<string, int>, IOListButtonMode)> extraButtons = null) {
 
-            var list = p.AddScrollList(listName, new List<string>(), x => { SetIndex(key, x); }, width, null, null, emptyLabel); ;
+            var list = p.AddScrollList(listName, new List<string>(), x => { SetIndex(key, x); }, width, tooltip, null, emptyLabel); ;
             p.IncreaseRow(height);
             var divider = GetDiv(addText) + GetDiv(selectText) + GetDiv(deleteText);
             var partWidth = width / divider;
@@ -69,10 +76,21 @@ public abstract partial class EditorPanel {
             selectedIs.Add(key, -1);
             p.IncreaseRow();
             if (extraButtons !=null && extraButtons.Count > 0) {
+                //place them in groups of 3 per row
+                var extraBtnCount = extraButtons.Count;
+                var btnCount = 0;
                 foreach (var elem in extraButtons) {
-                    p.AddButton(elem.Item1, elem.Item2, width / extraButtons.Count);
+                    System.Action extraAction = delegate { ExtraAction(key, elem.Item2); };
+                    var btn = p.AddButton(elem.Item1, extraAction, width / Mathf.Min(extraBtnCount, 3));
+                    this.extraButtons.Add((elem.Item3, btn));
+                    btnCount += 1;
+                    if (btnCount >= 3) {
+                        btnCount = 0;
+                        p.IncreaseRow();
+                        extraBtnCount -= 3;
+                    }
                 }
-                p.IncreaseRow();
+                if (btnCount > 0) p.IncreaseRow();
             }
         }
 
@@ -86,12 +104,27 @@ public abstract partial class EditorPanel {
         }
 
         void UpdateEditInteractable(string name) {
-            var enabled = selectedIs[name] >= 0;
+            var elemSelected = selectedIs[name] >= 0;
             var maxNumber = listControls[name].maxNumber;
-            var addEnabled = maxNumber > 0 ? curNames[name].Count < maxNumber : true;
-            listControls[name].addBtn?.SetInteractable(addEnabled);
-            listControls[name].selectBtn?.SetInteractable(enabled);
-            listControls[name].delBtn?.SetInteractable(enabled);
+            var notFull = maxNumber > 0 ? curNames[name].Count < maxNumber : true;
+            listControls[name].addBtn?.SetInteractable(notFull);
+            listControls[name].selectBtn?.SetInteractable(elemSelected);
+            listControls[name].delBtn?.SetInteractable(elemSelected);
+            foreach (var elem in extraButtons) {
+                switch(elem.mode) {
+                    case IOListButtonMode.ElementSelected:
+                        elem.btn?.SetInteractable(elemSelected);
+                        break;
+                    case IOListButtonMode.NotFull:
+                        elem.btn?.SetInteractable(notFull);
+                        break;
+                    case IOListButtonMode.ElementSelectedAndNotFull:
+                        elem.btn?.SetInteractable(elemSelected && notFull);
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
 
         void SelectElem(string key) {
@@ -107,6 +140,12 @@ public abstract partial class EditorPanel {
         void DeleteElem(string key) {
             if (selectedIs[key] < 0 || selectedIs[key] >= curNames[key].Count) return;
             listControls[key].deleteAction.Invoke(key, selectedIs[key]);
+            ReadCurValues();
+        }
+
+        void ExtraAction(string key, System.Action<string, int> action) {
+            if (selectedIs[key] < 0) return;
+            action.Invoke(key, selectedIs[key]);
             ReadCurValues();
         }
 
@@ -136,6 +175,7 @@ public abstract partial class EditorPanel {
             selectedIs.Clear();
             listControls.Clear();
             curNames.Clear();
+            extraButtons.Clear();
         }
 
         public override void ReadCurValues() {

@@ -174,6 +174,8 @@ public class MaterialManager {
                 mat.enableInstancing = true;
                 materials[name] = mat;
                 return mat;
+            } else if (name == "_HANDLE_") {
+                return GetHandleMaterial_instance(new Color(1, 1, 0, 1));
             } else {
                 var tex = GetTexture_instance(name);
                 if (tex != null) {

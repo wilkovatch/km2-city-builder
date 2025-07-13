@@ -24,6 +24,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
     TransformPropertiesEditorPanel transformPropertiesEditorPanel = new TransformPropertiesEditorPanel();
     SettingsEditorPanel settingsEditorPanel = new SettingsEditorPanel();
     ProjectSettingsEditorPanel projectSettingsEditorPanel = new ProjectSettingsEditorPanel();
+    CityPropertiesEditorPanel cityPropertiesEditorPanel = new CityPropertiesEditorPanel();
     public EditorPanels.Props.ContainerEditorPanel propContainerEditorPanel = new EditorPanels.Props.ContainerEditorPanel();
     public TerrainPatchBorderMeshEditorPanel tpBorderMeshEditorPanel = new TerrainPatchBorderMeshEditorPanel();
     BatchUpdateEditorPanel batchUpdateEditorPanel = new BatchUpdateEditorPanel();
@@ -43,7 +44,9 @@ public class CityBuilderMenuBar : MonoBehaviour {
     InputFieldPopup inputFieldPopup;
     public RuntimeGizmos.TransformGizmo gizmo;
     public static RuntimeGizmos.TransformGizmo staticGizmo;
-    TerrainModifier.Null nullModifier, nullModifierNoSelect;
+    public static int panelsActive = 0;
+    TerrainModifier.Null nullModifier;
+    int selectedEntityMenuItemIndex = -1;
 
     GameObject selectedObject = null;
     bool noCity = false;
@@ -61,7 +64,6 @@ public class CityBuilderMenuBar : MonoBehaviour {
         gizmo.onAnyChange += transformPropertiesEditorPanel.Refresh;
         staticGizmo = gizmo;
         nullModifier = new TerrainModifier.Null(helper, SelectObject);
-        nullModifierNoSelect = new TerrainModifier.Null(helper, null);
         helper.elementManager.builder = this;
 
         roadPlacer = new ElementPlacer.RoadPlacer(helper.elementManager);
@@ -70,6 +72,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
         meshPlacer = new ElementPlacer.MeshPlacer(helper.elementManager);
 
         fileBrowser = gameObject.AddComponent<FileBrowserHelper>();
+        fileBrowser.builder = this;
         fileBrowser.enableMenuUI = EnableUI;
 
         //Menu bar
@@ -95,11 +98,12 @@ public class CityBuilderMenuBar : MonoBehaviour {
             CloseCity,
             Quit
         };
-        menuBar.AddElement(SM.Get("FILE"), entries, actions);
+        menuBar.AddElement(SM.Get("FILE"), entries, actions, Color.black);
 
         //Edit
         entries = new List<string> {
             SM.Get("PROJECT_SETTINGS"),
+            SM.Get("CITY_PROPERTIES"),
             SM.Get("TOGGLE_TERRAIN_EDIT_MENU"),
             SM.Get("LOAD_HEIGHTMAP"),
             SM.Get("MANAGE_PRESETS"),
@@ -109,6 +113,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
         };
         actions = new List<System.Action> {
             ToggleProjectSettings,
+            ToggleCityProperties,
             ToggleTerrainEdit,
             LoadHeightmap,
             OpenPresetList,
@@ -116,7 +121,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
             OpenBatchUpdate,
             RotateCity
         };
-        menuBar.AddElement(SM.Get("EDIT"), entries, actions);
+        menuBar.AddElement(SM.Get("EDIT"), entries, actions, Color.black);
 
         //View
         entries = new List<string> {
@@ -135,7 +140,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
             ResetWindow
             /*, ToggleWireframe*/
         };
-        menuBar.AddElement(SM.Get("VIEW"), entries, actions);
+        menuBar.AddElement(SM.Get("VIEW"), entries, actions, Color.black);
 
         //Create
         entries = new List<string> {
@@ -154,7 +159,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
             CreateCityBuildings,
             CreateMeshInstance
         };
-        menuBar.AddElement(SM.Get("CREATE"), entries, actions);
+        menuBar.AddElement(SM.Get("CREATE"), entries, actions, Color.black);
 
         //Settings
         entries = new List<string> {
@@ -163,7 +168,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
         actions = new List<System.Action> {
             ToggleSettings
         };
-        menuBar.AddElement(SM.Get("SETTINGS_MENU"), entries, actions);
+        menuBar.AddElement(SM.Get("SETTINGS_MENU"), entries, actions, Color.black);
 
         //Help
         entries = new List<string> {
@@ -174,7 +179,14 @@ public class CityBuilderMenuBar : MonoBehaviour {
             ShowQuickstart,
             ShowAbout
         };
-        menuBar.AddElement(SM.Get("HELP"), entries, actions);
+        menuBar.AddElement(SM.Get("HELP"), entries, actions, Color.black);
+
+        //Currently selected instances
+        entries = new List<string> {};
+        actions = new List<System.Action> {};
+        menuBar.AddElement(SM.Get("CONTAINERS_SELECTED_PLUR").Replace("$NUMBER", "9"), entries, actions, Color.blue);
+        selectedEntityMenuItemIndex = menuBar.GetElementCount() - 1;
+        menuBar.ShowElement(selectedEntityMenuItemIndex, false);
 
         panels = new List<EditorPanel> {
             terrainEditorPanel,
@@ -197,7 +209,8 @@ public class CityBuilderMenuBar : MonoBehaviour {
             tpBorderMeshEditorPanel,
             batchUpdateEditorPanel,
             rotateCityPanel,
-            customExporterPanel
+            customExporterPanel,
+            cityPropertiesEditorPanel
         };
 
         foreach (var panel in panels) {
@@ -205,8 +218,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
         }
 
         DisableAllPanels(null);
-        terrainClick.modifier = nullModifier;
-        terrainClick.editEnabled = true;
+        SetSelectObjectMode();
 
         menuBar.SetAsLastSibling();
 
@@ -222,7 +234,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
             }
         }
         var menuBar = GetComponent<MenuBar>();
-        for (int i = 1; i < menuBar.GetElementCount() - 2; i++) {
+        for (int i = 1; i < menuBar.GetElementCount() - 3; i++) {
             menuBar.EnableElement(i, enabled);
         }
     }
@@ -235,12 +247,12 @@ public class CityBuilderMenuBar : MonoBehaviour {
         var menuBar = GetComponent<MenuBar>();
         DisableAllPanels(null);
         if (PreferencesManager.workingDirectory == "") {
-            for (int i = 1; i < menuBar.GetElementCount() - 2; i++) {
+            for (int i = 1; i < menuBar.GetElementCount() - 3; i++) {
                 menuBar.EnableElement(i, false);
             }
             noCity = true;
         } else {
-            for (int i = 1; i < menuBar.GetElementCount() - 2; i++) {
+            for (int i = 1; i < menuBar.GetElementCount() - 3; i++) {
                 menuBar.EnableElement(i, true);
             }
             noCity = false;
@@ -316,8 +328,8 @@ public class CityBuilderMenuBar : MonoBehaviour {
         }
     }
 
-    public void UnsetModifier(bool selectObject = true) {
-        terrainClick.modifier = selectObject ? nullModifier : nullModifierNoSelect;
+    public void SetSelectObjectMode() {
+        terrainClick.modifier = nullModifier;
     }
 
     public void NotifyChange() {
@@ -330,6 +342,45 @@ public class CityBuilderMenuBar : MonoBehaviour {
                 helper.elementManager.FlagAsChanged(propsChanged);
             }
         }
+        if (transformPropertiesEditorPanel != null && transformPropertiesEditorPanel.instance != null) {
+            var inst = transformPropertiesEditorPanel.instance.GetComponent<MeshInstance>();
+            if (inst != null) {
+                inst.SyncParametricObjectState();
+            }
+        }
+    }
+
+    public void NotifyVisibilityChange() {
+        if (helper != null) {
+            if (helper.elementManager != null) {
+                helper.elementManager.visibilityChanged = true;
+                SyncSelectedEntityMenuItemVisibility();
+            }
+        }
+    }
+
+    void SyncSelectedEntityMenuItemVisibility() {
+        var idx = selectedEntityMenuItemIndex;
+        var menuBar = GetComponent<MenuBar>();
+        var entitiesSelected = new List<string>();
+        var entries = new List<string>();
+        var actions = new List<System.Action>();
+        foreach (var entry in ArrayObject.activeElements) {
+            if (entry.Value != null) {
+                entitiesSelected.Add(entry.Key);
+                entries.Add(SM.Get("DESELECT_CONTAINER").Replace("$CONTAINER", SM.Get("CUSTOM_ELEMENT_CATEGORY_" + entry.Key.ToUpper())));
+                actions.Add(delegate { DeselectEntity(entry.Key); });
+            }
+        }
+        menuBar.SetEntries(idx, entries, actions);
+        var suffix = entitiesSelected.Count > 1 ? "PLUR" : "SING";
+        menuBar.SetText(idx, SM.Get("CONTAINERS_SELECTED_" + suffix).Replace("$NUMBER", entitiesSelected.Count.ToString()));
+        menuBar.ShowElement(idx, entitiesSelected.Count > 0);
+    }
+
+    void DeselectEntity(string type) {
+        ArrayObject.activeElements[type] = null;
+        NotifyVisibilityChange();
     }
 
     public void NotifyUpdateCompleted() {
@@ -382,6 +433,10 @@ public class CityBuilderMenuBar : MonoBehaviour {
         ShowPanel(projectSettingsEditorPanel);
     }
 
+    void ToggleCityProperties() {
+        ShowPanel(cityPropertiesEditorPanel);
+    }
+
     void ChangeOverlayTransparency() {
         helper.SwitchTransparency();
     }
@@ -410,9 +465,9 @@ public class CityBuilderMenuBar : MonoBehaviour {
         helper.SetCirclePosition(Vector3.zero, 0);
     }
 
-    void ShowPanel(EditorPanel panel) {
+    void ShowPanel(EditorPanel panel, Stack<GameObject> stack = null) {
         DisableAllPanels(panel);
-        panel.SetActive(true);
+        panel.ShowWithStack(stack);
     }
 
     //Menu elements
@@ -479,12 +534,11 @@ public class CityBuilderMenuBar : MonoBehaviour {
         DisableAllPanels(terrainEditorPanel);
         terrainEditorPanel.Toggle();
         var editEnabled = terrainEditorPanel.ActiveSelf();
-        terrainClick.editEnabled = editEnabled;
         helper.elementManager.ShowIntersections(false);
         if (editEnabled) {
             terrainEditorPanel.ReloadTerrainModifier();
         } else {
-            terrainClick.modifier = nullModifier;
+            SetSelectObjectMode();
         }
     }
 
@@ -514,9 +568,10 @@ public class CityBuilderMenuBar : MonoBehaviour {
         textureListEditorPanel.Open(panel, valueSetter, afterSetAction);
     }
 
-    public void OpenMeshSelector(GameObject panel, System.Action<string> valueSetter, System.Action afterSetAction, bool disablePlacer = false) {
+    public void OpenMeshSelector(EditorPanel panel, GameObject panelObj, System.Action<string> valueSetter, System.Action afterSetAction, bool disablePlacer = false) {
         if (disablePlacer) meshListEditorPanel.disablePlacer = true;
-        meshListEditorPanel.Open(panel, valueSetter, afterSetAction);
+        if (panel != null) meshListEditorPanel.Open(panel, valueSetter, afterSetAction);
+        else if (panelObj != null) meshListEditorPanel.Open(panelObj, valueSetter, afterSetAction);
     }
 
     void CreateMeshInstance() {
@@ -542,7 +597,6 @@ public class CityBuilderMenuBar : MonoBehaviour {
     void CreateRoad() {
         roadEditorPanel.Terminate();
         DisableAllPanels(roadEditorPanel);
-        terrainClick.editEnabled = true;
         roadPlacer.SetRoad(null);
         roadPlacer.placementMode = ElementPlacer.RoadPlacer.PlacementMode.Add;
         terrainClick.modifier = roadPlacer;
@@ -551,7 +605,6 @@ public class CityBuilderMenuBar : MonoBehaviour {
 
     void CreateTerrain() {
         DisableAllPanels(terrainPatchEditorPanel);
-        terrainClick.editEnabled = true;
         terrainPlacer.SetTerrainPatch(null);
         terrainPlacer.placementMode = ElementPlacer.TerrainPlacer.PlacementMode.Perimeter;
         terrainClick.modifier = terrainPlacer;
@@ -561,7 +614,6 @@ public class CityBuilderMenuBar : MonoBehaviour {
 
     void CreateBuildingLine() {
         DisableAllPanels(buildingLineEditorPanel);
-        terrainClick.editEnabled = true;
         buildingPlacer.SetBuildingLine(null);
         buildingPlacer.placementMode = ElementPlacer.BuildingPlacer.PlacementMode.Point;
         terrainClick.modifier = buildingPlacer;
@@ -633,6 +685,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
     }
 
     public void SelectObject(RaycastHit hit) {
+        if (HasActivePanels()) return;
         SelectObject(hit.transform.gameObject, true, hit.collider);
     }
 
@@ -640,7 +693,8 @@ public class CityBuilderMenuBar : MonoBehaviour {
         SelectObject(obj, true, null);
     }
 
-    public void DeselectObject(bool allowSelect) {
+    public void DeselectObject() {
+        SetSelectObjectMode();
         if (selectedObject == null) return;
         var road = selectedObject.GetComponent<Road>();
         var intersection = selectedObject.GetComponentInChildren<Intersection.IntersectionComponent>();
@@ -656,7 +710,6 @@ public class CityBuilderMenuBar : MonoBehaviour {
             building.SetActive(false, false);
         }
         selectedObject = null;
-        if (allowSelect) terrainClick.modifier = nullModifier;
         helper.elementManager.ShowAnchors(false);
         helper.elementManager.ShowIntersections(false);
         helper.elementManager.DeselectMeshes();
@@ -665,27 +718,21 @@ public class CityBuilderMenuBar : MonoBehaviour {
     public void EditRoadPresets() {
         roadEditorPanel.Terminate();
         DisableAllPanels(roadEditorPanel);
-        terrainClick.editEnabled = true;
         roadPlacer.SetRoad(null);
-        terrainClick.modifier = nullModifier;
         roadEditorPanel.SetActive(true, false);
     }
 
     public void EditIntersectionPresets() {
         intersectionEditorPanel.Terminate();
         DisableAllPanels(intersectionEditorPanel);
-        terrainClick.editEnabled = true;
         intersectionEditorPanel.intersection = null;
-        terrainClick.modifier = nullModifier;
         intersectionEditorPanel.SetActive(true);
     }
 
     public void EditBuildingLinePresets() {
         buildingLineEditorPanel.Terminate();
         DisableAllPanels(buildingLineEditorPanel);
-        terrainClick.editEnabled = true;
         buildingPlacer.SetBuildingLine(null);
-        terrainClick.modifier = nullModifier;
         buildingLineEditorPanel.SetActive(true);
     }
 
@@ -697,17 +744,17 @@ public class CityBuilderMenuBar : MonoBehaviour {
     }
 
     void ReselectObjectPanelAndModifier(GameObject obj, bool withEditor, EditorPanel panel, TerrainAction modifier) {
-        DeselectObject(withEditor);
+        DeselectObject();
         selectedObject = obj;
         if (withEditor) {
             DisableAllPanels(panel);
-            terrainClick.editEnabled = true;
             terrainClick.modifier = modifier;
         }
     }
 
-    public void SelectObject(GameObject obj, bool withEditor, Collider c) {
+    public void SelectObject(GameObject obj, bool withEditor, Collider c, Stack<GameObject> stack = null) {
         transformPropertiesEditorPanel.Select(false);
+        var cityProperties = obj.GetComponent<CityProperties>();
         var road = obj.GetComponent<Road>();
         var intersection = obj.GetComponentInChildren<Intersection.IntersectionComponent>();
         var patch = obj.GetComponent<TerrainPatch>();
@@ -716,27 +763,31 @@ public class CityBuilderMenuBar : MonoBehaviour {
         var buildingSide = (buildingLine != null && c != null && c is MeshCollider mc) ? buildingLine.GetColliderSide(mc) : null;
         var building = (buildingLine != null && c != null && c is MeshCollider mc2) ? buildingLine.GetColliderBuilding(mc2) : null;
         var selector = obj.GetComponent<GenericSelector>();
-        if (road != null) {
+        if (cityProperties != null) {
+            DeselectAndCloseCurrentPanel();
+            ShowPanel(cityPropertiesEditorPanel, stack);
+            //todo: go to the correct tab if there is more than one
+        } else if (road != null) {
             ReselectObjectPanelAndModifier(obj, withEditor, roadEditorPanel, roadPlacer);
             if (withEditor) roadPlacer.SetRoad(road);
             helper.elementManager.ShowIntersections(false);
             road.SetActive(true);
-            if (withEditor) roadEditorPanel.SetActive(true);
-        } else if (intersection != null) {
-            ReselectObjectPanelAndModifier(obj, withEditor, intersectionEditorPanel, null);
+            if (withEditor) roadEditorPanel.ShowWithStack(stack);
+        } else if (intersection != null && intersection.gameObject.transform.parent == obj.transform) {
+            ReselectObjectPanelAndModifier(obj, withEditor, intersectionEditorPanel, null); //todo: make work wirh nullModifier (or rework altogether)
             helper.elementManager.ShowIntersections(false);
             intersectionEditorPanel.intersection = intersection.intersection;
             intersection.intersection.SetActive(true, true, true);
-            if (withEditor) intersectionEditorPanel.SetActive(true);
+            if (withEditor) intersectionEditorPanel.ShowWithStack(stack);
         } else if (patch != null) {
             ReselectObjectPanelAndModifier(obj, withEditor, terrainPatchEditorPanel, terrainPlacer);
             if (withEditor) terrainPlacer.SetTerrainPatch(patch);
             helper.elementManager.ShowAnchors(true);
             patch.SetActive(true, true);
             patch.Select(true);
-            if (withEditor) terrainPatchEditorPanel.SetActive(true);
+            if (withEditor) terrainPatchEditorPanel.ShowWithStack(stack);
         } else if (mesh != null) {
-            ReselectObjectPanelAndModifier(obj, withEditor, transformPropertiesEditorPanel, null);
+            ReselectObjectPanelAndModifier(obj, withEditor, transformPropertiesEditorPanel, nullModifier);
             if (withEditor) {
                 transformPropertiesEditorPanel.instance = mesh.gameObject;
                 transformPropertiesEditorPanel.SetActive(true);
@@ -770,10 +821,11 @@ public class CityBuilderMenuBar : MonoBehaviour {
             buildingLine.SetActive(true, true);
             buildingLine.Select(true);
             if (withEditor) {
-                buildingLineEditorPanel.SetActive(true);
                 if (Input.GetKey(KeyCode.LeftShift)) {
-                    //do nothing => edit the line
+                    //edit the line
+                    buildingLineEditorPanel.ShowWithStack(stack);
                 } else {
+                    buildingLineEditorPanel.SetActive(true);
                     buildingLineEditorPanel.EditBuilding(building);
                 }
             }
@@ -783,7 +835,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
             helper.elementManager.ShowAnchors(true);
             buildingLine.SetActive(true, true);
             buildingLine.Select(true);
-            if (withEditor) buildingLineEditorPanel.SetActive(true);
+            if (withEditor) buildingLineEditorPanel.ShowWithStack(stack);
         } else if (selector != null) {
             switch (selector.type) {
                 case "Building":
@@ -794,10 +846,11 @@ public class CityBuilderMenuBar : MonoBehaviour {
                     buildingLine.SetActive(true, true);
                     buildingLine.Select(true);
                     if (withEditor) {
-                        buildingLineEditorPanel.SetActive(true);
                         if (Input.GetKey(KeyCode.LeftShift)) {
-                            //do nothing => edit the line
+                            //edit the line
+                            buildingLineEditorPanel.ShowWithStack(stack);
                         } else {
+                            buildingLineEditorPanel.SetActive(true);
                             buildingLineEditorPanel.EditBuilding(((Building)selector.parent));
                         }
                     }
@@ -809,17 +862,24 @@ public class CityBuilderMenuBar : MonoBehaviour {
                     helper.elementManager.ShowAnchors(true);
                     buildingLine.SetActive(true, true);
                     buildingLine.Select(true);
-                    if (withEditor) buildingLineEditorPanel.SetActive(true);
+                    if (withEditor) buildingLineEditorPanel.ShowWithStack(stack);
                     break;
                 default:
                     break;
             }
+        } else if (obj.transform.parent != null) {
+            if (stack == null) {
+                stack = new Stack<GameObject>();
+            }
+            stack.Push(obj);
+            SelectObject(obj.transform.parent.gameObject, withEditor, c, stack);
         }
     }
 
     void DeleteCurObj() {
+        var setSelectMode = true; //set to false if no objects deleted (i.e. nothing or control points only)
         if (roadEditorPanel.ActiveSelf()) {
-            roadEditorPanel.Delete(true);
+            setSelectMode = roadEditorPanel.Delete(true);
         } else if (terrainPatchEditorPanel.ActiveSelf()) {
             if (gizmo.mainTargetRoot != null) {
                 var point = gizmo.mainTargetRoot.GetComponent<TerrainPoint>();
@@ -830,6 +890,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
                         NotifyChange();
                     }
                 }
+                setSelectMode = false;
             } else {
                 terrainPatchEditorPanel.Delete();
             }
@@ -845,10 +906,14 @@ public class CityBuilderMenuBar : MonoBehaviour {
                         NotifyChange();
                     }
                 }
+                setSelectMode = false;
             } else {
                 buildingLineEditorPanel.Delete();
             }
+        } else {
+            setSelectMode = false;
         }
+        if (setSelectMode) SetSelectObjectMode();
     }
 
     public Transform GetCurSelectedObject() {
@@ -861,7 +926,22 @@ public class CityBuilderMenuBar : MonoBehaviour {
 
     void DeselectAndCloseCurrentPanel() {
         DisableAllPanels(null);
-        DeselectObject(true);
+        DeselectObject();
+    }
+
+    public void SetTransformPanelParent(EditorPanel newParent) {
+        transformPropertiesEditorPanel.parentPanel = newParent;
+    }
+
+    bool HasActivePanels() {
+        if (transform == null) return false;
+        int activeObjects = 0;
+        foreach (Transform child in transform) {
+            if (child.gameObject.activeSelf) {
+                activeObjects++;
+            }
+        }
+        return activeObjects > 1;
     }
 
     private void Update() {
@@ -883,9 +963,7 @@ public class CityBuilderMenuBar : MonoBehaviour {
             } else if (Input.GetKeyDown(KeyCode.M)) {
                 var obj = GetCurSelectedObject();
                 if (obj != null) {
-                    terrainClick.modifier = null;
                     DisableAllPanels(transformPropertiesEditorPanel);
-                    terrainClick.editEnabled = true;
                     transformPropertiesEditorPanel.instance = obj.gameObject;
                     transformPropertiesEditorPanel.SetActive(true);
                 }

@@ -105,10 +105,10 @@ namespace EditorPanels {
         public void Terminate(bool auto) {
             if (GetPlacer() != null) GetPlacer().placementMode = ElementPlacer.RoadPlacer.PlacementMode.None;
             GetCurIntersection()?.SetActive(false);
-            builder.UnsetModifier();
             builder.helper.elementManager.ShowIntersections(false);
             if (!auto) SetActive(false);
             Camera.main.GetComponent<RuntimeGizmos.TransformGizmo>()?.ClearTargets();
+            builder.SetSelectObjectMode(); //todo: rework preset selection detection to avoid this
         }
 
         Intersection GetCurIntersection() {

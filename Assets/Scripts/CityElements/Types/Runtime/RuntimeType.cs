@@ -19,6 +19,10 @@ namespace CityElements.Types.Runtime {
         public List<Dictionary<string, RC.Vector3s.Vector>> localVector3Definitions = new List<Dictionary<string, RC.Vector3s.Vector>>();
         public List<Dictionary<string, RC.Vector2s.Vector>> localVector2Definitions = new List<Dictionary<string, RC.Vector2s.Vector>>();
         public List<Dictionary<string, RC.Booleans.Boolean>> localBoolDefinitions = new List<Dictionary<string, RC.Booleans.Boolean>>();
+        public Dictionary<string, Parameter> objectInstanceParams = new Dictionary<string, Parameter>();
+        public Dictionary<string, Types.ArrayProperties> arrayParams = new Dictionary<string, Types.ArrayProperties>();
+        public Dictionary<string, string> customElemParams = new Dictionary<string, string>();
+        public Dictionary<string, Definition[]> lateDefinitionsDict = new Dictionary<string, Definition[]>();
 
         void ParseDefinition(Definition def, List<string> floatVars, List<string> vec3Vars, List<string> vec2Vars) {
             if (def.type == "float" || def.type == "int") {
@@ -51,6 +55,12 @@ namespace CityElements.Types.Runtime {
                         vars.vec2Vars.Add(param.fullName());
                     } else if (param.type == "vec3") {
                         vars.vec3Vars.Add(param.fullName());
+                    } else if (param.type == "objectInstance") {
+                        objectInstanceParams.Add(param.fullName(), param);
+                    } else if (param.type == "array") {
+                        arrayParams.Add(param.fullName(), param.arrayProperties);
+                    } else if (param.type == "customElement") {
+                        customElemParams.Add(param.fullName(), param.customElementType);
                     }
                 }
             }
@@ -59,14 +69,21 @@ namespace CityElements.Types.Runtime {
                     vars.floatVars.Add(param);
                 }
             }
-            if (parameterContainer.staticDefinitions != null) {
-                foreach (var def in parameterContainer.staticDefinitions) {
-                    ParseDefinition(def, vars.floatVars, vars.vec3Vars, vars.vec2Vars);
+            var definitions = new List<Definition[]>() {
+                parameterContainer.staticDefinitions,
+                parameterContainer.dynamicDefinitions
+            };
+            if (parameterContainer.lateDefinitions != null) {
+                foreach (var def in parameterContainer.lateDefinitions) {
+                    definitions.Add(def.definitions);
+                    lateDefinitionsDict.Add(def.category, def.definitions);
                 }
             }
-            if (parameterContainer.dynamicDefinitions != null) {
-                foreach (var def in parameterContainer.dynamicDefinitions) {
-                    ParseDefinition(def, vars.floatVars, vars.vec3Vars, vars.vec2Vars);
+            foreach (var defArray in definitions) {
+                if (defArray != null) {
+                    foreach (var def in defArray) {
+                        ParseDefinition(def, vars.floatVars, vars.vec3Vars, vars.vec2Vars);
+                    }
                 }
             }
             var dict = new List<(string, System.Type)>();
@@ -156,14 +173,22 @@ namespace CityElements.Types.Runtime {
             }
         }
 
-        protected void FillStaticDefinitionVariables(RC.VariableContainer variableContainer) {
-            if (parameterContainer.staticDefinitions == null) return;
-            foreach (var def in parameterContainer.staticDefinitions) {
-                if (def.type == "float" || def.type == "int") FillFloat(variableContainer, def.name, numberDefinitions[def.name].GetValue(variableContainer));
-                else if (def.type == "bool") FillBool(variableContainer, def.name, boolDefinitions[def.name].GetValue(variableContainer));
-                else if (def.type == "vec3") FillVector3(variableContainer, def.name, vector3Definitions[def.name].GetValue(variableContainer));
-                else if (def.type == "vec2") FillVector2(variableContainer, def.name, vector2Definitions[def.name].GetValue(variableContainer));
+        private void FillDefinition(RC.VariableContainer variableContainer, Definition def) {
+            if (def.type == "float" || def.type == "int") FillFloat(variableContainer, def.name, numberDefinitions[def.name].GetValue(variableContainer));
+            else if (def.type == "bool") FillBool(variableContainer, def.name, boolDefinitions[def.name].GetValue(variableContainer));
+            else if (def.type == "vec3") FillVector3(variableContainer, def.name, vector3Definitions[def.name].GetValue(variableContainer));
+            else if (def.type == "vec2") FillVector2(variableContainer, def.name, vector2Definitions[def.name].GetValue(variableContainer));
+        }
+
+        private void FillDefinitionsCommon(RC.VariableContainer variableContainer, Definition[] definitions) {
+            if (definitions == null) return;
+            foreach (var def in definitions) {
+                FillDefinition(variableContainer, def);
             }
+        }
+
+        protected void FillStaticDefinitionVariables(RC.VariableContainer variableContainer) {
+            FillDefinitionsCommon(variableContainer, parameterContainer.staticDefinitions);
         }
 
         protected void FillBaseInitialVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState) {
@@ -182,13 +207,12 @@ namespace CityElements.Types.Runtime {
         }
 
         protected void FillBaseIterationVariables(RC.VariableContainer variableContainer) {
-            if (parameterContainer.dynamicDefinitions == null) return;
-            foreach (var def in parameterContainer.dynamicDefinitions) {
-                if (def.type == "float" || def.type == "int") FillFloat(variableContainer, def.name, numberDefinitions[def.name].GetValue(variableContainer));
-                else if (def.type == "bool") FillBool(variableContainer, def.name, boolDefinitions[def.name].GetValue(variableContainer));
-                else if (def.type == "vec3") FillVector3(variableContainer, def.name, vector3Definitions[def.name].GetValue(variableContainer));
-                else if (def.type == "vec2") FillVector2(variableContainer, def.name, vector2Definitions[def.name].GetValue(variableContainer));
-            }
+            FillDefinitionsCommon(variableContainer, parameterContainer.dynamicDefinitions);
+        }
+
+        protected void FillBaseLateVariables(RC.VariableContainer variableContainer, string category) {
+            if (!lateDefinitionsDict.ContainsKey(category)) return;
+            FillDefinitionsCommon(variableContainer, lateDefinitionsDict[category]);
         }
 
         protected void FillBaseSubVariables(RC.VariableContainer variableContainer, int c) {

@@ -29,11 +29,6 @@ namespace EditorPanels {
             p0.AddButton(SM.Get("CLOSE"), Terminate, 1.5f);
         }
 
-        public override void SetActive(bool active) {
-            if (!active && ActiveSelf()) builder.UnsetModifier();
-            base.SetActive(active);
-        }
-
         int lastTerrainModifier = 0;
         void SetTerrainModifier(int value) {
             lastTerrainModifier = value;
@@ -86,9 +81,13 @@ namespace EditorPanels {
                     builder.terrainClick.modifier = new TerrainModifier.Level(builder.terrainClick.helper, terrainRange, terrainIntensity * terrainIntensity, singleStep, terrainHeightActive, terrainHeight);
                     break;
                 default:
-                    builder.UnsetModifier();
+                    builder.SetSelectObjectMode();
                     break;
             }
+        }
+
+        public override void SetActive(bool active) {
+            base.SetActive(active);
         }
     }
 }

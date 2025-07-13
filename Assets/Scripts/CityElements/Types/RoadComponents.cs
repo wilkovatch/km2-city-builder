@@ -146,6 +146,7 @@ namespace CityElements.Types {
         public ImportedParameter[] importedParameters;
         public Definition[] staticDefinitions;
         public Definition[] dynamicDefinitions;
+        public LateDefinition[] lateDefinitions;
         public TextureDefinition[] textureDefinitions;
         public object anchors;
         public ImportedPropContainer[] importedPropsContainers;

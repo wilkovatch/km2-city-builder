@@ -162,7 +162,7 @@ namespace GeometryHelpers {
                         texIndexMap.Add(i, index);
                     }
                     var len = GH.GetPathLength(borderMesh.segment.ToArray());
-                    curType.FillInitialVariables(subGen.variableContainer, borderMesh.state, borderMesh.instanceState, len, borderMesh.segment.Count);
+                    curType.FillInitialVariables(subGen.variableContainer, borderMesh.state, borderMesh.instanceState, null, len, borderMesh.segment.Count);
                     var z = 0.0f;
                     for (int i = 0; i < borderMesh.segment.Count; i++) {
                         if (i > 0) z += Vector3.Distance(borderMesh.segment[i - 1], borderMesh.segment[i]);

@@ -283,13 +283,28 @@ namespace CityEncoder {
             savedCity.meshDict = meshDict.ToArray();
 
             //Mesh instances
-            var meshArray = new IO.ExportedCity.MeshInstance[manager.meshes.Count];
-            for (int i = 0; i < manager.meshes.Count; i++) {
-                var mesh = manager.meshes[i];
+            var actualMeshes = new List<MeshInstance>(manager.meshes); //we need to add parametric meshes too
+            foreach (var road in manager.roads) {
+                actualMeshes.AddRange(road.GetParametricObjects());
+            }
+            var meshArray = new IO.ExportedCity.MeshInstance[actualMeshes.Count];
+            for (int i = 0; i < actualMeshes.Count; i++) {
+                var mesh = actualMeshes[i];
                 var elem = new IO.ExportedCity.MeshInstance();
                 elem.id = i;
                 elem.name = mesh.gameObject.name;
-                elem.settings = mesh.settings;
+                elem.settings = (ObjectState)mesh.settings.Clone();
+                if (mesh.objectParameter != null) {
+                    elem.settings.SetStr("_parameterName", mesh.objectParameter.name);
+                    var parentObj = mesh.transform.parent.parent.gameObject;
+                    var road = parentObj.GetComponent<Road>();
+                    if (road != null) {
+                        elem.settings.SetStr("_parentObjectType", "Road");
+                        elem.settings.SetInt("_parentObjectId", manager.roads.IndexOf(road));
+                    } else {
+                        //todo
+                    }
+                }
                 var reference = new IO.ExportedCity.MeshReference();
                 reference.meshId = meshLookup.ContainsKey(mesh.meshPath) ?  meshLookup[mesh.meshPath] : -1;
                 reference.b64v3_position = GetEncodedVector3(mesh.GetRealPosition());
@@ -298,8 +313,8 @@ namespace CityEncoder {
                 elem.reference = reference;
                 meshArray[i] = elem;
 
-                if (i % 100 == 0 || i == manager.meshes.Count - 1) {
-                    progressBar.SetProgress(0.05f * ((float)(i + 1) / manager.meshes.Count));
+                if (i % 100 == 0 || i == actualMeshes.Count - 1) {
+                    progressBar.SetProgress(0.05f * ((float)(i + 1) / actualMeshes.Count));
                     yield return new WaitForEndOfFrame();
                 }
             }
@@ -463,6 +478,9 @@ namespace CityEncoder {
                 }
             }
             savedCity.buildingLines = linesArray;
+
+            savedCity.cityProperties = manager.GetDummy<CityProperties>().GetState();
+
             Object.Destroy(tmp);
             tmp = null;
 

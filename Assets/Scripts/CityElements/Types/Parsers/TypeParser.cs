@@ -180,5 +180,49 @@ namespace CityElements.Types.Parsers {
             meshInstanceSettings = new Runtime.MeshInstanceSettings(typeData);
             return meshInstanceSettings;
         }
+
+        //Parametric MeshInstances
+        static Dictionary<string, Runtime.MeshInstanceSettings> parametricMeshInstanceSettings = null;
+        public static Dictionary<string, Runtime.MeshInstanceSettings> GetParametricMeshInstanceSettings(bool reload = false) {
+            if (parametricMeshInstanceSettings != null && !reload) return parametricMeshInstanceSettings;
+            var elementsDir = GetElementsDir();
+            if (elementsDir == null) return null;
+            var folder = Path.Combine(elementsDir, "props", "parametric");
+            var files = Directory.GetFiles(folder);
+            var res = new Dictionary<string, Runtime.MeshInstanceSettings>();
+            foreach (var file in files) {
+                var content = File.ReadAllText(file);
+                var typeData = Newtonsoft.Json.JsonConvert.DeserializeObject<MeshInstanceSettings>(content);
+                var settings = new Runtime.MeshInstanceSettings(typeData);
+                res[Path.GetFileNameWithoutExtension(file)] = settings;
+            }
+            return res;
+        }
+
+        //City (only one type, dictionary here for compatibility with the InitializeWithCustomParameters method)
+        static Dictionary<string, Runtime.CitySettings> citySettings = null;
+        public static Dictionary<string, Runtime.CitySettings> GetCitySettings(bool reload = false) {
+            return GetTypes(ref citySettings, elementsDir => {
+                var dir = Path.Combine(elementsDir, "cityProperties");
+                var tr = new CitySettings.CitySettings(dir);
+                citySettings.Add("city", new Runtime.CitySettings(tr));
+            }, reload);
+        }
+
+        static Dictionary<string, CustomElement> customTypes = null;
+        public static Dictionary<string, CustomElement> GetCustomTypes(bool reload = false) {
+            if (customTypes != null && !reload) return customTypes;
+            var elementsDir = GetElementsDir();
+            if (elementsDir == null) return null;
+            var folder = Path.Combine(elementsDir, "customTypes");
+            var files = Directory.GetFiles(folder);
+            var res = new Dictionary<string, CustomElement>();
+            foreach (var file in files) {
+                var content = File.ReadAllText(file);
+                var typeData = Newtonsoft.Json.JsonConvert.DeserializeObject<CustomElement>(content);
+                res[Path.GetFileNameWithoutExtension(file)] = typeData;
+            }
+            return res;
+        }
     }
 }

@@ -187,9 +187,7 @@ namespace CityEncoder {
 
             savedCity.terrainPoints = GetTerrainPointsArray(pointsList);
 
-            var genericObjects = new List<IO.SavedCity.GenericObject>();
-            //reserved for future use
-            savedCity.genericObjects = genericObjects.ToArray();
+            savedCity.cityProperties = manager.GetDummy<CityProperties>().GetState();
 
             var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.Indented);
             if (gzip) {

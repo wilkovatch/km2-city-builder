@@ -31,5 +31,9 @@ namespace CityElements.Types.Runtime {
         public void FillSegmentVariables(RC.VariableContainer variableContainer) {
             FillBaseIterationVariables(variableContainer);
         }
+
+        public void FillLateVariables(RC.VariableContainer variableContainer, string category) {
+            FillBaseLateVariables(variableContainer, category); //TODO: fix when actually used
+        }
     }
 }

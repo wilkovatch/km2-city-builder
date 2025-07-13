@@ -39,6 +39,7 @@ namespace EditorPanelElements {
             field.contentType = UnityEngine.UI.InputField.ContentType.DecimalNumber;
             field.onEndEdit.AddListener(delegate {
                 ChangeValue();
+                parentPanel.CheckFieldsInteractabilityDelayed();
             });
         }
 
@@ -80,8 +81,14 @@ namespace EditorPanelElements {
             zField.interactable = interactable;
         }
 
+        public void SetInteractable(bool x, bool y, bool z) {
+            xField.interactable = x;
+            yField.interactable = y;
+            zField.interactable = z;
+        }
+
         public override bool GetInteractable() {
-            return xField.interactable;
+            return xField.interactable || yField.interactable || zField.interactable;
         }
     }
 }

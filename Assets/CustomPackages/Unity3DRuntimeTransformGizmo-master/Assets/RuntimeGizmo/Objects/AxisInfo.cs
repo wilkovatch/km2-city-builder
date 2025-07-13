@@ -23,9 +23,13 @@ namespace RuntimeGizmos
 				xDirection = target.right;
 				yDirection = target.up;
 				zDirection = target.forward;
-			}
+			} else if (space == TransformSpace.Parent) {
+                xDirection = target.parent.right;
+                yDirection = target.parent.up;
+                zDirection = target.parent.forward;
+            }
 
-			this.pivot = pivot;
+            this.pivot = pivot;
 		}
 
 		public Vector3 GetXAxisEnd(float size)

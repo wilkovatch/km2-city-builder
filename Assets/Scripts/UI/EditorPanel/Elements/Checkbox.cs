@@ -20,6 +20,7 @@ namespace EditorPanelElements {
             checkbox.isOn = defaultValue;
             checkbox.onValueChanged.AddListener(delegate {
                 Select();
+                parentPanel.CheckFieldsInteractabilityDelayed();
             });
         }
 

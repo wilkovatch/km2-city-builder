@@ -27,6 +27,7 @@ namespace EditorPanelElements {
             if (defaultValue.HasValue) slider.value = defaultValue.Value;
             slider.onValueChanged.AddListener(delegate {
                 SliderChanged();
+                parentPanel.CheckFieldsInteractabilityDelayed();
             });
 
             //input field
@@ -37,6 +38,7 @@ namespace EditorPanelElements {
             inputField.placeholder.GetComponent<Text>().text = "";
             inputField.onEndEdit.AddListener(delegate {
                 InputFieldChanged();
+                parentPanel.CheckFieldsInteractabilityDelayed();
             });
         }
 

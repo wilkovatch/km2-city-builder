@@ -9,6 +9,7 @@ public abstract class EditorPanelElement {
     protected float width;
     protected Vector2 pos;
     protected string tag;
+    public EditorPanel parentPanel;
     public bool actionEnabled = true;
 
     protected abstract string TemplateName();

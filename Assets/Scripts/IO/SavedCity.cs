@@ -84,26 +84,18 @@ namespace IO.SavedCity {
         public ObjectState[] sides;
     }
 
-    public struct GenericObject { //TODO: remove (the same can be done with multiple types of mesh instances)
-        public string type;
-        public SVector3 position;
-        public SVector3 scale;
-        public SQuaternion rotation;
-        public ObjectState state;
-    }
-
     [System.Serializable]
     public struct SavedCity {
         public int heightmapResolution;
         public float maxHeight;
         public int terrainSize;
         public string heightMap;
+        public ObjectState cityProperties;
         public MeshInstance[] meshes;
         public Road[] roads;
         public Intersection[] intersections;
         public TerrainPoint[] terrainPoints;
         public TerrainPatch[] terrainPatches;
         public BuildingLine[] buildingLines;
-        public GenericObject[] genericObjects;
     }
 }

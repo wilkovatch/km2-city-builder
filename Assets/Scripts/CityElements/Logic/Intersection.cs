@@ -198,6 +198,21 @@ public class Intersection: IObjectWithState {
         }
     }
 
+    public List<Road> GetRoadsSortedClockwise() {
+        var res = new List<Road>();
+        var roadCenters = new List<Vector3>();
+        for (var i = 0; i < roads.Count; i++) {
+            var dir = GetDirectionToCenter(roads[i], point.transform.position).normalized;
+            var roadCenter = point.transform.position - dir * sizes[i];
+            roadCenters.Add(roadCenter);
+        }
+        var sortOrder = GeometryHelper.SortClockwise(roadCenters, point.transform.position);
+        foreach (var i in sortOrder) {
+            res.Add(roads[i]);
+        }
+        return res;
+    }
+
     public void RemoveRoad(Road road) {
         roads.Remove(road);
         if (roads.Count <= 1) Delete();
@@ -269,7 +284,8 @@ public class Intersection: IObjectWithState {
                 var roadGen = roadThrough.GetComponent<RoadGenerator>();
                 roadGen.state = (ObjectState)roads[startRoad].state.Clone();
                 roadGen.instanceState = (ObjectState)roads[startRoad].instanceState.Clone();
-                roadGen.state.SetBool("throughIntersection", true);
+                roadGen.runtimeState = (ObjectState)roads[startRoad].runtimeState.Clone();
+                roadGen.runtimeState.SetBool("throughIntersection", true);
                 roadGen.state.SetInt("curveType", (int)GeometryHelper.CurveType.Hermite);
                 roadGen.state.SetBool("adjustLowPolyWidth", false);
                 roadGen.segments = 2;

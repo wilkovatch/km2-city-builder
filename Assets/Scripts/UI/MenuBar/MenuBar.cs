@@ -32,9 +32,21 @@ public class MenuBar : MonoBehaviour {
         elements[i].SetInteractable(enabled);
     }
 
-    public void AddElement(string title, List<string> entries, List<System.Action> actions) {
+    public void ShowElement(int i, bool enabled) {
+        elements[i].SetActive(enabled);
+    }
+
+    public void SetText(int i, string newText) {
+        elements[i].SetText(newText);
+    }
+
+    public void SetEntries(int i, List<string> entries, List<System.Action> actions) {
+        elements[i].SetEntries(entries, actions);
+    }
+
+    public void AddElement(string title, List<string> entries, List<System.Action> actions, Color color) {
         var pos = elements.Count == 0 ? 0 : elements[elements.Count - 1].GetNextPosition();
-        elements.Add(new MenuBarElement(title, entries, actions, panel, pos));
+        elements.Add(new MenuBarElement(title, entries, actions, panel, pos, color));
     }
 
     public void SetAsLastSibling() {

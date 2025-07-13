@@ -25,7 +25,7 @@ public class RoadGenerator : MonoBehaviour {
         }
     }
 
-    public ObjectState state, instanceState;
+    public ObjectState state, instanceState, runtimeState;
     public CityElements.Types.Runtime.RoadType curType;
     public bool hasStartIntersection = false;
     public bool hasEndIntersection = false;
@@ -112,30 +112,24 @@ public class RoadGenerator : MonoBehaviour {
         return list.ToArray();
     }
 
-    //TODO: deduplicate (already on road)
     public Vector3 GetStandardVec3(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return curType.vector3Definitions[realName].GetValue(subGen.variableContainer);
+        return curType.GetStandardVec3(name, subGen.variableContainer);
     }
 
     public Vector2 GetStandardVec2(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return curType.vector2Definitions[realName].GetValue(subGen.variableContainer);
+        return curType.GetStandardVec2(name, subGen.variableContainer);
     }
 
     public float GetStandardFloat(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return curType.numberDefinitions[realName].GetValue(subGen.variableContainer);
+        return curType.GetStandardFloat(name, subGen.variableContainer);
     }
 
     public bool GetStandardBool(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return curType.boolDefinitions[realName].GetValue(subGen.variableContainer);
+        return curType.GetStandardBool(name, subGen.variableContainer);
     }
 
     public string GetStandardString(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return state.Str(realName);
+        return curType.GetStandardString(name, state);
     }
 
     public Vector3 GetVec3(string name) {
@@ -169,7 +163,7 @@ public class RoadGenerator : MonoBehaviour {
     }
 
     public void PrecalculateVariables() {
-        curType.FillInitialVariables(subGen.variableContainer, state, instanceState, totalLength, segments);
+        curType.FillInitialVariables(subGen.variableContainer, state, instanceState, runtimeState, totalLength, segments);
     }
 
     void RebuildLine(List<Vector3> forcedDirections = null) {
@@ -253,7 +247,7 @@ public class RoadGenerator : MonoBehaviour {
             subGen.sectionMarkers.Add(curveLength);
             subGen.curveRightVectors.Add(right);
         }
-        curType.FillInitialVariables(subGen.variableContainer, state, instanceState, totalLength, segments);
+        curType.FillInitialVariables(subGen.variableContainer, state, instanceState, runtimeState, totalLength, segments);
         subGen.sectionRights.Clear();
         subGen.sectionVertices.Clear();
         subGen.InitBaseSectionsInfo();
@@ -265,6 +259,7 @@ public class RoadGenerator : MonoBehaviour {
             subGen.sectionVertices.Add(v.Item1);
             subGen.sectionRights.Add(v.Item2);
         }
+        curType.FillCommonLateVariables(subGen.variableContainer, curvePoints[0], curvePoints[segments - 1], subGen.sectionVertices[0], subGen.sectionVertices[segments - 1]);
         GenerateLanesPre();
     }
 

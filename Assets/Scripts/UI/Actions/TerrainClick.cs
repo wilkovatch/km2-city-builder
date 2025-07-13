@@ -7,7 +7,6 @@ public class TerrainClick : MonoBehaviour {
     public CityGroundHelper helper;
     RaycastHit hit, projectedHit;
     public TerrainAction modifier = null;
-    public bool editEnabled = false;
     bool isModifying = false;
     public bool uiEnabled = true;
 
@@ -27,7 +26,7 @@ public class TerrainClick : MonoBehaviour {
         var hits = new List<RaycastHit?>();
         foreach (var mask in masks) {
             var foundHit = false;
-            if (!OnUI() && editEnabled) {
+            if (!OnUI()) {
                 var found = Physics.Raycast(transform.position, ray.direction, out hit, float.MaxValue, mask, QueryTriggerInteraction.Ignore);
                 if (found) {
                     foundHit = true;

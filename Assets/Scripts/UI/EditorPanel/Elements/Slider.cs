@@ -23,6 +23,7 @@ namespace EditorPanelElements {
             if (defaultValue.HasValue) slider.value = defaultValue.Value;
             slider.onValueChanged.AddListener(delegate {
                 Select();
+                parentPanel.CheckFieldsInteractabilityDelayed();
             });
         }
 

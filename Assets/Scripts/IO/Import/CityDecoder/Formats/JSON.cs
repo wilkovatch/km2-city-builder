@@ -138,13 +138,13 @@ namespace CityDecoder {
         }
 
         System.Collections.IEnumerator Post() {
+            if (loadedCity.cityProperties == null) loadedCity.cityProperties = new ObjectState();
             if (loadedCity.meshes == null) loadedCity.meshes = new IO.SavedCity.MeshInstance[0];
             if (loadedCity.roads == null) loadedCity.roads = new IO.SavedCity.Road[0];
             if (loadedCity.intersections == null) loadedCity.intersections = new IO.SavedCity.Intersection[0];
             if (loadedCity.terrainPatches == null) loadedCity.terrainPatches = new IO.SavedCity.TerrainPatch[0];
             if (loadedCity.buildingLines == null) loadedCity.buildingLines = new IO.SavedCity.BuildingLine[0];
             if (loadedCity.terrainPoints == null) loadedCity.terrainPoints = new IO.SavedCity.TerrainPoint[0];
-            if (loadedCity.genericObjects == null) loadedCity.genericObjects = new IO.SavedCity.GenericObject[0];
 
             float totalNum = loadedCity.meshes.Length + loadedCity.roads.Length +
                 loadedCity.intersections.Length + loadedCity.terrainPatches.Length
@@ -152,6 +152,9 @@ namespace CityDecoder {
 
             int reachedNum = 0;
             int n = 0;
+
+            loadedCity.cityProperties.FlagAsChanged();
+            manager.GetDummy<CityProperties>().SetState(loadedCity.cityProperties);
 
             foreach (var mesh in loadedCity.meshes) {
                 n++;
@@ -298,9 +301,6 @@ namespace CityDecoder {
                 reachedNum++;
             }
 
-            foreach (var obj in loadedCity.genericObjects) {
-                //For future use
-            }
             manager.worldChanged = true;
             manager.ShowAnchors(false);
             manager.ShowIntersections(false);

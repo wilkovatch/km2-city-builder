@@ -59,6 +59,21 @@ namespace CityElements.Types.Runtime {
             return res;
         }
 
+        static Definition[] MergeDefinitions(Definition[] ppDefs, Definition[] typeDefs) {
+            var lenA = ppDefs != null ? ppDefs.Length : 0;
+            var lenB = typeDefs != null ? typeDefs.Length : 0;
+            var res = new Definition[lenA + lenB];
+            for (int i = 0; i < lenA; i++) {
+                var def = ppDefs[i];
+                res[i] = def;
+            }
+            for (int i = 0; i < lenB; i++) {
+                var def = typeDefs[i];
+                res[lenA + i] = def;
+            }
+            return res;
+        }
+
         static ParameterContainer GetCompoundParameterContainer(Types.IntersectionType parentType, Types.JunctionType type) {
             var res = new ParameterContainer();
             var pp = parentType.parameters;
@@ -82,30 +97,13 @@ namespace CityElements.Types.Runtime {
             }
 
             //merge static definitions
-            lenA = pp.staticDefinitions != null ? pp.staticDefinitions.Length : 0;
-            lenB = type.staticDefinitions != null ? type.staticDefinitions.Length : 0;
-            res.staticDefinitions = new Definition[lenA + lenB];
-            for (int i = 0; i < lenA; i++) {
-                var def = pp.staticDefinitions[i];
-                res.staticDefinitions[i] = def;
-            }
-            for (int i = 0; i < lenB; i++) {
-                var def = type.staticDefinitions[i];
-                res.staticDefinitions[lenA + i] = def;
-            }
+            res.staticDefinitions = MergeDefinitions(pp.staticDefinitions, type.staticDefinitions);
 
             //merge dynamic definitions
-            lenA = pp.dynamicDefinitions != null ? pp.dynamicDefinitions.Length : 0;
-            lenB = type.dynamicDefinitions != null ? type.dynamicDefinitions.Length : 0;
-            res.dynamicDefinitions = new Definition[lenA + lenB];
-            for (int i = 0; i < lenA; i++) {
-                var def = pp.dynamicDefinitions[i];
-                res.dynamicDefinitions[i] = def;
-            }
-            for (int i = 0; i < lenB; i++) {
-                var def = type.dynamicDefinitions[i];
-                res.dynamicDefinitions[lenA + i] = def;
-            }
+            res.dynamicDefinitions = MergeDefinitions(pp.dynamicDefinitions, type.dynamicDefinitions);
+
+            //empty late definitions (only used for parametric objects, unsupported here)
+            res.lateDefinitions = new LateDefinition[0];
 
             return res;
         }
@@ -172,7 +170,7 @@ namespace CityElements.Types.Runtime {
             if (propLines != null) foreach (var pl in propLines) pl.SetIndices(vc);
             for (int c = 0; c < typeData.components.Length; c++) {
                 var compMesh = componentMeshes[c];
-                var vars = variableContainer; //was c
+                var vars = variableContainer;
                 compMesh.SetIndices(vars);
             }
             foreach (var c in sectionVerticesCalculators) {
@@ -258,6 +256,10 @@ namespace CityElements.Types.Runtime {
                 FillFloat(variableContainer, "absZ" + i, sectionVertices[i].z);
             }
             FillBaseIterationVariables(variableContainer);
+        }
+
+        public void FillLateVariables(RC.VariableContainer variableContainer, string category) {
+            FillBaseLateVariables(variableContainer, category); //TODO: fix when actually used
         }
 
         public override RoadComponent[] GetComponents() {

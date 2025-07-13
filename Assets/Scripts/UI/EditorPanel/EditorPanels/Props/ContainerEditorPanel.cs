@@ -43,7 +43,7 @@ namespace EditorPanels.Props {
                 } else {
                     var ioL = GetComplexElement<IOList>();
                     ioL.AddFullEditableList(p, param.name, SM.Get("PROP_ELEM_LIST_" + param.name.ToUpper()), SM.Get("ADD"), SM.Get("EDIT"), SM.Get("DELETE"), param.maxNumber,
-                        AddElem, EditElem, DeleteElem, delegate { return GetList(param.name); }, 5.0f, width, "PROP_ELEM_UNNAMED");
+                        AddElem, EditElem, DeleteElem, delegate { return GetList(param.name); }, 5.0f, width, null);
                 }
             }
             p.AddButton(SM.Get("CLOSE"), Terminate, width  /2);
@@ -64,6 +64,7 @@ namespace EditorPanels.Props {
             keepActive = false;
             SetActive(false);
             parentPanel.Terminate();
+            base.Terminate();
         }
 
         public ObjectState GetContainer() {
@@ -159,7 +160,7 @@ namespace EditorPanels.Props {
 
         public void Close() {
             parentState = null;
-            SetActive(false);
+            Terminate();
         }
     }
 }

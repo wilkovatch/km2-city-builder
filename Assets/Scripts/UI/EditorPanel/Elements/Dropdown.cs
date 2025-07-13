@@ -24,6 +24,7 @@ namespace EditorPanelElements {
             var labelText = labelItem.GetComponent<Text>();
             dropdown.onValueChanged.AddListener(delegate {
                 ChangeValue();
+                parentPanel.CheckFieldsInteractabilityDelayed();
             });
         }
 

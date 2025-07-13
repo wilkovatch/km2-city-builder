@@ -9,20 +9,38 @@ namespace CityElements.Types.Runtime {
         public List<string> widths;
 
         static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists(Types.RoadType type) {
-            var floatVars = new List<string>() { "z", "totalLength", "segment", "segments", "throughIntersection", "startCrosswalkSize", "endCrosswalkSize" };
+            var floatVars = new List<string>() {
+                "z", "totalLength", "segment", "segments",
+                "throughIntersection", "startCrosswalkSize", "endCrosswalkSize",
+                "hasStartIntersection", "hasEndIntersection", "maxScoreRoadIndex",
+                "startIntersectionNumberOfRoads", "endIntersectionNumberOfRoads"
+            };
             var vec2Vars = new List<string>();
             var vec3Vars = new List<string>() {
                 "localUp", "localRight", "localForward",
                 "worldUp", "worldRight", "worldForward",
                 "localUp0", "localRight0", "localForward0",
                 "localUp1", "localRight1", "localForward1",
+                "startIntersectionPosition", "endIntersectionPosition",
+                "startDir", "endDir"
             };
             for (int i = 0; i < type.settings.sectionVertices.Length; i++) {
+                //for use in the spline
                 floatVars.Add("x" + i);
                 floatVars.Add("absX" + i);
                 floatVars.Add("absY" + i);
                 floatVars.Add("absZ" + i);
                 vec3Vars.Add("v" + i);
+
+                //for use in late definitions
+                floatVars.Add("x" + i + "_0");
+                floatVars.Add("x" + i + "_1");
+                floatVars.Add("absX" + i + "_0");
+                floatVars.Add("absX" + i + "_1");
+                floatVars.Add("absY" + i + "_0");
+                floatVars.Add("absY" + i + "_1");
+                floatVars.Add("absZ" + i + "_0");
+                floatVars.Add("absZ" + i + "_1");
                 vec3Vars.Add("v" + i + "_0");
                 vec3Vars.Add("v" + i + "_1");
             }
@@ -76,15 +94,40 @@ namespace CityElements.Types.Runtime {
             }
         }
 
-        public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState, float totalLength, int segments) {
+        public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState, ObjectState runtimeState, float totalLength, int segments) {
             FillVector3(variableContainer, "worldUp", Vector3.up);
             FillVector3(variableContainer, "worldRight", Vector3.right);
             FillVector3(variableContainer, "worldForward", Vector3.forward);
             FillFloat(variableContainer, "totalLength", totalLength);
             FillFloat(variableContainer, "segments", segments);
-            FillFloat(variableContainer, "throughIntersection", state.Bool("throughIntersection") ? 1.0f : 0.0f);
-            FillFloat(variableContainer, "startCrosswalkSize", state.Float("startCrosswalkSize"));
-            FillFloat(variableContainer, "endCrosswalkSize", state.Float("endCrosswalkSize"));
+            var floatVars = new List<string>() {
+                "startCrosswalkSize", "endCrosswalkSize"
+            };
+            foreach (var variable in floatVars) {
+                FillFloat(variableContainer, variable, state.Float(variable));
+            }
+
+            if (runtimeState != null) {
+                //runtime variables (not saved)
+                var runtimeBoolVars = new List<string>() {
+                    "throughIntersection", "hasStartIntersection", "hasEndIntersection"
+                };
+                foreach (var variable in runtimeBoolVars) {
+                    FillFloat(variableContainer, variable, runtimeState.Bool(variable) ? 1.0f : 0.0f);
+                }
+                var runtimeFloatVars = new List<string>() {
+                    "startIntersectionNumberOfRoads", "endIntersectionNumberOfRoads", "maxScoreRoadIndex"
+                };
+                foreach (var variable in runtimeFloatVars) {
+                    FillFloat(variableContainer, variable, runtimeState.Float(variable));
+                }
+                var runtimeVec3Vars = new List<string>() {
+                    "startIntersectionPosition", "endIntersectionPosition", "startDir", "endDir",
+                };
+                foreach (var variable in runtimeVec3Vars) {
+                    FillVector3(variableContainer, variable, runtimeState.Vector3(variable));
+                }
+            }
             FillBaseInitialVariables(variableContainer, state, instanceState);
         }
 
@@ -140,12 +183,58 @@ namespace CityElements.Types.Runtime {
             FillBaseIterationVariables(variableContainer);
         }
 
+        public void FillCommonLateVariables(RC.VariableContainer variableContainer, Vector3 startPos, Vector3 endPos, Vector3[] startSectionVertices, Vector3[] endSectionVertices) {
+            var sides = new List<(Vector3 pos, Vector3[] sectionVertices, string idx)>() {
+                (startPos, startSectionVertices, "0"),
+                (endPos, endSectionVertices, "1"),
+            };
+            foreach (var side in sides) {
+                for (int i = 0; i < side.sectionVertices.Length; i++) {
+                    FillFloat(variableContainer, "x" + i + "_" + side.idx, (side.sectionVertices[i] - side.pos).magnitude);
+                    FillVector3(variableContainer, "v" + i + "_" + side.idx, side.sectionVertices[i]);
+                    FillFloat(variableContainer, "absX" + i + "_" + side.idx, side.sectionVertices[i].x);
+                    FillFloat(variableContainer, "absY" + i + "_" + side.idx, side.sectionVertices[i].y);
+                    FillFloat(variableContainer, "absZ" + i + "_" + side.idx, side.sectionVertices[i].z);
+                }
+            }
+            FillBaseLateVariables(variableContainer, "common");
+        }
+
+        public void FillSpecificLateVariables(RC.VariableContainer variableContainer, string category) {
+            FillBaseLateVariables(variableContainer, category);
+        }
+
         public override RoadComponent[] GetComponents() {
             return typeData.components;
         }
 
         public override Dictionary<string, int[]> GetTexturesMapping() {
             return typeData.settings.texturesMapping;
+        }
+
+        public Vector3 GetStandardVec3(string name, RC.VariableContainer variableContainer) {
+            var realName = typeData.settings.getters[name];
+            return vector3Definitions[realName].GetValue(variableContainer);
+        }
+
+        public Vector2 GetStandardVec2(string name, RC.VariableContainer variableContainer) {
+            var realName = typeData.settings.getters[name];
+            return vector2Definitions[realName].GetValue(variableContainer);
+        }
+
+        public float GetStandardFloat(string name, RC.VariableContainer variableContainer) {
+            var realName = typeData.settings.getters[name];
+            return numberDefinitions[realName].GetValue(variableContainer);
+        }
+
+        public bool GetStandardBool(string name, RC.VariableContainer variableContainer) {
+            var realName = typeData.settings.getters[name];
+            return boolDefinitions[realName].GetValue(variableContainer);
+        }
+
+        public string GetStandardString(string name, ObjectState state) {
+            var realName = typeData.settings.getters[name];
+            return state.Str(realName);
         }
     }
 }

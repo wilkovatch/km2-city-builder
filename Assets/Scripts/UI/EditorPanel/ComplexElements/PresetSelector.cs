@@ -281,7 +281,19 @@ public abstract partial class EditorPanel {
                         }
                     }
                     break;
-                    //TODO: other cases
+                case "intersection":
+                    foreach (var intersection in panel.builder.helper.elementManager.intersections) {
+                        if (intersection.state.Name == name) {
+                            var newState = (ObjectState)curPreset.Clone();
+                            newState.FlagAsChanged();
+                            intersection.SetState(newState);
+                        }
+                    }
+                    break;
+                //TODO: other cases
+                default:
+                    Debug.LogWarning("Syncing presets for the type '" + type + "' is unimplemented");
+                    break;
             }
             panel.builder.NotifyChange();
         }
@@ -293,7 +305,15 @@ public abstract partial class EditorPanel {
                         if (road.state.Name == name) road.state.Name = "";
                     }
                     break;
-                    //TODO: other cases
+                case "intersection":
+                    foreach (var intersection in panel.builder.helper.elementManager.intersections) {
+                        if (intersection.state.Name == name) intersection.state.Name = "";
+                    }
+                    break;
+                //TODO: other cases
+                default:
+                    Debug.LogWarning("Clearing presets for the type '" + type + "' is unimplemented");
+                    break;
             }
         }
 

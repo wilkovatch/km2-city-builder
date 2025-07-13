@@ -23,7 +23,7 @@ namespace EditorPanels {
         }
 
         void Cancel() {
-            builder.DeselectObject(true);
+            builder.DeselectObject();
             SetActive(false);
         }
 
@@ -51,13 +51,10 @@ namespace EditorPanels {
 
         public override void SetActive(bool active) {
             if (active) {
-                builder.DeselectObject(false);
+                builder.DeselectObject();
                 lst.Deselect();
                 lst.SetItems(GetObjectList());
                 curI = -1;
-                builder.UnsetModifier(false);
-            } else {
-                if (ActiveSelf()) builder.UnsetModifier();
             }
             base.SetActive(active);
         }

@@ -4,7 +4,7 @@ using UnityEngine;
 using States;
 using RC = RuntimeCalculator;
 
-public class Road : MonoBehaviour, IObjectWithState {
+public class Road : ParametricObjectContainer<CityElements.Types.RoadType>, IObjectWithStateAndRuntimeType {
     public bool forceRemesh = false;
     public List<Vector3> curvePoints = new List<Vector3>();
     public RoadGenerator generator;
@@ -12,8 +12,7 @@ public class Road : MonoBehaviour, IObjectWithState {
     public List<GameObject> points = new List<GameObject>();
     public Intersection startIntersection = null, endIntersection = null;
     List<Vector3> cps = new List<Vector3>();
-    public ObjectState state;
-    public ObjectState instanceState;
+    public ObjectState state, instanceState, runtimeState;
     Vector3 start, end;
     RC.VariableContainer variableContainer;
 
@@ -30,6 +29,7 @@ public class Road : MonoBehaviour, IObjectWithState {
     public void Initialize() {
         state = PresetManager.GetPreset("road", 0);
         instanceState = new ObjectState();
+        runtimeState = new ObjectState();
         generator = gameObject.AddComponent<RoadGenerator>();
         generator.Initialize(state);
         anchorManager = new TerrainAnchorLineManager(this);
@@ -41,6 +41,7 @@ public class Road : MonoBehaviour, IObjectWithState {
 
     public void SetState(ObjectState newState) {
         state = newState;
+        resetObjectsPositions = true;
     }
 
     public void SetRailState(ObjectState newState) {
@@ -100,11 +101,12 @@ public class Road : MonoBehaviour, IObjectWithState {
         if (endIntersection != null) endIntersection.SetActive(active, true, true);
     }
 
-    public void Delete() {
+    public override void Delete() {
         deleted = true;
         DetachFromIntersection(true);
         DetachFromIntersection(false);
-        Destroy(gameObject);
+        DeleteObjects();
+        base.Delete();
     }
 
     public void DetachFromIntersection(bool start) {
@@ -114,6 +116,12 @@ public class Road : MonoBehaviour, IObjectWithState {
         } else if (endIntersection != null) {
             endIntersection.RemoveRoad(this);
             endIntersection = null;
+        }
+    }
+
+    public void DeleteObjects() {
+        foreach (var obj in objectInstances) {
+            obj.Value.GetComponentInChildren<MeshInstance>().Delete();
         }
     }
 
@@ -178,28 +186,23 @@ public class Road : MonoBehaviour, IObjectWithState {
     }
 
     public Vector3 GetStandardVec3(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return curType.vector3Definitions[realName].GetValue(variableContainer);
+        return curType.GetStandardVec3(name, variableContainer);
     }
 
     public Vector2 GetStandardVec2(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return curType.vector2Definitions[realName].GetValue(variableContainer);
+        return curType.GetStandardVec2(name, variableContainer);
     }
 
     public float GetStandardFloat(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return curType.numberDefinitions[realName].GetValue(variableContainer);
+        return curType.GetStandardFloat(name, variableContainer);
     }
 
     public bool GetStandardBool(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return curType.boolDefinitions[realName].GetValue(variableContainer);
+        return curType.GetStandardBool(name, variableContainer);
     }
 
     public string GetStandardString(string name) {
-        var realName = curType.typeData.settings.getters[name];
-        return state.Str(realName);
+        return curType.GetStandardString(name, state);
     }
 
     public int GetSegments() {
@@ -240,12 +243,23 @@ public class Road : MonoBehaviour, IObjectWithState {
             variableContainer = GetRoadType().variableContainer.GetClone();
             curType = type;
         }
-        curType.FillInitialVariables(variableContainer, state, instanceState, 0.0f, 0);
+        curType.FillInitialVariables(variableContainer, state, instanceState, runtimeState, 0.0f, 0);
     }
 
     public void RebuildMesh() {
+        //extra info in runtimeState
+        runtimeState.SetBool("hasStartIntersection", startIntersection != null);
+        runtimeState.SetBool("hasEndIntersection", endIntersection != null);
+        runtimeState.SetVector3("startIntersectionPosition", startIntersection != null ? startIntersection.point.transform.position : Vector3.zero);
+        runtimeState.SetVector3("endIntersectionPosition", endIntersection != null ? endIntersection.point.transform.position : Vector3.zero);
+        runtimeState.SetFloat("startIntersectionNumberOfRoads", startIntersection != null ? startIntersection.roads.Count : 0);
+        runtimeState.SetFloat("endIntersectionNumberOfRoads", endIntersection != null ? endIntersection.roads.Count : 0);
+        runtimeState.SetVector3("startDir", curvePoints.Count > 1 ? (curvePoints[1] - curvePoints[0]).normalized : Vector3.zero);
+        runtimeState.SetVector3("endDir", curvePoints.Count > 1 ? (curvePoints[curvePoints.Count - 1] - curvePoints[curvePoints.Count - 2]).normalized : Vector3.zero);
+
         generator.state = state;
         generator.instanceState = instanceState;
+        generator.runtimeState = runtimeState;
         generator.curType = GetRoadType();
         generator.hasStartIntersection = startIntersection != null;
         generator.hasEndIntersection = endIntersection != null;
@@ -353,8 +367,186 @@ public class Road : MonoBehaviour, IObjectWithState {
         if (forceRemesh) {
             RebuildMesh();
             forceRemesh = false;
+            repositionObjects = true;
             return 1;
         }
         return 0;
+    }
+
+    (Road road, string suffix) GetObjectRoad(string key, CityElements.Types.ObjectInstaceRoadChoice choiceInfo) {
+        if (choiceInfo != null) {
+            var vc = generator.subGen.variableContainer;
+            var condition = choiceInfo.condition == null ? true : curType.boolDefinitions[choiceInfo.condition].GetValue(vc);
+            if (!condition) return (this, "");
+            var idxVar = choiceInfo.index;
+            var settings = curType.objectInstanceParams[key].objectInstanceSettings;
+            var intersection = settings.intersection == 0 ? startIntersection : endIntersection;
+            var roads = intersection.GetRoadsSortedClockwise();
+            var chosenRoad = this;
+            if (choiceInfo.score != null) {
+                var maxScore = float.MinValue;
+                foreach (var road in roads) {
+                    if (road == this) continue;
+                    CopyInputVariables(road, choiceInfo);
+                    var sfx = road.startIntersection == intersection ? "_start" : "_end";
+                    var curScore = road.curType.numberDefinitions[choiceInfo.score + sfx].GetValue(road.generator.subGen.variableContainer);
+                    if (curScore > maxScore) {
+                        maxScore = curScore;
+                        chosenRoad = road;
+                    }
+                }
+                vc.SetFloat("maxScoreRoadIndex", roads.IndexOf(chosenRoad) - roads.IndexOf(this));
+            } else {
+                vc.SetFloat("maxScoreRoadIndex", 0);
+            }
+            curType.FillSpecificLateVariables(vc, choiceInfo.lateDefinitions);
+            var idx = (int)curType.numberDefinitions[idxVar].GetValue(vc);
+            idx += roads.IndexOf(this);
+            var actualIdx = (idx % roads.Count + roads.Count) % roads.Count;
+            var r = roads[actualIdx];
+            var suffix = r.startIntersection == intersection ? "_start" : "_end";
+            if (r == this) suffix = "";
+            return (r, suffix);
+        } else {
+            return (this, "");
+        }
+    }
+
+    private bool hasRuntimeTypeActive() {
+        return generator != null && generator.curType != null;
+    }
+
+    public Vector3 GetRuntimeVec3(string variable) {
+        if (hasRuntimeTypeActive() && generator.curType.vector3Definitions.ContainsKey(variable)) {
+            return generator.curType.vector3Definitions[variable].GetValue(generator.subGen.variableContainer);
+        } else {
+            return Vector3.zero;
+        }
+    }
+
+    public Vector2 GetRuntimeVec2(string variable) {
+        if (hasRuntimeTypeActive() && generator.curType.vector2Definitions.ContainsKey(variable)) {
+            return generator.curType.vector2Definitions[variable].GetValue(generator.subGen.variableContainer);
+        } else {
+            return Vector2.zero;
+        }
+    }
+
+    public float GetRuntimeFloat(string variable) {
+        if (hasRuntimeTypeActive() && generator.curType.numberDefinitions.ContainsKey(variable)) {
+            return generator.curType.numberDefinitions[variable].GetValue(generator.subGen.variableContainer);
+        } else {
+            return 0f;
+        }
+    }
+
+    public bool GetRuntimeBool(string variable) {
+        if (hasRuntimeTypeActive() && generator != null && generator.curType.boolDefinitions.ContainsKey(variable)) {
+            return generator.curType.boolDefinitions[variable].GetValue(generator.subGen.variableContainer);
+        } else {
+            return false;
+        }
+    }
+
+    // Parametric objects
+
+    public override RC.VariableContainer GetParametricObjectVariableContainer() {
+        return generator.subGen.variableContainer;
+    }
+
+    public override ObjectState GetContainerStateForParametricObjects() {
+        return state;
+    }
+
+    public override ObjectState[] GetContainerStateArrayForParametricObjects() {
+        return new ObjectState[] { state, instanceState, runtimeState };
+    }
+
+    public override CityElements.Types.Runtime.RuntimeType<CityElements.Types.RoadType> GetRuntimeType() {
+        return generator.curType;
+    }
+
+    void CopyInputVariables(Road road, CityElements.Types.ObjectInstaceRoadChoice choiceInfo) {
+        if (choiceInfo == null || road == this || choiceInfo.inputData == null) return;
+        var vars = choiceInfo.inputData;
+        var vc2 = road.generator.subGen.variableContainer;
+        var vc1 = generator.subGen.variableContainer;
+        foreach (var variable in vars) {
+            var trueVar = variable + "_input";
+            if (road.curType.numberDefinitions.ContainsKey(trueVar)) {
+                float val;
+                if (!curType.numberDefinitions.ContainsKey(variable)) {
+                    val = vc1.floats[vc1.floatIndex[variable]];
+                } else {
+                    val = curType.numberDefinitions[variable].GetValue(vc1);
+                }
+                vc2.SetFloat(trueVar, val);
+            } else if (road.curType.boolDefinitions.ContainsKey(trueVar)) {
+                bool val;
+                if (!curType.boolDefinitions.ContainsKey(variable)) {
+                    val = vc1.floats[vc1.floatIndex[variable]] > 0;
+                } else {
+                    val = curType.boolDefinitions[variable].GetValue(vc1);
+                }
+                vc2.SetFloat(trueVar, val ? 1f : 0f);
+            } else if (road.curType.vector3Definitions.ContainsKey(trueVar)) {
+                Vector3 val;
+                if (!curType.vector3Definitions.ContainsKey(variable)) {
+                    val = vc1.vector3s[vc1.vec3Index[variable]];
+                } else {
+                    val = curType.vector3Definitions[variable].GetValue(vc1);
+                }
+                vc2.SetVector3(trueVar, val);
+            } else if (road.curType.vector2Definitions.ContainsKey(trueVar)) {
+                Vector2 val;
+                if (!curType.vector2Definitions.ContainsKey(variable)) {
+                    val = vc1.vector2s[vc1.vec2Index[variable]];
+                } else {
+                    val = curType.vector2Definitions[variable].GetValue(vc1);
+                }
+                vc2.SetVector2(trueVar, val);
+            }
+        }
+        road.curType.FillSpecificLateVariables(vc2, choiceInfo.lateDefinitions);
+    }
+
+    public override bool VerifyObjectCondition(string key) {
+        var settings = curType.objectInstanceParams[key].objectInstanceSettings;
+        var info = GetObjectRoad(key, settings.conditionRoadChoice);
+        var condition = settings.condition;
+        CopyInputVariables(info.road, settings.conditionRoadChoice);
+        return info.road.curType.boolDefinitions[condition + info.suffix].GetValue(info.road.generator.subGen.variableContainer);
+    }
+
+    public override Vector3 GetObjectPosition(string key) {
+        var settings = curType.objectInstanceParams[key].objectInstanceSettings;
+        var info = GetObjectRoad(key, settings.basePositionRoadChoice);
+        var variable = settings.basePosition;
+        CopyInputVariables(info.road, settings.basePositionRoadChoice);
+        return info.road.curType.vector3Definitions[variable + info.suffix].GetValue(info.road.generator.subGen.variableContainer);
+    }
+
+    public override Vector3 GetObjectRotation(string key) {
+        var settings = curType.objectInstanceParams[key].objectInstanceSettings;
+        var info = GetObjectRoad(key, settings.baseRotationRoadChoice);
+        var variable = settings.baseRotation;
+        if (variable != null) {
+            CopyInputVariables(info.road, settings.baseRotationRoadChoice);
+            return info.road.curType.vector3Definitions[variable + info.suffix].GetValue(info.road.generator.subGen.variableContainer);
+        } else {
+            return Vector3.zero;
+        }
+    }
+
+    public override Vector3 GetObjectScale(string key) {
+        var settings = curType.objectInstanceParams[key].objectInstanceSettings;
+        var info = GetObjectRoad(key, settings.baseScaleRoadChoice);
+        var variable = settings.baseScale;
+        if (variable != null) {
+            CopyInputVariables(info.road, settings.baseScaleRoadChoice);
+            return info.road.curType.vector3Definitions[variable + info.suffix].GetValue(info.road.variableContainer);
+        } else {
+            return Vector3.one;
+        }
     }
 }

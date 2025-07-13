@@ -31,6 +31,7 @@ namespace EditorPanelElements {
             inputField.placeholder.GetComponent<Text>().text = placeholder;
             inputField.onEndEdit.AddListener(delegate {
                 ChangeValue();
+                parentPanel.CheckFieldsInteractabilityDelayed();
             });
             button.onClick.AddListener(delegate {
                 Select();

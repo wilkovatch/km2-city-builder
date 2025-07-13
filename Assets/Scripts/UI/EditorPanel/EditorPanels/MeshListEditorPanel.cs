@@ -17,7 +17,8 @@ namespace EditorPanels {
         EditorPanelElements.InputField curMesh;
         ElementPlacer.MeshPlacer placer = null;
         System.Action<string> valueSetter = null;
-        GameObject panel = null;
+        EditorPanel panel = null;
+        GameObject panelObj = null;
         System.Action afterSetAction = null;
         string lastQuery = "";
         EditorPanelElements.Button selectBtn;
@@ -27,6 +28,9 @@ namespace EditorPanels {
 
         public override void Initialize(GameObject canvas) {
             Initialize(canvas, 1);
+            if (PreferencesManager.workingDirectory == "") {
+                return;
+            }
             var p0 = GetPage(0);
             searchBar = p0.AddInputField(SM.Get("MESH_SEL_SEARCH"), SM.Get("MESH_SEL_SEARCH_PH"), "", UnityEngine.UI.InputField.ContentType.Standard, Search, 1.5f);
             p0.IncreaseRow();
@@ -43,9 +47,19 @@ namespace EditorPanels {
             propEditor = AddChildPanel<Props.PropMeshEditorPanel>(canvas);
         }
 
-        void Cancel() {
+        void GoBack() {
             SetActive(false);
-            if (panel != null)  panel.SetActive(true);
+            if (panel != null) {
+                panel.Hide(false);
+                panel = null;
+            } else if (panelObj != null) {
+                panelObj.SetActive(true);
+                panelObj = null;
+            }
+        }
+
+        void Cancel() {
+            GoBack();
         }
 
         void Select(int i) {
@@ -60,7 +74,7 @@ namespace EditorPanels {
         }
 
         void SelectAction() {
-            if (panel != null && valueSetter != null) {
+            if ((panel != null || panelObj != null) && valueSetter != null) {
                 SelectAndGoBack();
             } else {
                 propEditor.selectedMesh = curVal;
@@ -71,19 +85,29 @@ namespace EditorPanels {
 
         void SelectAndGoBack() {
             valueSetter.Invoke(curVal);
-            SetActive(false);
-            panel.SetActive(true);
-            panel = null;
+            GoBack();
             valueSetter = null;
             afterSetAction?.Invoke();
+        }
+
+        public void Open(EditorPanel panel, System.Action<string> valueSetter, System.Action afterSetAction) {
+            SetActive(true);
+            placer = null;
+            this.panel = panel;
+            panelObj = null;
+            this.valueSetter = valueSetter;
+            this.panel.Hide(true);
+            this.afterSetAction = afterSetAction;
+            selectBtn.SetTitle(SM.Get("SELECT"));
         }
 
         public void Open(GameObject panel, System.Action<string> valueSetter, System.Action afterSetAction) {
             SetActive(true);
             placer = null;
-            this.panel = panel;
+            panelObj = panel;
+            this.panel = null;
             this.valueSetter = valueSetter;
-            this.panel.SetActive(false);
+            panelObj.SetActive(false);
             this.afterSetAction = afterSetAction;
             selectBtn.SetTitle(SM.Get("SELECT"));
         }
@@ -117,6 +141,7 @@ namespace EditorPanels {
                 ReloadList(false, "");
                 Select(-1);
                 panel = null;
+                panelObj = null;
                 valueSetter = null;
                 afterSetAction = null;
                 if (placer == null) {
@@ -126,7 +151,6 @@ namespace EditorPanels {
                 selectBtn.SetTitle(SM.Get("MESH_SEL_PLACE_MESH"));
                 selectBtn.SetInteractable(false);
             } else {
-                if (!disablePlacer && ActiveSelf()) builder.UnsetModifier();
                 disablePlacer = false;
             }
             if (placer != null) placer.SetActive(active);

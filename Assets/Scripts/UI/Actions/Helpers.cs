@@ -58,7 +58,7 @@ namespace Actions {
 
         public static void OffsetChildren(GameObject obj, float yOffset) {
             foreach (Transform child in obj.transform) {
-                child.gameObject.transform.position += Vector3.up * yOffset;
+                child.gameObject.transform.position += Vector3.up * yOffset * child.gameObject.transform.lossyScale.y;
             }
         }
     }

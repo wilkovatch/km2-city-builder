@@ -309,7 +309,9 @@ public static class MeshImporter {
         GameObject res = null;
         if (!absolute) name = PathHelper.FindInFolders(name);
         try {
-            if (File.Exists(name)) {
+            if (name.EndsWith("@handle")) {
+                res = GetFallbackObject(true);
+            } else if (File.Exists(name)) {
                 var ext = PathHelper.GetExtension(name);
                 if (customFormats == null) ReloadMeshFormats();
                 if (customFormats.Contains(ext)) {
@@ -340,7 +342,7 @@ public static class MeshImporter {
         return res;
     }
 
-    static GameObject GetFallbackObject() {
+    static GameObject GetFallbackObject(bool handle = false) {
         var c = GeometryHelper.GetCube(10);
         var m = new Mesh();
         m.vertices = c.vertices.ToArray();
@@ -349,7 +351,11 @@ public static class MeshImporter {
         var mr = res.AddComponent<MeshRenderer>();
         var mf = res.AddComponent<MeshFilter>();
         mf.mesh = m;
-        mr.material = MaterialManager.GetMaterial("_TRANSPARENT_", true);
+        if (handle) {
+            mr.material = MaterialManager.GetMaterial("_HANDLE_", true);
+        } else {
+            mr.material = MaterialManager.GetMaterial("_TRANSPARENT_", true);
+        }
         return res;
     }
 

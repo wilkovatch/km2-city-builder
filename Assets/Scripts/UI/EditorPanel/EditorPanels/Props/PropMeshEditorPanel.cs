@@ -42,7 +42,7 @@ namespace EditorPanels.Props {
             }
 
             p0.AddButton(SM.Get("BACK"), GoUp, 0.75f);
-            p0.AddButton(SM.Get("CLOSE"), Close, 0.75f);
+            p0.AddButton(SM.Get("CLOSE"), Terminate, 0.75f);
             intSlider.SetInteractable(false);
             rdSlider.SetInteractable(false);
             delCheckbox.SetInteractable(false);
@@ -75,10 +75,6 @@ namespace EditorPanels.Props {
             placer.multipleRadius = val;
         }
 
-        void Close() {
-            SetActive(false);
-        }
-
         public override void SetActive(bool active) {
             if (active) {
                 placer = builder.meshPlacer;
@@ -88,7 +84,7 @@ namespace EditorPanels.Props {
                 delCheckbox.SetValue(false);
                 placer.deleteMode = false;
             } else {
-                if (ActiveSelf()) builder.UnsetModifier();
+                builder.SetSelectObjectMode();
             }
             base.SetActive(active);
         }

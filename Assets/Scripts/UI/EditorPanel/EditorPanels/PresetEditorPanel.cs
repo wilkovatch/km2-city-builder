@@ -19,7 +19,7 @@ namespace EditorPanels {
             p.IncreaseRow();
             p.AddButton(SM.Get("EDIT_BUILDING_PRESETS"), builder.EditBuildingLinePresets, w);
             p.IncreaseRow();
-            p.AddButton(SM.Get("CLOSE"), Close, w);
+            p.AddButton(SM.Get("CLOSE"), Terminate, w);
         }
 
         public override void SetActive(bool active) {
@@ -33,10 +33,6 @@ namespace EditorPanels {
                 }
             }
             base.SetActive(active);
-        }
-
-        public void Close() {
-            SetActive(false);
         }
     }
 }

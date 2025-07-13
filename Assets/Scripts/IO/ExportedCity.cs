@@ -137,5 +137,6 @@ namespace IO.ExportedCity {
         public TerrainPatch[] terrainPatches;
         public BuildingLine[] buildingLines;
         public MeshInstance[] meshInstances;
+        public ObjectState cityProperties;
     }
 }

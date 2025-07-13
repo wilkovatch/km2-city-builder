@@ -146,6 +146,7 @@ public class EditorPanelPage {
 
     private EditorPanelElement AddElement(EditorPanelElement element, int row = 0) {
         elements[row].Add(element);
+        element.parentPanel = container;
         UpdatePanelHeight(row);
         tooltipObj.transform.SetAsLastSibling();
         return element;
@@ -241,6 +242,19 @@ public class EditorPanelPage {
         return element;
     }
 
+    public EditorPanelElements.MeshField AddMeshField(CityBuilderMenuBar builder, string title, string placeholder, string defaultValue, System.Action<string> valueSetter, bool disableFromObject,
+        System.Action<string> extraAction = null, float widthFactor = 1.0f, string tooltip = null, string tag = null) {
+
+        EditorPanelElements.MeshField element = null;
+        var pContainer = disableFromObject ? null : container;
+        var pPanel = disableFromObject ? panel : null;
+        element = new EditorPanelElements.MeshField(title, placeholder, defaultValue, valueSetter,
+            delegate { builder.OpenMeshSelector(pContainer, pPanel, value => { valueSetter?.Invoke(value); BaseExtraAction(value, extraAction); element.SetValue(value); }, ReadCurValues, true); },
+            panel, GetPosition(curRow), widthFactor, tooltip, tag);
+        AddElement(element, curRow);
+        return element;
+    }
+
     public EditorPanelElements.VectorInputField AddVectorInputField(string title, System.Action<Vector3> action, float widthFactor = 1.0f, string tooltip = null) {
         var element = new EditorPanelElements.VectorInputField(title, value => { BaseExtraAction(value, action); }, panel, GetPosition(curRow), widthFactor, tooltip);
         AddElement(element, curRow);
@@ -303,6 +317,20 @@ public class EditorPanelPage {
         var status = new FieldStatus(objGetter, fieldName, valueChangedAction, indexGetters);
         var element = new EditorPanelElements.TextureField(title, placeholder, "", value => { status.SetInputFieldValue(value, InputField.ContentType.Standard); BaseExtraAction(value, extraAction); },
             delegate { builder.OpenTextureSelector(panel, status.GetValue, value => { status.SetValue(value); BaseExtraAction(value, extraAction); }, ReadCurValues); },
+            panel, GetPosition(curRow), widthFactor, tooltip, tag);
+        var fieldElement = AddElement(element, curRow);
+        fieldElements.Add(fieldElement, status);
+        return element;
+    }
+
+    public EditorPanelElements.MeshField AddFieldMeshField(CityBuilderMenuBar builder, string title, string placeholder, System.Func<object> objGetter, string fieldName,
+        Dictionary<string, System.Func<string>> indexGetters, bool disableFromObject, float widthFactor = 1.0f, string tooltip = null, string tag = null, System.Action<string> extraAction = null) {
+
+        var status = new FieldStatus(objGetter, fieldName, valueChangedAction, indexGetters);
+        var pContainer = disableFromObject ? null : container;
+        var pPanel = disableFromObject ? panel : null;
+        var element = new EditorPanelElements.MeshField(title, placeholder, "", value => { status.SetInputFieldValue(value, InputField.ContentType.Standard); BaseExtraAction(value, extraAction); },
+            delegate { builder.OpenMeshSelector(pContainer, pPanel, value => { status.SetValue(value); BaseExtraAction(value, extraAction); }, ReadCurValues, true); },
             panel, GetPosition(curRow), widthFactor, tooltip, tag);
         var fieldElement = AddElement(element, curRow);
         fieldElements.Add(fieldElement, status);
