@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <office:document xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:ooo="http://openoffice.org/2004/office" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:dr3d="urn:oasis:names:tc:opendocument:xmlns:dr3d:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0" xmlns:rpt="http://openoffice.org/2005/report" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0" xmlns:ooow="http://openoffice.org/2004/writer" xmlns:oooc="http://openoffice.org/2004/calc" xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2" xmlns:tableooo="http://openoffice.org/2009/table" xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0" xmlns:drawooo="http://openoffice.org/2010/draw" xmlns:loext="urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0" xmlns:field="urn:openoffice:names:experimental:ooo-ms-interop:xmlns:field:1.0" xmlns:math="http://www.w3.org/1998/Math/MathML" xmlns:form="urn:oasis:names:tc:opendocument:xmlns:form:1.0" xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0" xmlns:dom="http://www.w3.org/2001/xml-events" xmlns:xforms="http://www.w3.org/2002/xforms" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:formx="urn:openoffice:names:experimental:ooxml-odf-interop:xmlns:form:1.0" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:grddl="http://www.w3.org/2003/g/data-view#" xmlns:css3t="http://www.w3.org/TR/css3-text/" xmlns:officeooo="http://openoffice.org/2009/office" office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.text">
- <office:meta><meta:creation-date>2022-05-28T12:09:28.888000000</meta:creation-date><dc:date>2024-07-02T19:11:55.272000000</dc:date><meta:editing-duration>PT5H32M22S</meta:editing-duration><meta:editing-cycles>82</meta:editing-cycles><meta:generator>LibreOffice/7.3.3.2$Windows_X86_64 LibreOffice_project/d1d0ea68f081ee2800a922cac8f79445e4603348</meta:generator><meta:document-statistic meta:table-count="0" meta:image-count="0" meta:object-count="0" meta:page-count="7" meta:paragraph-count="134" meta:word-count="2781" meta:character-count="15629" meta:non-whitespace-character-count="13016"/></office:meta>
+ <office:meta><meta:creation-date>2022-05-28T12:09:28.888000000</meta:creation-date><dc:date>2025-07-18T18:39:49.712000000</dc:date><meta:editing-duration>PT5H35M19S</meta:editing-duration><meta:editing-cycles>83</meta:editing-cycles><meta:generator>LibreOffice/7.3.3.2$Windows_X86_64 LibreOffice_project/d1d0ea68f081ee2800a922cac8f79445e4603348</meta:generator><meta:document-statistic meta:table-count="0" meta:image-count="0" meta:object-count="0" meta:page-count="7" meta:paragraph-count="139" meta:word-count="2941" meta:character-count="16677" meta:non-whitespace-character-count="13909"/></office:meta>
  <office:settings>
   <config:config-item-set config:name="ooo:view-settings">
-   <config:config-item config:name="ViewAreaTop" config:type="long">41873</config:config-item>
+   <config:config-item config:name="ViewAreaTop" config:type="long">165857</config:config-item>
    <config:config-item config:name="ViewAreaLeft" config:type="long">0</config:config-item>
    <config:config-item config:name="ViewAreaWidth" config:type="long">47891</config:config-item>
-   <config:config-item config:name="ViewAreaHeight" config:type="long">23058</config:config-item>
+   <config:config-item config:name="ViewAreaHeight" config:type="long">22322</config:config-item>
    <config:config-item config:name="ShowRedlineChanges" config:type="boolean">true</config:config-item>
    <config:config-item config:name="InBrowseMode" config:type="boolean">false</config:config-item>
    <config:config-item-map-indexed config:name="Views">
     <config:config-item-map-entry>
      <config:config-item config:name="ViewId" config:type="string">view2</config:config-item>
-     <config:config-item config:name="ViewLeft" config:type="long">21595</config:config-item>
-     <config:config-item config:name="ViewTop" config:type="long">51497</config:config-item>
+     <config:config-item config:name="ViewLeft" config:type="long">26968</config:config-item>
+     <config:config-item config:name="ViewTop" config:type="long">105101</config:config-item>
      <config:config-item config:name="VisibleLeft" config:type="long">0</config:config-item>
-     <config:config-item config:name="VisibleTop" config:type="long">41873</config:config-item>
+     <config:config-item config:name="VisibleTop" config:type="long">165857</config:config-item>
      <config:config-item config:name="VisibleRight" config:type="long">47890</config:config-item>
-     <config:config-item config:name="VisibleBottom" config:type="long">64929</config:config-item>
+     <config:config-item config:name="VisibleBottom" config:type="long">188177</config:config-item>
      <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
      <config:config-item config:name="ViewLayoutColumns" config:type="short">1</config:config-item>
      <config:config-item config:name="ViewLayoutBookMode" config:type="boolean">false</config:config-item>
@@ -86,7 +86,7 @@
    <config:config-item config:name="UnxForceZeroExtLeading" config:type="boolean">false</config:config-item>
    <config:config-item config:name="UseOldPrinterMetrics" config:type="boolean">false</config:config-item>
    <config:config-item config:name="TabAtLeftIndentForParagraphsInList" config:type="boolean">false</config:config-item>
-   <config:config-item config:name="Rsid" config:type="int">7227157</config:config-item>
+   <config:config-item config:name="Rsid" config:type="int">7401658</config:config-item>
    <config:config-item config:name="MsWordCompTrailingBlanks" config:type="boolean">false</config:config-item>
    <config:config-item config:name="MathBaselineAlignment" config:type="boolean">true</config:config-item>
    <config:config-item config:name="InvertBorderSpacing" config:type="boolean">false</config:config-item>
@@ -156,7 +156,7 @@
   <draw:hatch draw:name="hatch" draw:style="single" draw:color="#3465a4" draw:distance="0.02cm" draw:rotation="0"/>
   <style:default-style style:family="graphic">
    <style:graphic-properties svg:stroke-color="#3465a4" draw:fill-color="#729fcf" fo:wrap-option="no-wrap" draw:shadow-offset-x="0.3cm" draw:shadow-offset-y="0.3cm" draw:start-line-spacing-horizontal="0.283cm" draw:start-line-spacing-vertical="0.283cm" draw:end-line-spacing-horizontal="0.283cm" draw:end-line-spacing-vertical="0.283cm" style:flow-with-text="false"/>
-   <style:paragraph-properties style:text-autospace="ideograph-alpha" style:line-break="strict" style:font-independent-line-spacing="false">
+   <style:paragraph-properties style:text-autospace="ideograph-alpha" style:line-break="strict" style:writing-mode="lr-tb" style:font-independent-line-spacing="false">
     <style:tab-stops/>
    </style:paragraph-properties>
    <style:text-properties style:use-window-font-color="true" loext:opacity="0%" style:font-name="Liberation Serif" fo:font-size="12pt" fo:language="it" fo:country="IT" style:letter-kerning="true" style:font-name-asian="SimSun" style:font-size-asian="10.5pt" style:language-asian="zh" style:country-asian="CN" style:font-name-complex="Lucida Sans1" style:font-size-complex="12pt" style:language-complex="hi" style:country-complex="IN"/>
@@ -593,64 +593,86 @@
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" officeooo:rsid="00386ccb" officeooo:paragraph-rsid="00386ccb"/>
   </style:style>
-  <style:style style:name="P74" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L1">
+  <style:style style:name="P74" style:family="paragraph" style:parent-style-name="Heading_20_2">
    <style:paragraph-properties fo:line-height="100%"/>
-   <style:text-properties style:font-name="Calibri" officeooo:paragraph-rsid="000038c8"/>
+   <style:text-properties style:font-name="Calibri" officeooo:rsid="00702f52" officeooo:paragraph-rsid="00702f52"/>
   </style:style>
-  <style:style style:name="P75" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L1">
+  <style:style style:name="P75" style:family="paragraph" style:parent-style-name="Heading_20_2">
    <style:paragraph-properties fo:line-height="100%"/>
-   <style:text-properties style:font-name="Calibri" officeooo:rsid="005645eb" officeooo:paragraph-rsid="005645eb"/>
+   <style:text-properties style:font-name="Calibri" fo:font-style="normal" officeooo:rsid="00702f52" officeooo:paragraph-rsid="00702f52" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="P76" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L1">
    <style:paragraph-properties fo:line-height="100%"/>
-   <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="001b3f50"/>
+   <style:text-properties style:font-name="Calibri" officeooo:paragraph-rsid="000038c8"/>
   </style:style>
   <style:style style:name="P77" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L1">
    <style:paragraph-properties fo:line-height="100%"/>
-   <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="000038c8"/>
+   <style:text-properties style:font-name="Calibri" officeooo:rsid="005645eb" officeooo:paragraph-rsid="005645eb"/>
   </style:style>
-  <style:style style:name="P78" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L2">
+  <style:style style:name="P78" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L1">
+   <style:paragraph-properties fo:line-height="100%"/>
+   <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="001b3f50"/>
+  </style:style>
+  <style:style style:name="P79" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L1">
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="000038c8"/>
   </style:style>
-  <style:style style:name="P79" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L3">
+  <style:style style:name="P80" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L2">
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="000038c8"/>
   </style:style>
-  <style:style style:name="P80" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L4">
+  <style:style style:name="P81" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L3">
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="000038c8"/>
   </style:style>
-  <style:style style:name="P81" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L5">
+  <style:style style:name="P82" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L4">
+   <style:paragraph-properties fo:line-height="100%"/>
+   <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="000038c8"/>
+  </style:style>
+  <style:style style:name="P83" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L5">
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="0003c9ed"/>
   </style:style>
-  <style:style style:name="P82" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L6">
+  <style:style style:name="P84" style:family="paragraph" style:parent-style-name="Standard" style:list-style-name="L6">
    <loext:graphic-properties draw:fill-gradient-name="gradient" draw:fill-hatch-name="hatch"/>
    <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.25cm" style:contextual-spacing="false" fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" officeooo:rsid="000038c8" officeooo:paragraph-rsid="00081bd8"/>
   </style:style>
-  <style:style style:name="P83" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L7">
+  <style:style style:name="P85" style:family="paragraph" style:parent-style-name="Standard">
+   <loext:graphic-properties draw:fill-gradient-name="gradient" draw:fill-hatch-name="hatch"/>
+   <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.25cm" style:contextual-spacing="false" fo:line-height="100%"/>
+   <style:text-properties style:font-name="Calibri" officeooo:rsid="002f2acd" officeooo:paragraph-rsid="00477dc0"/>
+  </style:style>
+  <style:style style:name="P86" style:family="paragraph" style:parent-style-name="Standard">
+   <loext:graphic-properties draw:fill-gradient-name="gradient" draw:fill-hatch-name="hatch"/>
+   <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.25cm" style:contextual-spacing="false" fo:line-height="100%"/>
+   <style:text-properties style:font-name="Calibri" officeooo:rsid="00702f52" officeooo:paragraph-rsid="00702f52"/>
+  </style:style>
+  <style:style style:name="P87" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L7">
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" officeooo:rsid="000ff9f4" officeooo:paragraph-rsid="000ff9f4"/>
   </style:style>
-  <style:style style:name="P84" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L8">
+  <style:style style:name="P88" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L8">
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" fo:font-style="normal" officeooo:rsid="00136bf5" officeooo:paragraph-rsid="00136bf5" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
-  <style:style style:name="P85" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L9">
+  <style:style style:name="P89" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L9">
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" fo:font-style="normal" officeooo:rsid="0054b147" officeooo:paragraph-rsid="005645eb" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
-  <style:style style:name="P86" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L8">
+  <style:style style:name="P90" style:family="paragraph" style:parent-style-name="Text_20_body">
+   <style:paragraph-properties fo:line-height="100%"/>
+   <style:text-properties style:font-name="Calibri" fo:font-style="normal" officeooo:rsid="00323098" officeooo:paragraph-rsid="00702f52" style:font-style-asian="normal" style:font-style-complex="normal"/>
+  </style:style>
+  <style:style style:name="P91" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L8">
    <style:paragraph-properties fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" officeooo:rsid="00136bf5" officeooo:paragraph-rsid="00162850"/>
   </style:style>
-  <style:style style:name="P87" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L10">
+  <style:style style:name="P92" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L10">
    <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.146cm" style:contextual-spacing="false" fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" fo:font-style="italic" officeooo:rsid="00386ccb" officeooo:paragraph-rsid="00386ccb" fo:background-color="#dddddd" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
-  <style:style style:name="P88" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L10">
+  <style:style style:name="P93" style:family="paragraph" style:parent-style-name="Text_20_body" style:list-style-name="L10">
    <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.146cm" style:contextual-spacing="false" fo:line-height="100%"/>
    <style:text-properties style:font-name="Calibri" fo:font-style="italic" officeooo:rsid="00386ccb" officeooo:paragraph-rsid="0042e20f" fo:background-color="#dddddd" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
@@ -694,154 +716,169 @@
    <style:text-properties fo:font-style="italic" officeooo:rsid="006ac201" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
   <style:style style:name="T14" style:family="text">
-   <style:text-properties fo:font-style="italic" officeooo:rsid="00386ccb" fo:background-color="#dddddd" loext:char-shading-value="0" style:font-style-asian="italic" style:font-style-complex="italic"/>
+   <style:text-properties fo:font-style="italic" officeooo:rsid="00702f52" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
   <style:style style:name="T15" style:family="text">
-   <style:text-properties fo:font-style="italic" officeooo:rsid="004b95f3" fo:background-color="#dddddd" loext:char-shading-value="0" style:font-style-asian="italic" style:font-style-complex="italic"/>
+   <style:text-properties fo:font-style="italic" officeooo:rsid="0070f0ba" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
   <style:style style:name="T16" style:family="text">
-   <style:text-properties fo:font-style="italic" officeooo:rsid="0039d747" fo:background-color="#dddddd" loext:char-shading-value="0" style:font-style-asian="italic" style:font-style-complex="italic"/>
+   <style:text-properties fo:font-style="italic" officeooo:rsid="00386ccb" fo:background-color="#dddddd" loext:char-shading-value="0" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
   <style:style style:name="T17" style:family="text">
-   <style:text-properties fo:font-style="italic" officeooo:rsid="005645eb" fo:background-color="#dddddd" loext:char-shading-value="0" style:font-style-asian="italic" style:font-style-complex="italic"/>
+   <style:text-properties fo:font-style="italic" officeooo:rsid="004b95f3" fo:background-color="#dddddd" loext:char-shading-value="0" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
   <style:style style:name="T18" style:family="text">
-   <style:text-properties officeooo:rsid="0003c9ed"/>
+   <style:text-properties fo:font-style="italic" officeooo:rsid="0039d747" fo:background-color="#dddddd" loext:char-shading-value="0" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
   <style:style style:name="T19" style:family="text">
-   <style:text-properties officeooo:rsid="00061b74"/>
+   <style:text-properties fo:font-style="italic" officeooo:rsid="005645eb" fo:background-color="#dddddd" loext:char-shading-value="0" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
   <style:style style:name="T20" style:family="text">
-   <style:text-properties fo:font-style="normal" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties officeooo:rsid="0003c9ed"/>
   </style:style>
   <style:style style:name="T21" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="00162850" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties officeooo:rsid="00061b74"/>
   </style:style>
   <style:style style:name="T22" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="001921b5" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T23" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="0045089c" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="00162850" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T24" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="004f8f5d" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="001921b5" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T25" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="003df3c8" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="0045089c" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T26" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="00391b3b" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="004f8f5d" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T27" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="0054b147" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="003df3c8" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T28" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="0059212c" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="00391b3b" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T29" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="005ac28d" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="0054b147" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T30" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="005b8593" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="0059212c" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T31" style:family="text">
-   <style:text-properties fo:font-style="normal" officeooo:rsid="006ac201" style:font-style-asian="normal" style:font-style-complex="normal"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="005ac28d" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T32" style:family="text">
-   <style:text-properties officeooo:rsid="00081bd8"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="005b8593" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T33" style:family="text">
-   <style:text-properties officeooo:rsid="00096696"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="006ac201" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T34" style:family="text">
-   <style:text-properties officeooo:rsid="000a74d4"/>
+   <style:text-properties fo:font-style="normal" officeooo:rsid="0070f0ba" style:font-style-asian="normal" style:font-style-complex="normal"/>
   </style:style>
   <style:style style:name="T35" style:family="text">
-   <style:text-properties officeooo:rsid="000d2427"/>
+   <style:text-properties officeooo:rsid="00081bd8"/>
   </style:style>
   <style:style style:name="T36" style:family="text">
-   <style:text-properties officeooo:rsid="000f0827"/>
+   <style:text-properties officeooo:rsid="00096696"/>
   </style:style>
   <style:style style:name="T37" style:family="text">
-   <style:text-properties officeooo:rsid="000038c8"/>
+   <style:text-properties officeooo:rsid="000a74d4"/>
   </style:style>
   <style:style style:name="T38" style:family="text">
-   <style:text-properties officeooo:rsid="00122479"/>
+   <style:text-properties officeooo:rsid="000d2427"/>
   </style:style>
   <style:style style:name="T39" style:family="text">
-   <style:text-properties officeooo:rsid="001921b5"/>
+   <style:text-properties officeooo:rsid="000f0827"/>
   </style:style>
   <style:style style:name="T40" style:family="text">
-   <style:text-properties officeooo:rsid="00245c4c"/>
+   <style:text-properties officeooo:rsid="000038c8"/>
   </style:style>
   <style:style style:name="T41" style:family="text">
-   <style:text-properties officeooo:rsid="00285b27"/>
+   <style:text-properties officeooo:rsid="00122479"/>
   </style:style>
   <style:style style:name="T42" style:family="text">
-   <style:text-properties officeooo:rsid="002912da"/>
+   <style:text-properties officeooo:rsid="001921b5"/>
   </style:style>
   <style:style style:name="T43" style:family="text">
-   <style:text-properties officeooo:rsid="00295d16"/>
+   <style:text-properties officeooo:rsid="00245c4c"/>
   </style:style>
   <style:style style:name="T44" style:family="text">
-   <style:text-properties officeooo:rsid="00386ccb"/>
+   <style:text-properties officeooo:rsid="00285b27"/>
   </style:style>
   <style:style style:name="T45" style:family="text">
-   <style:text-properties officeooo:rsid="0042e20f"/>
+   <style:text-properties officeooo:rsid="002912da"/>
   </style:style>
   <style:style style:name="T46" style:family="text">
-   <style:text-properties officeooo:rsid="00477dc0"/>
+   <style:text-properties officeooo:rsid="00295d16"/>
   </style:style>
   <style:style style:name="T47" style:family="text">
-   <style:text-properties officeooo:rsid="004b95f3"/>
+   <style:text-properties officeooo:rsid="00386ccb"/>
   </style:style>
   <style:style style:name="T48" style:family="text">
-   <style:text-properties officeooo:rsid="004f8f5d"/>
+   <style:text-properties officeooo:rsid="0042e20f"/>
   </style:style>
   <style:style style:name="T49" style:family="text">
-   <style:text-properties officeooo:rsid="0054b147"/>
+   <style:text-properties officeooo:rsid="00477dc0"/>
   </style:style>
   <style:style style:name="T50" style:family="text">
-   <style:text-properties officeooo:rsid="00561528"/>
+   <style:text-properties officeooo:rsid="004b95f3"/>
   </style:style>
   <style:style style:name="T51" style:family="text">
-   <style:text-properties officeooo:rsid="005645eb"/>
+   <style:text-properties officeooo:rsid="004f8f5d"/>
   </style:style>
   <style:style style:name="T52" style:family="text">
-   <style:text-properties officeooo:rsid="0039d747"/>
+   <style:text-properties officeooo:rsid="0054b147"/>
   </style:style>
   <style:style style:name="T53" style:family="text">
-   <style:text-properties officeooo:rsid="0059212c"/>
+   <style:text-properties officeooo:rsid="00561528"/>
   </style:style>
   <style:style style:name="T54" style:family="text">
-   <style:text-properties officeooo:rsid="005acb7b"/>
+   <style:text-properties officeooo:rsid="005645eb"/>
   </style:style>
   <style:style style:name="T55" style:family="text">
-   <style:text-properties officeooo:rsid="005b8593"/>
+   <style:text-properties officeooo:rsid="0039d747"/>
   </style:style>
   <style:style style:name="T56" style:family="text">
-   <style:text-properties style:use-window-font-color="true" loext:opacity="0%" style:text-line-through-style="none" style:text-line-through-type="none"/>
+   <style:text-properties officeooo:rsid="0059212c"/>
   </style:style>
   <style:style style:name="T57" style:family="text">
-   <style:text-properties style:use-window-font-color="true" loext:opacity="0%" style:text-line-through-style="none" style:text-line-through-type="none" fo:font-style="italic" style:font-style-asian="italic" style:font-style-complex="italic"/>
+   <style:text-properties officeooo:rsid="005acb7b"/>
   </style:style>
   <style:style style:name="T58" style:family="text">
-   <style:text-properties officeooo:rsid="006404c0"/>
+   <style:text-properties officeooo:rsid="005b8593"/>
   </style:style>
   <style:style style:name="T59" style:family="text">
-   <style:text-properties officeooo:rsid="00654692"/>
+   <style:text-properties style:use-window-font-color="true" loext:opacity="0%" style:text-line-through-style="none" style:text-line-through-type="none"/>
   </style:style>
   <style:style style:name="T60" style:family="text">
-   <style:text-properties officeooo:rsid="0066d84c"/>
+   <style:text-properties style:use-window-font-color="true" loext:opacity="0%" style:text-line-through-style="none" style:text-line-through-type="none" fo:font-style="italic" style:font-style-asian="italic" style:font-style-complex="italic"/>
   </style:style>
   <style:style style:name="T61" style:family="text">
-   <style:text-properties officeooo:rsid="0066ffb3"/>
+   <style:text-properties officeooo:rsid="006404c0"/>
   </style:style>
   <style:style style:name="T62" style:family="text">
-   <style:text-properties officeooo:rsid="006ac201"/>
+   <style:text-properties officeooo:rsid="00654692"/>
   </style:style>
   <style:style style:name="T63" style:family="text">
+   <style:text-properties officeooo:rsid="0066d84c"/>
+  </style:style>
+  <style:style style:name="T64" style:family="text">
+   <style:text-properties officeooo:rsid="0066ffb3"/>
+  </style:style>
+  <style:style style:name="T65" style:family="text">
+   <style:text-properties officeooo:rsid="006ac201"/>
+  </style:style>
+  <style:style style:name="T66" style:family="text">
    <style:text-properties officeooo:rsid="006e4715"/>
+  </style:style>
+  <style:style style:name="T67" style:family="text">
+   <style:text-properties officeooo:rsid="00702f52"/>
+  </style:style>
+  <style:style style:name="T68" style:family="text">
+   <style:text-properties officeooo:rsid="0070f0ba"/>
   </style:style>
   <text:list-style style:name="L1">
    <text:list-level-style-number text:level="1" text:style-name="Numbering_20_Symbols" loext:num-list-format="%1%." style:num-suffix="." style:num-format="1">
@@ -1388,107 +1425,107 @@
     <text:sequence-decl text:display-outline-level="0" text:name="Figure"/>
    </text:sequence-decls>
    <text:p text:style-name="P45">km2 City Builder quickstart guide</text:p>
-   <text:p text:style-name="P58">Last updated on 202<text:span text:style-name="T63">4</text:span>-<text:span text:style-name="T63">07</text:span>-<text:span text:style-name="T63">02</text:span></text:p>
+   <text:p text:style-name="P58">Last updated on 202<text:span text:style-name="T67">5</text:span>-<text:span text:style-name="T66">07</text:span>-<text:span text:style-name="T67">18</text:span></text:p>
    <text:p text:style-name="P11"/>
    <text:p text:style-name="P12">km2 City Builder is a city editor to create custom cities for use in videogames.</text:p>
-   <text:p text:style-name="P50">Support for each game is added via a <text:span text:style-name="T1">core</text:span><text:span text:style-name="T20"> that defines (in json files and Python code) how the geometry has to be generated, how to read textures and meshes, and how and export the game files.</text:span></text:p>
-   <text:p text:style-name="P59"><text:span text:style-name="T20">Cores can be installed either manually or from Git repositories, </text:span><text:span text:style-name="T31">a list of available repositories is included with the city builder. Cores can be managed by going in </text:span><text:span text:style-name="T13">Settings→Preferences→Cores</text:span><text:span text:style-name="T31">. Note that cores can be managed only if no city is loaded. (to close the current city select </text:span><text:span text:style-name="T13">File→Close city</text:span><text:span text:style-name="T31">)</text:span></text:p>
-   <text:p text:style-name="P57"><text:span text:style-name="T20">Python 3 is required to use </text:span><text:span text:style-name="T31">the city builder</text:span><text:span text:style-name="T20">, you can supply your own </text:span><text:span text:style-name="T31">installation</text:span><text:span text:style-name="T20"> by going in </text:span><text:span text:style-name="T1">Edit→Settings→Python </text:span><text:span text:style-name="T20">and setting its path, </text:span><text:span text:style-name="T31">but you can also let the city builder manage the Python installation, in this case packages required by the cores will be managed by the city builder itself</text:span><text:span text:style-name="T20">. </text:span><text:span text:style-name="T31">(if you provide your own instead you’ll have to manage the required packages by yourself)</text:span></text:p>
+   <text:p text:style-name="P50">Support for each game is added via a <text:span text:style-name="T1">core</text:span><text:span text:style-name="T22"> that defines (in json files and Python code) how the geometry has to be generated, how to read textures and meshes, and how and export the game files.</text:span></text:p>
+   <text:p text:style-name="P59"><text:span text:style-name="T22">Cores can be installed either manually or from Git repositories, </text:span><text:span text:style-name="T33">a list of available repositories is included with the city builder. Cores can be managed by going in </text:span><text:span text:style-name="T13">Settings→Preferences→Cores</text:span><text:span text:style-name="T33">. Note that cores can be managed only if no city is loaded. (to close the current city select </text:span><text:span text:style-name="T13">File→Close city</text:span><text:span text:style-name="T33">)</text:span></text:p>
+   <text:p text:style-name="P57"><text:span text:style-name="T22">Python 3 is required to use </text:span><text:span text:style-name="T33">the city builder</text:span><text:span text:style-name="T22">, you can supply your own </text:span><text:span text:style-name="T33">installation</text:span><text:span text:style-name="T22"> by going in </text:span><text:span text:style-name="T1">Edit→Settings→Python </text:span><text:span text:style-name="T22">and setting its path, </text:span><text:span text:style-name="T33">but you can also let the city builder manage the Python installation, in this case packages required by the cores will be managed by the city builder itself</text:span><text:span text:style-name="T22">. </text:span><text:span text:style-name="T33">(if you provide your own instead you’ll have to manage the required packages by yourself)</text:span></text:p>
    <text:p text:style-name="P34">Please note that the latest versions of Python do not support Windows 7 anymore. (the last version that does is Python 3.8)</text:p>
    <text:p text:style-name="P36">After launching the city builder you’ll have to install at least a core, you can do so by going in <text:s/><text:span text:style-name="T1">Settings→Preferences→Cores </text:span>and installing one of the listed cores.</text:p>
-   <text:p text:style-name="P11">To create a city after <text:span text:style-name="T62">at least a core has been installed</text:span>:</text:p>
-   <text:list xml:id="list1839094124" text:style-name="L1">
+   <text:p text:style-name="P11">To create a city after <text:span text:style-name="T65">at least a core has been installed</text:span>:</text:p>
+   <text:list xml:id="list20468440" text:style-name="L1">
     <text:list-item>
-     <text:p text:style-name="P74"><text:span text:style-name="T37">Select </text:span><text:span text:style-name="T4">File→New city</text:span><text:span text:style-name="T37"> (if no city is loaded, then the creation panel should already be open, in the top-right corner)</text:span></text:p>
+     <text:p text:style-name="P76"><text:span text:style-name="T40">Select </text:span><text:span text:style-name="T4">File→New city</text:span><text:span text:style-name="T40"> (if no city is loaded, then the creation panel should already be open, in the top-right corner)</text:span></text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P75">Choose the relevant core</text:p>
+     <text:p text:style-name="P77">Choose the relevant core</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P76"><text:span text:style-name="T51">Enter</text:span> the desired size (in meters) and terrain resolution (4096 for both values should be good for an average sized city) and a template. (each one includes its own <text:span text:style-name="T54">presets</text:span>) <text:span text:style-name="T53">Before creating the city, you can add stock meshes and textures from the game you are creating the city for in the </text:span><text:span text:style-name="T11">Files/common/&lt;core name&gt;</text:span> <text:span text:style-name="T53">folder.</text:span></text:p>
+     <text:p text:style-name="P78"><text:span text:style-name="T54">Enter</text:span> the desired size (in meters) and terrain resolution (4096 for both values should be good for an average sized city) and a template. (each one includes its own <text:span text:style-name="T57">presets</text:span>) <text:span text:style-name="T56">Before creating the city, you can add stock meshes and textures from the game you are creating the city for in the </text:span><text:span text:style-name="T11">Files/common/&lt;core name&gt;</text:span> <text:span text:style-name="T56">folder.</text:span></text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P74"><text:span text:style-name="T37">Click </text:span><text:span text:style-name="T4">Select directory and create, </text:span><text:span text:style-name="T5">and n</text:span><text:span text:style-name="T37">avigate to the desired location</text:span></text:p>
+     <text:p text:style-name="P76"><text:span text:style-name="T40">Click </text:span><text:span text:style-name="T4">Select directory and create, </text:span><text:span text:style-name="T5">and n</text:span><text:span text:style-name="T40">avigate to the desired location</text:span></text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P77">Create the directory for the city and select it</text:p>
+     <text:p text:style-name="P79">Create the directory for the city and select it</text:p>
     </text:list-item>
    </text:list>
    <text:p text:style-name="P11"/>
    <text:p text:style-name="P16">After selecting the folder, the (empty) city will be loaded.</text:p>
    <text:p text:style-name="P43">Click and drag with the middle mouse button to move the camera, click and drag with the right mouse button to rotate the camera, use the scroll wheel to zoom in and out.</text:p>
    <text:p text:style-name="P11">You can import a heightmap for your city, to do so:</text:p>
-   <text:list xml:id="list3195610379" text:style-name="L2">
+   <text:list xml:id="list3854176114" text:style-name="L2">
     <text:list-item>
-     <text:p text:style-name="P78">Place the heightmap (preferably a grayscale PNG) in the city folder</text:p>
+     <text:p text:style-name="P80">Place the heightmap (preferably a grayscale PNG) in the city folder</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P78">Select <text:span text:style-name="T1">Edit→Load heightmap</text:span>, set the Y scale (e.g. how high the highest possible point (a white pixel in the heightmap) will be, in meters)</text:p>
+     <text:p text:style-name="P80">Select <text:span text:style-name="T1">Edit→Load heightmap</text:span>, set the Y scale (e.g. how high the highest possible point (a white pixel in the heightmap) will be, in meters)</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P78">Select the heightmap from the textures list (to open it click on the white square under <text:span text:style-name="T1">Grayscale heightmap</text:span>)</text:p>
+     <text:p text:style-name="P80">Select the heightmap from the textures list (to open it click on the white square under <text:span text:style-name="T1">Grayscale heightmap</text:span>)</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P78">Click <text:span text:style-name="T1">Load</text:span><text:line-break/></text:p>
+     <text:p text:style-name="P80">Click <text:span text:style-name="T1">Load</text:span><text:line-break/></text:p>
     </text:list-item>
    </text:list>
    <text:p text:style-name="P12">You can also edit the ground manually, with <text:span text:style-name="T1">Edit→Toggle terrain edit menu</text:span>.</text:p>
    <text:p text:style-name="P12">The editor will look for textures and meshes in the city folder, but you can add more paths, both <text:soft-page-break/>for all cities (global) and for the current city only (local), they can be specified in the settings panel (Edit→Settings), paths starting with a dot are relative to the <text:span text:style-name="T1">Files/common</text:span> folder in the tool folder.</text:p>
-   <text:p text:style-name="P11">The <text:span text:style-name="T51">base </text:span>supported formats for textures are:</text:p>
-   <text:list xml:id="list3930351550" text:style-name="L3">
+   <text:p text:style-name="P11">The <text:span text:style-name="T54">base </text:span>supported formats for textures are:</text:p>
+   <text:list xml:id="list655008504" text:style-name="L3">
     <text:list-item>
-     <text:p text:style-name="P79">.bmp</text:p>
+     <text:p text:style-name="P81">.bmp</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P79">.jpg</text:p>
+     <text:p text:style-name="P81">.jpg</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P79">.png</text:p>
+     <text:p text:style-name="P81">.png</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P79">.tga</text:p>
+     <text:p text:style-name="P81">.tga</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P79">.dds</text:p>
-    </text:list-item>
-   </text:list>
-   <text:p text:style-name="P11"/>
-   <text:p text:style-name="P11">The <text:span text:style-name="T54">base </text:span>supported formats for meshes are:</text:p>
-   <text:list xml:id="list1495218815" text:style-name="L4">
-    <text:list-item>
-     <text:p text:style-name="P80">.obj</text:p>
+     <text:p text:style-name="P81">.dds</text:p>
     </text:list-item>
    </text:list>
    <text:p text:style-name="P11"/>
-   <text:p text:style-name="P48">Support for more <text:span text:style-name="T53">mesh and texture</text:span> formats can be added in the cores via Python scripting. <text:span text:style-name="T60">(the city builder will call these functions from a local Python TCP server, you can enable the debug mode for it in the settings)</text:span></text:p>
+   <text:p text:style-name="P11">The <text:span text:style-name="T57">base </text:span>supported formats for meshes are:</text:p>
+   <text:list xml:id="list2736451509" text:style-name="L4">
+    <text:list-item>
+     <text:p text:style-name="P82">.obj</text:p>
+    </text:list-item>
+   </text:list>
+   <text:p text:style-name="P11"/>
+   <text:p text:style-name="P48">Support for more <text:span text:style-name="T56">mesh and texture</text:span> formats can be added in the cores via Python scripting. <text:span text:style-name="T63">(the city builder will call these functions from a local Python TCP server, you can enable the debug mode for it in the settings)</text:span></text:p>
    <text:p text:style-name="P11"/>
    <text:p text:style-name="P12">In the settings panel you can also select an overlay image you can use as a guide for placing roads (the <text:span text:style-name="T1">Ground overlay</text:span> field), you can import it by copying it in the city folder and selecting it from the textures list, then you can enable it with <text:span text:style-name="T1">View→Toggle ground overlay</text:span>.</text:p>
-   <text:p text:style-name="P17">There are 5 types of <text:span text:style-name="T19">objects</text:span> available in the editor:</text:p>
-   <text:list xml:id="list3133533584" text:style-name="L5">
+   <text:p text:style-name="P17">There are 5 types of <text:span text:style-name="T21">objects</text:span> available in the editor:</text:p>
+   <text:list xml:id="list4089518346" text:style-name="L5">
     <text:list-item>
-     <text:p text:style-name="P81">Roads</text:p>
+     <text:p text:style-name="P83">Roads</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P81">Intersections</text:p>
+     <text:p text:style-name="P83">Intersections</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P81">Terrain patches</text:p>
+     <text:p text:style-name="P83">Terrain patches</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P81">Building lines</text:p>
+     <text:p text:style-name="P83">Building lines</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P81"><text:span text:style-name="T46">M</text:span>esh instances<text:line-break/></text:p>
+     <text:p text:style-name="P83"><text:span text:style-name="T49">M</text:span>esh instances<text:line-break/></text:p>
     </text:list-item>
    </text:list>
    <text:p text:style-name="P13">Intersections are created automatically when two or more roads are connected together, the other entities can be placed manually.</text:p>
-   <text:p text:style-name="P50">Other features can be added in each core, see the <text:span text:style-name="T1">Readme</text:span><text:span text:style-name="T20"> file </text:span><text:span text:style-name="T29">of</text:span><text:span text:style-name="T20"> the selected core for more info.</text:span></text:p>
+   <text:p text:style-name="P50">Other features can be added in each core, see the <text:span text:style-name="T1">Readme</text:span><text:span text:style-name="T22"> file </text:span><text:span text:style-name="T31">of</text:span><text:span text:style-name="T22"> the selected core for more info.</text:span></text:p>
    <text:h text:style-name="P3" text:outline-level="2">Roads</text:h>
-   <text:p text:style-name="P19">To create a road, select <text:span text:style-name="T1">Create→Road</text:span> (or press Ctrl+R), then click on the ground grid to place its control points. Those control points describe a parametric curve. (a Bézier curve by default, it can be changed to a Hermite spline <text:span text:style-name="T42">or to a low poly spline) </text:span><text:span text:style-name="T63">You can place the control points snapped to the grid by holding the left shift key.</text:span></text:p>
-   <text:p text:style-name="P44">Low poly splines are similar in behaviour to Hermite splines, but are optimized for low poly roads, <text:span text:style-name="T43">if it’s used then the number of segments will be automatically set to the number of control points.</text:span><text:span text:style-name="T37"><text:line-break/>By default the control points are kept on the ground, but you can disable this. (</text:span><text:span text:style-name="T18">uncheck</text:span><text:span text:style-name="T37"> </text:span><text:span text:style-name="T4">project CPs to ground</text:span><text:span text:style-name="T37">)</text:span></text:p>
-   <text:p text:style-name="P18">To deselect a road (or any other object), click <text:span text:style-name="T1">End editing</text:span>, or press the Escape key. To select it again, click on it. (or go to <text:span text:style-name="T1">Edit→View object list</text:span>, select it from the list (it will be highlighted), then <text:span text:style-name="T19">click</text:span> <text:span text:style-name="T1">Edit object</text:span>) To delete it, click <text:span text:style-name="T1">Delete</text:span>, or press the Delete key. <text:span text:style-name="T36">All this is valid for other object types too. </text:span><text:span text:style-name="T48">To delete a control point, select it and press the Delete key.</text:span></text:p>
-   <text:p text:style-name="P18">To add more control points after deselecting <text:span text:style-name="T18">and reselecting</text:span> a road, <text:span text:style-name="T48">select</text:span> <text:span text:style-name="T10">Add </text:span><text:span text:style-name="T24">in the placement mode dropdown</text:span>. <text:span text:style-name="T48">(or </text:span><text:span text:style-name="T10">Insert after selected </text:span><text:span text:style-name="T24">to insert new points after the selected one</text:span><text:span text:style-name="T48">)</text:span><text:line-break/><text:soft-page-break/>You can load a preset from the presets list, the last selected one will be used for subsequent new roads.</text:p>
-   <text:p text:style-name="P18">To move the control points, disable the control points placement (either deselect and reselect the road or <text:span text:style-name="T48">select</text:span> <text:span text:style-name="T10">None </text:span><text:span text:style-name="T24">in the placement mode dropdown</text:span>), then click on the control points and move them. (either with the gizmos or by pressing the M key and entering the new position by hand)</text:p>
+   <text:p text:style-name="P19">To create a road, select <text:span text:style-name="T1">Create→Road</text:span> (or press Ctrl+R), then click on the ground grid to place its control points. Those control points describe a parametric curve. (a Bézier curve by default, it can be changed to a Hermite spline <text:span text:style-name="T45">or to a low poly spline) </text:span><text:span text:style-name="T66">You can place the control points snapped to the grid by holding the left shift key.</text:span></text:p>
+   <text:p text:style-name="P44">Low poly splines are similar in behaviour to Hermite splines, but are optimized for low poly roads, <text:span text:style-name="T46">if it’s used then the number of segments will be automatically set to the number of control points.</text:span><text:span text:style-name="T40"><text:line-break/>By default the control points are kept on the ground, but you can disable this. (</text:span><text:span text:style-name="T20">uncheck</text:span><text:span text:style-name="T40"> </text:span><text:span text:style-name="T4">project CPs to ground</text:span><text:span text:style-name="T40">)</text:span></text:p>
+   <text:p text:style-name="P18">To deselect a road (or any other object), click <text:span text:style-name="T1">End editing</text:span>, or press the Escape key. To select it again, click on it. (or go to <text:span text:style-name="T1">Edit→View object list</text:span>, select it from the list (it will be highlighted), then <text:span text:style-name="T21">click</text:span> <text:span text:style-name="T1">Edit object</text:span>) To delete it, click <text:span text:style-name="T1">Delete</text:span>, or press the Delete key. <text:span text:style-name="T39">All this is valid for other object types too. </text:span><text:span text:style-name="T51">To delete a control point, select it and press the Delete key.</text:span></text:p>
+   <text:p text:style-name="P18">To add more control points after deselecting <text:span text:style-name="T20">and reselecting</text:span> a road, <text:span text:style-name="T51">select</text:span> <text:span text:style-name="T10">Add </text:span><text:span text:style-name="T26">in the placement mode dropdown</text:span>. <text:span text:style-name="T51">(or </text:span><text:span text:style-name="T10">Insert after selected </text:span><text:span text:style-name="T26">to insert new points after the selected one</text:span><text:span text:style-name="T51">)</text:span><text:line-break/><text:soft-page-break/>You can load a preset from the presets list, the last selected one will be used for subsequent new roads.</text:p>
+   <text:p text:style-name="P18">To move the control points, disable the control points placement (either deselect and reselect the road or <text:span text:style-name="T51">select</text:span> <text:span text:style-name="T10">None </text:span><text:span text:style-name="T26">in the placement mode dropdown</text:span>), then click on the control points and move them. (either with the gizmos or by pressing the M key and entering the new position by hand)</text:p>
    <text:p text:style-name="P13">Road properties are distributed across several tabs, to navigate between them, click on their buttons at the top of the road editor panel.</text:p>
    <text:p text:style-name="P38">To select more than one control point at a time, hold Ctrl while selecting. (and hold Alt to unselect)</text:p>
    <text:p text:style-name="P38"/>
@@ -1500,133 +1537,138 @@
    <text:p text:style-name="P18">The ground grid is for placement aid only, to create actual terrain, you have to add terrain patches.</text:p>
    <text:p text:style-name="P18">To create a terrain patch, select <text:span text:style-name="T1">Create→Terrain patch</text:span> (or press Ctrl+T), then place the perimeter points on the grid.</text:p>
    <text:p text:style-name="P15">Within a city, the intended procedure is: place the roads first, then create the terrain patches.</text:p>
-   <text:p text:style-name="P15">To snap terrain patches to other objects, click on the anchor points on roads or other patches. (highlighted in green) <text:span text:style-name="T40">Note: </text:span><text:span text:style-name="T51">if you hold Ctrl </text:span><text:span text:style-name="T40">when clicking on another anchor point, if it’s linked to the last one, all the intermediate ones will be added as well.</text:span></text:p>
+   <text:p text:style-name="P15">To snap terrain patches to other objects, click on the anchor points on roads or other patches. (highlighted in green) <text:span text:style-name="T43">Note: </text:span><text:span text:style-name="T54">if you hold Ctrl </text:span><text:span text:style-name="T43">when clicking on another anchor point, if it’s linked to the last one, all the intermediate ones will be added as well.</text:span></text:p>
    <text:p text:style-name="P42">It is important that you do not alter the topology of the road network after placing terrain patches, as this could disconnect the terrain vertices from the roads. If you have to, you should recreate the involved terrain patches.</text:p>
    <text:p text:style-name="P15">To quickly fill the space between a loop of roads, place the first point of a terrain patch on an anchor point on the loop, then click <text:span text:style-name="T1">Auto-close loop</text:span>.</text:p>
    <text:p text:style-name="P15">This can be done automatically on the whole city by selecting <text:span text:style-name="T1">Create→Whole city terrain</text:span></text:p>
    <text:p text:style-name="P15">There you can change some settings for the generated patches, then to create them, click <text:span text:style-name="T1">Create whole city terrain</text:span>.</text:p>
    <text:p text:style-name="P15">You can set a texture for a terrain patch, it will be used for subsequent new patches. For the first patch you may have to uncheck &quot;Invisible&quot; to apply it.</text:p>
-   <text:p text:style-name="P15">By default a terrain patch is optimized for flat terrain. To make it follow a non-flat ground grid more closely, add internal points to it. To do so, select <text:span text:style-name="T1">Internal</text:span> in the point <text:span text:style-name="T48">placement</text:span> mode dropdown, then place the points inside the patch.</text:p>
+   <text:p text:style-name="P15">By default a terrain patch is optimized for flat terrain. To make it follow a non-flat ground grid more closely, add internal points to it. To do so, select <text:span text:style-name="T1">Internal</text:span> in the point <text:span text:style-name="T51">placement</text:span> mode dropdown, then place the points inside the patch.</text:p>
    <text:p text:style-name="P15">If the result is too rough, you can smooth it by increasing the <text:span text:style-name="T1">Smoothing</text:span> parameter (it&apos;s the number of smoothing iterations)</text:p>
-   <text:p text:style-name="P2"><text:soft-page-break/><text:span text:style-name="T37">To move perimeter or internal points away from the ground grid, uncheck </text:span><text:span text:style-name="T4">Project points to ground</text:span><text:span text:style-name="T37">.<text:line-break/></text:span><text:span text:style-name="T37">To disable terrain points placement, set it to </text:span><text:span text:style-name="T4">None</text:span><text:span text:style-name="T37"> in the dropdown.</text:span></text:p>
+   <text:p text:style-name="P2"><text:soft-page-break/><text:span text:style-name="T40">To move perimeter or internal points away from the ground grid, uncheck </text:span><text:span text:style-name="T4">Project points to ground</text:span><text:span text:style-name="T40">.<text:line-break/></text:span><text:span text:style-name="T40">To disable terrain points placement, set it to </text:span><text:span text:style-name="T4">None</text:span><text:span text:style-name="T40"> in the dropdown.</text:span></text:p>
    <text:p text:style-name="P15"/>
-   <text:h text:style-name="P4" text:outline-level="2"><text:span text:style-name="T55">M</text:span>esh instances</text:h>
+   <text:h text:style-name="P4" text:outline-level="2"><text:span text:style-name="T58">M</text:span>esh instances</text:h>
    <text:p text:style-name="P15">There are two ways to place buildings: you can place pre-made meshes where you want, or you can place procedurally generated building lines.</text:p>
-   <text:p text:style-name="P15">To place a mesh, select <text:span text:style-name="T1">Create→</text:span><text:span text:style-name="T9">M</text:span><text:span text:style-name="T1">esh instance</text:span>, select a mesh from the list, <text:span text:style-name="T55">click </text:span><text:span text:style-name="T12">Start placement</text:span>, and click on the ground to place one or more of them.</text:p>
+   <text:p text:style-name="P15">To place a mesh, select <text:span text:style-name="T1">Create→</text:span><text:span text:style-name="T9">M</text:span><text:span text:style-name="T1">esh instance</text:span>, select a mesh from the list, <text:span text:style-name="T58">click </text:span><text:span text:style-name="T12">Start placement</text:span>, and click on the ground to place one or more of them.</text:p>
    <text:p text:style-name="P15">To change the placed meshes&apos; position, scale or rotation, exit the placement mode (by pressing <text:span text:style-name="T1">C</text:span><text:span text:style-name="T12">lose</text:span> or the Escape key) and click on one of the placed meshes, then you can change its position (click <text:span text:style-name="T1">Move</text:span> or press the W key), rotation (click <text:span text:style-name="T1">Rotate</text:span> or press the E key) and scale (click <text:span text:style-name="T1">Scale</text:span> or press the R key), you can also input the values manually in the panel.</text:p>
-   <text:p text:style-name="P15">By holding <text:span text:style-name="T63">the left s</text:span>hift <text:span text:style-name="T63">key</text:span> you can apply transforms in incremental steps. <text:span text:style-name="T63">(e.g. move snapped to grid)</text:span></text:p>
+   <text:p text:style-name="P15">By holding <text:span text:style-name="T66">the left s</text:span>hift <text:span text:style-name="T66">key</text:span> you can apply transforms in incremental steps. <text:span text:style-name="T66">(e.g. move snapped to grid)</text:span></text:p>
    <text:p text:style-name="P40">You can select a mesh by clicking on it. However if it’s preventing you from selecting another object, hold Ctrl to ignore the mesh.</text:p>
+   <text:p text:style-name="P86">Some meshes are placed <text:span text:style-name="T68">automatically</text:span> depending on the properties of <text:span text:style-name="T68">the parent</text:span> objects (<text:span text:style-name="T68">varies depending on the core, </text:span>a possible example: traffic lights), <text:span text:style-name="T68">those meshes may have some transform axes restricted. </text:span><text:span text:style-name="T34">The user-specified position/rotation for those meshes is </text:span><text:span text:style-name="T15">relative</text:span><text:span text:style-name="T34"> to the base position/rotation, and thus moving the parent objects will preserve the user-specified offsets.</text:span></text:p>
    <text:p text:style-name="P39"/>
-   <text:h text:style-name="P53" text:outline-level="2"><text:span text:style-name="T55">Mass placement of</text:span> mesh instances</text:h>
-   <text:p text:style-name="P61"><text:span text:style-name="T23">You can also massively place </text:span><text:span text:style-name="T30">meshes</text:span><text:span text:style-name="T23"> by checking</text:span><text:span text:style-name="T8"> Place multiple in radius</text:span><text:span text:style-name="T23">, setting the intensity and radius, and clicking and dragging. In this mode you can also massively delete them by checking </text:span><text:span text:style-name="T8">Delete mode.</text:span></text:p>
-   <text:p text:style-name="P61"><text:span text:style-name="T23">You can have each placed </text:span><text:span text:style-name="T30">mesh</text:span><text:span text:style-name="T23"> rotated randomly by checking </text:span><text:span text:style-name="T8">Random rotation</text:span><text:span text:style-name="T23">.</text:span></text:p>
-   <text:p text:style-name="P62"><text:span text:style-name="T23">O</text:span><text:span text:style-name="T20">ther flags can be defined by the core.</text:span></text:p>
+   <text:h text:style-name="P53" text:outline-level="2"><text:span text:style-name="T58">Mass placement of</text:span> mesh instances</text:h>
+   <text:p text:style-name="P61"><text:span text:style-name="T25">You can also massively place </text:span><text:span text:style-name="T32">meshes</text:span><text:span text:style-name="T25"> by checking</text:span><text:span text:style-name="T8"> Place multiple in radius</text:span><text:span text:style-name="T25">, setting the intensity and radius, and clicking and dragging. In this mode you can also massively delete them by checking </text:span><text:span text:style-name="T8">Delete mode.</text:span></text:p>
+   <text:p text:style-name="P61"><text:span text:style-name="T25">You can have each placed </text:span><text:span text:style-name="T32">mesh</text:span><text:span text:style-name="T25"> rotated randomly by checking </text:span><text:span text:style-name="T8">Random rotation</text:span><text:span text:style-name="T25">.</text:span></text:p>
+   <text:p text:style-name="P62"><text:span text:style-name="T25">O</text:span><text:span text:style-name="T22">ther flags can be defined by the core.</text:span></text:p>
    <text:p text:style-name="P27"/>
    <text:h text:style-name="P54" text:outline-level="2">Prop rules</text:h>
    <text:p text:style-name="P63">You can also automatically place props on roads by using prop rules.</text:p>
-   <text:p text:style-name="P32"><text:span text:style-name="T56">Prop rules are split in several parts defined by the core (e.g. left, right, middle, etc.), each one contains one or more </text:span><text:span text:style-name="T57">elements</text:span><text:span text:style-name="T56">, which define what meshes to use and how to place them. (the exact details are defined in the core)</text:span></text:p>
+   <text:p text:style-name="P32"><text:span text:style-name="T59">Prop rules are split in several parts defined by the core (e.g. left, right, middle, etc.), each one contains one or more </text:span><text:span text:style-name="T60">elements</text:span><text:span text:style-name="T59">, which define what meshes to use and how to place them. (the exact details are defined in the core)</text:span></text:p>
    <text:p text:style-name="P64"/>
    <text:h text:style-name="P5" text:outline-level="2">Building lines</text:h>
    <text:p text:style-name="P10">To create procedurally generated building lines, select <text:span text:style-name="T1">Create→Building line</text:span> (or press Ctrl+E), then click on the ground to place the points of the line.</text:p>
-   <text:p text:style-name="P15">Like terrain patches you can place these points on anchors on road sides or terrain patches.</text:p>
-   <text:p text:style-name="P15">A building line is made of several buildings, the number of buildings is determined by the dividing points (<text:span text:style-name="T32">i.e</text:span>. a dividing point marks the end of a building and the start of another), you can either place them directly (<text:span text:style-name="T32">in the dropdown </text:span>change <text:span text:style-name="T32">the </text:span><text:span text:style-name="T48">placement</text:span><text:span text:style-name="T32"> mode</text:span> to <text:span text:style-name="T1">Dividing point</text:span>) or change <text:soft-page-break/>them. (set <text:span text:style-name="T48">placement</text:span> mode to <text:span text:style-name="T1">None</text:span>, click on one <text:span text:style-name="T32">of them</text:span> and click <text:span text:style-name="T1">Toggle dividing point</text:span>)</text:p>
+   <text:p text:style-name="P15"><text:soft-page-break/>Like terrain patches you can place these points on anchors on road sides or terrain patches.</text:p>
+   <text:p text:style-name="P15">A building line is made of several buildings, the number of buildings is determined by the dividing points (<text:span text:style-name="T35">i.e</text:span>. a dividing point marks the end of a building and the start of another), you can either place them directly (<text:span text:style-name="T35">in the dropdown </text:span>change <text:span text:style-name="T35">the </text:span><text:span text:style-name="T51">placement</text:span><text:span text:style-name="T35"> mode</text:span> to <text:span text:style-name="T1">Dividing point</text:span>) or change them. (set <text:span text:style-name="T51">placement</text:span> mode to <text:span text:style-name="T1">None</text:span>, click on one <text:span text:style-name="T35">of them</text:span> and click <text:span text:style-name="T1">Toggle dividing point</text:span>)</text:p>
    <text:p text:style-name="P41">After selecting a point you can also delete it by pressing the Delete key.</text:p>
    <text:p text:style-name="P10">You can also place building lines automatically on closed roads loops, to do so:</text:p>
-   <text:list xml:id="list1495444945" text:style-name="L6">
+   <text:list xml:id="list3317176953" text:style-name="L6">
     <text:list-item>
-     <text:p text:style-name="P82"><text:span text:style-name="T32">P</text:span>lace the first point on the line between two anchor points (it will be highlighted in magenta when the line between the anchors is detected)</text:p>
+     <text:p text:style-name="P84"><text:span text:style-name="T35">P</text:span>lace the first point on the line between two anchor points (it will be highlighted in magenta when the line between the anchors is detected)</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P82"><text:span text:style-name="T32">I</text:span>n the tab <text:span text:style-name="T1">Auto-Loop</text:span> select the building presets you wish to use. (each building will use one of them, chosen randomly) <text:span text:style-name="T32">To add the presets, select them in the dropdown and click </text:span><text:span text:style-name="T2">Add selected.</text:span></text:p>
+     <text:p text:style-name="P84"><text:span text:style-name="T35">I</text:span>n the tab <text:span text:style-name="T1">Auto-Loop</text:span> select the building presets you wish to use. (each building will use one of them, chosen randomly) <text:span text:style-name="T35">To add the presets, select them in the dropdown and click </text:span><text:span text:style-name="T2">Add selected.</text:span></text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P82"><text:span text:style-name="T32">S</text:span>et the min and max length of each building (the length will be random in this range), then click <text:span text:style-name="T1">Auto-close loop</text:span>.</text:p>
+     <text:p text:style-name="P84"><text:span text:style-name="T35">S</text:span>et the min and max length of each building (the length will be random in this range), then click <text:span text:style-name="T1">Auto-close loop</text:span>.</text:p>
     </text:list-item>
    </text:list>
-   <text:p text:style-name="P10">You can disable subdivision by length, in this case the dividing points will be <text:span text:style-name="T33">placed on</text:span> corners <text:span text:style-name="T34">with an angle</text:span> greater than 45 degrees.</text:p>
-   <text:p text:style-name="P15">You can also place building lines automatically on the whole city, to do so (after placing roads and terrain patches), select <text:span text:style-name="T1">Create→Whole city </text:span><text:span text:style-name="T3">buildings</text:span>, set the properties (same as a single loop, plus the building line preset), <text:span text:style-name="T35">and click </text:span><text:span text:style-name="T3">Create whole city buildings. </text:span><text:span text:style-name="T35">O</text:span>ptionally you can place them on invisible terrain patches only.</text:p>
-   <text:p text:style-name="P15">To create a single building with a custom shape, check <text:span text:style-name="T1">Front only</text:span> and <text:span text:style-name="T1">Loop</text:span> in the line <text:span text:style-name="T1">Properties</text:span> tab, select a roof texture and <text:span text:style-name="T35">set the</text:span> building height.</text:p>
+   <text:p text:style-name="P10">You can disable subdivision by length, in this case the dividing points will be <text:span text:style-name="T36">placed on</text:span> corners <text:span text:style-name="T37">with an angle</text:span> greater than 45 degrees.</text:p>
+   <text:p text:style-name="P15">You can also place building lines automatically on the whole city, to do so (after placing roads and terrain patches), select <text:span text:style-name="T1">Create→Whole city </text:span><text:span text:style-name="T3">buildings</text:span>, set the properties (same as a single loop, plus the building line preset), <text:span text:style-name="T38">and click </text:span><text:span text:style-name="T3">Create whole city buildings. </text:span><text:span text:style-name="T38">O</text:span>ptionally you can place them on invisible terrain patches only.</text:p>
+   <text:p text:style-name="P15">To create a single building with a custom shape, check <text:span text:style-name="T1">Front only</text:span> and <text:span text:style-name="T1">Loop</text:span> in the line <text:span text:style-name="T1">Properties</text:span> tab, select a roof texture and <text:span text:style-name="T38">set the</text:span> building height.</text:p>
    <text:p text:style-name="P51">If you move an anchor point connected to an edge containing a building point on it, the point will move so that the percent on the edge stays the same. By holding Ctrl while moving the anchor, it will stay in place.</text:p>
    <text:h text:style-name="P6" text:outline-level="2">Buildings</text:h>
    <text:p text:style-name="P21">Each building in a line is made of 4 sides: front, back, left and right, plus the roof.</text:p>
-   <text:p text:style-name="P21">The roof texture and building height <text:span text:style-name="T38">and depth</text:span> can be changed directly in the building panel, the sides can be enabled or disabled, and can be edited by selecting them.</text:p>
+   <text:p text:style-name="P21">The roof texture and building height <text:span text:style-name="T41">and depth</text:span> can be changed directly in the building panel, the sides can be enabled or disabled, and can be edited by selecting them.</text:p>
    <text:p text:style-name="P21">To select building parts when there is no object selected:</text:p>
-   <text:list xml:id="list2853594778" text:style-name="L7">
+   <text:list xml:id="list3783886237" text:style-name="L7">
     <text:list-item>
-     <text:p text:style-name="P83">For sides: click on it</text:p>
+     <text:p text:style-name="P87">For sides: click on it</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P83">For buildings: click on the roof or Ctrl-click any part of the building</text:p>
+     <text:p text:style-name="P87">For buildings: click on the roof or Ctrl-click any part of the building</text:p>
     </text:list-item>
     <text:list-item text:start-value="1">
-     <text:p text:style-name="P83">For lines: <text:span text:style-name="T63">left s</text:span>hift-click any part of the line</text:p>
+     <text:p text:style-name="P87">For lines: <text:span text:style-name="T66">left s</text:span>hift-click any part of the line</text:p>
     </text:list-item>
    </text:list>
    <text:h text:style-name="P6" text:outline-level="2">Building sides</text:h>
    <text:p text:style-name="P22">There are two things that make up building sides: floors and blocks.</text:p>
-   <text:p text:style-name="P22">Blocks can be of 3 types: empty, texture and sliver. To create them go to the <text:span text:style-name="T1">Blocks</text:span> tab, and click <text:span text:style-name="T1">Add block</text:span><text:span text:style-name="T20">, then select it, click </text:span><text:span text:style-name="T1">Edit block</text:span><text:span text:style-name="T20"> and select the type and texture, and optionally give it a name. (to find it more easily in the list)</text:span></text:p>
-   <text:p text:style-name="P24">About floors: there are two types of them:</text:p>
-   <text:list xml:id="list810049811" text:style-name="L8">
+   <text:p text:style-name="P22">Blocks can be of 3 types: empty, texture and sliver. To create them go to the <text:span text:style-name="T1">Blocks</text:span> tab, and click <text:span text:style-name="T1">Add block</text:span><text:span text:style-name="T22">, then select it, click </text:span><text:span text:style-name="T1">Edit block</text:span><text:span text:style-name="T22"> and select the type and texture, and optionally give it a name. (to find it more easily in the list)</text:span></text:p>
+   <text:p text:style-name="P24"><text:soft-page-break/>About floors: there are two types of them:</text:p>
+   <text:list xml:id="list2082766276" text:style-name="L8">
     <text:list-item>
-     <text:p text:style-name="P84">Ground floors (each building only has one of it)</text:p>
+     <text:p text:style-name="P88">Ground floors (each building only has one of it)</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P86"><text:span text:style-name="T20">Upper floors (there can be many of them</text:span><text:span text:style-name="T21">)</text:span></text:p>
+     <text:p text:style-name="P91"><text:span text:style-name="T22">Upper floors (there can be many of them</text:span><text:span text:style-name="T23">)</text:span></text:p>
     </text:list-item>
    </text:list>
-   <text:p text:style-name="P23"><text:soft-page-break/><text:span text:style-name="T21">T</text:span><text:span text:style-name="T20">he parameters </text:span><text:span text:style-name="T1">High floors count</text:span><text:span text:style-name="T20"> and </text:span><text:span text:style-name="T1">Low floors count</text:span><text:span text:style-name="T20"> control how many </text:span><text:span text:style-name="T21">upper</text:span><text:span text:style-name="T20"> floors are the </text:span><text:span text:style-name="T20">bottom and top ones, the remaining (the middle ones) will be repeated.</text:span></text:p>
-   <text:p text:style-name="P23"><text:span text:style-name="T21">Example</text:span><text:span text:style-name="T20">: </text:span><text:span text:style-name="T21">if </text:span><text:span text:style-name="T20">you have the floors A,B,C,D,E,F; </text:span><text:span text:style-name="T21">and </text:span><text:span text:style-name="T20">the high/low floor counts are 2 and 2, and the building has 8 floors, the disposition will be: A,B,C,D,C,D,E,F)</text:span></text:p>
-   <text:p text:style-name="P22"><text:span text:style-name="T20">To edit the ground floor, click </text:span><text:span text:style-name="T1">Edit ground floor</text:span><text:span text:style-name="T20">, you can also disable it by unchecking </text:span><text:span text:style-name="T1">Enabled.</text:span></text:p>
+   <text:p text:style-name="P23"><text:span text:style-name="T23">T</text:span><text:span text:style-name="T22">he parameters </text:span><text:span text:style-name="T1">High floors count</text:span><text:span text:style-name="T22"> and </text:span><text:span text:style-name="T1">Low floors count</text:span><text:span text:style-name="T22"> control how many </text:span><text:span text:style-name="T23">upper</text:span><text:span text:style-name="T22"> floors are the </text:span><text:span text:style-name="T22">bottom and top ones, the remaining (the middle ones) will be repeated.</text:span></text:p>
+   <text:p text:style-name="P23"><text:span text:style-name="T23">Example</text:span><text:span text:style-name="T22">: </text:span><text:span text:style-name="T23">if </text:span><text:span text:style-name="T22">you have the floors A,B,C,D,E,F; </text:span><text:span text:style-name="T23">and </text:span><text:span text:style-name="T22">the high/low floor counts are 2 and 2, and the building has 8 floors, the disposition will be: A,B,C,D,C,D,E,F)</text:span></text:p>
+   <text:p text:style-name="P22"><text:span text:style-name="T22">To edit the ground floor, click </text:span><text:span text:style-name="T1">Edit ground floor</text:span><text:span text:style-name="T22">, you can also disable it by unchecking </text:span><text:span text:style-name="T1">Enabled.</text:span></text:p>
    <text:p text:style-name="P24">To add an upper floor, click <text:span text:style-name="T1">Add floor</text:span>, select it and click <text:span text:style-name="T1">Edit floor</text:span>.</text:p>
    <text:p text:style-name="P25">Each floor has its own height, and is made up of slices, each slice is a block in the blocks list, and has its own width, and can be repeated <text:span text:style-name="T1">n</text:span> times.</text:p>
    <text:p text:style-name="P25">For ground floors, each slice contains 3 blocks: the middle one is the main block, the top and bottom ones are the slivers. (you should use sliver-type blocks only for these last two ones)</text:p>
-   <text:p text:style-name="P25"/>
+   <text:h text:style-name="P74" text:outline-level="2">City properties</text:h>
+   <text:p text:style-name="P90"><text:span text:style-name="T67">To edit city-level metadata such as its name, other properties (varying depending on the core used) such as, for example: traffic light models, races, etc</text:span>., <text:span text:style-name="T67">go to </text:span><text:span text:style-name="T4">Edit→</text:span><text:span text:style-name="T14">City properties</text:span><text:span text:style-name="T67">.</text:span></text:p>
+   <text:h text:style-name="P75" text:outline-level="2">Containers</text:h>
+   <text:p text:style-name="P90"><text:span text:style-name="T67">Some properties (varying depending on the core used, a possible example: races) can model entities that can contain objects used conditionally (e.g. races with their opponents and waypoints), to avoid cluttering the city with objects that are not meant to be enabled at the same time those containers will be shown only when they are selected. To deselect and hide them go to the relevant entry in the menu bar: </text:span><text:span text:style-name="T14">N container(s) selected</text:span><text:span text:style-name="T4">→</text:span><text:span text:style-name="T14">Deselect &lt;container&gt;</text:span><text:span text:style-name="T67">.</text:span></text:p>
+   <text:p text:style-name="P90"/>
    <text:h text:style-name="P5" text:outline-level="2">Error reporting</text:h>
    <text:p text:style-name="P31">There is a debug console available, it can be accessed by clicking the counter in the bottom-left corner of the screen, should any runtime errors happen they will be reported there, along with the stack trace.</text:p>
    <text:p text:style-name="P35">Python errors will be saved in the <text:span text:style-name="T1">pythonLog.txt</text:span> file in the main folder of the city builder. Note that if the Python server fails to start you should disable the debug mode to allow logging to that file.</text:p>
-   <text:h text:style-name="P7" text:outline-level="2">Saving, <text:span text:style-name="T39">loading</text:span> and exporting</text:h>
+   <text:h text:style-name="P7" text:outline-level="2">Saving, <text:span text:style-name="T42">loading</text:span> and exporting</text:h>
    <text:p text:style-name="P37">To save the city, select <text:span text:style-name="T1">File→Save city</text:span>, or press Ctrl+S.</text:p>
-   <text:p text:style-name="P37">To load a city, select <text:span text:style-name="T1">File→Load city</text:span><text:span text:style-name="T20">, and select the folder containing the city to load.</text:span></text:p>
-   <text:p text:style-name="P1"><text:span text:style-name="T22">To export the city, select </text:span><text:span text:style-name="T6">File→Export</text:span><text:span text:style-name="T22">, select the folder where to save it, and click </text:span><text:span text:style-name="T6">Save, </text:span><text:span text:style-name="T28">for formats other than </text:span><text:span text:style-name="T11">JSON</text:span><text:span text:style-name="T28">, a dialog with exporting options will appear.</text:span></text:p>
-   <text:p text:style-name="P60"><text:span text:style-name="T28">T</text:span><text:span text:style-name="T20">o close the current city, select </text:span><text:span text:style-name="T1">File→Close city</text:span><text:span text:style-name="T20">.</text:span></text:p>
-   <text:h text:style-name="P47" text:outline-level="2">Batch update</text:h>
-   <text:p text:style-name="P26"><text:span text:style-name="T44">To update a property of all (or some) elements of a certain type, you can use the </text:span><text:span text:style-name="T7">Batch update </text:span><text:span text:style-name="T44">function</text:span>. <text:span text:style-name="T44">To use it, go to </text:span><text:span text:style-name="T7">Edit→Batch update</text:span><text:span text:style-name="T44">, select the object type to update, write the update and (optionally) the where expressions, and click </text:span><text:span text:style-name="T7">Execute</text:span><text:span text:style-name="T44">.</text:span></text:p>
-   <text:p text:style-name="P26"><text:span text:style-name="T44">The update expression should be something like </text:span><text:span text:style-name="T14">property=value</text:span><text:span text:style-name="T44">, you can also wrap the value in double quotes </text:span><text:span text:style-name="T45">to avoid issues with string parsing</text:span><text:span text:style-name="T44"> (e.g. </text:span><text:span text:style-name="T14">property=&quot;value&quot;</text:span><text:span text:style-name="T44">)</text:span></text:p>
+   <text:p text:style-name="P37">To load a city, select <text:span text:style-name="T1">File→Load city</text:span><text:span text:style-name="T22">, and select the folder containing the city to load.</text:span></text:p>
+   <text:p text:style-name="P1"><text:span text:style-name="T24">To export the city, select </text:span><text:span text:style-name="T6">File→Export</text:span><text:span text:style-name="T24">, select the folder where to save it, and click </text:span><text:span text:style-name="T6">Save, </text:span><text:span text:style-name="T30">for formats other than </text:span><text:span text:style-name="T11">JSON</text:span><text:span text:style-name="T30">, a dialog with exporting options will appear.</text:span></text:p>
+   <text:p text:style-name="P60"><text:span text:style-name="T30">T</text:span><text:span text:style-name="T22">o close the current city, select </text:span><text:span text:style-name="T1">File→Close city</text:span><text:span text:style-name="T22">.</text:span></text:p>
+   <text:h text:style-name="P47" text:outline-level="2"><text:soft-page-break/>Batch update</text:h>
+   <text:p text:style-name="P26"><text:span text:style-name="T47">To update a property of all (or some) elements of a certain type, you can use the </text:span><text:span text:style-name="T7">Batch update </text:span><text:span text:style-name="T47">function</text:span>. <text:span text:style-name="T47">To use it, go to </text:span><text:span text:style-name="T7">Edit→Batch update</text:span><text:span text:style-name="T47">, select the object type to update, write the update and (optionally) the where expressions, and click </text:span><text:span text:style-name="T7">Execute</text:span><text:span text:style-name="T47">.</text:span></text:p>
+   <text:p text:style-name="P26"><text:span text:style-name="T47">The update expression should be something like </text:span><text:span text:style-name="T16">property=value</text:span><text:span text:style-name="T47">, you can also wrap the value in double quotes </text:span><text:span text:style-name="T48">to avoid issues with string parsing</text:span><text:span text:style-name="T47"> (e.g. </text:span><text:span text:style-name="T16">property=&quot;value&quot;</text:span><text:span text:style-name="T47">)</text:span></text:p>
    <text:p text:style-name="P29">Make sure that the entered value matches the parameter type, otherwise things may not work properly:</text:p>
-   <text:list xml:id="list3134715026" text:style-name="L9">
+   <text:list xml:id="list221591708" text:style-name="L9">
     <text:list-item>
-     <text:p text:style-name="P85">For <text:span text:style-name="T1">bool</text:span>: <text:span text:style-name="T50">boolean values (</text:span><text:span text:style-name="T16">True</text:span><text:span text:style-name="T52"> or </text:span><text:span text:style-name="T16">False</text:span><text:span text:style-name="T52">, note that they’re case sensitive</text:span><text:span text:style-name="T50">)</text:span></text:p>
+     <text:p text:style-name="P89">For <text:span text:style-name="T1">bool</text:span>: <text:span text:style-name="T53">boolean values (</text:span><text:span text:style-name="T18">True</text:span><text:span text:style-name="T55"> or </text:span><text:span text:style-name="T18">False</text:span><text:span text:style-name="T55">, note that they’re case sensitive</text:span><text:span text:style-name="T53">)</text:span></text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P85">For <text:span text:style-name="T1">int</text:span>: integer values (e.g. <text:span text:style-name="T17">1</text:span>, <text:span text:style-name="T17">10</text:span>, <text:span text:style-name="T17">123</text:span>, etc.)</text:p>
+     <text:p text:style-name="P89">For <text:span text:style-name="T1">int</text:span>: integer values (e.g. <text:span text:style-name="T19">1</text:span>, <text:span text:style-name="T19">10</text:span>, <text:span text:style-name="T19">123</text:span>, etc.)</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P85">For <text:span text:style-name="T1">float</text:span>: float values (e.g. <text:span text:style-name="T17">1.0</text:span>, <text:span text:style-name="T17">10.4</text:span>, <text:span text:style-name="T17">123.456</text:span>, etc.)</text:p>
+     <text:p text:style-name="P89">For <text:span text:style-name="T1">float</text:span>: float values (e.g. <text:span text:style-name="T19">1.0</text:span>, <text:span text:style-name="T19">10.4</text:span>, <text:span text:style-name="T19">123.456</text:span>, etc.)</text:p>
     </text:list-item>
     <text:list-item>
-     <text:p text:style-name="P85">For <text:span text:style-name="T1">string</text:span>: any string (e.g. <text:span text:style-name="T17">test1</text:span>, <text:span text:style-name="T16">”</text:span><text:span text:style-name="T17">test2.tga</text:span><text:span text:style-name="T16">”</text:span>, etc.)</text:p>
-    </text:list-item>
-   </text:list>
-   <text:p text:style-name="P28"><text:soft-page-break/><text:span text:style-name="T47">T</text:span>o change more than one property, <text:span text:style-name="T47">you can do it like this: </text:span><text:span text:style-name="T15">property1=value1 and property2=value2</text:span></text:p>
-   <text:p text:style-name="P26"><text:span text:style-name="T44">For the where expression you can check multiple properties, if all the conditions are satisfied on a certain object then the update is performed. To check equality, use </text:span><text:span text:style-name="T14">=</text:span><text:span text:style-name="T44">, to check inequality, use </text:span><text:span text:style-name="T14">!=</text:span><text:span text:style-name="T44">, for multiple conditions, you can use </text:span><text:span text:style-name="T45">the </text:span><text:span text:style-name="T14">and</text:span><text:span text:style-name="T44"> and </text:span><text:span text:style-name="T14">or</text:span><text:span text:style-name="T44"> operators (the </text:span><text:span text:style-name="T14">and</text:span><text:span text:style-name="T44"> operator takes precedence) Some examples:</text:span></text:p>
-   <text:list xml:id="list2212605332" text:style-name="L10">
-    <text:list-item>
-     <text:p text:style-name="P87">property = value</text:p>
-    </text:list-item>
-    <text:list-item>
-     <text:p text:style-name="P87">property != value</text:p>
-    </text:list-item>
-    <text:list-item>
-     <text:p text:style-name="P87">property1 = value1 or property2 = value2</text:p>
-    </text:list-item>
-    <text:list-item>
-     <text:p text:style-name="P87">property1 = value1 and property2 = value2</text:p>
-    </text:list-item>
-    <text:list-item>
-     <text:p text:style-name="P88">property1 = value1 and property2 = value2 <text:span text:style-name="T45">or property3 != value3</text:span></text:p>
+     <text:p text:style-name="P89">For <text:span text:style-name="T1">string</text:span>: any string (e.g. <text:span text:style-name="T19">test1</text:span>, <text:span text:style-name="T18">”</text:span><text:span text:style-name="T19">test2.tga</text:span><text:span text:style-name="T18">”</text:span>, etc.)</text:p>
     </text:list-item>
    </text:list>
-   <text:p text:style-name="P46"><text:span text:style-name="T20">You can </text:span><text:span text:style-name="T27">get</text:span><text:span text:style-name="T20"> a list of </text:span><text:span text:style-name="T25">available </text:span><text:span text:style-name="T20">properties </text:span><text:span text:style-name="T26">for each type of object</text:span><text:span text:style-name="T20"> </text:span><text:span text:style-name="T27">by clicking the relevant button</text:span><text:span text:style-name="T20">.</text:span></text:p>
+   <text:p text:style-name="P28"><text:span text:style-name="T50">T</text:span>o change more than one property, <text:span text:style-name="T50">you can do it like this: </text:span><text:span text:style-name="T17">property1=value1 and property2=value2</text:span></text:p>
+   <text:p text:style-name="P26"><text:span text:style-name="T47">For the where expression you can check multiple properties, if all the conditions are satisfied on a certain object then the update is performed. To check equality, use </text:span><text:span text:style-name="T16">=</text:span><text:span text:style-name="T47">, to check inequality, use </text:span><text:span text:style-name="T16">!=</text:span><text:span text:style-name="T47">, for multiple conditions, you can use </text:span><text:span text:style-name="T48">the </text:span><text:span text:style-name="T16">and</text:span><text:span text:style-name="T47"> and </text:span><text:span text:style-name="T16">or</text:span><text:span text:style-name="T47"> operators (the </text:span><text:span text:style-name="T16">and</text:span><text:span text:style-name="T47"> operator takes precedence) Some examples:</text:span></text:p>
+   <text:list xml:id="list73492872" text:style-name="L10">
+    <text:list-item>
+     <text:p text:style-name="P92">property = value</text:p>
+    </text:list-item>
+    <text:list-item>
+     <text:p text:style-name="P92">property != value</text:p>
+    </text:list-item>
+    <text:list-item>
+     <text:p text:style-name="P92">property1 = value1 or property2 = value2</text:p>
+    </text:list-item>
+    <text:list-item>
+     <text:p text:style-name="P92">property1 = value1 and property2 = value2</text:p>
+    </text:list-item>
+    <text:list-item>
+     <text:p text:style-name="P93">property1 = value1 and property2 = value2 <text:span text:style-name="T48">or property3 != value3</text:span></text:p>
+    </text:list-item>
+   </text:list>
+   <text:p text:style-name="P46"><text:span text:style-name="T22">You can </text:span><text:span text:style-name="T29">get</text:span><text:span text:style-name="T22"> a list of </text:span><text:span text:style-name="T27">available </text:span><text:span text:style-name="T22">properties </text:span><text:span text:style-name="T28">for each type of object</text:span><text:span text:style-name="T22"> </text:span><text:span text:style-name="T29">by clicking the relevant button</text:span><text:span text:style-name="T22">.</text:span></text:p>
   </office:text>
  </office:body>
 </office:document>
