@@ -49,7 +49,7 @@ public class MeshManager {
     }
 
     Bounds GetBounds_instance(string mesh) {
-        if (!bounds.ContainsKey(mesh)) return new Bounds();
+        if (mesh == null || !bounds.ContainsKey(mesh)) return new Bounds();
         return bounds[mesh];
     }
 
