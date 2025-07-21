@@ -13,12 +13,16 @@ namespace CityEncoder {
         }
 
         public void EncodeCity(ElementManager manager, string filename, System.Action post = null) {
+            System.Action<string> postError = x => {
+                manager.builder.CreateAlert(StringManager.Get("ERROR"), StringManager.Get("CITY_SAVE_ERROR_TEXT") + x, StringManager.Get("OK"));
+            };
             manager.builder.StartCoroutine(EncodeCityCoroutine(manager, filename, post == null ? delegate {
                 manager.builder.CreateAlert(StringManager.Get("SUCCESS"), StringManager.Get("CITY_SAVED_TEXT"), StringManager.Get("OK"));
-            } : post));
+            }
+            : post, postError));
         }
 
-        IEnumerator EncodeCityCoroutine(ElementManager manager, string filename, System.Action post) {
+        IEnumerator EncodeCityCoroutine(ElementManager manager, string filename, System.Action postSuccess, System.Action<string> postError) {
             yield return null;
             var progressBar = manager.builder.helper.curProgressBar;
             progressBar.SetActive(true);
@@ -29,23 +33,37 @@ namespace CityEncoder {
             }
 
             var savedCity = new IO.SavedCity.SavedCity();
-            savedCity.heightmapResolution = CityGroundHelper.heightmapResolution;
-            savedCity.terrainSize = CityGroundHelper.terrainSize;
-            savedCity.heightMap = GetEncodedHeights(manager);
-            savedCity.maxHeight = CityGroundHelper.maxHeight;
+            try {
+                savedCity.heightmapResolution = CityGroundHelper.heightmapResolution;
+                savedCity.terrainSize = CityGroundHelper.terrainSize;
+                savedCity.heightMap = GetEncodedHeights(manager);
+                savedCity.maxHeight = CityGroundHelper.maxHeight;
+            } catch (System.Exception e) {
+                Debug.LogError(e);
+                progressBar.SetActive(false);
+                postError.Invoke(e.Message);
+                yield break;
+            }
 
             var meshArray = new IO.SavedCity.MeshInstance[manager.meshes.Count];
             for (int i = 0; i < manager.meshes.Count; i++) {
-                var mesh = manager.meshes[i];
-                var elem = new IO.SavedCity.MeshInstance();
-                elem.id = i;
-                elem.name = mesh.gameObject.name;
-                elem.settings = mesh.settings;
-                elem.position = new States.SerializableVector3(mesh.GetRealPosition());
-                elem.rotation = new States.SerializableQuaternion(mesh.transform.rotation);
-                elem.scale = new States.SerializableVector3(mesh.transform.localScale);
-                elem.mesh = mesh.meshPath;
-                meshArray[i] = elem;
+                try {
+                    var mesh = manager.meshes[i];
+                    var elem = new IO.SavedCity.MeshInstance();
+                    elem.id = i;
+                    elem.name = mesh.gameObject.name;
+                    elem.settings = mesh.settings;
+                    elem.position = new States.SerializableVector3(mesh.GetRealPosition());
+                    elem.rotation = new States.SerializableQuaternion(mesh.transform.rotation);
+                    elem.scale = new States.SerializableVector3(mesh.transform.localScale);
+                    elem.mesh = mesh.meshPath;
+                    meshArray[i] = elem;
+                } catch (System.Exception e) {
+                    Debug.LogError(e);
+                    progressBar.SetActive(false);
+                    postError.Invoke(e.Message);
+                    yield break;
+                }
 
                 if (i % 100 == 0 || i == manager.meshes.Count - 1) {
                     progressBar.SetProgress(0.05f * ((float)(i + 1) / manager.meshes.Count));
@@ -56,20 +74,27 @@ namespace CityEncoder {
 
             var roadArray = new IO.SavedCity.Road[manager.roads.Count];
             for (int i = 0; i < manager.roads.Count; i++) {
-                var road = manager.roads[i];
-                var elem = new IO.SavedCity.Road();
-                elem.id = i;
-                elem.name = road.gameObject.name;
-                var pointArray = new States.SerializableVector3[road.points.Count];
-                for (int j = 0; j < road.points.Count; j++) {
-                    pointArray[j] = new States.SerializableVector3(road.points[j].transform.position);
+                try {
+                    var road = manager.roads[i];
+                    var elem = new IO.SavedCity.Road();
+                    elem.id = i;
+                    elem.name = road.gameObject.name;
+                    var pointArray = new States.SerializableVector3[road.points.Count];
+                    for (int j = 0; j < road.points.Count; j++) {
+                        pointArray[j] = new States.SerializableVector3(road.points[j].transform.position);
+                    }
+                    elem.points = pointArray;
+                    elem.instanceState = road.instanceState;
+                    elem.state = road.state;
+                    elem.startIntersectionId = manager.intersections.IndexOf(road.startIntersection);
+                    elem.endIntersectionId = manager.intersections.IndexOf(road.endIntersection);
+                    roadArray[i] = elem;
+                } catch (System.Exception e) {
+                    Debug.LogError(e);
+                    progressBar.SetActive(false);
+                    postError.Invoke(e.Message);
+                    yield break;
                 }
-                elem.points = pointArray;
-                elem.instanceState = road.instanceState;
-                elem.state = road.state;
-                elem.startIntersectionId = manager.intersections.IndexOf(road.startIntersection);
-                elem.endIntersectionId = manager.intersections.IndexOf(road.endIntersection);
-                roadArray[i] = elem;
 
                 if (i % 100 == 0 || i == manager.roads.Count - 1) {
                     progressBar.SetProgress(0.05f + 0.2f * ((float)(i + 1) / manager.roads.Count));
@@ -80,19 +105,26 @@ namespace CityEncoder {
 
             var intersectionArray = new IO.SavedCity.Intersection[manager.intersections.Count];
             for (int i = 0; i < manager.intersections.Count; i++) {
-                var intersection = manager.intersections[i];
-                var elem = new IO.SavedCity.Intersection();
-                elem.id = i;
-                elem.name = intersection.geo.name;
-                elem.state = intersection.state;
-                elem.instanceState = intersection.instanceState;
-                elem.center = new States.SerializableVector3(intersection.point.transform.position);
-                var iRoadsArray = new int[intersection.roads.Count];
-                for (int j = 0; j < intersection.roads.Count; j++) {
-                    iRoadsArray[j] = manager.roads.IndexOf(intersection.roads[j]);
+                try {
+                    var intersection = manager.intersections[i];
+                    var elem = new IO.SavedCity.Intersection();
+                    elem.id = i;
+                    elem.name = intersection.geo.name;
+                    elem.state = intersection.state;
+                    elem.instanceState = intersection.instanceState;
+                    elem.center = new States.SerializableVector3(intersection.point.transform.position);
+                    var iRoadsArray = new int[intersection.roads.Count];
+                    for (int j = 0; j < intersection.roads.Count; j++) {
+                        iRoadsArray[j] = manager.roads.IndexOf(intersection.roads[j]);
+                    }
+                    elem.roads = iRoadsArray;
+                    intersectionArray[i] = elem;
+                } catch (System.Exception e) {
+                    Debug.LogError(e);
+                    progressBar.SetActive(false);
+                    postError.Invoke(e.Message);
+                    yield break;
                 }
-                elem.roads = iRoadsArray;
-                intersectionArray[i] = elem;
 
                 if (i % 100 == 0 || i == manager.intersections.Count - 1) {
                     progressBar.SetProgress(0.25f + 0.2f * ((float)(i + 1) / manager.intersections.Count));
@@ -105,41 +137,48 @@ namespace CityEncoder {
 
             var terrainArray = new IO.SavedCity.TerrainPatch[manager.patches.Count];
             for (int i = 0; i < manager.patches.Count; i++) {
-                var patch = manager.patches[i];
-                var elem = new IO.SavedCity.TerrainPatch();
-                elem.id = i;
-                elem.name = patch.gameObject.name;
-                elem.state = patch.state;
+                try {
+                    var patch = manager.patches[i];
+                    var elem = new IO.SavedCity.TerrainPatch();
+                    elem.id = i;
+                    elem.name = patch.gameObject.name;
+                    elem.state = patch.state;
 
-                var patchPerimeterPoints = patch.GetPerimeterPointsComponents();
-                var elemPerimeterPoints = new int[patchPerimeterPoints.Count];
-                for (int j = 0; j < patchPerimeterPoints.Count; j++) {
-                    elemPerimeterPoints[j] = GetTerrainPoint(patchPerimeterPoints[j], pointsList, manager);
-                }
-                elem.perimeterPointsIds = elemPerimeterPoints;
-
-                var patchInternalPoints = patch.GetInternalPointsComponents();
-                var elemInternalPoints = new int[patchInternalPoints.Count];
-                for (int j = 0; j < patchInternalPoints.Count; j++) {
-                    elemInternalPoints[j] = GetTerrainPoint(patchInternalPoints[j], pointsList, manager);
-                }
-                elem.internalPointsIds = elemInternalPoints;
-
-                var patchBorderMeshes = patch.GetTerrainBorderMeshes();
-                var elemRails = new IO.SavedCity.TerrainBorderMesh[patchBorderMeshes.Count];
-                for (int j = 0; j < patchBorderMeshes.Count; j++) {
-                    var borderMesh = new IO.SavedCity.TerrainBorderMesh();
-                    borderMesh.state = patchBorderMeshes[j].state;
-                    borderMesh.instanceState = patchBorderMeshes[j].instanceState;
-                    borderMesh.segmentPointsIds = new int[patchBorderMeshes[j].segment.Count];
-                    for (int k = 0; k < patchBorderMeshes[j].segment.Count; k++) {
-                        borderMesh.segmentPointsIds[k] = GetTerrainPoint(patchBorderMeshes[j].segment[k], pointsList, manager);
+                    var patchPerimeterPoints = patch.GetPerimeterPointsComponents();
+                    var elemPerimeterPoints = new int[patchPerimeterPoints.Count];
+                    for (int j = 0; j < patchPerimeterPoints.Count; j++) {
+                        elemPerimeterPoints[j] = GetTerrainPoint(patchPerimeterPoints[j], pointsList, manager);
                     }
-                    elemRails[j] = borderMesh;
-                }
-                elem.borderMeshes = elemRails;
+                    elem.perimeterPointsIds = elemPerimeterPoints;
 
-                terrainArray[i] = elem;
+                    var patchInternalPoints = patch.GetInternalPointsComponents();
+                    var elemInternalPoints = new int[patchInternalPoints.Count];
+                    for (int j = 0; j < patchInternalPoints.Count; j++) {
+                        elemInternalPoints[j] = GetTerrainPoint(patchInternalPoints[j], pointsList, manager);
+                    }
+                    elem.internalPointsIds = elemInternalPoints;
+
+                    var patchBorderMeshes = patch.GetTerrainBorderMeshes();
+                    var elemRails = new IO.SavedCity.TerrainBorderMesh[patchBorderMeshes.Count];
+                    for (int j = 0; j < patchBorderMeshes.Count; j++) {
+                        var borderMesh = new IO.SavedCity.TerrainBorderMesh();
+                        borderMesh.state = patchBorderMeshes[j].state;
+                        borderMesh.instanceState = patchBorderMeshes[j].instanceState;
+                        borderMesh.segmentPointsIds = new int[patchBorderMeshes[j].segment.Count];
+                        for (int k = 0; k < patchBorderMeshes[j].segment.Count; k++) {
+                            borderMesh.segmentPointsIds[k] = GetTerrainPoint(patchBorderMeshes[j].segment[k], pointsList, manager);
+                        }
+                        elemRails[j] = borderMesh;
+                    }
+                    elem.borderMeshes = elemRails;
+
+                    terrainArray[i] = elem;
+                } catch (System.Exception e) {
+                    Debug.LogError(e);
+                    progressBar.SetActive(false);
+                    postError.Invoke(e.Message);
+                    yield break;
+                }
 
                 if (i % 100 == 0 || i == manager.patches.Count - 1) {
                     progressBar.SetProgress(0.45f + 0.2f * ((float)(i + 1) / manager.patches.Count));
@@ -150,33 +189,40 @@ namespace CityEncoder {
 
             var linesArray = new IO.SavedCity.BuildingLine[manager.buildings.Count];
             for (int i = 0; i < manager.buildings.Count; i++) {
-                var line = manager.buildings[i];
-                var elem = new IO.SavedCity.BuildingLine();
-                elem.id = i;
-                elem.name = line.gameObject.name;
-                elem.state = line.state;
-                elem.instanceState = line.instanceState;
+                try {
+                    var line = manager.buildings[i];
+                    var elem = new IO.SavedCity.BuildingLine();
+                    elem.id = i;
+                    elem.name = line.gameObject.name;
+                    elem.state = line.state;
+                    elem.instanceState = line.instanceState;
 
-                var linePoints = line.GetPointsComponents();
-                var elemPoints = new int[linePoints.Count];
-                for (int j = 0; j < linePoints.Count; j++) {
-                    elemPoints[j] = GetTerrainPoint(linePoints[j], pointsList, manager);
+                    var linePoints = line.GetPointsComponents();
+                    var elemPoints = new int[linePoints.Count];
+                    for (int j = 0; j < linePoints.Count; j++) {
+                        elemPoints[j] = GetTerrainPoint(linePoints[j], pointsList, manager);
+                    }
+                    elem.linePoints = elemPoints;
+
+                    var elemBuildings = new ObjectState[line.buildings.Count];
+                    for (int j = 0; j < line.buildings.Count; j++) {
+                        elemBuildings[j] = (ObjectState)line.buildings[j].state.Clone();
+                    }
+                    elem.buildings = elemBuildings;
+
+                    var elemSides = new ObjectState[line.buildingSides.Count];
+                    for (int j = 0; j < line.buildingSides.Count; j++) {
+                        elemSides[j] = (ObjectState)line.buildingSides[j].state.Clone();
+                    }
+                    elem.sides = elemSides;
+
+                    linesArray[i] = elem;
+                } catch (System.Exception e) {
+                    Debug.LogError(e);
+                    progressBar.SetActive(false);
+                    postError.Invoke(e.Message);
+                    yield break;
                 }
-                elem.linePoints = elemPoints;
-
-                var elemBuildings = new ObjectState[line.buildings.Count];
-                for (int j = 0; j < line.buildings.Count; j++) {
-                    elemBuildings[j] = (ObjectState)line.buildings[j].state.Clone();
-                }
-                elem.buildings = elemBuildings;
-
-                var elemSides = new ObjectState[line.buildingSides.Count];
-                for (int j = 0; j < line.buildingSides.Count; j++) {
-                    elemSides[j] = (ObjectState)line.buildingSides[j].state.Clone();
-                }
-                elem.sides = elemSides;
-
-                linesArray[i] = elem;
 
                 if (i % 10 == 0 || i == manager.buildings.Count - 1) {
                     progressBar.SetProgress(0.65f + 0.25f * ((float)(i + 1) / manager.buildings.Count));
@@ -185,31 +231,38 @@ namespace CityEncoder {
             }
             savedCity.buildingLines = linesArray;
 
-            savedCity.terrainPoints = GetTerrainPointsArray(pointsList);
+            try {
+                savedCity.terrainPoints = GetTerrainPointsArray(pointsList);
 
-            savedCity.cityProperties = manager.GetDummy<CityProperties>().GetState();
+                savedCity.cityProperties = manager.GetDummy<CityProperties>().GetState();
 
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.Indented);
-            if (gzip) {
-                var bytes = System.Text.Encoding.ASCII.GetBytes(json);
-                var stream = new MemoryStream(bytes);
-                using (var compressedFileStream = File.Create(filename + ".gz.temp")) {
-                    using (var compressor = new GZipStream(compressedFileStream, CompressionMode.Compress)) {
-                        stream.CopyTo(compressor);
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.Indented);
+                if (gzip) {
+                    var bytes = System.Text.Encoding.ASCII.GetBytes(json);
+                    var stream = new MemoryStream(bytes);
+                    using (var compressedFileStream = File.Create(filename + ".gz.temp")) {
+                        using (var compressor = new GZipStream(compressedFileStream, CompressionMode.Compress)) {
+                            stream.CopyTo(compressor);
+                        }
                     }
-                }
 
-                //backup management
-                if (File.Exists(filename + ".gz.backup")) File.Move(filename + ".gz.backup", filename + ".gz.backup.temp");
-                if (File.Exists(filename + ".gz")) File.Move(filename + ".gz", filename + ".gz.backup");
-                if (File.Exists(filename + ".gz.backup.temp")) File.Delete(filename + ".gz.backup.temp");
-                File.Move(filename + ".gz.temp", filename + ".gz");
-            } else {
-                File.WriteAllText(filename, json);
+                    //backup management
+                    if (File.Exists(filename + ".gz.backup")) File.Move(filename + ".gz.backup", filename + ".gz.backup.temp");
+                    if (File.Exists(filename + ".gz")) File.Move(filename + ".gz", filename + ".gz.backup");
+                    if (File.Exists(filename + ".gz.backup.temp")) File.Delete(filename + ".gz.backup.temp");
+                    File.Move(filename + ".gz.temp", filename + ".gz");
+                } else {
+                    File.WriteAllText(filename, json);
+                }
+            } catch (System.Exception e) {
+                Debug.LogError(e);
+                progressBar.SetActive(false);
+                postError.Invoke(e.Message);
+                yield break;
             }
 
             progressBar.SetActive(false);
-            post.Invoke();
+            postSuccess.Invoke();
         }
 
         IO.SavedCity.TerrainPoint[] GetTerrainPointsArray(Dictionary<TerrainPoint, (int, IO.SavedCity.TerrainPoint)> dict) {
@@ -233,63 +286,67 @@ namespace CityEncoder {
 
             newElem.dividing = p.dividing;
             newElem.position = new States.SerializableVector3(p.GetPoint());
-            if (p.anchor != null) {
-                GameObject parent = null;
-                TerrainAnchor realAnchor = null;
-                TerrainPoint realPoint1 = null, realPoint2 = null;
-                if (p.anchor is TerrainAnchor terrainAnchor && terrainAnchor != null) {
-                    newElem.linkType = IO.SavedCity.LinkType.Point;
-                    parent = terrainAnchor.transform.parent.gameObject;
-                    realAnchor = terrainAnchor;
-                } else if (p.anchor is LineAnchor lineAnchor && lineAnchor != null) {
-                    newElem.linkType = IO.SavedCity.LinkType.Line;
-                    parent = lineAnchor.start.transform.parent.gameObject;
-                    realAnchor = lineAnchor.start.GetComponent<TerrainAnchor>();
-                    if (realAnchor == null) {
-                        realPoint1 = lineAnchor.start.GetComponent<TerrainPoint>();
-                        realPoint2 = lineAnchor.end.GetComponent<TerrainPoint>();
+            try {
+                if (p.anchor != null) {
+                    GameObject parent = null;
+                    TerrainAnchor realAnchor = null;
+                    TerrainPoint realPoint1 = null, realPoint2 = null;
+                    if (p.anchor is TerrainAnchor terrainAnchor && terrainAnchor != null) {
+                        newElem.linkType = IO.SavedCity.LinkType.Point;
+                        parent = terrainAnchor.transform.parent.gameObject;
+                        realAnchor = terrainAnchor;
+                    } else if (p.anchor is LineAnchor lineAnchor && lineAnchor != null) {
+                        newElem.linkType = IO.SavedCity.LinkType.Line;
+                        parent = lineAnchor.start.transform.parent.gameObject;
+                        realAnchor = lineAnchor.start.GetComponent<TerrainAnchor>();
+                        if (realAnchor == null) {
+                            realPoint1 = lineAnchor.start.GetComponent<TerrainPoint>();
+                            realPoint2 = lineAnchor.end.GetComponent<TerrainPoint>();
+                        }
+                        newElem.percent = lineAnchor.percent;
                     }
-                    newElem.percent = lineAnchor.percent;
-                }
-                if (realAnchor != null && parent != null) {
-                    var road = parent.GetComponent<Road>();
-                    var intersection = parent.GetComponentInChildren<Intersection.IntersectionComponent>();
-                    if (road != null) {
-                        var idx = road.anchorManager.GetTerrainAnchors().IndexOf(realAnchor);
-                        var mIdx = manager.roads.IndexOf(road);
-                        if (idx >= 0 && mIdx >= 0) {
-                            newElem.anchorIndex = idx;
-                            newElem.elementId = mIdx;
-                            newElem.elementType = IO.SavedCity.LinkElementType.Road;
+                    if (realAnchor != null && parent != null) {
+                        var road = parent.GetComponent<Road>();
+                        var intersection = parent.GetComponentInChildren<Intersection.IntersectionComponent>();
+                        if (road != null) {
+                            var idx = road.anchorManager.GetTerrainAnchors().IndexOf(realAnchor);
+                            var mIdx = manager.roads.IndexOf(road);
+                            if (idx >= 0 && mIdx >= 0) {
+                                newElem.anchorIndex = idx;
+                                newElem.elementId = mIdx;
+                                newElem.elementType = IO.SavedCity.LinkElementType.Road;
+                            } else {
+                                newElem.linkType = IO.SavedCity.LinkType.None;
+                            }
+                        } else if (intersection != null) {
+                            var idx = intersection.intersection.anchorManager.GetTerrainAnchors().IndexOf(realAnchor);
+                            var mIdx = manager.intersections.IndexOf(intersection.intersection);
+                            if (idx >= 0 && mIdx >= 0) {
+                                newElem.anchorIndex = idx;
+                                newElem.elementId = mIdx;
+                                newElem.elementType = IO.SavedCity.LinkElementType.Intersection;
+                            } else {
+                                newElem.linkType = IO.SavedCity.LinkType.None;
+                            }
                         } else {
                             newElem.linkType = IO.SavedCity.LinkType.None;
                         }
-                    } else if (intersection != null) {
-                        var idx = intersection.intersection.anchorManager.GetTerrainAnchors().IndexOf(realAnchor);
-                        var mIdx = manager.intersections.IndexOf(intersection.intersection);
-                        if (idx >= 0 && mIdx >= 0) {
-                            newElem.anchorIndex = idx;
-                            newElem.elementId = mIdx;
-                            newElem.elementType = IO.SavedCity.LinkElementType.Intersection;
-                        } else {
-                            newElem.linkType = IO.SavedCity.LinkType.None;
+                    } else if (realPoint1 != null) { //only happens with line anchors
+                        if (!dict.ContainsKey(realPoint1)) {
+                            AddTerrainPointToDict(realPoint1, dict, manager);
                         }
+                        if (!dict.ContainsKey(realPoint2)) {
+                            AddTerrainPointToDict(realPoint2, dict, manager);
+                        }
+                        newElem.elementId = dict[realPoint1].Item1;
+                        newElem.anchorIndex = dict[realPoint2].Item1;
+                        newElem.elementType = IO.SavedCity.LinkElementType.TerrainPoint;
                     } else {
                         newElem.linkType = IO.SavedCity.LinkType.None;
                     }
-                } else if (realPoint1 != null) { //only happens with line anchors
-                    if (!dict.ContainsKey(realPoint1)) {
-                        AddTerrainPointToDict(realPoint1, dict, manager);
-                    }
-                    if (!dict.ContainsKey(realPoint2)) {
-                        AddTerrainPointToDict(realPoint2, dict, manager);
-                    }
-                    newElem.elementId = dict[realPoint1].Item1;
-                    newElem.anchorIndex = dict[realPoint2].Item1;
-                    newElem.elementType = IO.SavedCity.LinkElementType.TerrainPoint;
-                } else {
-                    newElem.linkType = IO.SavedCity.LinkType.None;
                 }
+            } catch (System.Exception) {
+                Debug.LogWarning("Skipping invalid anchor");
             }
             newElem.id = dict.Keys.Count;
             dict[p] = (dict.Keys.Count, newElem);
