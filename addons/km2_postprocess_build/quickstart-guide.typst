@@ -1,0 +1,33 @@
+// pandoc template for the quickstart guide PDF (see PostprocessBuild.BuildQuickstartGuide)
+// Carlito is metrically identical to Calibri, it is used where Calibri is not installed
+
+#let horizontalRule = line(start: (25%,0%), end: (75%,0%))
+#let divider = if "divider" in std { divider } else { horizontalRule }
+
+$if(highlighting-definitions)$
+$highlighting-definitions$
+
+$endif$
+#set document(title: [$title$])
+#set page(paper: "a4", margin: 2cm)
+#set text(font: ("Calibri", "Carlito"), size: 11pt, lang: "en", region: "GB")
+#set par(justify: false, leading: 0.66em, spacing: 1.3em)
+#set list(indent: 0.7cm, body-indent: 0.36cm)
+#set enum(indent: 0.63cm, body-indent: 0.35cm)
+#show heading: set text(size: 14pt, weight: "bold")
+#show heading: set block(above: 1.5em, below: 0.9em)
+#show heading.where(level: 2): set text(size: 12pt)
+#show heading.where(level: 2): set block(above: 1.3em, below: 0.8em)
+#show figure: set block(breakable: false, above: 1.2em, below: 1.2em)
+#show figure.caption: set text(size: 9pt, style: "italic")
+#set table(inset: 5pt, stroke: 0.5pt + luma(160))
+
+#v(0.6cm)
+#align(center)[
+  #text(size: 26pt, weight: "bold")[$title$]
+  #v(-0.5em)
+  #text(size: 10pt, style: "italic")[$date$]
+]
+#v(0.6cm)
+
+$body$

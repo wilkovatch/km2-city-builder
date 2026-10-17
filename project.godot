@@ -1,0 +1,48 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
+
+[application]
+
+config/name="km2 City Builder"
+run/main_scene="uid://y8ai1vqoroe"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+config/icon="uid://ccu66cb51rrkb"
+
+[autoload]
+
+IngameDebugConsole="*res://Scripts/UI/DebugConsole/DebugLogManager.cs"
+TextInputFocus="*res://Scripts/UI/TextInputFocus.cs"
+UIInputTracker="*res://Scripts/UI/UIInputTracker.cs"
+TooltipWidthLimit="*res://Scripts/UI/TooltipWidthLimit.cs"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[dotnet]
+
+project/assembly_name="km2 City Builder"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/km2_postprocess_build/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
+
+[gui]
+
+theme/custom="res://Scripts/UI/RuntimeTheme.tres"
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=1

@@ -1,0 +1,11 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://Materials/StandardFade.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://Textures/circle.png" id="2"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/_MainTex = ExtResource("2")
+shader_parameter/_Color = Color(0, 1, 0, 0.3764706)
+shader_parameter/_Opacity = 1.0
+shader_parameter/_Glossiness = 0.5

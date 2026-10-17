@@ -1,0 +1,9 @@
+{
+	"repositories": [
+		{
+			"core": "MidtownMadness2",
+			"name": "Midtown Madness 2",
+			"repository": "https://github.com/wilkovatch/km2cb-mm2-core"
+		}
+	]
+}

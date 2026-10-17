@@ -1,0 +1,427 @@
+﻿using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using Godot;
+using SM = StringManager;
+using GO = GameEngine.GameObject;
+using GS = GameEngine.Scriptable;
+
+namespace EditorPanels {
+    public class TransformPropertiesEditorPanel : EditorPanel {
+        public Node3D instance = null;
+        EditorPanelElements.Label spaceLabel = null;
+        bool notOnHandle;
+        bool onParametricObject;
+
+        public override void Initialize(Control canvas) {
+            if (PreferencesManager.workingDirectory == "") {
+                Initialize(canvas, 1, 1.8f);
+                return;
+            }
+            titleActive = true;
+            var width = 1.8f;
+            var w = width;
+            Initialize(canvas, 1, w);
+            var p0 = GetPage(0);
+            CityElements.Types.ObjectInstanceSettings objSettings = null;
+            var instComp = instance != null ? GS.Cast<MeshInstance>(instance) : null;
+            if (instComp == null) onParametricObject = false;
+            if (notOnHandle) {
+                if (onParametricObject) {
+                    objSettings = GetParametricObjectSettings();
+                    if (IsArrayObject()) {
+                        p0.AddButton(SM.Get("END_EDITING"), Terminate, w * 1f / 3f);
+                        p0.AddButton(SM.Get("DELETE"), Delete, w * 1f / 3f);
+                        p0.AddButton(SM.Get("BACK"), BackToParent, w * 1f / 3f);
+                    } else {
+                        p0.AddButton(SM.Get("END_EDITING"), Terminate, w * 0.5f);
+                        p0.AddButton(SM.Get("BACK"), BackToParent, w * 0.5f);
+                    }
+                } else {
+                    p0.AddButton(SM.Get("END_EDITING"), Terminate, w * 0.5f);
+                    p0.AddButton(SM.Get("DELETE"), Delete, w * 0.5f);
+                }
+                p0.IncreaseRow();
+                var meshField = p0.AddMeshField(builder, SM.Get("TRANSF_MESH"), null, instComp?.meshPath, ChangeMesh, false, null, w);
+                p0.IncreaseRow();
+                var scaleBtn = p0.AddButton(SM.Get("TRANSF_P_SCALE"), SetScale, w / 3.0f);
+                var rotBtn = p0.AddButton(SM.Get("TRANSF_P_ROTATE"), SetRotate, w / 3.0f);
+                var moveBtn = p0.AddButton(SM.Get("TRANSF_P_MOVE"), SetMove, w / 3.0f);
+                if (onParametricObject) {
+                    meshField.SetInteractable(objSettings.allowCustomModel);
+                    scaleBtn.SetInteractable(objSettings.allowScale[0] || objSettings.allowScale[1] || objSettings.allowScale[2]);
+                    rotBtn.SetInteractable(objSettings.allowRotation[0] || objSettings.allowRotation[1] || objSettings.allowRotation[2]);
+                    moveBtn.SetInteractable(objSettings.allowPosition[0] || objSettings.allowPosition[1] || objSettings.allowPosition[2]);
+                }
+            } else {
+                p0.AddButton(SM.Get("END_EDITING"), EndHandleEditing, w);
+            }
+            p0.IncreaseRow();
+            p0.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), GetGizmo, "snapToGrid", null, w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
+            p0.AddButton(SM.Get("PROJECT_TO_GROUND"), ProjectToGround, w * 0.5f);
+            p0.IncreaseRow();
+            if (onParametricObject) {
+                p0.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_PARENT"), w);
+                spaceLabel = null;
+                SwitchSpace(); //defaults to parent in this case
+            } else {
+                spaceLabel = p0.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_GLOBAL"), w * 0.5f);
+                p0.AddButton(SM.Get("TRANSF_P_SWITCH_SPACE"), SwitchSpace, w * 0.5f, SM.Get("TRANSF_P_SWITCH_SPACE_TOOLTIP" + (onParametricObject ? "_PARAMETRIC" : "")));
+            }
+            p0.IncreaseRow();
+            var posFieldName = onParametricObject ? "localPosition" : "position";
+            var posField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_POS"), GetCurTransform, "transform." + posFieldName, null, w, null, null, value => { Reselect(); });
+            p0.IncreaseRow();
+            if (notOnHandle) {
+                var rotFieldName = onParametricObject ? "localRotation" : "rotation";
+                var rotField = p0.AddFieldRotationVectorInputField(SM.Get("TRANSF_P_ROT"), GetCurTransform, "transform." + rotFieldName, null, w, null, null, value => { Reselect(); });
+                p0.IncreaseRow();
+                var scaleField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_SCALE_VAL"), GetCurTransform, "transform.localScale", null, w, null, null, value => { Reselect(); });
+                p0.IncreaseRow();
+                if (onParametricObject) {
+                    scaleField.SetInteractable(objSettings.allowScale[0], objSettings.allowScale[1], objSettings.allowScale[2]);
+                    rotField.SetInteractable(objSettings.allowRotation[0], objSettings.allowRotation[1], objSettings.allowRotation[2]);
+                    posField.SetInteractable(objSettings.allowPosition[0], objSettings.allowPosition[1], objSettings.allowPosition[2]);
+                }
+            }
+
+            //mesh instance properties
+            if (notOnHandle) {
+                CityElements.Types.Runtime.MeshInstanceSettings settings = null;
+                if (onParametricObject) {
+                    objSettings = GS.Cast<MeshInstance>(instance).objectParameter.objectInstanceSettings;
+                    settings = CityElements.Types.Parsers.TypeParser.GetParametricMeshInstanceSettings(needsReloading)[objSettings.type];
+                } else {
+                    settings = CityElements.Types.Parsers.TypeParser.GetMeshInstanceSettings(needsReloading);
+                }
+                if (settings == null) return;
+                var curW = 0.0f;
+                for (int i = 0; i < settings.typeData.uiInfo.Length; i++) {
+                    var uiInfo = settings.typeData.uiInfo[i];
+                    curW += uiInfo.width;
+                    if (curW > width) {
+                        p0.IncreaseRow();
+                        curW = uiInfo.width;
+                    }
+                    foreach (var param in settings.typeData.parametersInfo.parameters) {
+                        if (param.name == uiInfo.name) {
+                            var pFullName = "properties." + param.fullName();
+                            switch (param.type) { //todo: remove duplicate code
+                                case "bool":
+                                    p0.AddFieldCheckbox(SM.Get(param.label), GetCurState, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
+                                    break;
+                                case "float":
+                                    p0.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), GameEngine.InputContentType.Decimal, GetCurState, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
+                                    break;
+                                case "texture":
+                                    p0.AddFieldTextureField(builder, SM.Get(param.label), SM.Get(param.placeholder), GetCurState, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
+                                    break;
+                                case "mesh":
+                                    p0.AddFieldMeshField(builder, SM.Get(param.label), SM.Get(param.placeholder), GetCurState, pFullName, null, true, uiInfo.width, SM.Get(param.tooltip));
+                                    break;
+                                case "string":
+                                    p0.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), GameEngine.InputContentType.Standard, GetCurState, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
+                                    break;
+                                case "int":
+                                    p0.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), GameEngine.InputContentType.Integer, GetCurState, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
+                                    break;
+                                case "enum":
+                                    var typesNames = new List<string>();
+                                    foreach (var t in param.enumLabels) typesNames.Add(SM.Get(t));
+                                    p0.AddFieldDropdown(SM.Get(param.label), typesNames, GetCurState, pFullName, null, uiInfo.width, SM.Get(param.tooltip));
+                                    break;
+                            }
+                            break;
+                        }
+                    }
+                    if (i == settings.typeData.uiInfo.Length - 1) p0.IncreaseRow();
+                }
+            }
+        }
+
+        ObjectState GetCurState() {
+            if (instance == null) return new ObjectState();
+            var mI = GS.Cast<MeshInstance>(instance);
+            if (mI != null) return mI.settings;
+            else return new ObjectState();
+        }
+
+        RuntimeGizmos.TransformGizmo GetGizmo() {
+            return builder.gizmo;
+        }
+
+        void ProjectToGround() {
+            //ProjectPoint works with program-space world positions
+            GO.SetPosition(instance, GeometryHelper.ProjectPoint(GO.GetPosition(instance)));
+            ReadCurValues();
+            if (onParametricObject) builder.NotifyChange();
+        }
+
+        ArrayObject GetArrayObject() {
+            return GS.Cast<ArrayObject>(instance?.GetParent()?.GetParent() as Node3D);
+        }
+
+        bool IsArrayObject() {
+            return GetArrayObject() != null;
+        }
+
+        //same condition under which the delete button is shown: plain mesh instances and array elements only,
+        //other parametric objects (e.g. traffic lights) are generated by their parent and can't be deleted manually
+        public bool CanDelete() {
+            DropDeletedInstance();
+            if (instance == null || !notOnHandle || GS.Cast<MeshInstance>(instance) == null) return false;
+            return !onParametricObject || IsArrayObject();
+        }
+
+        public void Delete() {
+            if (!CanDelete()) return; //undeletable parametric objects must not be deleted
+            var mI = GS.Cast<MeshInstance>(instance);
+            if (mI != null) {
+                if (onParametricObject) { //todo: allow and sync
+                    //remove it from the array and sync
+                    var arrObj = GetArrayObject();
+                    var p = arrObj.state.GetParent();
+                    ArrayObject.PruneSelections(p);
+                    var arr = p.Array<ObjectState>(arrObj.paramInParent);
+                    var list = new List<ObjectState>(arr);
+                    list.Remove(arrObj.state);
+                    var newArr = list.ToArray();
+                    p.SetArray(arrObj.paramInParent, newArr);
+                    builder.NotifyVisibilityChange();
+                    builder.NotifyChange();
+                    parentPanel = null;
+                    BackToParent();
+                } else {
+                    mI.Delete();
+                    builder.NotifyChange();
+                    Terminate();
+                }
+            }
+        }
+
+        public override void Terminate() {
+            var handleOwner = OnOwnedHandle() ? parentPanel : null;
+            parentPanel = null;
+            if (handleOwner != null) {
+                //the owner was only hidden, close it properly as well
+                builder.RestoreControlPointOwner();
+                handleOwner.Terminate();
+            }
+            base.Terminate();
+        }
+
+        bool OnOwnedHandle() {
+            return !notOnHandle && parentPanel != null;
+        }
+
+        //back to the editor of the element the control point belongs to, keeping the point selected
+        void EndHandleEditing() {
+            if (!OnOwnedHandle()) {
+                Terminate();
+                return;
+            }
+            var handle = instance;
+            builder.RestoreControlPointOwner();
+            GoUp();
+            parentPanel = null;
+            DropDeletedInstance();
+            if (instance != null) builder.ReselectControlPoint(handle);
+        }
+
+        void BackToParent() {
+            if (parentPanel != null) {
+                GoUp();
+                parentPanel = null;
+            } else {
+                builder.SelectObject((Node3D)instance.GetParent(), true, null);
+            }
+        }
+
+        public void UpdateSpaceLabel() {
+            if (spaceLabel == null) return;
+            var isGlobal = builder.gizmo.space == RuntimeGizmos.TransformSpace.Global;
+            spaceLabel.SetValue(SM.Get("TRANSF_P_SPACE_LABEL_" + (isGlobal ? "GLOBAL" : "LOCAL")));
+        }
+
+        void SwitchSpace() {
+            var isGlobal = builder.gizmo.space == RuntimeGizmos.TransformSpace.Global;
+            builder.gizmo.space = onParametricObject ? RuntimeGizmos.TransformSpace.Parent : isGlobal ? RuntimeGizmos.TransformSpace.Local : RuntimeGizmos.TransformSpace.Global;
+            UpdateSpaceLabel();
+        }
+
+        void SetMove() {
+            builder.gizmo.transformType = RuntimeGizmos.TransformType.Move;
+        }
+
+        void SetRotate() {
+            builder.gizmo.transformType = RuntimeGizmos.TransformType.Rotate;
+        }
+
+        void SetScale() {
+            builder.gizmo.transformType = RuntimeGizmos.TransformType.Scale;
+        }
+
+        void Reselect() {
+            builder.gizmo.allowDeselect = true;
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(instance);
+            builder.gizmo.allowDeselect = false;
+            ReadCurValues();
+            if (onParametricObject) builder.NotifyChange();
+        }
+
+        CityElements.Types.ObjectInstanceSettings GetParametricObjectSettings() {
+            return instance != null ? GS.Cast<MeshInstance>(instance).objectParameter.objectInstanceSettings : null;
+        }
+
+        void DisableGizmo() {
+            builder.gizmo.SetRotateType = Key.None;
+            builder.gizmo.SetMoveType = Key.None;
+            builder.gizmo.SetScaleType = Key.None;
+            builder.gizmo.SetSpaceToggle = Key.None;
+            builder.gizmo.transformPanel = null;
+        }
+
+        void EnableGizmo() {
+            bool move = true, rotate = true, scale = true, toggleSpace = true;
+            if (onParametricObject) {
+                var objSettings = GetParametricObjectSettings();
+                scale = objSettings.allowScale[0] || objSettings.allowScale[1] || objSettings.allowScale[2];
+                rotate = objSettings.allowRotation[0] || objSettings.allowRotation[1] || objSettings.allowRotation[2];
+                move = objSettings.allowPosition[0] || objSettings.allowPosition[1] || objSettings.allowPosition[2];
+                builder.gizmo.posAxesAllowed = objSettings.allowPosition;
+                builder.gizmo.rotAxesAllowed = objSettings.allowRotation;
+                builder.gizmo.scaleAxesAllowed = objSettings.allowScale;
+            } else {
+                var allAxes = new bool[] { true, true, true };
+                builder.gizmo.posAxesAllowed = allAxes;
+                builder.gizmo.rotAxesAllowed = allAxes;
+                builder.gizmo.scaleAxesAllowed = allAxes;
+            }
+            if (move) builder.gizmo.SetMoveType = Key.W;
+            if (rotate) builder.gizmo.SetRotateType = Key.E;
+            if (scale) builder.gizmo.SetScaleType = Key.R;
+            if (toggleSpace) {
+                builder.gizmo.SetSpaceToggle = Key.S;
+                builder.gizmo.transformPanel = this;
+            }
+        }
+
+        void ChangeMesh(string newPath) {
+            var instComp = GS.Cast<MeshInstance>(instance);
+            if (instComp != null) {
+                instance = instComp.ReplaceMesh(newPath, builder.helper.elementManager);
+                Reselect();
+            }
+        }
+
+        //Godot keeps a disposed wrapper around
+        void DropDeletedInstance() {
+            if (instance != null && !GodotObject.IsInstanceValid(instance)) instance = null;
+        }
+
+        public void Select(bool active) {
+            DropDeletedInstance();
+            if (active) {
+                builder.gizmo.ClearTargets();
+                builder.gizmo.AddTarget(instance);
+                if (notOnHandle) {
+                    EnableGizmo();
+                } else {
+                    DisableGizmo();
+                    builder.gizmo.transformType = RuntimeGizmos.TransformType.Move;
+                }
+                builder.gizmo.allowDeselect = false;
+            } else {
+                builder.gizmo.transformType = RuntimeGizmos.TransformType.Move;
+                DisableGizmo();
+                builder.gizmo.space = RuntimeGizmos.TransformSpace.Global;
+                builder.gizmo.allowDeselect = true;
+                builder.gizmo.snapToGrid = true;
+                builder.gizmo.ClearTargets();
+            }
+        }
+
+        public override void SetActive(bool active) {
+            DropDeletedInstance();
+            if (active) {
+                UpdateSpaceLabel();
+                notOnHandle = GS.Cast<Handle>(instance) == null;
+                var inst = GS.Cast<MeshInstance>(instance);
+                onParametricObject = inst != null && inst.objectParameter != null;
+                Initialize(lastCanvas);
+                if (instance != null) {
+                    if (notOnHandle) {
+                        SetTitle(GO.GetName(instance), !onParametricObject);
+                    } else {
+                        SetTitle("Handle", false);
+                    }
+                    SetMoveable(active);
+                    ReadCurValues();
+                }
+                Select(true);
+            } else {
+                SetMoveable(active);
+                Select(false);
+            }
+            base.SetActive(active);
+        }
+
+        void SetMoveable(bool active) {
+            if (instance != null) {
+                var mI = GS.Cast<MeshInstance>(instance);
+                if (mI != null) {
+                    mI.SetMoveable(active);
+                }
+            }
+        }
+
+        protected override void ReplaceTitle(string value) {
+            var obj = GetCurInstance();
+            if (value == null || value == "") {
+                if (obj != null) {
+                    value = GO.GetName(obj);
+                } else {
+                    value = "";
+                }
+            } else {
+                if (obj != null) GO.SetName(obj, value);
+            }
+            base.ReplaceTitle(value);
+        }
+
+        public void Refresh() {
+            DropDeletedInstance();
+            if (ActiveSelf() && instance != null) ReadCurValues();
+        }
+
+        Node3D GetCurInstance() {
+            return instance;
+        }
+
+        public override object GetUndoTarget() {
+            DropDeletedInstance();
+            return History.UndoManager.ResolveOwner(instance) ?? base.GetUndoTarget();
+        }
+
+        object GetCurTransform() {
+            return instance != null ? new TransformBinding(instance) : null;
+        }
+
+        //accessor for the "transform.*" field bindings, Godot nodes have no "transform" member
+        class TransformBinding {
+            readonly Node3D obj;
+
+            public TransformBinding(Node3D obj) {
+                this.obj = obj;
+            }
+
+            public TransformBinding transform => this;
+            public Vector3 position { get => GO.GetPosition(obj); set => GO.SetPosition(obj, value); }
+            public Vector3 localPosition { get => GO.GetLocalPosition(obj); set => GO.SetLocalPosition(obj, value); }
+            public Quaternion rotation { get => GO.GetRotationQuaternion(obj); set => GO.SetRotation(obj, value); }
+            public Quaternion localRotation { get => GameEngine.Quaternion.Encode(obj.Quaternion); set => GO.SetLocalRotation(obj, value); }
+            public Vector3 localScale { get => GO.GetLocalScale(obj); set => GO.SetLocalScale(obj, value); }
+        }
+    }
+}

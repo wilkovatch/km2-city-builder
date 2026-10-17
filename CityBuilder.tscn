@@ -1,0 +1,83 @@
+[gd_scene format=3 uid="uid://y8ai1vqoroe"]
+
+[ext_resource type="Script" uid="uid://qe27dggf67sb" path="res://Scripts/UI/World/CameraController.cs" id="1_s1c8f"]
+[ext_resource type="Script" uid="uid://qww0h8xa53f6" path="res://Scripts/CityElements/CityGroundHelper.cs" id="2_ground"]
+[ext_resource type="Script" uid="uid://dibsmv5si0gj5" path="res://Scripts/UI/MenuBar/CityBuilderMenuBar.cs" id="3_editor"]
+[ext_resource type="Script" uid="uid://ce14e850b4lsa" path="res://Scripts/UI/MenuBar/MenuBar.cs" id="4_menubar"]
+[ext_resource type="Script" uid="uid://1s1jlqtvtmxr" path="res://Scripts/UI/Actions/TerrainClick.cs" id="5_terrain_click"]
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_5g27e"]
+
+[sub_resource type="Compositor" id="Compositor_h6d05"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_udhfq"]
+sky_top_color = Color(0.22, 0.42, 0.74, 1)
+sky_horizon_color = Color(0.9, 1, 1, 1)
+sky_curve = 0.12
+ground_bottom_color = Color(0.37, 0.35, 0.34, 1)
+ground_horizon_color = Color(0.9, 1, 1, 1)
+
+[sub_resource type="Sky" id="Sky_s1c8f"]
+sky_material = SubResource("ProceduralSkyMaterial_udhfq")
+
+[sub_resource type="Environment" id="Environment_2xm8k"]
+background_mode = 2
+sky = SubResource("Sky_s1c8f")
+ambient_light_source = 2
+ambient_light_color = Color(0.23, 0.23, 0.23, 1)
+reflected_light_source = 1
+
+[node name="Root" type="Node3D" unique_id=520540076]
+
+[node name="Main Camera" type="Camera3D" parent="." unique_id=1616976151]
+transform = Transform3D(1, 0, 0, 0, 0.9848077, 0.17364818, 0, -0.17364818, 0.9848077, 0, 2, 0)
+attributes = SubResource("CameraAttributesPractical_5g27e")
+compositor = SubResource("Compositor_h6d05")
+fov = 60.0
+near = 0.3
+far = 5000.0
+script = ExtResource("1_s1c8f")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=2002649605]
+transform = Transform3D(0.8660254, -0.38302222, 0.32139382, 0, 0.64278764, 0.76604444, -0.5, -0.66341394, 0.5566704, 0, 3, 0)
+layers = 262144
+shadow_enabled = true
+directional_shadow_split_1 = 0.06666667
+directional_shadow_split_3 = 0.46666667
+directional_shadow_max_distance = 400.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=45455181]
+environment = SubResource("Environment_2xm8k")
+
+[node name="CityGroundHelper" type="StaticBody3D" parent="." unique_id=443070811]
+script = ExtResource("2_ground")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=404868256]
+
+[node name="Editor" type="Control" parent="CanvasLayer" unique_id=1835061591]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+script = ExtResource("3_editor")
+
+[node name="MenuBar" type="Control" parent="CanvasLayer/Editor" unique_id=125265431]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 20.0
+grow_horizontal = 2
+script = ExtResource("4_menubar")
+
+[node name="TerrainClick" type="Control" parent="CanvasLayer/Editor" unique_id=696521682]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_terrain_click")

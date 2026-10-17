@@ -1,0 +1,35 @@
+[gd_resource type="Theme" load_steps=3 format=3 uid="uid://brfnp354lcor2"]
+
+[sub_resource type="SystemFont" id="SystemFont_arial"]
+font_names = PackedStringArray("Arial", "Liberation Sans", "Arimo", "Helvetica", "Sans-Serif")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tooltip"]
+content_margin_left = 5.0
+content_margin_top = 5.0
+content_margin_right = 5.0
+content_margin_bottom = 5.0
+bg_color = Color(1, 1, 1, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.62, 0.62, 0.62, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[resource]
+default_font = SubResource("SystemFont_arial")
+default_font_size = 14
+Button/constants/line_spacing = 0
+Label/constants/line_spacing = 0
+LineEdit/constants/minimum_character_width = 0
+TooltipLabel/colors/font_color = Color(0.19607843, 0.19607843, 0.19607843, 1)
+TooltipLabel/colors/font_shadow_color = Color(0, 0, 0, 0)
+TooltipLabel/colors/font_outline_color = Color(0, 0, 0, 0)
+TooltipLabel/constants/line_spacing = 0
+TooltipLabel/constants/outline_size = 0
+TooltipLabel/constants/shadow_outline_size = 0
+TooltipLabel/font_sizes/font_size = 16
+TooltipPanel/styles/panel = SubResource("StyleBoxFlat_tooltip")

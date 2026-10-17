@@ -1,0 +1,1425 @@
+﻿using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using Godot;
+using GameObject = Godot.Node3D;
+using SM = StringManager;
+using EditorPanels;
+using System.Globalization;
+using Input = GameEngine.Input;
+using KeyCommand = GameEngine.Input.KeyCommand;
+using GO = GameEngine.GameObject;
+using GS = GameEngine.Scriptable;
+
+public partial class CityBuilderMenuBar : Control {
+    public CityGroundHelper helper;
+    TerrainEditorPanel terrainEditorPanel = new TerrainEditorPanel();
+    RoadEditorPanel roadEditorPanel = new RoadEditorPanel();
+    IntersectionEditorPanel intersectionEditorPanel = new IntersectionEditorPanel();
+    NewCityEditorPanel newCityEditorPanel = new NewCityEditorPanel();
+    HeightmapEditorPanel heightmapEditorPanel = new HeightmapEditorPanel();
+    PresetEditorPanel presetEditorPanel = new PresetEditorPanel();
+    TerrainPatchEditorPanel terrainPatchEditorPanel = new TerrainPatchEditorPanel();
+    EditorPanels.Buildings.LineEditorPanel buildingLineEditorPanel = new EditorPanels.Buildings.LineEditorPanel();
+    WholeCityTerrainEditorPanel cityTerrainEditorPanel = new WholeCityTerrainEditorPanel();
+    WholeCityBuildingsEditorPanel cityBuildingsEditorPanel = new WholeCityBuildingsEditorPanel();
+    ObjectListEditorPanel objectListEditorPanel = new ObjectListEditorPanel();
+    TextureListEditorPanel textureListEditorPanel = new TextureListEditorPanel();
+    MeshListEditorPanel meshListEditorPanel = new MeshListEditorPanel();
+    TransformPropertiesEditorPanel transformPropertiesEditorPanel = new TransformPropertiesEditorPanel();
+    SettingsEditorPanel settingsEditorPanel = new SettingsEditorPanel();
+    ProjectSettingsEditorPanel projectSettingsEditorPanel = new ProjectSettingsEditorPanel();
+    CityPropertiesEditorPanel cityPropertiesEditorPanel = new CityPropertiesEditorPanel();
+    public EditorPanels.Props.ContainerEditorPanel propContainerEditorPanel = new EditorPanels.Props.ContainerEditorPanel();
+    public TerrainPatchBorderMeshEditorPanel tpBorderMeshEditorPanel = new TerrainPatchBorderMeshEditorPanel();
+    BatchUpdateEditorPanel batchUpdateEditorPanel = new BatchUpdateEditorPanel();
+    WholeCityRotationEditorPanel rotateCityPanel = new WholeCityRotationEditorPanel();
+    CustomExporterEditorPanel customExporterPanel = new CustomExporterEditorPanel();
+
+    ElementPlacer.RoadPlacer roadPlacer;
+    ElementPlacer.TerrainPlacer terrainPlacer;
+    ElementPlacer.BuildingPlacer buildingPlacer;
+    public ElementPlacer.MeshPlacer meshPlacer;
+
+    public TerrainClick terrainClick;
+    public FileBrowserHelper fileBrowser;
+    List<EditorPanel> panels;
+    private bool quitEnabled = false;
+    Alert alert;
+    InputFieldPopup inputFieldPopup;
+    public RuntimeGizmos.TransformGizmo gizmo;
+    public static RuntimeGizmos.TransformGizmo staticGizmo;
+    public static int panelsActive = 0;
+    TerrainModifier.Null nullModifier;
+    int selectedEntityMenuItemIndex = -1;
+
+    Node3D selectedObject = null;
+    bool noCity = false;
+
+    //state of the editor panel hidden while the transform panel edits one of its control points
+    TerrainAction controlPointOwnerModifier = null;
+    RuntimeGizmos.TransformType controlPointOwnerTransformType;
+
+    public void ManualStart() {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        Engine.MaxFps = 60;
+        GetTree().AutoAcceptQuit = false; //quitting is handled in _Notification
+        ActionHandlerManager.manager = helper.elementManager;
+        History.UndoManager.manager = helper.elementManager;
+        GameEngine.Input.ReloadKeys();
+        terrainClick = GS.FindRecursive<TerrainClick>(this);
+        if (terrainClick == null) {
+            terrainClick = new TerrainClick { Name = "TerrainClick", MouseFilter = Control.MouseFilterEnum.Ignore };
+            AddChild(terrainClick);
+        }
+        terrainClick.helper = helper;
+
+        if (fileBrowser == null) {
+            fileBrowser = new FileBrowserHelper { Name = "FileBrowser" };
+            AddChild(fileBrowser);
+        }
+        fileBrowser.builder = this;
+        fileBrowser.enableMenuUI = EnableUI;
+
+        if (gizmo == null) {
+            //TransformGizmo component on the main camera, configured in the scene
+            gizmo = new RuntimeGizmos.TransformGizmo { Name = "TransformGizmo" };
+            GetViewport().GetCamera3D().AddChild(gizmo);
+        }
+        gizmo.onAnyChange += NotifyChange;
+        gizmo.onAnyChange += transformPropertiesEditorPanel.Refresh;
+        staticGizmo = gizmo;
+        nullModifier = new TerrainModifier.Null(helper, hit => {
+            if (HasActivePanels()) return; //otherwise clicks on the transform gizmo reselect the object behind it
+            var hitNode = hit.collider as Node3D;
+            if (hitNode != null) SelectObject(hitNode, true, hit.shape);
+        });
+        helper.elementManager.builder = this;
+
+        roadPlacer = new ElementPlacer.RoadPlacer(helper.elementManager);
+        terrainPlacer = new ElementPlacer.TerrainPlacer(helper.elementManager);
+        buildingPlacer = new ElementPlacer.BuildingPlacer(helper.elementManager);
+        meshPlacer = new ElementPlacer.MeshPlacer(helper.elementManager);
+
+        /*fileBrowser = gameObject.AddComponent<FileBrowserHelper>();
+        fileBrowser.builder = this;
+        fileBrowser.enableMenuUI = EnableUI;*/ //TODO: file browser
+
+        //Menu bar
+        var menuBar = GetMenuBar();
+        menuBar.Initialize();
+
+        //File
+        var entries = new List<string> {
+            SM.Get("NEW_CITY"),
+            SM.Get("LOAD_CITY"),
+            SM.Get("RELOAD_CITY"),
+            SM.Get("SAVE_CITY"),
+            SM.Get("EXPORT_CITY"),
+            SM.Get("CLOSE_CITY"),
+            SM.Get("EXIT")
+        };
+        var actions = new List<System.Action> {
+            NewCity,
+            LoadCity,
+            ReloadCity,
+            SaveCity,
+            ExportCity,
+            CloseCity,
+            Quit
+        };
+        menuBar.AddElement(SM.Get("FILE"), entries, Recorded(entries, actions), GameEngine.Color.black);
+
+        //Edit
+        entries = new List<string> {
+            SM.Get("PROJECT_SETTINGS"),
+            SM.Get("CITY_PROPERTIES"),
+            SM.Get("TOGGLE_TERRAIN_EDIT_MENU"),
+            SM.Get("LOAD_HEIGHTMAP"),
+            SM.Get("MANAGE_PRESETS"),
+            SM.Get("VIEW_OBJ_LST"),
+            SM.Get("BATCH_UPDATE"),
+            SM.Get("ROTATE_CITY")
+        };
+        actions = new List<System.Action> {
+            ToggleProjectSettings,
+            ToggleCityProperties,
+            ToggleTerrainEdit,
+            LoadHeightmap,
+            OpenPresetList,
+            OpenObjectList,
+            OpenBatchUpdate,
+            RotateCity
+        };
+        actions = Recorded(entries, actions);
+        //undo and redo must not run inside a transaction
+        entries.InsertRange(0, new List<string> { SM.Get("UNDO"), SM.Get("REDO"), MenuBar.Divider });
+        actions.InsertRange(0, new List<System.Action> { Undo, Redo, null });
+        menuBar.AddElement(SM.Get("EDIT"), entries, actions, GameEngine.Color.black);
+        var editMenuIndex = menuBar.GetElementCount() - 1;
+        menuBar.SetOnOpen(editMenuIndex, () => {
+            menuBar.EnableEntry(editMenuIndex, 0, !noCity && History.UndoManager.CanUndo);
+            menuBar.EnableEntry(editMenuIndex, 1, !noCity && History.UndoManager.CanRedo);
+        });
+
+        //View
+        entries = new List<string> {
+            SM.Get("TOGGLE_GROUND_OVERLAY"),
+            SM.Get("CHANGE_OVERLAY_TRANSPARENCY"),
+            SM.Get("SHOW_ALL_TRAFFIC_LANES"),
+            SM.Get("TOGGLE_GROUND_ONLY"),
+            SM.Get("RESET_WINDOW")
+            /*, SM.Get("TOGGLE_WIREFRAME")*/ //TODO: fix wireframe in build
+        };
+        actions = new List<System.Action> {
+            SwitchGrid,
+            ChangeOverlayTransparency,
+            ShowAllTrafficLanes,
+            ToggleGroundOnly,
+            ResetWindow
+            /*, ToggleWireframe*/
+        };
+        menuBar.AddElement(SM.Get("VIEW"), entries, Recorded(entries, actions), GameEngine.Color.black);
+
+        //Create
+        entries = new List<string> {
+            SM.Get("CREATE_ROAD"),
+            SM.Get("CREATE_TERRAIN_PATCH"),
+            SM.Get("CREATE_BUILDING_LINE"),
+            SM.Get("CREATE_WHOLE_CITY_TERRAIN"),
+            SM.Get("CREATE_WHOLE_CITY_BUILDINGS"),
+            SM.Get("CREATE_MESH_INSTANCE")
+        };
+        actions = new List<System.Action> {
+            CreateRoad,
+            CreateTerrain,
+            CreateBuildingLine,
+            CreateCityTerrain,
+            CreateCityBuildings,
+            CreateMeshInstance
+        };
+        menuBar.AddElement(SM.Get("CREATE"), entries, Recorded(entries, actions), GameEngine.Color.black);
+
+        //Settings
+        entries = new List<string> {
+            SM.Get("SETTINGS"),
+        };
+        actions = new List<System.Action> {
+            ToggleSettings
+        };
+        menuBar.AddElement(SM.Get("SETTINGS_MENU"), entries, actions, GameEngine.Color.black);
+
+        //Help
+        entries = new List<string> {
+            SM.Get("HELP_QUICKSTART"),
+            SM.Get("HELP_ABOUT")
+        };
+        actions = new List<System.Action> {
+            ShowQuickstart,
+            ShowAbout
+        };
+        menuBar.AddElement(SM.Get("HELP"), entries, actions, GameEngine.Color.black);
+
+        //Currently selected instances
+        entries = new List<string> { };
+        actions = new List<System.Action> { };
+        menuBar.AddElement(SM.Get("CONTAINERS_SELECTED_PLUR").Replace("$NUMBER", "9"), entries, actions, GameEngine.Color.blue);
+        selectedEntityMenuItemIndex = menuBar.GetElementCount() - 1;
+        menuBar.ShowElement(selectedEntityMenuItemIndex, false);
+
+        panels = new List<EditorPanel> {
+            terrainEditorPanel,
+            roadEditorPanel,
+            intersectionEditorPanel,
+            newCityEditorPanel,
+            heightmapEditorPanel,
+            presetEditorPanel,
+            terrainPatchEditorPanel,
+            cityTerrainEditorPanel,
+            cityBuildingsEditorPanel,
+            objectListEditorPanel,
+            textureListEditorPanel,
+            meshListEditorPanel,
+            transformPropertiesEditorPanel,
+            buildingLineEditorPanel,
+            settingsEditorPanel,
+            projectSettingsEditorPanel,
+            propContainerEditorPanel,
+            tpBorderMeshEditorPanel,
+            batchUpdateEditorPanel,
+            rotateCityPanel,
+            customExporterPanel,
+            cityPropertiesEditorPanel
+        };
+
+        foreach (var panel in panels) {
+            panel.Initialize(this);
+        }
+
+        DisableAllPanels(null);
+        SetSelectObjectMode();
+
+        menuBar.SetAsLastSibling();
+
+        Reload();
+        History.UndoSelfTest.StartIfRequested(this); //only with the --undo-selftest command line argument
+        GuideScreenshots.StartIfRequested(this); //only with the --guide-screenshots command line argument
+    }
+
+    //the menu actions can change the city (e.g. closing an editor deletes the element left incomplete), so they are undo steps
+    static List<System.Action> Recorded(List<string> labels, List<System.Action> actions) {
+        var res = new List<System.Action>();
+        for (int i = 0; i < actions.Count; i++) {
+            var label = labels[i];
+            var action = actions[i];
+            res.Add(action == null ? null : () => History.UndoManager.Record(label, action));
+        }
+        return res;
+    }
+
+    void PrepareForUndo() {
+        DeselectAndCloseCurrentPanel();
+        gizmo.ClearTargets();
+        ArrayObject.DeselectAll();
+    }
+
+    void AfterUndo(OpenEditorState editorState) {
+        helper.elementManager.ShowAnchors(false);
+        helper.elementManager.ShowIntersections(false);
+        NotifyVisibilityChange();
+        SetSelectObjectMode();
+        RestoreEditorState(editorState);
+    }
+
+    void Undo() {
+        if (noCity || History.UndoManager.IsBusy) return;
+        var editorState = CaptureEditorState();
+        //closing the editor can delete the element it left incomplete: that is recorded into the last step
+        //(and if it was the whole last step, closing the editor is the undo)
+        var consumed = History.UndoManager.AmendLast(PrepareForUndo);
+        if (!consumed) History.UndoManager.Undo();
+        while (History.UndoManager.LastAppliedLeftIncompleteElements() && History.UndoManager.CanUndo) History.UndoManager.Undo();
+        AfterUndo(editorState);
+    }
+
+    void Redo() {
+        if (noCity || History.UndoManager.IsBusy) return;
+        var editorState = CaptureEditorState();
+        //any change made by closing the editor is a new step, which discards the steps to redo
+        History.UndoManager.Record(SM.Get("CLOSE"), PrepareForUndo);
+        History.UndoManager.Redo();
+        while (History.UndoManager.LastAppliedLeftIncompleteElements() && History.UndoManager.CanRedo) History.UndoManager.Redo();
+        AfterUndo(editorState);
+    }
+
+    // Reopening the editors closed by undo/redo
+
+    //the editor panels open, from the main one to the one shown, and how to reopen each of them
+    OpenEditorState CaptureEditorState() {
+        try {
+            var shown = FindShownPanel();
+            if (shown == null) return null;
+            var chain = new List<EditorPanel> { shown };
+            var cur = shown;
+            while (true) {
+                //the child panels created by their parent always have it, the parent of the others (transform panel,
+                //props container, border mesh...) is set when they are opened from it, and only counts while it's open
+                var parent = cur.parentPanel;
+                if (parent == null || chain.Contains(parent) || !(parent.childPanels.Contains(cur) || parent.IsOpen())) break;
+                chain.Insert(0, parent);
+                cur = parent;
+            }
+            var state = new OpenEditorState();
+            for (int i = 0; i < chain.Count; i++) {
+                var panel = chain[i];
+                System.Func<EditorPanel, EditorPanel> reopen;
+                if (i == 0) reopen = CaptureRootReopen(panel);
+                else if (panel == transformPropertiesEditorPanel) reopen = CaptureTransformChildReopen();
+                else reopen = panel.CaptureReopen();
+                if (reopen == null) break;
+                state.steps.Add((reopen, panel.GetShownPage()));
+            }
+            if (state.steps.Count == 0) return null;
+            var selected = gizmo.mainTargetRoot;
+            if (chain.Count == 1 && IsElementEditor(shown) && selected != null && GodotObject.IsInstanceValid(selected) && GS.Cast<Handle>(selected) != null) {
+                state.selectedPoint = CapturePointLocator(selected);
+                state.transformType = gizmo.transformType;
+            }
+            return state;
+        } catch (System.Exception e) {
+            GameEngine.LogError("Undo: could not record the open editor: " + e);
+            return null;
+        }
+    }
+
+    void RestoreEditorState(OpenEditorState state) {
+        if (state == null) return;
+        History.UndoManager.Suppress(true); //reopening the editors is not a change
+        try {
+            //the parametric objects and the buildings of the restored elements are regenerated by the update
+            try {
+                helper.elementManager.ProcessUpdate();
+            } catch (System.Exception e) {
+                GameEngine.LogError("Undo: error when updating the city: " + e);
+            }
+            EditorPanel parent = null;
+            var restored = 0;
+            foreach (var (reopen, page) in state.steps) {
+                var panel = reopen(parent);
+                if (panel == null || !panel.IsOpen()) break;
+                panel.ShowPage(page);
+                parent = panel;
+                restored++;
+            }
+            if (restored == state.steps.Count && state.selectedPoint != null) {
+                var point = state.selectedPoint();
+                if (point != null) {
+                    gizmo.ClearTargets();
+                    gizmo.AddTarget(point);
+                    gizmo.transformType = state.transformType;
+                }
+            }
+        } catch (System.Exception e) {
+            GameEngine.LogError("Undo: could not reopen the editor: " + e);
+            DeselectAndCloseCurrentPanel();
+        } finally {
+            History.UndoManager.Suppress(false);
+        }
+    }
+
+    EditorPanel FindShownPanel() {
+        foreach (var panel in panels) {
+            var shown = FindShownPanel(panel);
+            if (shown != null) return shown;
+        }
+        //picking a mesh for a field of a panel, hidden meanwhile
+        return meshListEditorPanel.IsSelector() ? meshListEditorPanel.GetOpener() : null;
+    }
+
+    EditorPanel FindShownPanel(EditorPanel panel) {
+        //the texture and mesh selectors are not reopened (their actions belong to the field they were opened from)
+        if (panel == textureListEditorPanel || (panel == meshListEditorPanel && meshListEditorPanel.IsSelector())) return null;
+        foreach (var childPanel in panel.childPanels) {
+            var shown = FindShownPanel(childPanel);
+            if (shown != null) return shown;
+        }
+        return panel.ActiveSelf() ? panel : null;
+    }
+
+    bool IsElementEditor(EditorPanel panel) {
+        return panel == roadEditorPanel || panel == intersectionEditorPanel || panel == terrainPatchEditorPanel || panel == buildingLineEditorPanel;
+    }
+
+    System.Func<EditorPanel, EditorPanel> CaptureRootReopen(EditorPanel root) {
+        //while the transform panel edits a control point, the click modifier of the editor of its element is put aside
+        var modifier = transformPropertiesEditorPanel.ActiveSelf() && root != transformPropertiesEditorPanel ? controlPointOwnerModifier : terrainClick.modifier;
+        var editingPresets = modifier is TerrainModifier.Null;
+        if (root == roadEditorPanel) {
+            if (editingPresets) return _ => { EditRoadPresets(); return roadEditorPanel; };
+            var mode = (int)roadPlacer.placementMode;
+            return CaptureElementReopen((modifier as ElementPlacer.RoadPlacer)?.GetRoad(false), roadEditorPanel, () => roadEditorPanel.SetPointPlacementMode(mode));
+        }
+        if (root == intersectionEditorPanel) {
+            if (editingPresets) return _ => { EditIntersectionPresets(); return intersectionEditorPanel; };
+            return CaptureElementReopen(intersectionEditorPanel.intersection, intersectionEditorPanel, null);
+        }
+        if (root == terrainPatchEditorPanel) {
+            var mode = (int)terrainPlacer.placementMode;
+            var borderMesh = terrainPatchEditorPanel.GetCurBorderMeshIndex();
+            return CaptureElementReopen((modifier as ElementPlacer.TerrainPlacer)?.GetPatch(false), terrainPatchEditorPanel, () => terrainPatchEditorPanel.SetPointPlacementMode(mode, borderMesh));
+        }
+        if (root == buildingLineEditorPanel) {
+            if (editingPresets) return _ => { EditBuildingLinePresets(); return buildingLineEditorPanel; };
+            var mode = (int)buildingPlacer.placementMode;
+            return CaptureElementReopen((modifier as ElementPlacer.BuildingPlacer)?.GetLine(false), buildingLineEditorPanel, () => buildingLineEditorPanel.SetPointPlacementMode(mode));
+        }
+        if (root == transformPropertiesEditorPanel) {
+            var mesh = CaptureMeshLocator(transformPropertiesEditorPanel.instance);
+            if (mesh == null) return null;
+            return _ => {
+                var node = mesh();
+                if (node == null) return null;
+                SelectObject(node);
+                return transformPropertiesEditorPanel;
+            };
+        }
+        if (root == terrainEditorPanel) {
+            return _ => {
+                DisableAllPanels(terrainEditorPanel);
+                terrainEditorPanel.SetActive(true);
+                helper.elementManager.ShowIntersections(false);
+                terrainEditorPanel.ReloadTerrainModifier();
+                return terrainEditorPanel;
+            };
+        }
+        var standalonePanels = new List<EditorPanel> {
+            cityPropertiesEditorPanel, newCityEditorPanel, heightmapEditorPanel, presetEditorPanel, cityTerrainEditorPanel,
+            cityBuildingsEditorPanel, objectListEditorPanel, meshListEditorPanel, settingsEditorPanel, projectSettingsEditorPanel,
+            batchUpdateEditorPanel, rotateCityPanel, customExporterPanel
+        };
+        if (standalonePanels.Contains(root)) {
+            return _ => {
+                ShowPanel(root);
+                return root;
+            };
+        }
+        return null;
+    }
+
+    //the editor of a city element, reopened by selecting the element again
+    System.Func<EditorPanel, EditorPanel> CaptureElementReopen(object element, EditorPanel panel, System.Action restoreMode) {
+        var id = History.ElementRegistry.GetId(element);
+        if (id < 0) return null;
+        return _ => {
+            var current = History.UndoManager.GetAliveElement(id);
+            //opening the editor of an element left incomplete would delete it
+            if (current == null || History.UndoManager.IsIncomplete(current)) return null;
+            var node = current is Intersection intersection ? intersection.geo : current as Node3D;
+            if (node == null) return null;
+            SelectObject(node, true, null);
+            restoreMode?.Invoke();
+            return panel;
+        };
+    }
+
+    //the transform panel opened from another panel: on a control point of the element it edits, or on a parametric object
+    System.Func<EditorPanel, EditorPanel> CaptureTransformChildReopen() {
+        var instance = transformPropertiesEditorPanel.instance;
+        if (instance == null || !GodotObject.IsInstanceValid(instance)) return null;
+        if (GS.Cast<Handle>(instance) != null) {
+            var point = CapturePointLocator(instance);
+            if (point == null) return null;
+            var ownerTransformType = controlPointOwnerTransformType;
+            return parent => {
+                var node = point();
+                if (node == null) return null;
+                gizmo.ClearTargets();
+                gizmo.AddTarget(node);
+                gizmo.transformType = ownerTransformType;
+                EditCurSelectedObjectTransform();
+                return transformPropertiesEditorPanel;
+            };
+        }
+        var mesh = CaptureMeshLocator(instance);
+        if (mesh == null) return null;
+        return parent => {
+            var node = mesh();
+            if (node == null) return null;
+            //as when opened from the parent panel (EditorPanel.EditObjectInstanceParameter)
+            SetTransformPanelParent(parent);
+            parent.Hide(true);
+            SelectObject(node);
+            if (!parent.IsOpen()) parent.Hide(true);
+            return transformPropertiesEditorPanel;
+        };
+    }
+
+    //a mesh instance, or a parametric object found again by its path from the element generating it
+    System.Func<Node3D> CaptureMeshLocator(Node3D node) {
+        var mesh = node != null && GodotObject.IsInstanceValid(node) ? GS.Cast<MeshInstance>(node) : null;
+        if (mesh == null) return null;
+        if (mesh.objectParameter != null) return CaptureParametricLocator(mesh);
+        var id = History.ElementRegistry.GetId(mesh);
+        if (id < 0) return null;
+        return () => History.UndoManager.GetAliveElement(id) as MeshInstance;
+    }
+
+    System.Func<Node3D> CaptureParametricLocator(MeshInstance mesh) {
+        //the mesh is in a node kept by its container (a road, the city properties, or an array element of one of them)
+        var holder = mesh.GetParent() as Node3D;
+        var container = holder?.GetParent() as IParametricObjectContainer;
+        var key = container?.FindObjectKey(holder);
+        if (key == null) return null;
+        var parentParams = new List<string>(); //from the innermost array element, as in GetParametricObject
+        while (container is ArrayObject arrayObject) {
+            var parentContainer = arrayObject.GetParent() as IParametricObjectContainer;
+            var index = parentContainer?.IndexOfArrayObject(arrayObject) ?? -1;
+            if (index < 0) return null;
+            parentParams.Add(arrayObject.paramInParent + "." + index);
+            container = parentContainer;
+        }
+        var id = History.ElementRegistry.GetId(container);
+        if (id < 0) return null;
+        return () => {
+            var owner = History.UndoManager.GetAliveElement(id) as IParametricObjectContainer;
+            return owner?.FindParametricObject(key, new List<string>(parentParams));
+        };
+    }
+
+    //a control point (of a road, an intersection or a terrain point), found again by its element and index
+    System.Func<Node3D> CapturePointLocator(Node3D node) {
+        var owner = History.UndoManager.ResolveOwner(node);
+        var id = History.ElementRegistry.GetId(owner);
+        if (id < 0) return null;
+        if (owner is TerrainPoint) {
+            return () => (History.UndoManager.GetAliveElement(id) as TerrainPoint)?.GetObject();
+        }
+        if (owner is Intersection intersection && intersection.point == node) {
+            return () => (History.UndoManager.GetAliveElement(id) as Intersection)?.point;
+        }
+        if (owner is Road road) {
+            var index = road.points.IndexOf(node as StaticBody3D);
+            if (index < 0) return null;
+            return () => {
+                var current = History.UndoManager.GetAliveElement(id) as Road;
+                return current != null && index < current.points.Count ? current.points[index] : null;
+            };
+        }
+        return null;
+    }
+
+    MenuBar GetMenuBar() {
+        return GS.FindRecursive<MenuBar>(this);
+    }
+
+    CameraController GetCameraController() {
+        var cam = GameEngine.Camera.Get(this);
+        return GS.Cast<CameraController>(cam);
+    }
+
+    void EnableUI(bool enabled) {
+        terrainClick.uiEnabled = enabled;
+        var cam = GetCameraController();
+        if (cam != null) cam.controlsEnabled = enabled;
+        var menuBar = GetMenuBar();
+        for (int i = 1; i < menuBar.GetElementCount() - 3; i++) {
+            menuBar.EnableElement(i, enabled);
+        }
+    }
+
+    public void Reload() {
+        SM.Reload();
+        foreach (var panel in panels) {
+            panel.Initialize(this);
+        }
+        var menuBar = GetMenuBar();
+        DisableAllPanels(null);
+        if (PreferencesManager.workingDirectory == "") {
+            for (int i = 1; i < menuBar.GetElementCount() - 3; i++) {
+                menuBar.EnableElement(i, false);
+            }
+            noCity = true;
+        }
+        else {
+            for (int i = 1; i < menuBar.GetElementCount() - 3; i++) {
+                menuBar.EnableElement(i, true);
+            }
+            noCity = false;
+        }
+        roadPlacer.placementMode = ElementPlacer.RoadPlacer.PlacementMode.None;
+        terrainPlacer.placementMode = ElementPlacer.TerrainPlacer.PlacementMode.None;
+        buildingPlacer.placementMode = ElementPlacer.BuildingPlacer.PlacementMode.None;
+        meshPlacer.placeEnabled = false;
+        meshListEditorPanel.ResetEntries(); //otherwise when opened for the first time it would have broken paths due to prefs not being loaded at first load
+        SetCameraRenderingMode(PreferencesManager.Get("renderingMode", 0), false);
+        SetShadows(PreferencesManager.Get("shadowsEnabled", true), false);
+        CityElements.Types.Parsers.TypeParser.GetRoadTypes(true);
+        CityElements.Types.Parsers.TypeParser.GetPropsElementTypes(true);
+        CityElements.Types.Parsers.TypeParser.GetPropsContainersTypes(true);
+    }
+
+    public void SetCameraRenderingMode(int mode) {
+        SetCameraRenderingMode(mode, true);
+    }
+
+    void SetCameraRenderingMode(int mode, bool save) {
+        var cam = GameEngine.Camera.Get(this);
+        if (cam != null) {
+            // Godot has no vertex lit path: the mode is full white ambient with the sun off,
+            // which leaves the textures unshaded.
+            switch (mode) {
+                case 1:
+                    GameEngine.Lighting.SetAmbientLight(this, GameEngine.Color.white);
+                    EnableLight(false);
+                    break;
+                default:
+                    GameEngine.Lighting.SetAmbientLight(this, new Color(0.23f, 0.23f, 0.23f));
+                    EnableLight(true);
+                    break;
+            }
+        }
+        if (save) PreferencesManager.Set("renderingMode", mode);
+    }
+
+    public void SetShadows(bool enabled) {
+        SetShadows(enabled, true);
+    }
+
+    void EnableLight(bool enabled) {
+        GameEngine.Lighting.SetSunEnabled(this, enabled);
+    }
+
+    void SetShadows(bool enabled, bool save) {
+        GameEngine.Lighting.SetSunShadows(this, enabled);
+        if (save) PreferencesManager.Set("shadowsEnabled", enabled);
+    }
+
+    public void SetPropsCullingDistance(string distance) {
+        if (!float.TryParse(distance, out var v)) return;
+        PreferencesManager.Set("propsCullingDistance", v);
+        var cam = GetCameraController();
+        if (cam != null) cam.SetPropsCullingDistance(v);
+    }
+
+    public void SetSelectObjectMode() {
+        terrainClick.modifier = nullModifier;
+    }
+
+    public void NotifyChange() {
+        NotifyChange(false);
+    }
+
+    public void NotifyChange(bool propsChanged) {
+        if (helper != null) {
+            if (helper.elementManager != null) {
+                helper.elementManager.FlagAsChanged(propsChanged);
+            }
+        }
+        if (transformPropertiesEditorPanel != null && transformPropertiesEditorPanel.instance != null && GodotObject.IsInstanceValid(transformPropertiesEditorPanel.instance)) {
+            var inst = GS.Cast<MeshInstance>(transformPropertiesEditorPanel.instance);
+            if (inst != null) {
+                inst.SyncParametricObjectState();
+            }
+        }
+    }
+
+    public void NotifyVisibilityChange() {
+        if (helper != null) {
+            if (helper.elementManager != null) {
+                helper.elementManager.visibilityChanged = true;
+                SyncSelectedEntityMenuItemVisibility();
+            }
+        }
+    }
+
+    void SyncSelectedEntityMenuItemVisibility() {
+        var idx = selectedEntityMenuItemIndex;
+        var menuBar = GetMenuBar();
+        var entitiesSelected = new List<string>();
+        var entries = new List<string>();
+        var actions = new List<System.Action>();
+        foreach (var entry in ArrayObject.activeElements) {
+            if (entry.Value != null) {
+                entitiesSelected.Add(entry.Key);
+                entries.Add(SM.Get("DESELECT_CONTAINER").Replace("$CONTAINER", SM.Get("CUSTOM_ELEMENT_CATEGORY_" + entry.Key.ToUpper())));
+                actions.Add(delegate { DeselectEntity(entry.Key); });
+            }
+        }
+        menuBar.SetEntries(idx, entries, actions);
+        var suffix = entitiesSelected.Count > 1 ? "PLUR" : "SING";
+        menuBar.SetText(idx, SM.Get("CONTAINERS_SELECTED_" + suffix).Replace("$NUMBER", entitiesSelected.Count.ToString()));
+        menuBar.ShowElement(idx, entitiesSelected.Count > 0);
+    }
+
+    void DeselectEntity(string type) {
+        ArrayObject.activeElements[type] = null;
+        NotifyVisibilityChange();
+    }
+
+    public void NotifyUpdateCompleted() {
+        foreach (var panel in panels) {
+            if (panel.ActiveSelf()) panel.Update();
+        }
+    }
+
+    /*void ToggleWireframe() {
+        var cam = GetCameraController();
+        if (cam != null) cam.ToggleWireframe();
+    }*/
+
+    void ShowAllTrafficLanes() {
+        helper.elementManager.ShowAllTrafficLanes();
+    }
+
+    void ToggleGroundOnly() {
+        var cam = GetCameraController();
+        if (cam != null) {
+            var res = cam.ToggleGroundOnly();
+            nullModifier.groundOnly = res;
+        }
+    }
+
+    void ShowQuickstart() {
+        var path = PathHelper.BasePath() + "/Quickstart guide.pdf";
+        if (File.Exists(path)) OS.ShellOpen(path);
+        else CreateAlert(SM.Get("HELP_QUICKSTART"), SM.Get("HELP_QUICKSTART_NOT_FOUND"), SM.Get("OK"));
+    }
+
+    void ShowAbout() {
+        var text = SM.Get("HELP_ABOUT_TEXT");
+        text = text.Replace("$VERSION", GameEngine.Version.GetVersion()).Replace("$ENGINEVERSION", GameEngine.Version.GetEngineVersion());
+        CreateAlert(SM.Get("HELP_ABOUT"), text, SM.Get("OK"), SM.Get("HELP_ABOUT_OPEN_LICENSE"), null, OpenLicense, 220, true);
+    }
+
+
+    void OpenLicense() {
+        OS.ShellOpen(PathHelper.BasePath() + "/License.txt");
+    }
+
+    void ToggleSettings() {
+        ShowPanel(settingsEditorPanel);
+    }
+
+    void ToggleProjectSettings() {
+        ShowPanel(projectSettingsEditorPanel);
+    }
+
+    void ToggleCityProperties() {
+        ShowPanel(cityPropertiesEditorPanel);
+    }
+
+    void ChangeOverlayTransparency() {
+        helper.SwitchTransparency();
+    }
+
+    void DisablePanelIfNeeded(EditorPanel panel, EditorPanel excluded) {
+        foreach (var childPanel in panel.childPanels) {
+            DisablePanelIfNeeded(childPanel, excluded);
+        }
+        if (excluded != panel) {
+            if (panel.parentPanel != null) {
+                //closed child panels are terminated too, and their parent with them (e.g. after editing a road's
+                //props, every selection terminated the road editor, deleting the preset dummy road and rebuilding the city)
+                if (panel.IsOpen()) panel.Terminate();
+            }
+            else {
+                panel.SetActive(false);
+            }
+        }
+    }
+
+    public void CloseAllPanels() {
+        DisableAllPanels(null);
+    }
+
+    void DisableAllPanels(EditorPanel excluded) {
+        foreach (var panel in panels) {
+            DisablePanelIfNeeded(panel, excluded);
+        }
+        helper.SetCirclePosition(Vector3.Zero, 0);
+    }
+
+    void ShowPanel(EditorPanel panel, Stack<Node3D> stack = null) {
+        DisableAllPanels(panel);
+        panel.ShowWithStack(stack);
+    }
+
+    //Menu elements
+
+    void LoadCity() {
+        DeselectAndCloseCurrentPanel();
+        fileBrowser.LoadFolder(LoadCityDirectory);
+    }
+
+    void LoadCityDirectory(string dir) {
+        PreferencesManager.workingDirectory = dir;
+        CoreManager.Reset();
+        CityImporter.LoadCity(helper.elementManager, dir + "/city.json.gz");
+    }
+
+    void NoCityAlert() {
+        CreateAlert(SM.Get("ERROR"), SM.Get("NO_CITY_ERROR"), SM.Get("OK"));
+    }
+
+    void SaveCity() {
+        if (noCity) {
+            NoCityAlert();
+            return;
+        }
+        try {
+            helper.SaveCity();
+        }
+        catch (System.Exception e) {
+            GameEngine.Print(e.Message);
+            GameEngine.Print(e.StackTrace);
+            CreateAlert(SM.Get("ERROR"), SM.Get("CITY_SAVE_ERROR_TEXT") + e.Message, SM.Get("OK"));
+        }
+    }
+
+    void NewCity() {
+        ShowPanel(newCityEditorPanel);
+    }
+
+    void ExportCity() {
+        if (noCity) {
+            NoCityAlert();
+            return;
+        }
+        DeselectAndCloseCurrentPanel();
+        fileBrowser.SaveFile(ExportCityToFile);
+    }
+
+    void CloseCity() {
+        DeselectAndCloseCurrentPanel();
+        helper.elementManager.CloseCity();
+        Reload();
+    }
+
+    void ExportCityToFile(string filename) {
+        try {
+            CityExporter.SaveCity(helper.elementManager, filename);
+        }
+        catch (System.Exception e) {
+            GameEngine.Print(e.Message);
+            GameEngine.Print(e.StackTrace);
+            CreateAlert(SM.Get("ERROR"), SM.Get("CITY_SAVE_ERROR_TEXT") + e.Message, SM.Get("OK"));
+        }
+    }
+
+    void ToggleTerrainEdit() {
+        DisableAllPanels(terrainEditorPanel);
+        terrainEditorPanel.Toggle();
+        var editEnabled = terrainEditorPanel.ActiveSelf();
+        helper.elementManager.ShowIntersections(false);
+        if (editEnabled) {
+            terrainEditorPanel.ReloadTerrainModifier();
+        }
+        else {
+            SetSelectObjectMode();
+        }
+    }
+
+    void OpenPresetList() {
+        ShowPanel(presetEditorPanel);
+    }
+
+    void LoadHeightmap() {
+        ShowPanel(heightmapEditorPanel);
+    }
+
+    void OpenObjectList() {
+        ShowPanel(objectListEditorPanel);
+    }
+
+    void OpenBatchUpdate() {
+        ShowPanel(batchUpdateEditorPanel);
+    }
+
+    void RotateCity() {
+        ShowPanel(rotateCityPanel);
+    }
+
+    public void OpenTextureSelector(Control panel, System.Func<object> valueGetter, System.Action<string> valueSetter, System.Action afterSetAction) {
+        textureListEditorPanel.SetActive(true);
+        textureListEditorPanel.SetSelection((string)valueGetter.Invoke());
+        textureListEditorPanel.Open(panel, valueSetter, afterSetAction);
+    }
+
+    public void OpenMeshSelector(EditorPanel panel, Control panelObj, System.Action<string> valueSetter, System.Action afterSetAction, bool disablePlacer = false) {
+        if (disablePlacer) meshListEditorPanel.disablePlacer = true;
+        if (panel != null) meshListEditorPanel.Open(panel, valueSetter, afterSetAction);
+        else if (panelObj != null) meshListEditorPanel.Open(panelObj, valueSetter, afterSetAction);
+    }
+
+    void CreateMeshInstance() {
+        ShowPanel(meshListEditorPanel);
+    }
+
+    void SwitchGrid() {
+        helper.SwitchMaterial();
+    }
+
+    void ResetWindow() {
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+    }
+
+    void ReloadCity() {
+        CreateAlert(SM.Get("WARNING"), SM.Get("RELOAD_WARNING"), SM.Get("YES"), SM.Get("NO"), ReloadCityAction);
+    }
+
+    void ReloadCityAction() {
+        CityImporter.LoadCity(helper.elementManager, PreferencesManager.workingDirectory + "/city.json.gz");
+    }
+
+    void CreateRoad() {
+        roadEditorPanel.Terminate();
+        DisableAllPanels(roadEditorPanel);
+        roadPlacer.SetRoad(null);
+        roadPlacer.placementMode = ElementPlacer.RoadPlacer.PlacementMode.Add;
+        terrainClick.modifier = roadPlacer;
+        roadEditorPanel.SetActive(true, true);
+    }
+
+    void CreateTerrain() {
+        DisableAllPanels(terrainPatchEditorPanel);
+        terrainPlacer.SetTerrainPatch(null);
+        terrainPlacer.placementMode = ElementPlacer.TerrainPlacer.PlacementMode.Perimeter;
+        terrainClick.modifier = terrainPlacer;
+        terrainPatchEditorPanel.SetActive(true);
+        helper.elementManager.ShowAnchors(true);
+    }
+
+    void CreateBuildingLine() {
+        DisableAllPanels(buildingLineEditorPanel);
+        buildingPlacer.SetBuildingLine(null);
+        buildingPlacer.placementMode = ElementPlacer.BuildingPlacer.PlacementMode.Point;
+        terrainClick.modifier = buildingPlacer;
+        buildingLineEditorPanel.SetActive(true);
+        helper.elementManager.ShowAnchors(true);
+    }
+
+    void CreateCityTerrain() {
+        ShowPanel(cityTerrainEditorPanel);
+    }
+
+    void CreateCityBuildings() {
+        ShowPanel(cityBuildingsEditorPanel);
+    }
+
+    void Quit() {
+        if (WantsToQuit()) GetTree().Quit();
+    }
+
+    void ForceQuit() {
+        quitEnabled = true;
+        GetTree().Quit();
+    }
+
+    bool AlertActive() {
+        return alert != null && !alert.IsClosed();
+    }
+
+    bool InputActive() {
+        return inputFieldPopup != null && !inputFieldPopup.IsClosed();
+    }
+
+    public void CreateAlert(string title, string message, string buttonText,
+        System.Action genericAction = null, float height = 180.0f, bool leftAlign = false, float width = 400.0f) {
+
+        if (!AlertActive()) alert = new Alert(this, title, message, buttonText, genericAction, height, leftAlign, width);
+    }
+
+    public void CreateAlert(string title, string message, string okText, string cancelText,
+        System.Action okAction = null, System.Action cancelAction = null, float height = 180.0f, bool leftAlign = false, float width = 400.0f) {
+
+        if (!AlertActive()) alert = new Alert(this, title, message, okText, cancelText, okAction, cancelAction, height, leftAlign, width);
+    }
+
+    public void CreateInput(string title, string placeholder, string buttonText, System.Action<string> genericAction = null) {
+        if (!InputActive()) inputFieldPopup = new InputFieldPopup(this, title, placeholder, buttonText, genericAction);
+    }
+
+    public void CreateInput(string title, string placeholder, string okText, string cancelText, System.Action<string> okAction = null, System.Action cancelAction = null, string initialText = null) {
+        if (!InputActive()) inputFieldPopup = new InputFieldPopup(this, title, placeholder, okText, cancelText, okAction, cancelAction, initialText);
+    }
+
+    public bool WantsToQuit() {
+        if (quitEnabled || noCity) {
+            return true;
+        } else {
+            CreateAlert(SM.Get("WARNING"), SM.Get("QUIT_WARNING"), SM.Get("YES"), SM.Get("NO"), ForceQuit);
+            return false;
+        }
+    }
+
+    public override void _Notification(int what) {
+        if (what == NotificationWMCloseRequest) {
+            if (WantsToQuit()) GetTree().Quit();
+        }
+    }
+
+    public override void _ExitTree() {
+        // Free the nodes kept outside the scene tree, otherwise they (and their meshes, materials and textures) leak at exit
+        MeshManager.Shutdown();
+    }
+
+    public void DoDelayed(System.Action action) {
+        DoDelayedCoroutine(action, helper);
+    }
+
+    public async void DoDelayedCoroutine(System.Action action, Node caller) {
+        await caller.ToSignal(caller.GetTree(), "process_frame");
+        action.Invoke();
+    }
+
+    /*public void SelectObject(RaycastHit hit) { //TODO: UI
+        if (HasActivePanels()) return;
+        SelectObject(hit.transform.gameObject, true, hit.collider);
+    }*/
+
+    public void SelectObject(Node3D obj) {
+        SelectObject(obj, true, null);
+    }
+
+    public void DeselectObject() {
+        SetSelectObjectMode();
+        if (selectedObject != null && !GodotObject.IsInstanceValid(selectedObject)) selectedObject = null;
+        if (selectedObject == null) return;
+        var road = GS.Cast<Road>(selectedObject);
+        var intersection = GS.FindRecursive<Intersection.IntersectionComponent>(selectedObject);
+        var patch = GS.Cast<TerrainPatch>(selectedObject);
+        var building = GS.Cast<BuildingLine>(selectedObject);
+        if (road != null) {
+            road.SetActive(false);
+        }
+        else if (intersection != null) {
+            intersection.intersection.SetActive(false);
+        }
+        else if (patch != null) {
+            patch.SetActive(false, false);
+        }
+        else if (building != null) {
+            building.SetActive(false, false);
+        }
+        selectedObject = null;
+        helper.elementManager.ShowAnchors(false);
+        helper.elementManager.ShowIntersections(false);
+        helper.elementManager.DeselectMeshes();
+    }
+
+    public void EditRoadPresets() {
+        roadEditorPanel.Terminate();
+        DisableAllPanels(roadEditorPanel);
+        roadPlacer.SetRoad(null);
+        roadEditorPanel.SetActive(true, false);
+    }
+
+    public void EditIntersectionPresets() {
+        intersectionEditorPanel.Terminate();
+        DisableAllPanels(intersectionEditorPanel);
+        intersectionEditorPanel.intersection = null;
+        intersectionEditorPanel.SetActive(true);
+    }
+
+    public void EditBuildingLinePresets() {
+        buildingLineEditorPanel.Terminate();
+        DisableAllPanels(buildingLineEditorPanel);
+        buildingPlacer.SetBuildingLine(null);
+        buildingLineEditorPanel.SetActive(true);
+    }
+
+    public void ShowCustomExportDialog(FileBrowserHelper.CustomExporter exporter, string name) {
+        DisableAllPanels(customExporterPanel);
+        customExporterPanel.exporter = exporter;
+        customExporterPanel.name = name;
+        customExporterPanel.SetActive(true);
+    }
+
+    void ReselectObjectPanelAndModifier(Node3D obj, bool withEditor, EditorPanel panel, TerrainAction modifier) {
+        DeselectObject();
+        selectedObject = obj;
+        if (withEditor) {
+            DisableAllPanels(panel);
+            terrainClick.modifier = modifier;
+        }
+    }
+
+    public void SelectObject(Node3D obj, bool withEditor, CollisionShape3D c, Stack<Node3D> stack = null) {
+        if (obj == null || !GodotObject.IsInstanceValid(obj)) return;
+        transformPropertiesEditorPanel.Select(false);
+        var cityProperties = GS.Cast<CityProperties>(obj);
+        var road = GS.Cast<Road>(obj);
+        var intersection = GS.FindRecursive<Intersection.IntersectionComponent>(obj);
+        var patch = GS.Cast<TerrainPatch>(obj);
+        var mesh = GS.Cast<MeshInstance>(obj);
+        var buildingLine = GS.Cast<BuildingLine>(obj);
+        var buildingSide = (buildingLine != null && c != null) ? buildingLine.GetColliderSide(c) : null;
+        var building = (buildingLine != null && c != null) ? buildingLine.GetColliderBuilding(c) : null;
+        var selector = GS.Cast<GenericSelector>(obj);
+        if (cityProperties != null) {
+            DeselectAndCloseCurrentPanel();
+            ShowPanel(cityPropertiesEditorPanel, stack);
+            //todo: go to the correct tab if there is more than one
+        }
+        else if (road != null) {
+            ReselectObjectPanelAndModifier(obj, withEditor, roadEditorPanel, roadPlacer);
+            if (withEditor) roadPlacer.SetRoad(road);
+            helper.elementManager.ShowIntersections(false);
+            road.SetActive(true);
+            if (withEditor) roadEditorPanel.ShowWithStack(stack);
+        }
+        else if (intersection != null && GO.GetParent(GO.GetParent(intersection)) == obj) {
+            ReselectObjectPanelAndModifier(obj, withEditor, intersectionEditorPanel, null); //todo: make work wirh nullModifier (or rework altogether)
+            helper.elementManager.ShowIntersections(false);
+            intersectionEditorPanel.intersection = intersection.intersection;
+            intersection.intersection.SetActive(true, true, true);
+            if (withEditor) intersectionEditorPanel.ShowWithStack(stack);
+        }
+        else if (patch != null) {
+            ReselectObjectPanelAndModifier(obj, withEditor, terrainPatchEditorPanel, terrainPlacer);
+            if (withEditor) terrainPlacer.SetTerrainPatch(patch);
+            helper.elementManager.ShowAnchors(true);
+            patch.SetActive(true, true);
+            patch.Select(true);
+            if (withEditor) terrainPatchEditorPanel.ShowWithStack(stack);
+        }
+        else if (mesh != null) {
+            ReselectObjectPanelAndModifier(obj, withEditor, transformPropertiesEditorPanel, nullModifier);
+            if (withEditor) {
+                transformPropertiesEditorPanel.instance = mesh;
+                transformPropertiesEditorPanel.SetActive(true);
+            }
+            else {
+                transformPropertiesEditorPanel.Select(false);
+                transformPropertiesEditorPanel.instance = mesh;
+                transformPropertiesEditorPanel.Select(true);
+            }
+        }
+        else if (buildingSide != null) {
+            buildingLine = buildingSide.building.line;
+            ReselectObjectPanelAndModifier(obj, withEditor, buildingLineEditorPanel, buildingPlacer);
+            if (withEditor) buildingPlacer.SetBuildingLine(buildingLine);
+            helper.elementManager.ShowAnchors(true);
+            buildingLine.SetActive(true, true);
+            buildingLine.Select(true);
+            if (withEditor) {
+                buildingLineEditorPanel.SetActive(true);
+                if (Input.GetInputPressed(KeyCommand.Modifier1)) {
+                    //do nothing => edit the line
+                }
+                else if (Input.GetInputPressed(KeyCommand.Modifier2)) {
+                    buildingLineEditorPanel.EditBuilding(buildingSide.building);
+                }
+                else {
+                    buildingLineEditorPanel.EditSide(buildingSide);
+                }
+            }
+        }
+        else if (building != null) {
+            buildingLine = building.line;
+            ReselectObjectPanelAndModifier(obj, withEditor, buildingLineEditorPanel, buildingPlacer);
+            if (withEditor) buildingPlacer.SetBuildingLine(buildingLine);
+            helper.elementManager.ShowAnchors(true);
+            buildingLine.SetActive(true, true);
+            buildingLine.Select(true);
+            if (withEditor) {
+                if (Input.GetInputPressed(KeyCommand.Modifier1)) {
+                    //edit the line
+                    buildingLineEditorPanel.ShowWithStack(stack);
+                }
+                else {
+                    buildingLineEditorPanel.SetActive(true);
+                    buildingLineEditorPanel.EditBuilding(building);
+                }
+            }
+        }
+        else if (buildingLine != null) {
+            ReselectObjectPanelAndModifier(obj, withEditor, buildingLineEditorPanel, buildingPlacer);
+            if (withEditor) buildingPlacer.SetBuildingLine(buildingLine);
+            helper.elementManager.ShowAnchors(true);
+            buildingLine.SetActive(true, true);
+            buildingLine.Select(true);
+            if (withEditor) buildingLineEditorPanel.ShowWithStack(stack);
+        }
+        else if (selector != null) {
+            switch (selector.type) {
+                case "Building":
+                    buildingLine = ((Building)selector.parent).line;
+                    ReselectObjectPanelAndModifier(obj, withEditor, buildingLineEditorPanel, buildingPlacer);
+                    if (withEditor) buildingPlacer.SetBuildingLine(buildingLine);
+                    helper.elementManager.ShowAnchors(true);
+                    buildingLine.SetActive(true, true);
+                    buildingLine.Select(true);
+                    if (withEditor) {
+                        if (Input.GetInputPressed(KeyCommand.Modifier1)) {
+                            //edit the line
+                            buildingLineEditorPanel.ShowWithStack(stack);
+                        }
+                        else {
+                            buildingLineEditorPanel.SetActive(true);
+                            buildingLineEditorPanel.EditBuilding(((Building)selector.parent));
+                        }
+                    }
+                    break;
+                case "BuildingLine":
+                    buildingLine = (BuildingLine)selector.parent;
+                    ReselectObjectPanelAndModifier(obj, withEditor, buildingLineEditorPanel, buildingPlacer);
+                    if (withEditor) buildingPlacer.SetBuildingLine(buildingLine);
+                    helper.elementManager.ShowAnchors(true);
+                    buildingLine.SetActive(true, true);
+                    buildingLine.Select(true);
+                    if (withEditor) buildingLineEditorPanel.ShowWithStack(stack);
+                    break;
+                default:
+                    break;
+            }
+        }
+        else if (obj.GetParent() != null) {
+            if (stack == null) {
+                stack = new Stack<GameObject>();
+            }
+            stack.Push(obj);
+            SelectObject(obj.GetParentNode3D(), withEditor, c, stack);
+        }
+    }
+
+    void DeleteCurObj() {
+        History.UndoManager.Begin(SM.Get("DELETE"));
+        try {
+            History.UndoManager.Touch(GetActivePanel()?.GetUndoTarget());
+            DeleteCurObjUnrecorded();
+        } finally {
+            History.UndoManager.Commit();
+        }
+    }
+
+    void DeleteCurObjUnrecorded() {
+        var setSelectMode = true; //set to false if no objects deleted (i.e. nothing or control points only)
+        if (roadEditorPanel.ActiveSelf()) {
+            setSelectMode = roadEditorPanel.Delete(true);
+        }
+        else if (terrainPatchEditorPanel.ActiveSelf()) {
+            if (gizmo.mainTargetRoot != null) {
+                var point = GS.FindRecursive<TerrainPoint>(gizmo.mainTargetRoot);
+                if (point != null) {
+                    if (point.DeleteManual(terrainPatchEditorPanel.GetPatch())) {
+                        gizmo.RemoveTarget(gizmo.mainTargetRoot);
+                        point.Select(false);
+                        NotifyChange();
+                    }
+                }
+                setSelectMode = false;
+            }
+            else {
+                terrainPatchEditorPanel.Delete();
+            }
+        }
+        else if (transformPropertiesEditorPanel.ActiveSelf()) {
+            //control points and generated parametric objects (e.g. traffic lights) are not deleted from here,
+            //array elements are but the panel goes back to the parent element, whose modifier must be kept
+            var instance = GS.Cast<MeshInstance>(transformPropertiesEditorPanel.instance);
+            var canDelete = transformPropertiesEditorPanel.CanDelete();
+            setSelectMode = canDelete && instance.objectParameter == null;
+            if (canDelete) transformPropertiesEditorPanel.Delete();
+        }
+        else if (intersectionEditorPanel.ActiveSelf()) {
+            setSelectMode = intersectionEditorPanel.CanDelete();
+            if (setSelectMode) intersectionEditorPanel.Delete();
+        }
+        else if (buildingLineEditorPanel.ActiveSelf()) {
+            if (gizmo.mainTargetRoot != null) {
+                var point = GS.FindRecursive<TerrainPoint>(gizmo.mainTargetRoot);
+                if (point != null) {
+                    if (point.DeleteManual(buildingLineEditorPanel.GetLine())) {
+                        gizmo.RemoveTarget(gizmo.mainTargetRoot);
+                        point.Select(false);
+                        NotifyChange();
+                    }
+                }
+                setSelectMode = false;
+            }
+            else {
+                buildingLineEditorPanel.Delete();
+            }
+        }
+        else {
+            setSelectMode = false;
+        }
+        if (setSelectMode) SetSelectObjectMode();
+    }
+
+    public Node3D GetCurSelectedObject() {
+        return gizmo.mainTargetRoot;
+    }
+
+    void EditCurSelectedObjectTransform() {
+        var obj = GetCurSelectedObject();
+        if (obj == null || transformPropertiesEditorPanel.ActiveSelf()) return;
+        var ownerPanel = GS.Cast<Handle>(obj) != null ? GetActivePanel() : null;
+        if (ownerPanel != null) {
+            //control point: hide the editor of its element instead of closing it,
+            //closing it deactivated the element and made the point invisible while being edited
+            ownerPanel.Hide(true);
+            SetTransformPanelParent(ownerPanel);
+            controlPointOwnerModifier = terrainClick.modifier;
+            controlPointOwnerTransformType = gizmo.transformType;
+            terrainClick.modifier = null; //no point placement or object selection while the transform panel is open
+        }
+        else {
+            DisableAllPanels(transformPropertiesEditorPanel);
+        }
+        transformPropertiesEditorPanel.instance = obj;
+        transformPropertiesEditorPanel.SetActive(true);
+    }
+
+    //called by the transform panel before returning to (or terminating) the editor owning the control point
+    public void RestoreControlPointOwner() {
+        terrainClick.modifier = controlPointOwnerModifier;
+        controlPointOwnerModifier = null;
+    }
+
+    public void ReselectControlPoint(Node3D point) {
+        gizmo.ClearTargets();
+        gizmo.AddTarget(point);
+        gizmo.transformType = controlPointOwnerTransformType;
+    }
+
+    EditorPanel GetActivePanel() {
+        foreach (var panel in panels) {
+            var activePanel = GetActivePanel(panel);
+            if (activePanel != null) return activePanel;
+        }
+        return null;
+    }
+
+    static EditorPanel GetActivePanel(EditorPanel panel) {
+        foreach (var childPanel in panel.childPanels) {
+            var activePanel = GetActivePanel(childPanel);
+            if (activePanel != null) return activePanel;
+        }
+        return panel.ActiveSelf() ? panel : null;
+    }
+
+    void DeselectAndCloseCurrentPanel() {
+        DisableAllPanels(null);
+        DeselectObject();
+    }
+
+    public void SetTransformPanelParent(EditorPanel newParent) {
+        transformPropertiesEditorPanel.parentPanel = newParent;
+    }
+
+    bool HasActivePanels() {
+        //counts the active children of the canvas besides the menu bar, i.e. the open editor panels
+        foreach (var panel in panels) {
+            if (IsPanelActive(panel)) return true;
+        }
+        return false;
+    }
+
+    static bool IsPanelActive(EditorPanel panel) {
+        if (panel.ActiveSelf()) return true;
+        foreach (var childPanel in panel.childPanels) {
+            if (IsPanelActive(childPanel)) return true;
+        }
+        return false;
+    }
+
+    public override void _Process(double delta) {
+        if (Input.GetInputStart(KeyCommand.Close)) {
+            History.UndoManager.Record(SM.Get("CLOSE"), DeselectAndCloseCurrentPanel);
+        }
+        else if (Input.GetInputStart(KeyCommand.CreateRoad)) {
+            History.UndoManager.Record(SM.Get("CREATE_ROAD"), CreateRoad);
+        }
+        else if (Input.GetInputStart(KeyCommand.CreateTerrainPatch)) {
+            History.UndoManager.Record(SM.Get("CREATE_TERRAIN_PATCH"), CreateTerrain);
+        }
+        else if (Input.GetInputStart(KeyCommand.CreateBuildingLine)) {
+            History.UndoManager.Record(SM.Get("CREATE_BUILDING_LINE"), CreateBuildingLine);
+        }
+        else if (Input.GetInputStart(KeyCommand.SaveCity)) {
+            SaveCity();
+        }
+        else if (!TextInputFocused()) {
+            if (Input.GetInputStart(KeyCommand.Undo)) {
+                Undo();
+            }
+            else if (Input.GetInputStart(KeyCommand.Redo)) {
+                Redo();
+            }
+            else if (Input.GetInputStart(KeyCommand.Delete)) {
+                DeleteCurObj();
+            }
+            else if (Input.GetInputStart(KeyCommand.Edit)) {
+                EditCurSelectedObjectTransform();
+            }
+        }
+    }
+
+    //Godot keeps buttons focused after clicking them, so only text fields should block the shortcuts
+    bool TextInputFocused() {
+        var focused = GetViewport().GuiGetFocusOwner();
+        return focused is LineEdit || focused is TextEdit;
+    }
+}

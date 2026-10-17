@@ -1,0 +1,35 @@
+{
+    "version": "2.0.0",
+    "configurations": [
+        {
+            "name": "Launch standalone",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${env:GODOT4}",
+            "args": [
+                "--remote-debug",
+                "tcp://127.0.0.1:6007"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+        },
+        {
+            "name": "Attach to Process",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${input:processId}",
+        }
+    ],
+    "inputs": [
+        {
+            "id": "processId",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "powershell -Command \"$exeName = Split-Path $env:GODOT4 -Leaf; (Get-CimInstance Win32_Process | ? { $_.Name -eq $exeName -and $_.ParentProcessId -in (Get-CimInstance Win32_Process | ? CommandLine -like '*--editor*').ProcessId }).ProcessId\"",
+                "useFirstResult": true
+            }
+        }
+    ]
+}
