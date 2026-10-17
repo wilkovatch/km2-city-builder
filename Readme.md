@@ -11,11 +11,11 @@ This program is made with Godot 4.7 (.NET), with scripts written in C#.
 
 ## Documentation
 
-The full documentation is in the [wiki](wiki/Home.md):
+The full documentation is in the [wiki](https://github.com/wilkovatch/km2-city-builder/wiki/Home):
 
-- [Quickstart Guide](wiki/Quickstart-Guide.md): how to use the editor (also shipped as `Quickstart guide.pdf` with the builds).
-- [Architecture Overview](wiki/Architecture-Overview.md) and the other *Program internals* pages: how the program is put together, class by class.
-- [Creating a Core](wiki/Creating-a-Core.md) and the other *Creating cores* pages: how to add support for a new game.
+- [Quickstart Guide](https://github.com/wilkovatch/km2-city-builder/wiki/Quickstart-Guide): how to use the editor (also shipped as `Quickstart guide.pdf` with the builds).
+- [Architecture Overview](https://github.com/wilkovatch/km2-city-builder/wiki/Architecture-Overview) and the other *Program internals* pages: how the program is put together, class by class.
+- [Creating a Core](https://github.com/wilkovatch/km2-city-builder/wiki/Creating-a-Core) and the other *Creating cores* pages: how to add support for a new game.
 
 ## Quickstart
 
@@ -49,7 +49,7 @@ Everything about a city is stored in its folder (`city.json.gz`, `presets.json`,
 
 Every object type has **presets** that store a set of property values for reuse; objects can be linked to a preset and synced when the preset changes. Advanced tools include rotating the whole city and *Edit→Batch update*, which changes properties of many objects at once with simple `property=value` and `where` expressions.
 
-Errors are reported in the debug console (click the message counters in the bottom-left corner); Python errors are saved in `pythonLog.txt`. See the [Quickstart Guide](wiki/Quickstart-Guide.md) for the details of every tool.
+Errors are reported in the debug console (click the message counters in the bottom-left corner); Python errors are saved in `pythonLog.txt`. See the [Quickstart Guide](https://github.com/wilkovatch/km2-city-builder/wiki/Quickstart-Guide) for the details of every tool.
 
 ## Architecture
 
@@ -73,7 +73,7 @@ Python (`Files/python` plus the Python code of each core) handles what is game s
 
 **Coordinates.** The program logic, the cores and the exported files use a left-handed coordinate system (Y up, +Z forward, +X right). Conversion to and from Godot's right-handed system happens only inside `GameEngine`.
 
-See the [Architecture Overview](wiki/Architecture-Overview.md) for the scene tree, startup sequence, collision layers and runtime folder layout, and the other *Program internals* pages of the [wiki](wiki/Home.md) for a class-by-class reference.
+See the [Architecture Overview](https://github.com/wilkovatch/km2-city-builder/wiki/Architecture-Overview) for the scene tree, startup sequence, collision layers and runtime folder layout, and the other *Program internals* pages of the [wiki](https://github.com/wilkovatch/km2-city-builder/wiki/Home) for a class-by-class reference.
 
 ## Building from source
 
@@ -85,4 +85,4 @@ See the [Architecture Overview](wiki/Architecture-Overview.md) for the scene tre
 
 ## License
 
-km2 City Builder is released under the MIT license, see [License.txt](License.txt). The licenses of the bundled third-party code are in the [Licenses](Licenses) folder, and described in [Third-Party Code](wiki/Third-Party-Code.md).
+km2 City Builder is released under the MIT license, see [License.txt](License.txt). The licenses of the bundled third-party code are in the [Licenses](Licenses) folder, and described in [Third-Party Code](https://github.com/wilkovatch/km2-city-builder/wiki/Third-Party-Code).
