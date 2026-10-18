@@ -76,7 +76,7 @@ Runs every frame before the gizmo. When a tool (`modifier`, a `TerrainAction`) i
 | Class | Description |
 |---|---|
 | `TerrainAction` (`UI/Actions/TerrainAction.cs`) | Base class: `ShowOnMap(hits)`, `Apply(hits)`, `GetLayerMasks()`. |
-| `ElementPlacer.RoadPlacer` | Adds, inserts and moves road points, creates and joins intersections. |
+| `ElementPlacer.RoadPlacer` | Adds, inserts and moves road points, creates and joins intersections. Clicking the line along another road (`RoadSplitLine`) connects the road to its middle, splitting it (`RoadSplitter`). When this is the first point, the split waits for the second point. |
 | `ElementPlacer.TerrainPlacer` | Adds perimeter, internal and border mesh points to a terrain patch (snapping to anchors and existing points). |
 | `ElementPlacer.BuildingPlacer` | Adds points to a building line and marks dividing points. |
 | `ElementPlacer.MeshPlacer` | Places mesh instances, using the layer mask from the core's mesh instance rules. |

@@ -27,6 +27,8 @@ public partial class ElementManager : Scriptable {
     Dictionary<System.Type, GameObject> dummies = new Dictionary<System.Type, GameObject>();
     public CityBuilderMenuBar builder;
     float lastGCTime = 0.0f;
+    //the parts of the roads split by the last action, finished at the next update (see RoadSplitter.FinishPart)
+    readonly Dictionary<Road, RoadSplitter.Part> splitParts = new Dictionary<Road, RoadSplitter.Part>();
 
     public GameObject GetDummyContainer<T>() {
         if (typeof(T) == typeof(CityProperties)) {
@@ -128,6 +130,58 @@ public partial class ElementManager : Scriptable {
     public void AddIntersection(Intersection intersection, int id = -1) {
         intersections.Add(intersection);
         History.ElementRegistry.Register(intersection, id);
+    }
+
+    public RoadSplitter.Part GetSplitPart(Road road) {
+        return splitParts.TryGetValue(road, out var part) ? part : null;
+    }
+
+    public void SetSplitPart(Road road, RoadSplitter.Part part) {
+        splitParts[road] = part;
+    }
+
+    //the control points of the split roads are finished when the sizes of the intersections at their ends are known
+    void FinishSplitParts() {
+        var parts = new List<RoadSplitter.Part>(splitParts.Values);
+        splitParts.Clear();
+        //the sizes depend on the curves near the intersections: the parts with points ending up inside are finished again
+        for (int pass = 0; pass < 3 && parts.Count > 0; pass++) {
+            var changed = new List<RoadSplitter.Part>();
+            foreach (var part in parts) {
+                if (!RoadSplitter.FinishPart(part)) continue;
+                part.road.UpdateLine();
+                changed.Add(part);
+            }
+            if (changed.Count == 0) return;
+            foreach (var intersection in intersections) {
+                intersection.RecalculateSize();
+            }
+            parts = changed.FindAll(RoadSplitter.HasPointsInsideCuts);
+        }
+    }
+
+    //a new road with the default preset and no points
+    public Road CreateRoad() {
+        var container = GetRoadContainer();
+        var name = "Road " + Actions.Helpers.GetLatestObjectNumber(container, "Road ");
+        var road = GS.Create<Road>(name);
+        road.Initialize();
+        AddRoad(road);
+        GO.SetParent(road, container);
+        return road;
+    }
+
+    //a new intersection with no roads
+    public Intersection CreateIntersection(Vector3 position) {
+        var newObj = (StaticBody3D)GameEngine.Resources.InstantiateObject("Handle");
+        GO.SetPosition(newObj, position);
+        var handle = GS.Cast<Handle>(newObj);
+        handle.SetScale(GameEngine.Vector3.one * 3);
+        handle.SetHandleActive(false);
+        var intersection = new Intersection(newObj, GetRoadContainer());
+        AddIntersection(intersection);
+        GO.SetParent(intersection.geo, GetRoadContainer());
+        return intersection;
     }
 
     public void AddPatch(TerrainPatch patch, int id = -1) {
@@ -353,6 +407,7 @@ public partial class ElementManager : Scriptable {
         foreach (var intersection in intersections) {
             intersection.RecalculateSize();
         }
+        FinishSplitParts();
         var roadsRebuilt = 0;
         var intersectionsRebuilt = 0;
         foreach (var road in roads) {

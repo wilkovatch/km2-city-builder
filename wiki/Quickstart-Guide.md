@@ -210,6 +210,8 @@ The road properties are divided in several tabs (*Main*, *Inters.*, *Traffic*, *
 
 To create an intersection, connect two or more roads: place the first or the last control point of a road on the end of another road (the available ones are highlighted in cyan).
 
+A road can also be connected to the middle of another road: while placing points, the other roads are highlighted with a cyan line along them. Placing the first or the last control point on that line creates an intersection there, and splits the other road in two roads with the same properties (if it is the first point, this happens when the second point is placed). Note that the two roads created by the splitting might have improperly placed control points causing malformed shapes (especially when splitting a Hermite spline road), if this happens simply remove the offending control points (usually the ones close to the intersection or close to the ends).
+
 To edit an intersection, click on it (or select it in the object list).
 
 ![The intersection editor](images/intersection-editor.jpg)

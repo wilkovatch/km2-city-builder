@@ -184,55 +184,28 @@ public static class GeometryHelper {
                 }
                 return tempPoints[0];
             case CurveType.Hermite:
-                var factor = 1.0f / (tempPoints.Count - 1);
                 var segmentCount = tempPoints.Count - 1;
-                var factors = new List<float>();
-                var starts = new List<float>();
-                var ends = new List<float>();
-                var max = 1.0f;
-                if (subdivideEqually) {
-                    max = 0.0f;
-                    for (int i = 0; i < segmentCount; i++) {
-                        var p1 = tempPoints[i];
-                        var p2 = tempPoints[i + 1];
-                        var f = GameEngine.Vector3.Magnitude(p2 - p1);
-                        factors.Add(f);
-                        starts.Add(max);
-                        max += f;
-                        ends.Add(max);
-                    }
-                    alpha *= max;
-                }
-                for (int i = 0; i < segmentCount; i++) {
-                    var startI = subdivideEqually ? starts[i] : ((float)i / segmentCount);
-                    var endI = subdivideEqually ? ends[i] : ((float)(i + 1) / segmentCount);
-                    var factorI = subdivideEqually ? factors[i] : factor;
-                    var match = (alpha <= 0 && i == 0) || (alpha >= max && i == (segmentCount - 1)) || (alpha >= startI && alpha < endI);
-                    if (match) {
-                        alpha -= startI;
-                        alpha /= factorI;
+                var span = GetHermiteSpan(tempPoints, alpha, subdivideEqually, out var a);
+                if (span >= 0) {
+                    var a2 = a * a;
+                    var a3 = a2 * a;
 
-                        var a = alpha;
-                        var a2 = a * a;
-                        var a3 = a2 * a;
+                    var p0 = span < 1 ? start : tempPoints[span - 1];
+                    var p1 = tempPoints[span];
+                    var p2 = tempPoints[span + 1];
+                    var p3 = span > (segmentCount - 2) ? end : tempPoints[span + 2];
 
-                        var p0 = i < 1 ? start : tempPoints[i - 1];
-                        var p1 = tempPoints[i];
-                        var p2 = tempPoints[i + 1];
-                        var p3 = i > (segmentCount - 2) ? end : tempPoints[i + 2];
+                    var t1 = hermiteTension * (p2 - p0);
+                    var t2 = hermiteTension * (p3 - p1);
 
-                        var t1 = hermiteTension * (p2 - p0);
-                        var t2 = hermiteTension * (p3 - p1);
+                    var b1 = 2 * a3 - 3 * a2 + 1;
+                    var b2 = -2 * a3 + 3 * a2;
+                    var b3 = a3 - 2 * a2 + a;
+                    var b4 = a3 - a2;
 
-                        var b1 = 2 * a3 - 3 * a2 + 1;
-                        var b2 = -2 * a3 + 3 * a2;
-                        var b3 = a3 - 2 * a2 + a;
-                        var b4 = a3 - a2;
-
-                        var res = b1 * p1 + b2 * p2 + b3 * t1 + b4 * t2;
-                        if (float.IsNaN(res[0]) || float.IsNaN(res[1]) || float.IsNaN(res[2])) res = GameEngine.Vector3.zero;
-                        return res;
-                    }
+                    var res = b1 * p1 + b2 * p2 + b3 * t1 + b4 * t2;
+                    if (float.IsNaN(res[0]) || float.IsNaN(res[1]) || float.IsNaN(res[2])) res = GameEngine.Vector3.zero;
+                    return res;
                 }
                 break;
             case CurveType.LowPoly:
@@ -240,6 +213,73 @@ public static class GeometryHelper {
                 return tempPoints[fixedAlphaI];
         }
         return GameEngine.Vector3.zero;
+    }
+
+    //the span of a Hermite curve through the points containing alpha (-1 if none), and the position in it
+    public static int GetHermiteSpan(List<Vector3> points, float alpha, bool subdivideEqually, out float localAlpha) {
+        var factor = 1.0f / (points.Count - 1);
+        var segmentCount = points.Count - 1;
+        var factors = new List<float>();
+        var starts = new List<float>();
+        var ends = new List<float>();
+        var max = 1.0f;
+        if (subdivideEqually) {
+            max = 0.0f;
+            for (int i = 0; i < segmentCount; i++) {
+                var f = GameEngine.Vector3.Magnitude(points[i + 1] - points[i]);
+                factors.Add(f);
+                starts.Add(max);
+                max += f;
+                ends.Add(max);
+            }
+            alpha *= max;
+        }
+        for (int i = 0; i < segmentCount; i++) {
+            var startI = subdivideEqually ? starts[i] : ((float)i / segmentCount);
+            var endI = subdivideEqually ? ends[i] : ((float)(i + 1) / segmentCount);
+            var factorI = subdivideEqually ? factors[i] : factor;
+            var match = (alpha <= 0 && i == 0) || (alpha >= max && i == (segmentCount - 1)) || (alpha >= startI && alpha < endI);
+            if (match) {
+                localAlpha = (alpha - startI) / factorI;
+                return i;
+            }
+        }
+        localAlpha = 0.0f;
+        return -1;
+    }
+
+    //the curve parameter (alpha) of each point of a Hermite curve
+    public static List<float> GetHermiteKnots(List<Vector3> points, bool subdivideEqually) {
+        var res = new List<float>();
+        var segmentCount = points.Count - 1;
+        if (!subdivideEqually) {
+            for (int i = 0; i <= segmentCount; i++) res.Add((float)i / segmentCount);
+            return res;
+        }
+        var lengths = new List<float> { 0.0f };
+        for (int i = 0; i < segmentCount; i++) {
+            lengths.Add(lengths[i] + GameEngine.Vector3.Magnitude(points[i + 1] - points[i]));
+        }
+        var max = lengths[segmentCount];
+        for (int i = 0; i <= segmentCount; i++) res.Add(max > 0 ? lengths[i] / max : (float)i / segmentCount);
+        return res;
+    }
+
+    //splits a Bézier curve at alpha (de Casteljau), the two control polygons describe exactly the two parts of the curve
+    public static (List<Vector3> left, List<Vector3> right) SplitBezier(List<Vector3> controlPolygon, float alpha) {
+        var left = new List<Vector3>();
+        var right = new List<Vector3>();
+        var level = new List<Vector3>(controlPolygon);
+        while (level.Count > 0) {
+            left.Add(level[0]);
+            right.Insert(0, level[level.Count - 1]);
+            var next = new List<Vector3>();
+            for (int i = 0; i < level.Count - 1; i++) {
+                next.Add(level[i] + (level[i + 1] - level[i]) * alpha);
+            }
+            level = next;
+        }
+        return (left, right);
     }
 
     public static List<Vector3> LowPassFilter(List<Vector3> curvePoints, int iterations, int segments) {

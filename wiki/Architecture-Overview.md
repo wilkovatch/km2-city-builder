@@ -119,6 +119,7 @@ Elements are put on numbered layers, used to choose what each mouse tool can hit
 | 11 | Mesh instances not flagged as props (MM2 core) |
 | 12 | Point links (segments between terrain points) |
 | 13 | Props |
+| 14 | Lines along the roads, to connect another road to their middle |
 
 Layers can be referenced by cores in the mesh instance placement rules (see [Core Props and Objects](Core-Props-and-Objects)).
 

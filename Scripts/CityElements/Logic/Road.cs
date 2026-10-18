@@ -28,6 +28,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     CityElements.Types.Runtime.RoadType curType;
 
     public TerrainAnchorLineManager anchorManager;
+    public RoadSplitLine splitLine;
 
     public bool deleted = false;
     public bool cityPropertiesInjected = false; //the parameters injected by the city properties are in runtimeState
@@ -41,6 +42,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         generator = GS.Cast<RoadGenerator>(generatorObj);
         generator.Initialize(state);
         anchorManager = new TerrainAnchorLineManager(this);
+        splitLine = RoadSplitLine.Create(this);
     }
 
     public ObjectState GetState() {
@@ -106,6 +108,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             if (startIntersection == null) ShowIntersectionPoint(points[0]);
             if (endIntersection == null) ShowIntersectionPoint(points[points.Count - 1]);
         }
+        //the other roads can be connected to the middle of this one while their points are placed
+        splitLine.SetActive(!active && activeIntersection && points.Count >= 2);
         if (active) MarkLastPoint();
 
         if (startIntersection != null) startIntersection.SetActive(active, true);
@@ -170,8 +174,13 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         }
     }
 
-    //sets the control points to the given positions (used by undo/redo)
+    //sets the control points to the given positions (used by undo/redo and when splitting the road)
     public void RestorePoints(List<Vector3> positions) {
+        //the old end points may end up in the middle, without the look and layer of the free road ends
+        if (points.Count > 0) {
+            ResetIntersectionPoint(points[0]);
+            ResetIntersectionPoint(points[points.Count - 1]);
+        }
         while (points.Count > positions.Count) {
             var obj = points[points.Count - 1];
             points.RemoveAt(points.Count - 1);
@@ -188,6 +197,15 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             GO.SetPosition(points[i], positions[i]);
         }
         generator.lr.enabled = activeSelf && points.Count > 0;
+        MarkLastPoint();
+    }
+
+    public void RemoveControlPoints(List<PhysicsGameObject> toRemove) {
+        History.UndoManager.Touch(this);
+        foreach (var point in toRemove) {
+            if (points.Count <= 2 || !points.Remove(point)) continue;
+            GO.Destroy(point);
+        }
         MarkLastPoint();
     }
 
@@ -245,6 +263,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     }
 
     public int GetSegments() {
+        //the generator needs at least two segments, even while the road has not been placed yet
+        if (points.Count < 2) return 2;
         if (GetCurveType() == GeometryHelper.CurveType.LowPoly) return points.Count;
         var canBeSimplified = GetStandardBool("canBeSimplified");
         if (!state.Bool("projectAll") && points.Count <= 2 && canBeSimplified) return 2;
@@ -348,6 +368,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             centerLines.Add(generator.GetCurvePoints());
         }
         anchorManager.Update(GO.GetObject(this), generator.sidePoints, startConns, endConns, centerLines);
+        splitLine.MarkDirty();
 
         UpdateOlds();
     }

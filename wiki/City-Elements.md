@@ -36,6 +36,7 @@ The node that owns every element of the open city, in the lists `roads`, `inters
 * **Dummies**: hidden elements (`GetDummy<T>`, `GetDummyIntersection`) used when editing presets without a real element, plus the `CityProperties` object, which is a dummy that stays active.
 * **City-wide operations**: `EraseCity`, `EraseCityTerrain`, `EraseCityBuildings`, `CloseCity`, and the generators `CreateCityTerrain` / `CreateCityBuildings` (see `CitywideTerrainGenerator` and `CitywideBuildingGenerator` in [Geometry Generation](Geometry-Generation)).
 * Visibility helpers: `ShowIntersections`, `ShowAnchors`, `ShowAllTrafficLanes`, `GetObjectList`.
+* Creation helpers: `CreateRoad` (a new road with the default preset, numbered after the existing ones) and `CreateIntersection` (a new intersection with no roads at a position), used by the road placer and the road splitter.
 
 ## Roads
 
@@ -49,7 +50,15 @@ A road is a curve through a list of control points (`points`, handle nodes the u
 * **Mesh**: `RebuildMesh` fills the runtime state, moves the road ends back by the intersection sizes, and passes everything to its `RoadGenerator`. Afterwards it updates the terrain anchors along the road edges (`anchorManager`).
 * **Standard getters**: `GetStandardFloat/Bool/Vec3/Vec2/String` read the values the core maps in `getters` (total width, height, ...), used by intersections and other code that must understand roads of any type.
 * **Runtime values**: `GetRuntimeFloat/Bool/Vec3/Vec2` (from `IObjectWithStateAndRuntimeType`) evaluate any definition of the road type, used for example to enable the buttons of conditional parametric objects.
+* **Split line**: `splitLine` (a `RoadSplitLine`) is shown along the curve while the free road ends are shown to place another road (`SetActive(false, true)`), so that the other road can be connected to the middle of this one (see below).
 * **Parametric objects**: `Road` is a `ParametricObjectContainer`. For `objectInstance` parameters with a *road choice* (for example the MM2 traffic lights, which can be placed on another road of the intersection), `GetObjectRoad` picks the road to evaluate on (by index or by best score among the roads of the intersection), copies the requested input values to it (`CopyInputVariables`) and evaluates the late definitions there.
+
+### Connecting a road to the middle of another one
+
+| Class | Role |
+|---|---|
+| `RoadSplitLine` (`Logic/Helpers/RoadSplitLine.cs`) | A cyan line along the curve of a road, with a collider around it on layer 14 (a tube at least as thick as the point link capsules, and as wide as the line, which gets wider with the camera distance). It leaves out the parts of the curve covered by the intersections at the road ends, plus a margin. `Resolve` gives the point of the line closest to a hit, as a curve segment and a position in it. The line is rebuilt after each rebuild of the road mesh (when the intersection sizes are known), or when it is shown. |
+| `RoadSplitter` (`Logic/Helpers/RoadSplitter.cs`) | Splits a road at a point of its curve. The road keeps the first part and a new road with the same `state` and `instanceState` gets the second one. The end intersection is moved to the new road, and a new intersection connects the two parts. The through road flags of the old end go to the new road, the new intersection has none. The anchors of the split road are recreated, so the terrain points anchored to it stay in place, unanchored. The control points of the parts follow the original curve exactly for Bézier curves (de Casteljau subdivision, `GeometryHelper.SplitBezier`) and low-poly curves. Since the road mesh starts only at the intersection size from its center, control points inside an intersection would fold the mesh. So for low-poly and Hermite curves the parts are finished at the next update (`ElementManager.FinishSplitParts`, `RoadSplitter.FinishPart`), when the intersection sizes are known: their control points inside the new intersection are removed. Hermite curves can't be split exactly (except the straight ones, with two points), so up to a few points of the original curve are added to each part outside the intersections, where they bring the visible part of the road closest to the original curve (horizontally, for roads projected on the terrain). A part of a road split by the same action (both ends of a road on the middle of the same road) is split again on the original curve, so the errors don't add up. |
 
 ### `Intersection` (`Logic/Intersection.cs`)
 

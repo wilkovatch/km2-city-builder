@@ -31,6 +31,10 @@ namespace History {
                     //a copy of an existing city: the editors open before undo/redo must be reopened after it
                     var test = new UndoSelfTest { builder = builder, folder = arg.Substring("--undo-selftest-ui=".Length), Name = "UndoSelfTest", uiRestore = true };
                     builder.AddChild(test);
+                } else if (arg.StartsWith("--undo-selftest-split=")) {
+                    //only the tests of the roads connected to the middle of other roads, on a new city
+                    var test = new UndoSelfTest { builder = builder, folder = arg.Substring("--undo-selftest-split=".Length), Name = "UndoSelfTest", splitOnly = true };
+                    builder.AddChild(test);
                 } else if (arg.StartsWith("--undo-selftest-load=")) {
                     //a copy of an existing city: the terrain under its intersections is edited, undone and redone
                     var test = new UndoSelfTest { builder = builder, folder = arg.Substring("--undo-selftest-load=".Length), Name = "UndoSelfTest", loadExisting = true };
@@ -40,6 +44,7 @@ namespace History {
         }
 
         bool propsSelection = false;
+        bool splitOnly = false;
 
         static object Invoke(object obj, string name, params object[] args) {
             for (var type = obj.GetType(); type != null; type = type.BaseType) {
@@ -479,6 +484,7 @@ namespace History {
             if (uiRestore) RunUIRestore();
             else if (propsSelection) RunPropsSelection();
             else if (loadExisting) RunOnExistingCity();
+            else if (splitOnly) RunSplit();
             else Run();
         }
 
@@ -703,14 +709,14 @@ namespace History {
             return ok;
         }
 
-        void CreateCity() {
+        void CreateCity(int terrainSize = 512) {
             Directory.CreateDirectory(folder);
             var templatesPath = Path.Combine(PathHelper.BasePath(), "Files", "cores", "MidtownMadness2", "templates");
             PathHelper.DirectoryCopy(Path.Combine(templatesPath, "_common"), folder);
             PathHelper.DirectoryCopy(Path.Combine(templatesPath, "SF"), folder);
             var savedCity = new IO.SavedCity.SavedCity();
             savedCity.heightmapResolution = 512;
-            savedCity.terrainSize = 512;
+            savedCity.terrainSize = terrainSize;
             savedCity.heightMap = "";
             savedCity.maxHeight = 1000;
             var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.Indented);
@@ -804,23 +810,355 @@ namespace History {
             Check("coalesced steps are undone at once", road != null && GO.GetPosition(road.points[0]).DistanceTo(orig) < 0.01f);
         }
 
+        static List<Vector3> ControlPoints(Road road) {
+            var res = new List<Vector3>();
+            foreach (var p in road.points) res.Add(GO.GetPosition(p));
+            return res;
+        }
+
+        //the curve of the road sampled densely from its control points, horizontally (the test roads are projected on the
+        //terrain, so the heights of the curve between them don't matter)
+        static List<Vector3> DenseCurve(Road road) {
+            var res = DenseCurve3D(road);
+            for (int i = 0; i < res.Count; i++) res[i] = new Vector3(res[i].X, 0, res[i].Z);
+            return res;
+        }
+
+        static List<Vector3> DenseCurve3D(Road road) {
+            var cps = ControlPoints(road);
+            var res = new List<Vector3>();
+            if (cps.Count < 2) return res;
+            var type = road.GetCurveType();
+            if (type == GeometryHelper.CurveType.LowPoly) {
+                for (int i = 0; i < cps.Count - 1; i++) {
+                    for (int j = 0; j < 20; j++) res.Add(cps[i].Lerp(cps[i + 1], j / 20.0f));
+                }
+                res.Add(cps[cps.Count - 1]);
+                return res;
+            }
+            var mid = cps.GetRange(1, cps.Count - 2);
+            var tension = road.state.Float("hermiteTension", 0.5f);
+            var subdivideEqually = road.state.Bool("subdivideEqually");
+            for (int i = 0; i <= 400; i++) {
+                res.Add(GeometryHelper.GetPointOnCurve(cps[0], mid, cps[cps.Count - 1], i / 400.0f, i, type, tension, subdivideEqually));
+            }
+            return res;
+        }
+
+        //the control points of the road (not the ends) inside the intersection, where the road mesh starts only at the
+        //intersection size from its center
+        static int ControlPointsInsideIntersection(Road road, Intersection intersection) {
+            var idx = intersection == null ? -1 : intersection.roads.IndexOf(road);
+            if (idx < 0 || idx >= intersection.sizes.Count) return 0;
+            var center = GO.GetPosition(intersection.point);
+            var res = 0;
+            for (int i = 1; i < road.points.Count - 1; i++) {
+                var d = GO.GetPosition(road.points[i]) - center;
+                if (new Vector2(d.X, d.Z).Length() < intersection.sizes[idx]) res++;
+            }
+            return res;
+        }
+
+        static float DistanceToCurves(Vector3 point, List<List<Vector3>> curves) {
+            var res = float.MaxValue;
+            foreach (var curve in curves) res = Mathf.Min(res, point.DistanceTo(GeometryHelper.ClosestPointToCurve(point, curve, out _)));
+            return res;
+        }
+
+        //the largest distance between the parts of a split road and the original curve, both ways, outside the
+        //intersections at the ends of the parts (where the road is not shown)
+        static float SplitDeviation(List<Vector3> original, List<Road> parts, bool bothWays = true) {
+            var hidden = new List<(Vector3 center, float radius)>();
+            foreach (var part in parts) {
+                foreach (var intersection in new[] { part.startIntersection, part.endIntersection }) {
+                    var idx = intersection == null ? -1 : intersection.roads.IndexOf(part);
+                    if (idx >= 0 && idx < intersection.sizes.Count) hidden.Add((GO.GetPosition(intersection.point), intersection.sizes[idx]));
+                }
+            }
+            bool IsHidden(Vector3 p) {
+                foreach (var (center, radius) in hidden) {
+                    if (new Vector2(p.X - center.X, p.Z - center.Z).Length() < radius) return true;
+                }
+                return false;
+            }
+            var partCurves = new List<List<Vector3>>();
+            foreach (var part in parts) partCurves.Add(DenseCurve(part));
+            var originalCurves = new List<List<Vector3>> { original };
+            var res = 0.0f;
+            foreach (var curve in partCurves) {
+                foreach (var p in curve) {
+                    if (!IsHidden(p)) res = Mathf.Max(res, DistanceToCurves(p, originalCurves));
+                }
+            }
+            if (bothWays) {
+                foreach (var p in original) {
+                    if (!IsHidden(p)) res = Mathf.Max(res, DistanceToCurves(p, partCurves));
+                }
+            }
+            return res;
+        }
+
+        //connecting roads to the middle of other roads (for each curve type), which are split there
+        async Task SplitTests() {
+            UndoManager.Clear();
+            await Frames(6);
+            var curveTypes = new List<(string name, GeometryHelper.CurveType type, bool subdivideEqually)> {
+                ("Bézier", GeometryHelper.CurveType.Bezier, false),
+                ("Hermite", GeometryHelper.CurveType.Hermite, false),
+                ("Hermite subdivided equally", GeometryHelper.CurveType.Hermite, true),
+                ("low-poly", GeometryHelper.CurveType.LowPoly, false),
+                ("straight Hermite", GeometryHelper.CurveType.Hermite, false)
+            };
+            var steps = new List<(string name, System.Action action, System.Action check)>();
+            for (int k = 0; k < curveTypes.Count; k++) {
+                var kind = k;
+                var (typeName, curveType, subdivideEqually) = curveTypes[k];
+                //arches 600 m wide (the default road type is 40 m wide), the connected roads meet them at wide angles
+                var x = k == 4 ? 0.0f : k % 2 == 0 ? -450.0f : 450.0f;
+                var z = k == 4 ? -300.0f : k < 2 ? -700.0f : 100.0f;
+                Road road = null, other = null;
+                List<Vector3> original = null;
+                var roadsBefore = new HashSet<Road>();
+                TerrainPoint anchoredPoint = null;
+                var anchoredPosition = Vector3.Zero;
+                Vector3 originalEnd = Vector3.Zero;
+                Vector3 MiddlePoint(int curveIndex) => road.splitLine.Resolve(road.curvePoints[curveIndex]).Value.point;
+                List<Road> Parts() {
+                    var res = new List<Road> { road };
+                    foreach (var r in M.roads) {
+                        if (ElementSnapshot.IsAlive(r) && !roadsBefore.Contains(r) && r != other) res.Add(r);
+                    }
+                    return res;
+                }
+
+                steps.Add(("split: create " + typeName + " road", () => {
+                    road = new ElementPlacer.RoadPlacer(M).GetRoad();
+                    road.AddPoint(new Vector3(x - 300, 0, z));
+                    if (kind == 4) {
+                        //a straight road on bumpy terrain: the split point is projected on it, off the straight line between the ends
+                        var terrain = builder.helper.terrainObj;
+                        var pixelSize = GameEngine.Terrain.GetPixelSize(terrain);
+                        var half = GameEngine.Terrain.GetSize(terrain) * 0.5f;
+                        int x0 = (int)((x - 320 + half) / pixelSize), y0 = (int)((z - 40 + half) / pixelSize);
+                        int w = (int)(640 / pixelSize), h = (int)(80 / pixelSize);
+                        UndoManager.TouchHeights(x0, y0, w, h);
+                        var heights = GameEngine.Terrain.GetHeights(terrain, x0, y0, w, h);
+                        for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) heights[j, i] += 0.01f * (1.0f + Mathf.Sin(i * 0.15f));
+                        GameEngine.Terrain.SetHeightsDelayLOD(terrain, x0, y0, heights);
+                        GameEngine.Terrain.SyncHeightmap(terrain);
+                    } else {
+                        road.AddPoint(new Vector3(x - 120, 0, z + 150));
+                        road.AddPoint(new Vector3(x + 120, 0, z + 150));
+                    }
+                    road.AddPoint(new Vector3(x + 300, 0, z - (kind == 3 ? 300 : 0)));
+                    road.state.SetInt("curveType", (int)curveType);
+                    road.state.SetBool("subdivideEqually", subdivideEqually);
+                }, () => {
+                    original = DenseCurve(road);
+                    originalEnd = GO.GetPosition(road.points[road.points.Count - 1]);
+                    Check("split: the " + typeName + " road has a curve", road.curvePoints.Count > 1 && road.splitLine.Resolve(road.curvePoints[1]).HasValue);
+                }));
+                if (kind == 0) {
+                    steps.Add(("split: create terrain patch anchored to the " + typeName + " road", () => {
+                        var patch = new ElementPlacer.TerrainPlacer(M).GetPatch();
+                        var anchors = road.anchorManager.GetTerrainAnchors();
+                        var anchor = anchors[anchors.Count / 4];
+                        patch.AddPerimeterPoint(anchor.GetObject(), anchor.GetPoint(), true);
+                        patch.AddPerimeterPoint(null, anchor.GetPoint() + new Vector3(20, 0, 30), true);
+                        patch.AddPerimeterPoint(null, anchor.GetPoint() + new Vector3(-20, 0, 30), true);
+                        anchoredPoint = patch.GetPerimeterPointsComponents()[0];
+                    }, () => {
+                        anchoredPosition = anchoredPoint.GetPoint();
+                        Check("split: the patch point is anchored to the road", !GO.IsNull(anchoredPoint.anchor) && !anchoredPoint.anchor.IsDeleted());
+                    }));
+                }
+                steps.Add(("split: connect a road to the middle of the " + typeName + " road", () => {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    M.ShowIntersections(true); //as the road editor does in the add mode: the free road ends are enlarged
+                    roadsBefore = new HashSet<Road>(M.roads);
+                    var placer = new ElementPlacer.RoadPlacer(M);
+                    other = placer.GetRoad();
+                    roadsBefore.Add(other);
+                    var mid = road.curvePoints.Count / 2;
+                    switch (kind) {
+                        case 0: //from the terrain to the middle
+                        case 4:
+                            other.AddPoint(new Vector3(x, 0, z + 400));
+                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(mid));
+                            break;
+                        case 1: //from the middle to the terrain, after abandoning a road started on the middle
+                            var abandonedPlacer = new ElementPlacer.RoadPlacer(M);
+                            var abandoned = abandonedPlacer.GetRoad();
+                            Invoke(abandonedPlacer, "ConnectToMiddle", road, MiddlePoint(mid));
+                            Check("split: a road started on the middle does not split it yet", road.endIntersection == null && abandoned.points.Count == 1);
+                            abandoned.Delete();
+                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(mid));
+                            Check("split: the first point does not split the road", road.endIntersection == null);
+                            Invoke(placer, "AddTerrainPoint", new Vector3(x, 0, z + 400), null);
+                            break;
+                        case 2: //from the middle to another point of the middle of the same road
+                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(mid / 2));
+                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(mid + mid / 2));
+                            break;
+                        case 3: //from the middle (on a control point) to the end of the same road
+                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(1));
+                            Invoke(placer, "ConnectToHandle", road.points[road.points.Count - 1]);
+                            break;
+                    }
+                    Log("  split " + typeName + " in " + watch.ElapsedMilliseconds + " ms");
+                }, () => {
+                    var parts = Parts();
+                    var deviation = SplitDeviation(original, parts);
+                    //a Hermite curve can't be split exactly, and the test roads are very curvy (the road connecting two points
+                    //of the same road meets it at shallow angles, making intersections almost 100 m large)
+                    var tolerance = curveType == GeometryHelper.CurveType.Hermite ? 1.5f : 0.02f;
+                    var pointCount = 0;
+                    foreach (var part in parts) pointCount += part.points.Count;
+                    var partDeviations = "";
+                    foreach (var part in parts) partDeviations += " " + part.points.Count + ":" + SplitDeviation(original, new List<Road> { part }, false);
+                    Log("  split " + typeName + ": " + parts.Count + " parts, " + pointCount + " points, deviation " + deviation + " (points:deviation of each part" + partDeviations + ")");
+                    Check("split: the parts of the " + typeName + " road follow its curve", deviation <= tolerance);
+                    bool HasRoads(Intersection i, int count) => i != null && !i.IsDeleted() && i.roads.Count == count;
+                    switch (kind) {
+                        case 0:
+                            Check("split: the road ends on the middle of the other one", parts.Count == 2 && HasRoads(other.endIntersection, 3)
+                                && other.endIntersection == road.endIntersection && parts[1].startIntersection == road.endIntersection);
+                            break;
+                        case 1:
+                            Check("split: the road starts on the middle of the other one", parts.Count == 2 && HasRoads(other.startIntersection, 3)
+                                && other.startIntersection == road.endIntersection && other.endIntersection == null);
+                            break;
+                        case 2:
+                            Check("split: the road connects two points of the middle of the same road", parts.Count == 3 && HasRoads(other.startIntersection, 3)
+                                && HasRoads(other.endIntersection, 3) && other.startIntersection != other.endIntersection);
+                            break;
+                        case 3:
+                            Check("split: the road connects the middle and the end of the same road", parts.Count == 2 && HasRoads(other.startIntersection, 3)
+                                && HasRoads(other.endIntersection, 2) && other.endIntersection.roads.Contains(parts[1])
+                                && GO.GetPosition(other.endIntersection.point).DistanceTo(originalEnd) < 0.01f);
+                            break;
+                        case 4:
+                            Check("split: the parts of a straight road have two points", parts.Count == 2 && parts[0].points.Count == 2 && parts[1].points.Count == 2);
+                            Check("split: the straight road is on bumpy terrain", Mathf.Abs(GO.GetPosition(road.points[1]).Y - GO.GetPosition(road.points[0]).Y) > 0.5f
+                                || Mathf.Abs(GO.GetPosition(road.points[1]).Y - (GO.GetPosition(road.points[0]).Y + GO.GetPosition(parts[1].points[1]).Y) * 0.5f) > 0.5f);
+                            break;
+                    }
+                    var pointsInside = 0;
+                    var pointsAsEnds = 0;
+                    foreach (var part in parts) {
+                        if (curveType != GeometryHelper.CurveType.Bezier) {
+                            pointsInside += ControlPointsInsideIntersection(part, part.startIntersection);
+                            pointsInside += ControlPointsInsideIntersection(part, part.endIntersection);
+                        }
+                        for (int i = 1; i < part.points.Count - 1; i++) {
+                            if (GO.GetLayer(part.points[i]) == 9) pointsAsEnds++;
+                        }
+                    }
+                    Check("split: no control points of the " + typeName + " road parts inside the intersections", pointsInside == 0);
+                    Check("split: no middle control points of the " + typeName + " road parts look like road ends", pointsAsEnds == 0);
+                    if (anchoredPoint != null) {
+                        Check("split: the anchored patch point stays in place, unanchored", (GO.IsNull(anchoredPoint.anchor) || anchoredPoint.anchor.IsDeleted())
+                            && anchoredPoint.GetPoint().DistanceTo(anchoredPosition) < 0.01f);
+                        anchoredPoint = null;
+                    }
+                }));
+            }
+
+            var snaps = new List<Dictionary<int, string>> { Snapshot() };
+            foreach (var step in steps) {
+                try {
+                    UndoManager.Record(step.name, step.action);
+                } catch (System.Exception e) {
+                    Log("step '" + step.name + "' threw: " + e);
+                    failures++;
+                }
+                M.FlagAsChanged();
+                await Frames(6);
+                try {
+                    step.check();
+                } catch (System.Exception e) {
+                    Log("check of '" + step.name + "' threw: " + e);
+                    failures++;
+                }
+                snaps.Add(Snapshot());
+                Log("done: " + step.name + " (" + snaps[snaps.Count - 1].Count + " elements)");
+            }
+            for (int i = steps.Count - 1; i >= 0; i--) {
+                UndoManager.Undo();
+                await Frames(6);
+                var ok = Compare("undo '" + steps[i].name + "'", snaps[i], Snapshot());
+                Log((ok ? "OK   " : "FAIL ") + "undo " + steps[i].name);
+            }
+            for (int i = 0; i < steps.Count; i++) {
+                UndoManager.Redo();
+                await Frames(6);
+                var ok = Compare("redo '" + steps[i].name + "'", snaps[i + 1], Snapshot());
+                Log((ok ? "OK   " : "FAIL ") + "redo " + steps[i].name);
+            }
+        }
+
         static void PlaceIntersection(ElementPlacer.RoadPlacer placer, Node3D handle, bool addPoint) {
             var method = typeof(ElementPlacer.RoadPlacer).GetMethod("PlaceIntersection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             method.Invoke(placer, new object[] { handle, addPoint });
         }
 
+        async Task LoadNewCity(int terrainSize = 512) {
+            await Frames(30);
+            CreateCity(terrainSize);
+            var waited = 0;
+            while ((PreferencesManager.workingDirectory == "" || UndoManager.IsLoading || M.GetDummy<CityProperties>() == null) && waited < 3000) {
+                await Frames(1);
+                waited++;
+            }
+            await Frames(30);
+            Log("city loaded after " + waited + " frames");
+        }
+
+        //the lines along the roads while placing a road, with the cursor on one of them (split_lines.png next to the folder)
+        async Task SplitLinesScreenshot() {
+            InvokeBuilder("CreateRoad");
+            await Frames(6);
+            var cam = GetViewport().GetCamera3D();
+            GO.SetPosition(cam, new Vector3(-450, 700, -1150));
+            GO.LookAt(cam, new Vector3(-450, 0, -550));
+            await Frames(6);
+            Road hovered = null;
+            foreach (var road in M.roads) {
+                if (ElementSnapshot.IsAlive(road) && GO.GetEnabled(road.splitLine) && road.curvePoints.Count > 2) {
+                    hovered = road;
+                    break;
+                }
+            }
+            Check("split: the lines along the roads are shown while placing a road", hovered != null);
+            if (hovered == null) return;
+            var point = hovered.splitLine.Resolve(hovered.curvePoints[hovered.curvePoints.Count / 2]).Value.point;
+            GetViewport().WarpMouse(cam.UnprojectPosition(GameEngine.Vector3.DecodePosition(point)));
+            await Frames(10);
+            var placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
+            Check("split: the edited road has no line", !GO.GetEnabled(placer.GetRoad().splitLine));
+            GetViewport().GetTexture().GetImage().SavePng(Path.Combine(folder, "..", "split_lines.png"));
+        }
+
+        async void RunSplit() {
+            var lastCity = SettingsManager.Get("LastCity", "");
+            try {
+                await LoadNewCity(2048); //room for roads much longer than the size of their intersections (the default road type is 40 m wide)
+                await SplitTests();
+                await SplitLinesScreenshot();
+            } catch (System.Exception e) {
+                Log("exception: " + e);
+                failures++;
+            }
+            SettingsManager.Set("LastCity", lastCity);
+            Log("finished with " + failures + " failures");
+            File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
+            GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
         async void Run() {
             var lastCity = SettingsManager.Get("LastCity", "");
             try {
-                await Frames(30);
-                CreateCity();
-                var waited = 0;
-                while ((PreferencesManager.workingDirectory == "" || UndoManager.IsLoading || M.GetDummy<CityProperties>() == null) && waited < 3000) {
-                    await Frames(1);
-                    waited++;
-                }
-                await Frames(30);
-                Log("city loaded after " + waited + " frames");
+                await LoadNewCity();
                 UndoManager.Clear();
 
                 Road roadA = null, roadB = null, roadC = null;
@@ -967,6 +1305,7 @@ namespace History {
                     Log((ok ? "OK   " : "FAIL ") + "undo again " + steps[i].name);
                 }
                 await MenuLevelTests();
+                await SplitTests();
             } catch (System.Exception e) {
                 Log("exception: " + e);
                 failures++;

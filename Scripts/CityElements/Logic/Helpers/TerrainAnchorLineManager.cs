@@ -26,6 +26,11 @@ public class TerrainAnchorLineManager {
         }
     }
 
+    //the next update recreates the anchors instead of moving the existing ones (and the terrain points anchored to them)
+    public void Invalidate() {
+        oldAnchors = new List<List<Vector3>>();
+    }
+
     public List<TerrainAnchor> GetTerrainAnchors() {
         var res = new List<TerrainAnchor>();
         res.AddRange(terrainAnchors);
