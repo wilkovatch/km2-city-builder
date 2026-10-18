@@ -1,0 +1,161 @@
+# Builds the Windows and Linux versions and publishes them as a GitHub release
+# whenever a push to main changes the files used by the program (wiki and documentation changes are ignored).
+# The release is tagged v<Version>-<short commit hash>, with <Version> taken from the csproj,
+# and its description lists the commits since the previous release.
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**'
+      - '!wiki/**'
+      - '!**.md'
+      - '!.vscode/**'
+      - '!.github/workflows/wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.1
+  PANDOC_VERSION: 3.12.1
+  TYPST_VERSION: 0.15.1
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the full history is needed for the tags, the changelog and the date in the quickstart guide
+          fetch-depth: 0
+
+      - name: Determine the version
+        id: version
+        run: |
+          VERSION=$(grep -oP '(?<=<Version>)[^<]+' "km2 City Builder.csproj")
+          HASH=$(git rev-parse --short HEAD)
+          TAG="v$VERSION-$HASH"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "HASH=$HASH" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          if git rev-parse -q --verify "refs/tags/$TAG" > /dev/null; then
+            echo "The release $TAG already exists, nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-dotnet@v4
+        if: steps.version.outputs.exists == 'false'
+        with:
+          dotnet-version: 9.0.x
+
+      # pandoc and typst build the quickstart guide PDF, Carlito replaces Calibri (same metrics)
+      - name: Install the quickstart guide tools
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-crosextra-carlito
+          curl -fsSL -o pandoc.deb "https://github.com/jgm/pandoc/releases/download/$PANDOC_VERSION/pandoc-$PANDOC_VERSION-1-amd64.deb"
+          sudo dpkg -i pandoc.deb
+          rm pandoc.deb
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/typst/typst/releases/download/v$TYPST_VERSION/typst-x86_64-unknown-linux-musl.tar.xz" \
+            | tar -xJ --strip-components=1 -C "$HOME/.local/bin" typst-x86_64-unknown-linux-musl/typst
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Godot
+        id: godot-cache
+        if: steps.version.outputs.exists == 'false'
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-download
+          key: godot-${{ env.GODOT_VERSION }}-mono-linux
+
+      - name: Download Godot and the export templates
+        if: steps.version.outputs.exists == 'false' && steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          base="https://github.com/godotengine/godot-builds/releases/download/$GODOT_VERSION-stable"
+          mkdir -p ~/godot-download
+          curl -fsSL -o ~/godot-download/editor.zip "$base/Godot_v$GODOT_VERSION-stable_mono_linux_x86_64.zip"
+          curl -fsSL -o ~/godot-download/templates.tpz "$base/Godot_v$GODOT_VERSION-stable_mono_export_templates.tpz"
+
+      - name: Install Godot and the export templates
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          mkdir -p ~/godot
+          unzip -q ~/godot-download/editor.zip -d ~/godot
+          echo "GODOT=$HOME/godot/Godot_v$GODOT_VERSION-stable_mono_linux_x86_64/Godot_v$GODOT_VERSION-stable_mono_linux.x86_64" >> "$GITHUB_ENV"
+          templatesDir="$HOME/.local/share/godot/export_templates/$GODOT_VERSION.stable.mono"
+          mkdir -p "$templatesDir"
+          unzip -q ~/godot-download/templates.tpz -d ~/godot/templates-extract
+          mv ~/godot/templates-extract/templates/* "$templatesDir"
+
+      # the C# assembly must exist before the editor starts, otherwise the export plugin
+      # that adds the runtime data, the licenses and the quickstart guide to the builds is not loaded
+      - name: Build the C# project
+        if: steps.version.outputs.exists == 'false'
+        run: dotnet build "km2 City Builder.sln"
+
+      - name: Import the project
+        if: steps.version.outputs.exists == 'false'
+        run: '"$GODOT" --headless --import'
+
+      - name: Export
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          mkdir -p build/windows build/linux dist
+          "$GODOT" --headless --export-release "Windows Desktop" build/windows/km2-city-builder.zip
+          "$GODOT" --headless --export-release "Linux" build/linux/km2-city-builder.zip
+          mv build/windows/km2-city-builder.zip "dist/km2-city-builder-$VERSION-$HASH-windows.zip"
+          mv build/linux/km2-city-builder.zip "dist/km2-city-builder-$VERSION-$HASH-linux.zip"
+
+      # the export plugin only logs its errors, so the contents of the builds are checked here
+      - name: Check the builds
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          check() {
+            local zip="$1"; shift
+            local entries
+            entries=$(unzip -Z1 "$zip")
+            for entry in "$@" km2-city-builder.pck License.txt "Quickstart guide.pdf" settings.json coreRepos.json Files/strings/en-US.json; do
+              if ! grep -Fxq "$entry" <<< "$entries"; then
+                echo "::error::$entry is missing from $zip"
+                failed=1
+              fi
+            done
+          }
+          failed=0
+          check "dist/km2-city-builder-$VERSION-$HASH-windows.zip" km2-city-builder.exe
+          check "dist/km2-city-builder-$VERSION-$HASH-linux.zip" km2-city-builder
+          exit $failed
+
+      - name: Write the changelog
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          PREV=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+          RANGE=${PREV:+$PREV..}HEAD
+          changes=$(git log $RANGE --no-merges --format='- %s (%h)' -- . \
+            ':(exclude)wiki' ':(exclude)*.md' ':(exclude).vscode' ':(exclude).github/workflows/wiki.yml')
+          {
+            echo "## Changes"
+            echo "${changes:-- No changes to the program}"
+            if [ -n "$PREV" ]; then
+              printf '\n**Full changelog**: https://github.com/%s/compare/%s...%s\n' "$GITHUB_REPOSITORY" "$PREV" "$TAG"
+            fi
+          } > notes.md
+          cat notes.md
+
+      - name: Create the release
+        if: steps.version.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$TAG" dist/*.zip --title "$TAG" --notes-file notes.md --target "$GITHUB_SHA"
