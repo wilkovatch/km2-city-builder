@@ -10,6 +10,7 @@ The program bundles or depends on the following code. The license texts are in t
 | `Antlr4.Runtime.Standard` | Runtime of the expression parser generated from the grammar (see [Runtime Calculator](Runtime-Calculator)). |
 | `Delaunator` | Delaunay triangulation of terrain patches, intersections and roofs. |
 | `LibGit2Sharp` | Installing and updating cores from git repositories (`CoreManager`). |
+| `LuaCSharp` | Lua interpreter running the scripts of the core definitions (see [Runtime Calculator](Runtime-Calculator#lua-scripts)). |
 
 ## Source code in `CustomPackages`
 

@@ -51,7 +51,8 @@ A road is a curve through a list of control points (`points`, handle nodes the u
 * **Standard getters**: `GetStandardFloat/Bool/Vec3/Vec2/String` read the values the core maps in `getters` (total width, height, ...), used by intersections and other code that must understand roads of any type.
 * **Runtime values**: `GetRuntimeFloat/Bool/Vec3/Vec2` (from `IObjectWithStateAndRuntimeType`) evaluate any definition of the road type, used for example to enable the buttons of conditional parametric objects.
 * **Split line**: `splitLine` (a `RoadSplitLine`) is shown along the curve while the free road ends are shown to place another road (`SetActive(false, true)`), so that the other road can be connected to the middle of this one (see below).
-* **Parametric objects**: `Road` is a `ParametricObjectContainer`. For `objectInstance` parameters with a *road choice* (for example the MM2 traffic lights, which can be placed on another road of the intersection), `GetObjectRoad` picks the road to evaluate on (by index or by best score among the roads of the intersection), copies the requested input values to it (`CopyInputVariables`) and evaluates the late definitions there.
+* **Parametric objects**: `Road` is a `ParametricObjectContainer`: the hooks of its `objectInstance` parameters are definitions evaluated on its variables.
+* **Script context**: `Road` is an `IScriptContextProvider`. Its `RoadScriptContext` (`ctx` in the [Lua scripts](Core-Lua-Scripts#context-ctx) of its definitions) gives read-only views of its intersections and of their roads, sorted clockwise (`IntersectionScriptView`, `RoadScriptView`). The road is the `owner` of the variable container of its generator, which is how a script definition finds its context.
 
 ### Connecting a road to the middle of another one
 

@@ -10,7 +10,7 @@ using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
 using TerrainModifier;
 
-public partial class Road : ParametricObjectContainer<CityElements.Types.RoadType>, IObjectWithStateAndRuntimeType {
+public partial class Road : ParametricObjectContainer<CityElements.Types.RoadType>, IObjectWithStateAndRuntimeType, RC.Scripting.IScriptContextProvider {
     public bool forceRemesh = false;
     public List<Vector3> curvePoints = new List<Vector3>();
     public RoadGenerator generator;
@@ -33,6 +33,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     public bool deleted = false;
     public bool cityPropertiesInjected = false; //the parameters injected by the city properties are in runtimeState
     bool activeSelf = true;
+    RoadScriptContext scriptContext;
 
     public void Initialize() {
         state = PresetManager.GetPreset("road", 0);
@@ -41,6 +42,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         var generatorObj = GS.Create<RoadGenerator>(null, this);
         generator = GS.Cast<RoadGenerator>(generatorObj);
         generator.Initialize(state);
+        generator.subGen.owner = this; //the scripts of the definitions get the road as context
         anchorManager = new TerrainAnchorLineManager(this);
         splitLine = RoadSplitLine.Create(this);
     }
@@ -433,47 +435,6 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         return 0;
     }
 
-    (Road road, string suffix) GetObjectRoad(string key, CityElements.Types.ObjectInstaceRoadChoice choiceInfo) {
-        if (choiceInfo != null) {
-            var vc = generator.subGen.variableContainer;
-            var condition = choiceInfo.condition == null ? true : curType.boolDefinitions[choiceInfo.condition].GetValue(vc);
-            if (!condition) return (this, "");
-            var idxVar = choiceInfo.index;
-            var settings = curType.objectInstanceParams[key].objectInstanceSettings;
-            var intersection = settings.intersection == 0 ? startIntersection : endIntersection;
-            var roads = intersection.GetRoadsSortedClockwise();
-            var chosenRoad = this;
-            if (choiceInfo.score != null) {
-                var maxScore = float.MinValue;
-                foreach (var road in roads) {
-                    if (road == this) continue;
-                    CopyInputVariables(road, choiceInfo);
-                    var sfx = road.startIntersection == intersection ? "_start" : "_end";
-                    var curScore = road.curType.numberDefinitions[choiceInfo.score + sfx].GetValue(road.generator.subGen.variableContainer);
-                    if (curScore > maxScore) {
-                        maxScore = curScore;
-                        chosenRoad = road;
-                    }
-                }
-                vc.SetFloat("maxScoreRoadIndex", roads.IndexOf(chosenRoad) - roads.IndexOf(this));
-            }
-            else {
-                vc.SetFloat("maxScoreRoadIndex", 0);
-            }
-            curType.FillSpecificLateVariables(vc, choiceInfo.lateDefinitions);
-            var idx = (int)curType.numberDefinitions[idxVar].GetValue(vc);
-            idx += roads.IndexOf(this);
-            var actualIdx = (idx % roads.Count + roads.Count) % roads.Count;
-            var r = roads[actualIdx];
-            var suffix = r.startIntersection == intersection ? "_start" : "_end";
-            if (r == this) suffix = "";
-            return (r, suffix);
-        }
-        else {
-            return (this, "");
-        }
-    }
-
     private bool hasRuntimeTypeActive() {
         return generator != null && generator.curType != null;
     }
@@ -532,96 +493,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         return generator.curType;
     }
 
-    void CopyInputVariables(Road road, CityElements.Types.ObjectInstaceRoadChoice choiceInfo) {
-        if (choiceInfo == null || road == this || choiceInfo.inputData == null) return;
-        var vars = choiceInfo.inputData;
-        var vc2 = road.generator.subGen.variableContainer;
-        var vc1 = generator.subGen.variableContainer;
-        foreach (var variable in vars) {
-            var trueVar = variable + "_input";
-            if (road.curType.numberDefinitions.ContainsKey(trueVar)) {
-                float val;
-                if (!curType.numberDefinitions.ContainsKey(variable)) {
-                    val = vc1.floats[vc1.floatIndex[variable]];
-                }
-                else {
-                    val = curType.numberDefinitions[variable].GetValue(vc1);
-                }
-                vc2.SetFloat(trueVar, val);
-            }
-            else if (road.curType.boolDefinitions.ContainsKey(trueVar)) {
-                bool val;
-                if (!curType.boolDefinitions.ContainsKey(variable)) {
-                    val = vc1.floats[vc1.floatIndex[variable]] > 0;
-                }
-                else {
-                    val = curType.boolDefinitions[variable].GetValue(vc1);
-                }
-                vc2.SetFloat(trueVar, val ? 1f : 0f);
-            }
-            else if (road.curType.vector3Definitions.ContainsKey(trueVar)) {
-                Vector3 val;
-                if (!curType.vector3Definitions.ContainsKey(variable)) {
-                    val = vc1.vector3s[vc1.vec3Index[variable]];
-                }
-                else {
-                    val = curType.vector3Definitions[variable].GetValue(vc1);
-                }
-                vc2.SetVector3(trueVar, val);
-            }
-            else if (road.curType.vector2Definitions.ContainsKey(trueVar)) {
-                Vector2 val;
-                if (!curType.vector2Definitions.ContainsKey(variable)) {
-                    val = vc1.vector2s[vc1.vec2Index[variable]];
-                }
-                else {
-                    val = curType.vector2Definitions[variable].GetValue(vc1);
-                }
-                vc2.SetVector2(trueVar, val);
-            }
-        }
-        road.curType.FillSpecificLateVariables(vc2, choiceInfo.lateDefinitions);
-    }
-
-    public override bool VerifyObjectCondition(string key) {
-        var settings = curType.objectInstanceParams[key].objectInstanceSettings;
-        var info = GetObjectRoad(key, settings.conditionRoadChoice);
-        var condition = settings.condition;
-        CopyInputVariables(info.road, settings.conditionRoadChoice);
-        return info.road.curType.boolDefinitions[condition + info.suffix].GetValue(info.road.generator.subGen.variableContainer);
-    }
-
-    public override Vector3 GetObjectPosition(string key) {
-        var settings = curType.objectInstanceParams[key].objectInstanceSettings;
-        var info = GetObjectRoad(key, settings.basePositionRoadChoice);
-        var variable = settings.basePosition;
-        CopyInputVariables(info.road, settings.basePositionRoadChoice);
-        return info.road.curType.vector3Definitions[variable + info.suffix].GetValue(info.road.generator.subGen.variableContainer);
-    }
-
-    public override Vector3 GetObjectRotation(string key) {
-        var settings = curType.objectInstanceParams[key].objectInstanceSettings;
-        var info = GetObjectRoad(key, settings.baseRotationRoadChoice);
-        var variable = settings.baseRotation;
-        if (variable != null) {
-            CopyInputVariables(info.road, settings.baseRotationRoadChoice);
-            return info.road.curType.vector3Definitions[variable + info.suffix].GetValue(info.road.generator.subGen.variableContainer);
-        }
-        else {
-            return GameEngine.Vector3.zero;
-        }
-    }
-
-    public override Vector3 GetObjectScale(string key) {
-        var settings = curType.objectInstanceParams[key].objectInstanceSettings;
-        var info = GetObjectRoad(key, settings.baseScaleRoadChoice);
-        var variable = settings.baseScale;
-        if (variable != null) {
-            CopyInputVariables(info.road, settings.baseScaleRoadChoice);
-            return info.road.curType.vector3Definitions[variable + info.suffix].GetValue(info.road.variableContainer);
-        }
-        else {
-            return GameEngine.Vector3.one;
-        }
+    public Lua.LuaValue GetScriptContext() {
+        scriptContext ??= new RoadScriptContext(this);
+        return scriptContext;
     }
 }

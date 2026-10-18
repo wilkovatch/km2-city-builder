@@ -28,5 +28,6 @@
 - [Buildings](Core-Buildings)
 - [Props and Objects](Core-Props-and-Objects)
 - [City Properties](Core-City-Properties)
+- [Lua Scripts](Core-Lua-Scripts)
 - [Python Integration](Core-Python-Integration)
 - [Templates and Presets](Core-Templates-and-Presets)

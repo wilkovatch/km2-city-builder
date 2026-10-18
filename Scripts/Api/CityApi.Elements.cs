@@ -688,6 +688,7 @@ namespace Api {
                 localRotation = GO.GetLocalRotation(m),
                 localScale = GO.GetLocalScale(m),
                 position = GO.GetPosition(m),
+                rotation = GO.GetRotation(m),
                 allowCustomModel = s.allowCustomModel,
                 allowPosition = s.allowPosition,
                 allowRotation = s.allowRotation,

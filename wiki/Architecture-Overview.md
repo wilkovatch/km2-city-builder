@@ -14,7 +14,7 @@ The code (all under `Scripts/`) is split into a few layers. Each layer only depe
 | City elements | `Scripts/CityElements/Logic`, `ElementManager.cs`, `CityGroundHelper.cs` | The objects a city is made of (roads, intersections, terrain patches, building lines, mesh instances, city properties) and their editable state. |
 | Geometry | `Scripts/CityElements/Geometry`, `GeometryHelper.cs` | Mesh generation for each element type, driven by the core's type definitions. |
 | Type system | `Scripts/CityElements/Types` | Loading the core's JSON element definitions and compiling their expressions. |
-| Runtime calculator | `Scripts/RuntimeCalculator` | Parser and evaluator for the expressions used in the core definitions. |
+| Runtime calculator | `Scripts/RuntimeCalculator` | Parser and evaluator for the expressions used in the core definitions, and host of the Lua scripts that can compute them. |
 | Input/output | `Scripts/IO` | City save/load, export, mesh and texture import, materials, settings files. |
 | Engine abstraction | `Scripts/GameEngine.cs`, `Scripts/LODGroup.cs` | Wraps every Godot specific call, so that the layers above are (mostly) engine agnostic. |
 

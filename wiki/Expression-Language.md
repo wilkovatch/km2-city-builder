@@ -95,6 +95,12 @@ Definitions are named, typed expressions declared in a type's `parameters.json` 
 
 `type` is `float`, `int` (stored as a float, not rounded), `bool`, `vec3` or `vec2`.
 
+Instead of `value`, a definition can have `script`: the name of a function of a Lua script of the core that computes it, for logic that would be too involved for an expression (see [Core Lua Scripts](Core-Lua-Scripts)):
+
+```json
+{ "name": "startTrafficLightBasePosition", "type": "vec3", "script": "trafficLight.startPosition" }
+```
+
 | Kind | Where | When it is evaluated |
 |---|---|---|
 | `staticDefinitions` | `parameters.json` | Once per element (re)build, after the parameters are read. Can use parameters and the element's global built-in variables. |

@@ -10,6 +10,11 @@ namespace RuntimeCalculator {
         public Dictionary<string, int> floatIndex;
         public Dictionary<string, int> vec3Index;
         public Dictionary<string, int> vec2Index;
+        //the float variables that are booleans (shared by the clones), for the scripts
+        public HashSet<string> boolNames = new HashSet<string>();
+        //the element using the container (its scripts can get a context from it) and the view of the scripts (not cloned)
+        public object owner;
+        public object scriptView;
 
         public VariableContainer(List<(string, Type)> definitions) {
             //count
@@ -58,6 +63,7 @@ namespace RuntimeCalculator {
             floatIndex = new Dictionary<string, int>(original.floatIndex);
             vec3Index = new Dictionary<string, int>(original.vec3Index);
             vec2Index = new Dictionary<string, int>(original.vec2Index);
+            boolNames = original.boolNames;
         }
 
         public void SetFloat(string name, float value) {

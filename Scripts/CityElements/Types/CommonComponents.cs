@@ -50,15 +50,10 @@ namespace CityElements.Types {
         public ObjectInstanceDefaultModel defaultModel;
         public float[] defaultScale;
         public bool allowCustomModel;
-        public int intersection;
         public string condition;
-        public ObjectInstaceRoadChoice conditionRoadChoice;
         public string basePosition;
-        public ObjectInstaceRoadChoice basePositionRoadChoice;
         public string baseRotation;
-        public ObjectInstaceRoadChoice baseRotationRoadChoice;
         public string baseScale;
-        public ObjectInstaceRoadChoice baseScaleRoadChoice;
         public bool[] allowPosition;
         public bool[] allowRotation;
         public bool[] allowScale;
@@ -71,18 +66,11 @@ namespace CityElements.Types {
         public string index;
     }
 
-    public class ObjectInstaceRoadChoice {
-        public string lateDefinitions;
-        public string condition;
-        public string index;
-        public string score;
-        public string[] inputData;
-    }
-
     public struct Definition {
         public string name;
         public string type;
         public string value;
+        public string script; //"<module>.<function>" of the lua folder of the core, instead of the value
     }
 
     public struct LateDefinition {

@@ -196,8 +196,10 @@ namespace Api {
             try {
                 await Frames(10);
                 await Basics();
+                LuaScripts();
                 await NewCity();
                 await Roads();
+                await TrafficLights();
                 await TerrainAndBuildings();
                 await Anchors();
                 await Heights();
@@ -256,6 +258,112 @@ namespace Api {
             });
             var elapsed = Engine.GetProcessFrames() - frames;
             Check("commands from another thread run several per frame (" + count + " in " + elapsed + " frames)", replies == count && elapsed < count / 2);
+        }
+
+        //Lua scripts of the definitions, from a scratch folder instead of the lua folder of the core
+        void LuaScripts() {
+            var dir = folder + "_lua";
+            Directory.CreateDirectory(Path.Combine(dir, "lib"));
+            File.WriteAllText(Path.Combine(dir, "lib", "util.lua"), "return { double = function(x) return x * 2 end }");
+            File.WriteAllText(Path.Combine(dir, "broken.lua"), "return { f = function(v) return 1 + end }");
+            File.WriteAllText(Path.Combine(dir, "test.lua"), string.Join("\n",
+                "local util = require('lib.util')",
+                "local M = {}",
+                "function M.number(v) return util.double(v.a) end",
+                "function M.boolean(v) return v.flag and not v.other end",
+                "function M.types(v) return type(v.flag) == 'boolean' and type(v.a) == 'number' end",
+                "function M.vector3(v) return v.p * 2 + vec3(1, 0, 0):cross(vec3(0, 1, 0)) end",
+                "function M.vector2(v) return -v.q + vec2(1, 1) end",
+                "function M.angle(v) return v.p:signedAngle(vec3(0, 0, 1), vec3(0, -1, 0)) end",
+                "function M.write(v) v.a = 1 return 0 end",
+                "function M.unknown(v) return v.nope end",
+                "function M.wrongType(v) return 'text' end",
+                "function M.sandbox(v) return io == nil and os == nil and debug == nil and dofile == nil and loadfile == nil and math.random == nil end",
+                "function M.escape(v) return require('../test') ~= nil end",
+                "function M.loop(v) while true do end end",
+                "function M.noContext(v, ctx) return ctx == nil end",
+                "return M"));
+
+            var host = RuntimeCalculator.Scripting.LuaScriptHost.CreateForFolder(dir);
+            var vc = new RuntimeCalculator.VariableContainer(new List<(string, System.Type)> {
+                ("a", typeof(float)), ("flag", typeof(float)), ("other", typeof(float)), ("p", typeof(Vector3)), ("q", typeof(Vector2))
+            });
+            vc.boolNames.Add("flag");
+            vc.boolNames.Add("other");
+            vc.SetFloat("a", 1.5f);
+            vc.SetFloat("flag", 1);
+            vc.SetFloat("other", 0);
+            vc.SetVector3("p", new Vector3(1, 2, 3));
+            vc.SetVector2("q", new Vector2(4, 5));
+            float Number(string f) => new RuntimeCalculator.Scripting.ScriptNumber("test." + f, f, host).GetValue(vc);
+            bool Boolean(string f) => new RuntimeCalculator.Scripting.ScriptBoolean("test." + f, f, host).GetValue(vc);
+
+            Check("lua: number definition (with a required module)", Mathf.Abs(Number("number") - 3) < 1e-5f);
+            Check("lua: boolean definition", Boolean("boolean"));
+            Check("lua: bool variables are booleans, the others numbers", Boolean("types"));
+            var v3 = new RuntimeCalculator.Scripting.ScriptVector3("test.vector3", "vector3", host).GetValue(vc);
+            Check("lua: vec3 definition (" + v3 + ")", v3.IsEqualApprox(new Vector3(2, 4, 7)));
+            var v2 = new RuntimeCalculator.Scripting.ScriptVector2("test.vector2", "vector2", host).GetValue(vc);
+            Check("lua: vec2 definition (" + v2 + ")", v2.IsEqualApprox(new Vector2(-3, -4)));
+            var angle = GameEngine.Vector3.SignedAngle(new Vector3(1, 2, 3), new Vector3(0, 0, 1), new Vector3(0, -1, 0));
+            Check("lua: vec3 functions give the results of the expressions", Mathf.Abs(Number("angle") - angle) < 1e-4f);
+            Check("lua: no io, os, debug, file loading, random", Boolean("sandbox"));
+            Check("lua: the context is nil without an element", Boolean("noContext"));
+
+            var errors = host.ErrorCount;
+            Check("lua: writing a variable fails, the result is the default", Number("write") == 0 && host.ErrorCount == errors + 1);
+            Number("write");
+            Check("lua: an error is reported only once", host.ErrorCount == errors + 1);
+            Check("lua: unknown variable fails", Number("unknown") == 0 && host.ErrorCount == errors + 2);
+            Check("lua: a value of the wrong type fails", Number("wrongType") == 0 && host.ErrorCount == errors + 3);
+            Check("lua: modules can't be required from outside the folder", !Boolean("escape") && host.ErrorCount == errors + 4);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var looped = Number("loop");
+            Check("lua: an infinite loop is stopped (" + watch.ElapsedMilliseconds + " ms)", looped == 0 && watch.ElapsedMilliseconds < 5000);
+            Check("lua: the state still works after an error", Mathf.Abs(Number("number") - 3) < 1e-5f);
+
+            bool Throws(string reference) {
+                try {
+                    new RuntimeCalculator.Scripting.ScriptNumber(reference, reference, host);
+                    return false;
+                } catch (System.Exception e) {
+                    Log("     " + reference + ": " + e.Message);
+                    return true;
+                }
+            }
+            Check("lua: a missing module is an error when the types are read", Throws("missing.f"));
+            Check("lua: a missing function is an error when the types are read", Throws("test.missing"));
+            Check("lua: a syntax error is an error when the types are read", Throws("broken.f"));
+            Check("lua: a reference without a function is an error", Throws("test"));
+
+            var definition = new RuntimeCalculator.Scripting.ScriptNumber("test.number", "number", host);
+            watch.Restart();
+            for (int i = 0; i < 100000; i++) definition.GetValue(vc);
+            Check("lua: 100000 calls in " + watch.ElapsedMilliseconds + " ms", watch.ElapsedMilliseconds < 3000);
+        }
+
+        //the traffic lights of the core are placed by its Lua script
+        async Task TrafficLights() {
+            var steps = 0;
+            async Task Set(string name, object value) {
+                await Call("state.setParam", new { @ref = roadA, name, value });
+                steps++;
+            }
+            await Set("end_rule", 1);
+            await Set("forwardLanes", 1);
+            var center = (await Derived((await Derived(roadA))["endIntersection"].Value<int>()))["center"].ToObject<float[]>();
+            var objRef = new { owner = roadA, @object = "endTrafficLight" };
+            Check("a road with lights at its end has an end traffic light", (await Derived(roadA))["parametricObjects"].ToObject<List<string>>().Contains("endTrafficLight"));
+            var p = (await Call("objects.get", new { @object = objRef }))["position"].ToObject<float[]>();
+            var distance = new Vector3(p[0] - center[0], 0, p[2] - center[2]).Length();
+            Check("the traffic light is on a corner of the intersection (" + distance.ToString("0.0") + " m from its center)", distance > 1 && distance < 40);
+            await Set("trafficLightOnOppositeRoad", true);
+            var p2 = (await Call("objects.get", new { @object = objRef }))["position"].ToObject<float[]>();
+            var distance2 = new Vector3(p2[0] - center[0], 0, p2[2] - center[2]).Length();
+            var moved = new Vector3(p2[0] - p[0], p2[1] - p[1], p2[2] - p[2]).Length();
+            Check("on the opposite road the light moves to another corner (" + moved.ToString("0.0") + " m)", moved > 1 && distance2 < 40);
+            for (int i = 0; i < steps; i++) await Call("history.undo");
+            Check("the traffic light is removed with its rule", !(await Derived(roadA))["parametricObjects"].ToObject<List<string>>().Contains("endTrafficLight"));
         }
 
         async Task NewCity() {

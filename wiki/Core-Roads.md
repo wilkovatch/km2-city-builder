@@ -106,7 +106,6 @@ Available in every expression of a road type, in addition to its parameters and 
 | `startIntersectionNumberOfRoads`, `endIntersectionNumberOfRoads` | float | always | Number of roads of each intersection. |
 | `startIntersectionPosition`, `endIntersectionPosition` | vec3 | always | Center of each intersection (zero if none). |
 | `startDir`, `endDir` | vec3 | always | Direction of the curve at the start and at the end. |
-| `maxScoreRoadIndex` | float | parametric objects | See [Core Props and Objects](Core-Props-and-Objects#choosing-another-road). |
 | `z` | float | per section | Distance of the section from the start of the road. |
 | `segment` | float | per section | Index of the section, from 1 to `segments`. |
 | `localUp`, `localRight`, `localForward` | vec3 | per section | Section frame. `localUp` is always `(0,1,0)`. |

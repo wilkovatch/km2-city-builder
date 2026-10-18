@@ -24,6 +24,8 @@ public class RoadLikeGenerator<T> {
     RoadLikeType<T> curType = null;
     int vertsPerSection;
 
+    public object owner; //the element using the variables, the context of the scripts
+
     public RoadLikeGenerator(ObjectState state, ObjectState instanceState, int segments, int numMeshes) {
         tempVertices = new List<Vector3>();
         tempIndices = new List<List<int>>();
@@ -41,7 +43,10 @@ public class RoadLikeGenerator<T> {
     public void Reset(RoadLikeType<T> curType, ObjectState state, ObjectState instanceState, int segments, int numMeshes) {
         if (this.curType != curType) {
             this.curType = curType;
-            if (curType != null) variableContainer = curType.variableContainer.GetClone();
+            if (curType != null) {
+                variableContainer = curType.variableContainer.GetClone();
+                variableContainer.owner = owner;
+            }
         }
         tempVertices.Clear();
         for (int i = 0; i < tempIndices.Count; i++) {

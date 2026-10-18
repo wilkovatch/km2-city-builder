@@ -112,6 +112,7 @@ namespace CityElements.Types.Runtime {
             : base(type, GetCompoundParameterContainer(parentType, type), GetComponents(parentType.components, type.components), GetVarLists(type), name) {
 
             this.parentType = parentType;
+            AddBuiltInBools("thisIsEndA", "thisIsEndB", "convex", "selfIntersectingSpline", "notDefaultTex");
             anchorsCalculators = new Vector3Array(type.anchors ?? new object[0]);
             if (type.trafficLanes != null) trafficLanes = RoadLikeType.TrafficLaneContainer.GetArray(type.trafficLanes);
             if (type.propsLines != null) propLines = RoadLikeType.PropLine.GetArray(type.propsLines);

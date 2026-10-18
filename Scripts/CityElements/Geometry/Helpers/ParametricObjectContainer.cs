@@ -145,10 +145,11 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
         return instState;
     }
 
+    //a number definition (evaluated now, like the other hooks) or a variable
     private float GetFloat(string name) {
         var vc = GetParametricObjectVariableContainer();
-        if (vc.floatIndex.ContainsKey(name)) return vc.floats[vc.floatIndex[name]];
-        return GetRuntimeType().numberDefinitions[name].GetValue(vc);
+        if (GetRuntimeType().numberDefinitions.TryGetValue(name, out var definition)) return definition.GetValue(vc);
+        return vc.floats[vc.floatIndex[name]];
     }
 
     string GetDefaultModel(CityElements.Types.ObjectInstanceSettings instSettings) {

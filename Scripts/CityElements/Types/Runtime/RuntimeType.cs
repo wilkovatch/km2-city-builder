@@ -24,19 +24,49 @@ namespace CityElements.Types.Runtime {
         public Dictionary<string, string> customElemParams = new Dictionary<string, string>();
         public Dictionary<string, Definition[]> lateDefinitionsDict = new Dictionary<string, Definition[]>();
 
+        //the bool variables (parameters and definitions), stored as floats: the scripts read them as booleans
+        HashSet<string> boolNames = new HashSet<string>();
+
+        //A definition is an expression (value) or a function of a Lua script of the core (script)
+        static void CheckDefinition(Definition def) {
+            if (def.script != null && def.value != null) throw new System.Exception("definition '" + def.name + "': it can't have both a value and a script");
+            if (def.script == null && def.value == null) throw new System.Exception("definition '" + def.name + "': it needs a value or a script");
+        }
+
+        protected static RC.Numbers.Number CompileNumber(Definition def) {
+            CheckDefinition(def);
+            return def.script != null ? new RC.Scripting.ScriptNumber(def.script, def.name) : RC.Parsers.FloatParser.ParseExpression(def.value);
+        }
+
+        protected static RC.Booleans.Boolean CompileBoolean(Definition def) {
+            CheckDefinition(def);
+            return def.script != null ? new RC.Scripting.ScriptBoolean(def.script, def.name) : RC.Parsers.BooleanParser.ParseExpression(def.value);
+        }
+
+        protected static RC.Vector3s.Vector CompileVector3(Definition def) {
+            CheckDefinition(def);
+            return def.script != null ? new RC.Scripting.ScriptVector3(def.script, def.name) : RC.Parsers.Vector3Parser.ParseExpression(def.value);
+        }
+
+        protected static RC.Vector2s.Vector CompileVector2(Definition def) {
+            CheckDefinition(def);
+            return def.script != null ? new RC.Scripting.ScriptVector2(def.script, def.name) : RC.Parsers.Vector2Parser.ParseExpression(def.value);
+        }
+
         void ParseDefinition(Definition def, List<string> floatVars, List<string> vec3Vars, List<string> vec2Vars) {
             if (def.type == "float" || def.type == "int") {
                 floatVars.Add(def.name);
-                numberDefinitions.Add(def.name, RC.Parsers.FloatParser.ParseExpression(def.value));
+                numberDefinitions.Add(def.name, CompileNumber(def));
             } else if (def.type == "bool") {
                 floatVars.Add(def.name);
-                boolDefinitions.Add(def.name, RC.Parsers.BooleanParser.ParseExpression(def.value));
+                boolNames.Add(def.name);
+                boolDefinitions.Add(def.name, CompileBoolean(def));
             } else if (def.type == "vec3") {
                 vec3Vars.Add(def.name);
-                vector3Definitions.Add(def.name, RC.Parsers.Vector3Parser.ParseExpression(def.value));
+                vector3Definitions.Add(def.name, CompileVector3(def));
             } else if (def.type == "vec2") {
                 vec2Vars.Add(def.name);
-                vector2Definitions.Add(def.name, RC.Parsers.Vector2Parser.ParseExpression(def.value));
+                vector2Definitions.Add(def.name, CompileVector2(def));
             }
         }
 
@@ -51,6 +81,7 @@ namespace CityElements.Types.Runtime {
                 foreach (var param in parameterContainer.parameters) {
                     if (param.type == "float" || param.type == "int" || param.type == "bool" || param.type == "enum") {
                         vars.floatVars.Add(param.fullName());
+                        if (param.type == "bool") boolNames.Add(param.fullName());
                     } else if (param.type == "vec2") {
                         vars.vec2Vars.Add(param.fullName());
                     } else if (param.type == "vec3") {
@@ -111,19 +142,20 @@ namespace CityElements.Types.Runtime {
                             if (def.type == "float" || def.type == "int") {
                                 defTuple = (def.name, typeof(float));
                                 if (!dict.Contains(defTuple)) dict.Add(defTuple);
-                                numDict.Add(def.name, RC.Parsers.FloatParser.ParseExpression(def.value));
+                                numDict.Add(def.name, CompileNumber(def));
                             } else if (def.type == "bool") {
                                 defTuple = (def.name, typeof(float));
                                 if (!dict.Contains(defTuple)) dict.Add(defTuple);
-                                boolDict.Add(def.name, RC.Parsers.BooleanParser.ParseExpression(def.value));
+                                boolNames.Add(def.name);
+                                boolDict.Add(def.name, CompileBoolean(def));
                             } else if (def.type == "vec3") {
                                 defTuple = (def.name, typeof(Vector3));
                                 if (!dict.Contains(defTuple)) dict.Add(defTuple);
-                                vec3Dict.Add(def.name, RC.Parsers.Vector3Parser.ParseExpression(def.value));
+                                vec3Dict.Add(def.name, CompileVector3(def));
                             } else if (def.type == "vec2") {
                                 defTuple = (def.name, typeof(Vector2));
                                 if (!dict.Contains(defTuple)) dict.Add(defTuple);
-                                vec2Dict.Add(def.name, RC.Parsers.Vector2Parser.ParseExpression(def.value));
+                                vec2Dict.Add(def.name, CompileVector2(def));
                             }
                         }
                     }
@@ -135,8 +167,14 @@ namespace CityElements.Types.Runtime {
             }
 
             variableContainer = new RC.VariableContainer(dict);
+            variableContainer.boolNames = boolNames;
 
             SetBaseIndices();
+        }
+
+        //built-in float variables of the type that are booleans
+        protected void AddBuiltInBools(params string[] names) {
+            foreach (var name in names) boolNames.Add(name);
         }
 
         protected void FillVector3(RC.VariableContainer variableContainer, string name, Vector3 val) {

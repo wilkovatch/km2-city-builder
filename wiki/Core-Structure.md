@@ -38,6 +38,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   ├── settings.json
 │   └── export.py
 ├── migrations/<N>.py            city migration scripts
+├── lua/                         optional: Lua scripts of the definitions (see Core Lua Scripts)
 ├── scripts/                     optional: Python scripts of the Scripts menu (see Python Scripts)
 └── pythonInfo/
     ├── imports.txt              modules checked before loading a city
@@ -55,8 +56,8 @@ The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, 
     "version": "0.1.3",
     "coreVersion": 2,
     "coreFeatureVersion": 4,
-    "programVersion": 1,
-    "featureVersion": 4,
+    "programVersion": 2,
+    "featureVersion": 1,
     "customTextureFormats": ["tex"],
     "customMeshFormats": ["pkg"]
 }
@@ -107,6 +108,10 @@ A new city is created by copying `templates/_common/` and then the chosen templa
 ## `baseCommon/`
 
 When a city of the core is loaded for the first time on a computer, `Files/common/<CoreName>/` is created with a copy of `baseCommon`. It is the place for assets shared by all cities of that core (for example the MM2 core asks the user to copy the game's geometry and texture files into `geometry/` and `texture/`). Cities reach it through an extra folder starting with a dot (`.\<CoreName>\`) in their preferences, typically set by the template's `preferences.json`.
+
+## `lua/`
+
+Lua modules whose functions compute definitions (`"script": "<module>.<function>"` instead of `"value"`). They run inside the program and need no Python. See [Core Lua Scripts](Core-Lua-Scripts).
 
 ## `server/`, `exporters/`, `migrations/`, `pythonInfo/`
 

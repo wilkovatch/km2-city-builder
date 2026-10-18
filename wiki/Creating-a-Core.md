@@ -102,6 +102,8 @@ See [Core Structure](Core-Structure#versions) and [Core Python Integration](Core
 | Symptom | Likely cause |
 |---|---|
 | The core does not appear or fails when a city is loaded, with `Invalid float parameter: <name>` in the log | An expression uses a variable that does not exist in that type (typo, missing definition, or a definition used before it is evaluated). |
+| The city fails to load with `Lua module '<name>' ...` in the log | A `script` definition names a module or function that does not exist in the `lua` folder, or the module has a syntax error (see [Core Lua Scripts](Core-Lua-Scripts#errors)). |
+| `Script of the definition '<name>': ...` in the log, and the value is 0, false or a zero vector | The script failed while running, or returned a value of the wrong type (for example a number for a `bool` definition). |
 | Error about a missing directory | One of the `elements` folders is missing. |
 | A road's faces are invisible from above | The two vertices of the face are in the wrong order (see [Core Roads](Core-Roads#coordinate-conventions)). |
 | Faces connect the wrong vertices | The number of `mainMesh` vertices of a component changes between sections. |

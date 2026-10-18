@@ -12,7 +12,7 @@ namespace CityElements.Types.Runtime {
             var floatVars = new List<string>() {
                 "z", "totalLength", "segment", "segments",
                 "throughIntersection", "startCrosswalkSize", "endCrosswalkSize",
-                "hasStartIntersection", "hasEndIntersection", "maxScoreRoadIndex",
+                "hasStartIntersection", "hasEndIntersection",
                 "startIntersectionNumberOfRoads", "endIntersectionNumberOfRoads"
             };
             var vec2Vars = new List<string>();
@@ -56,6 +56,7 @@ namespace CityElements.Types.Runtime {
         }
 
         public RoadType(Types.RoadType type, string name) : base(type, type.parameters, GetComponents(type.components, type.settings.components), GetVarLists(type), name) {
+            AddBuiltInBools("throughIntersection", "hasStartIntersection", "hasEndIntersection");
             anchorsCalculators = new Vector3Array(type.settings.anchors ?? new object[0]);
             if (type.settings.trafficTypes != null) trafficTypes = RoadLikeType.TrafficType.GetArray(type.settings.trafficTypes);
             if (type.settings.trafficLanes != null) trafficLanes = TrafficLaneContainer.GetArray(type.settings.trafficLanes);
@@ -116,7 +117,7 @@ namespace CityElements.Types.Runtime {
                     FillFloat(variableContainer, variable, runtimeState.Bool(variable) ? 1.0f : 0.0f);
                 }
                 var runtimeFloatVars = new List<string>() {
-                    "startIntersectionNumberOfRoads", "endIntersectionNumberOfRoads", "maxScoreRoadIndex"
+                    "startIntersectionNumberOfRoads", "endIntersectionNumberOfRoads"
                 };
                 foreach (var variable in runtimeFloatVars) {
                     FillFloat(variableContainer, variable, runtimeState.Float(variable));
@@ -198,10 +199,6 @@ namespace CityElements.Types.Runtime {
                 }
             }
             FillBaseLateVariables(variableContainer, "common");
-        }
-
-        public void FillSpecificLateVariables(RC.VariableContainer variableContainer, string category) {
-            FillBaseLateVariables(variableContainer, category);
         }
 
         public override RoadComponent[] GetComponents() {

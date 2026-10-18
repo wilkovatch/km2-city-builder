@@ -160,10 +160,9 @@ A parameter of type `objectInstance` attaches a mesh to its element. The core de
             "index": "startTrafficLight_meshIndex"
         },
         "defaultScale": [1, 1, 1],
-        "intersection": 0,
         "condition": "startTrafficLightCondition",
-        "basePosition": "startTrafficLightPosition",
-        "baseRotation": "startTrafficLightRotation",
+        "basePosition": "startTrafficLightBasePosition",
+        "baseRotation": "startTrafficLightBaseRotation",
         "allowPosition": [true, true, true],
         "allowRotation": [false, true, false],
         "allowScale": [false, false, false]
@@ -180,30 +179,13 @@ A parameter of type `objectInstance` attaches a mesh to its element. The core de
 | `condition` | Name of a **boolean definition**: the object exists only while it is true. Omit it for objects that always exist. |
 | `basePosition`, `baseRotation`, `baseScale` | Names of **vec3 definitions** giving the position, the rotation (Euler angles in degrees) and the scale of the object. Missing: zero position, no rotation, unit scale. For roads, use late definitions, which can use the first and last section vertices (`v<n>_0`, `v<n>_1`). |
 | `allowPosition`, `allowRotation`, `allowScale` | Which axes the user can change (`[x, y, z]`). The user's changes are stored as offsets in the parameter's state (`localPosition`, `localRotation`, `localScale`, plus `meshPath`). |
-| `intersection` | For road choices: 0 for the start intersection, 1 for the end one. |
-| `conditionRoadChoice`, `basePositionRoadChoice`, `baseRotationRoadChoice`, `baseScaleRoadChoice` | Optional: evaluate the corresponding definition on another road of the intersection, see below. |
+
+The hooks (`condition`, `defaultModel.index`, `basePosition`, `baseRotation`, `baseScale`) are evaluated each time the objects of the element are placed, after all the elements have been rebuilt. The definitions they name can be expressions or [Lua scripts](Core-Lua-Scripts). Late definitions of a category other than `common` are only evaluated when a hook reads them, which makes such a category the place for the placement logic.
 
 Elements of `array` and `customElement` parameters have no definitions, so their objects should not use `condition` or the `base*` keys: they start at the origin of the element and are placed by the user.
 
-### Choosing another road
+### Objects near another road
 
-Some objects belong to a road but stand near another road of the same intersection. MM2's traffic lights, for example, are placed on the corner of the road to the right. A *road choice* tells the program on which road to evaluate a definition:
+Some objects belong to a road but stand near another road of the same intersection. MM2's traffic lights, for example, can stand on a corner of the road across the intersection. Their position is a [Lua script](Core-Lua-Scripts) definition: the script gets the intersections of the road through its context (`ctx:intersection("start")`), with the other roads sorted clockwise and their variables, and picks the corner.
 
-```json
-"basePositionRoadChoice": {
-    "lateDefinitions": "startTrafficLight",
-    "condition": "startTrafficLightPositionOnOtherRoad",
-    "index": "startTrafficLightRoadIndex",
-    "score": "startTrafficLightRoadScore",
-    "inputData": ["startTrafficLightOppInv", "startTrafficLightInOffset", "projTrafficLightStart"]
-}
-```
-
-1. `condition` (boolean definition): if false, the definition is evaluated on the road itself as usual.
-2. The roads of the intersection (`intersection` key) are sorted clockwise.
-3. If `score` is set, for every other road the program copies the `inputData` values (see below), evaluates `<score>_start` or `<score>_end` on that road (depending on which of its ends is at the intersection) and picks the road with the highest score; `maxScoreRoadIndex` is set to its position relative to the road itself.
-4. The late definitions of the category `lateDefinitions` are evaluated, then `index` (float definition) gives the chosen road as an offset in the clockwise order from the road itself.
-5. The `inputData` variables of the road are copied to the chosen road as `<name>_input` (the chosen road's type must have definitions with these names, giving defaults), and the chosen road's late definitions of the category are evaluated.
-6. The definition is evaluated on the chosen road with the suffix `_start` or `_end` (for example `startTrafficLightPosition_start`), unless the chosen road is the road itself.
-
-This makes it possible for each road type to describe where its own corners are, while the object's owner decides which corner to use.
+Each road type describes where its own corners are (with simple definitions such as `startTrafficLightPosition`), while the script, shared by all the road types, decides which corner to use. See the [example](Core-Lua-Scripts#example-the-mm2-traffic-lights).

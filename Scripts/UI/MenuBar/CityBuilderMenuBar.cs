@@ -721,6 +721,7 @@ public partial class CityBuilderMenuBar : Control {
         meshListEditorPanel.ResetEntries(); //otherwise when opened for the first time it would have broken paths due to prefs not being loaded at first load
         SetCameraRenderingMode(PreferencesManager.Get("renderingMode", 0), false);
         SetShadows(PreferencesManager.Get("shadowsEnabled", true), false);
+        RuntimeCalculator.Scripting.LuaScriptHost.Reset(); //the scripts are read again with the types
         CityElements.Types.Parsers.TypeParser.GetRoadTypes(true);
         CityElements.Types.Parsers.TypeParser.GetPropsElementTypes(true);
         CityElements.Types.Parsers.TypeParser.GetPropsContainersTypes(true);
