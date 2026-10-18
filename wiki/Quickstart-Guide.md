@@ -78,12 +78,29 @@ Exporting the city for the game is described in [Exporting](#exporting).
 
 ### Camera
 
+There are two camera control schemes, selectable in *Settings→Preferences→Controls*.
+
+**Scheme A** (default):
+
 | **Action** | **Mouse** | **Keyboard** |
 |---|---|---|
 | Pan | Drag with the middle button | Hold Home and move the mouse |
 | Rotate | Drag with the right button | |
 | Zoom | Scroll wheel | Page Up / Page Down |
 | Zoom in on a point | Click the middle button without dragging | |
+
+**Scheme B**:
+
+| **Action** | **Mouse** | **Keyboard** |
+|---|---|---|
+| Orbit | Drag with the middle button | |
+| Pan | Drag with the middle button holding Shift, or Ctrl/Shift + scroll wheel | Hold Home and move the mouse |
+| Zoom | Scroll wheel, or drag with the middle button holding Ctrl | Page Up / Page Down |
+| Zoom in on a point | Click the middle button without dragging | |
+
+In scheme B the camera orbits around the point in the center of the view, and zooms toward it.
+
+If your mouse has no middle button (e.g. on a laptop), enable *Emulate 3-button mouse* in the same tab: holding Alt while pressing the left button then acts as the middle button, in both schemes.
 
 You can also jump to an object with *Zoom to object* in the object list (*Edit→View object list*).
 
@@ -110,7 +127,7 @@ Points are kept on the ground by default. Hold Shift while placing them to snap 
 
 ### Moving points and objects
 
-Select a point (or a mesh) and drag the gizmo, or press M and enter the new position by hand. To select more than one control point at a time, hold Ctrl while clicking (hold Alt to unselect).
+Select a point (or a mesh) and drag the gizmo, or press M and enter the new position by hand. To select more than one control point at a time, hold Ctrl while clicking (Ctrl-clicking a selected point unselects it).
 
 ### Keyboard shortcuts
 

@@ -9,16 +9,19 @@ namespace EditorPanels {
     public class SettingsEditorPanel : EditorPanel {
         EditorPanelElements.ScrollList cores;
         EditorPanelElements.InputField pythonPath, pythonPort;
-        EditorPanelElements.Checkbox pythonDebug;
+        EditorPanelElements.Checkbox pythonDebug, emulateMiddle;
+        EditorPanelElements.Dropdown cameraControls;
+        EditorPanelElements.Label cameraControlsDescription;
         EditorPanelElements.Button installBtn, uninstallBtn, checkUpdatesBtn, showInfoBtn, openCoreFolderBtn;
         List<CM.CoreInfo> curList;
         int curCoreI = -1;
 
         public override void Initialize(GameObject canvas) {
-            pageButtonNames.AddRange(new string[] { SM.Get("PREF_TAB_CORES"), SM.Get("PREF_TAB_PYTHON") });
-            Initialize(canvas, 2);
+            pageButtonNames.AddRange(new string[] { SM.Get("PREF_TAB_CORES"), SM.Get("PREF_TAB_PYTHON"), SM.Get("PREF_TAB_CONTROLS") });
+            Initialize(canvas, 3);
             var p0 = GetPage(0);
             var p1 = GetPage(1);
+            var p2 = GetPage(2);
             var w = 1.5f;
 
             //Cores
@@ -47,6 +50,20 @@ namespace EditorPanels {
             pythonDebug = p1.AddCheckbox(SM.Get("PREF_PYTHON_DEBUG"), false, x => { SettingsManager.Set("pythonDebug", x); }, w);
             p1.IncreaseRow();
             p1.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, w);
+
+            //Controls
+            var schemes = new List<string> { SM.Get("PREF_CAMERA_CONTROLS_A"), SM.Get("PREF_CAMERA_CONTROLS_B") };
+            cameraControls = p2.AddDropdown(SM.Get("PREF_CAMERA_CONTROLS"), schemes, x => {
+                SettingsManager.Set("cameraControls", x);
+                builder.ReloadCameraControls();
+                ShowCameraControlsDescription(x);
+            }, w);
+            p2.IncreaseRow();
+            cameraControlsDescription = p2.AddLabel("", w, null, null, 2.6f);
+            p2.IncreaseRow(2.6f);
+            emulateMiddle = p2.AddCheckbox(SM.Get("PREF_EMULATE_MMB"), false, x => { SettingsManager.Set("emulateMiddleButton", x); builder.ReloadCameraControls(); }, w, SM.Get("PREF_EMULATE_MMB_TOOLTIP"));
+            p2.IncreaseRow();
+            p2.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, w);
 
             ReloadCoreList(cores, true);
         }
@@ -261,8 +278,16 @@ namespace EditorPanels {
                 pythonPath.SetValue(SettingsManager.Get<string>("pythonPath", null));
                 pythonPort.SetValue("" + SettingsManager.Get("pythonPort", 5005));
                 pythonDebug.SetValue(SettingsManager.Get("pythonDebug", false));
+                var scheme = SettingsManager.Get("cameraControls", 0);
+                cameraControls.SetValue(scheme);
+                ShowCameraControlsDescription(scheme);
+                emulateMiddle.SetValue(SettingsManager.Get("emulateMiddleButton", false));
             }
             base.SetActive(active);
+        }
+
+        void ShowCameraControlsDescription(int scheme) {
+            cameraControlsDescription.SetValue(SM.Get(scheme == 1 ? "PREF_CAMERA_CONTROLS_B_DESC" : "PREF_CAMERA_CONTROLS_A_DESC"));
         }
     }
 }

@@ -743,7 +743,44 @@ public static partial class GameEngine {
             InputMap.ActionEraseEvents(action);
         }
 
+        //when enabled, a left button press with Alt held acts as the middle button until the left button is released
+        public static bool emulateMiddleButton = false;
+        static bool emulatedMiddleDown = false;
+        static ulong emulatedPressFrame = ulong.MaxValue;
+        static ulong emulatedReleaseFrame = ulong.MaxValue;
+
+        //world: the press was not consumed by the GUI (releases are always tracked, so the latch is cleared over the UI too)
+        public static void TrackMouseEvent(InputEventMouseButton e, bool world) {
+            if (e.ButtonIndex != MouseButton.Left) return;
+            if (e.Pressed) {
+                if (world && emulateMiddleButton && Godot.Input.IsKeyPressed(Key.Alt)) {
+                    emulatedMiddleDown = true;
+                    emulatedPressFrame = Engine.GetProcessFrames();
+                }
+            }
+            else if (emulatedMiddleDown) {
+                emulatedMiddleDown = false;
+                emulatedReleaseFrame = Engine.GetProcessFrames();
+            }
+        }
+
+        //the middle button, physical or emulated
+        public static bool MiddlePressed() {
+            return Godot.Input.IsActionPressed(KeyCommand.ZoomInAndPan2.ToString()) || emulatedMiddleDown;
+        }
+
+        public static bool MiddleJustPressed() {
+            return Godot.Input.IsActionJustPressed(KeyCommand.ZoomInAndPan2.ToString())
+                || (emulatedMiddleDown && emulatedPressFrame == Engine.GetProcessFrames());
+        }
+
+        public static bool MiddleJustReleased() {
+            return Godot.Input.IsActionJustReleased(KeyCommand.ZoomInAndPan2.ToString())
+                || (!emulatedMiddleDown && emulatedReleaseFrame == Engine.GetProcessFrames());
+        }
+
         public static bool GetInputStart(KeyCommand command) {
+            if (command == KeyCommand.Select && emulatedMiddleDown) return false;
             if (mouseMapping.ContainsKey(command)) {
                 return Godot.Input.IsActionJustPressed(command.ToString());
             }
@@ -759,6 +796,7 @@ public static partial class GameEngine {
         }
 
         public static bool GetInputPressed(KeyCommand command) {
+            if (command == KeyCommand.Select && emulatedMiddleDown) return false;
             if (mouseMapping.ContainsKey(command)) {
                 return Godot.Input.IsActionPressed(command.ToString());
             }

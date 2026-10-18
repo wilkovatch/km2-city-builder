@@ -91,7 +91,7 @@ Runs every frame before the gizmo. When a tool (`modifier`, a `TerrainAction`) i
 
 | Class | Description |
 |---|---|
-| `CameraController` | The main camera: fly camera with zoom (wheel, Page Up/Down), pan and zoom to point (middle button, Home), rotation (right button), up/down movement, rendering mode, per-layer cull distances. |
+| `CameraController` | The main camera, with two control schemes (`cameraControls` in the settings). Scheme A: fly camera with zoom (wheel, Page Up/Down), pan and zoom to point (middle button, Home), rotation (right button). Scheme B: orbit, pan (Shift) and zoom (Ctrl) with the middle button around a pivot picked under the center of the view, zoom toward the pivot with the wheel. Also rendering mode and per-layer cull distances. The middle button can be emulated with Alt + left button (`emulateMiddleButton`, see `GameEngine.Input.MiddlePressed`). |
 | `Handle` | A draggable point (the `Handle.tscn` scene): color, scale and visibility, used for road points, terrain points and anchors. |
 | `DiscHandle` | A disc-shaped handle. |
 

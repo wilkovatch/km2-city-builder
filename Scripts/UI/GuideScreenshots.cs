@@ -58,7 +58,6 @@ public partial class GuideScreenshots : Node {
         var dir = new Vector3(Mathf.Cos(p) * Mathf.Sin(y), Mathf.Sin(p), Mathf.Cos(p) * Mathf.Cos(y));
         cam.Position = target + dir * distance;
         cam.LookAt(target, Vector3.Up);
-        cam.GetType().GetField("curRotation", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(cam, cam.RotationDegrees);
     }
 
     //frames an area of the given size, centered in the part of the screen not covered by the editor panel on the right

@@ -509,8 +509,8 @@ namespace RuntimeGizmos {
             if (!allowDeselect || UIDetection.OnUI()) return;
             if (consumedClickFrame == Engine.GetProcessFrames()) return;
             if (nearAxis == Axis.None && Input.GetInputStart(KeyCommand.Select)) {
-                bool isAdding = Input.GetInputPressed(KeyCommand.Modifier2);
-                bool isRemoving = Godot.Input.IsKeyPressed(Key.Alt);
+                //Ctrl toggles the clicked target in the selection
+                bool isToggling = Input.GetInputPressed(KeyCommand.Modifier2);
 
                 var target = RaycastSelection();
                 if (target != null) {
@@ -520,15 +520,14 @@ namespace RuntimeGizmos {
                         transformType = TransformType.Move;
                     }
 
-                    if (isAdding) {
-                        AddTarget(target);
-                    } else if (isRemoving) {
-                        RemoveTarget(target);
+                    if (isToggling) {
+                        if (targetRootsOrdered.Contains(target)) RemoveTarget(target);
+                        else AddTarget(target);
                     } else {
                         ClearAndAddTarget(target);
                     }
                 } else {
-                    if (!isAdding && !isRemoving) {
+                    if (!isToggling) {
                         ClearTargets();
                     }
                 }

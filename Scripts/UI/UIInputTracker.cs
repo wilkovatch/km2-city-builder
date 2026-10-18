@@ -19,6 +19,14 @@ public partial class UIInputTracker : Node {
     public override void _UnhandledInput(InputEvent @event) {
         if (@event is InputEventMouseButton { Pressed: true } mouseButton) {
             UIDetection.NotifyWorldPress(mouseButton.ButtonIndex);
+            GameEngine.Input.TrackMouseEvent(mouseButton, true);
+        }
+    }
+
+    //releases are tracked before the GUI can consume them, so the emulated middle button is released over the UI too
+    public override void _Input(InputEvent @event) {
+        if (@event is InputEventMouseButton { Pressed: false } mouseButton) {
+            GameEngine.Input.TrackMouseEvent(mouseButton, false);
         }
     }
 

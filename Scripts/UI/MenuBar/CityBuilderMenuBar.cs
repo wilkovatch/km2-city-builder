@@ -661,6 +661,11 @@ public partial class CityBuilderMenuBar : Control {
         if (cam != null) cam.SetPropsCullingDistance(v);
     }
 
+    public void ReloadCameraControls() {
+        var cam = GetCameraController();
+        if (cam != null) cam.LoadControls();
+    }
+
     public void SetSelectObjectMode() {
         terrainClick.modifier = nullModifier;
     }
