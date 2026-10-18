@@ -7,7 +7,7 @@ using CM = CoreManager;
 
 namespace EditorPanels {
     public class SettingsEditorPanel : EditorPanel {
-        EditorPanelElements.ScrollList cores;
+        EditorPanelElements.ScrollList cores, scriptFolders;
         EditorPanelElements.InputField pythonPath, pythonPort;
         EditorPanelElements.Checkbox pythonDebug, emulateMiddle;
         EditorPanelElements.Dropdown cameraControls;
@@ -15,6 +15,7 @@ namespace EditorPanels {
         EditorPanelElements.Button installBtn, uninstallBtn, checkUpdatesBtn, showInfoBtn, openCoreFolderBtn;
         List<CM.CoreInfo> curList;
         int curCoreI = -1;
+        int curScriptFolderI = -1;
 
         public override void Initialize(GameObject canvas) {
             pageButtonNames.AddRange(new string[] { SM.Get("PREF_TAB_CORES"), SM.Get("PREF_TAB_PYTHON"), SM.Get("PREF_TAB_CONTROLS") });
@@ -48,6 +49,11 @@ namespace EditorPanels {
             pythonPort = p1.AddInputField(SM.Get("PREF_PYTHON_PORT"), SM.Get("NUMBER_PH"), "", GameEngine.InputContentType.Integer, x => { SettingsManager.Set("pythonPort", int.Parse(x)); }, w);
             p1.IncreaseRow();
             pythonDebug = p1.AddCheckbox(SM.Get("PREF_PYTHON_DEBUG"), false, x => { SettingsManager.Set("pythonDebug", x); }, w);
+            p1.IncreaseRow();
+            scriptFolders = p1.AddScrollList(SM.Get("PREF_SCRIPT_FOLDERS"), new List<string>(), x => curScriptFolderI = x, w, SM.Get("PREF_SCRIPT_FOLDERS_TOOLTIP"));
+            p1.IncreaseRow(5.0f);
+            p1.AddButton(SM.Get("PREF_SCRIPT_FOLDERS_DELETE"), DeleteScriptFolder, w * 0.5f);
+            p1.AddButton(SM.Get("PREF_SCRIPT_FOLDERS_ADD"), delegate { builder.fileBrowser.LoadFolder(AddScriptFolder); }, w * 0.5f);
             p1.IncreaseRow();
             p1.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, w);
 
@@ -278,12 +284,34 @@ namespace EditorPanels {
                 pythonPath.SetValue(SettingsManager.Get<string>("pythonPath", null));
                 pythonPort.SetValue("" + SettingsManager.Get("pythonPort", 5005));
                 pythonDebug.SetValue(SettingsManager.Get("pythonDebug", false));
+                ReloadScriptFolders();
                 var scheme = SettingsManager.Get("cameraControls", 0);
                 cameraControls.SetValue(scheme);
                 ShowCameraControlsDescription(scheme);
                 emulateMiddle.SetValue(SettingsManager.Get("emulateMiddleButton", false));
             }
             base.SetActive(active);
+        }
+
+        void ReloadScriptFolders() {
+            scriptFolders.Deselect();
+            scriptFolders.SetItems(ScriptCatalog.UserFolders());
+            curScriptFolderI = -1;
+        }
+
+        void AddScriptFolder(string folder) {
+            var list = ScriptCatalog.UserFolders();
+            if (!list.Contains(folder)) list.Add(folder);
+            SettingsManager.SetList("scriptFolders", list);
+            ReloadScriptFolders();
+        }
+
+        void DeleteScriptFolder() {
+            var list = ScriptCatalog.UserFolders();
+            if (curScriptFolderI < 0 || curScriptFolderI >= list.Count) return;
+            list.RemoveAt(curScriptFolderI);
+            SettingsManager.SetList("scriptFolders", list);
+            ReloadScriptFolders();
         }
 
         void ShowCameraControlsDescription(int scheme) {

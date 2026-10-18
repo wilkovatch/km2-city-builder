@@ -38,6 +38,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   ├── settings.json
 │   └── export.py
 ├── migrations/<N>.py            city migration scripts
+├── scripts/                     optional: Python scripts of the Scripts menu (see Python Scripts)
 └── pythonInfo/
     ├── imports.txt              modules checked before loading a city
     ├── requirements.txt         pip requirements installed on demand

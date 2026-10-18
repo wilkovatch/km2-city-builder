@@ -513,5 +513,16 @@
 	"PROP_ELEM_RND_TOOLTIP": "If unchecked, meshes are chosen sequentially, if checked, randomly.",
 	"RD_SW_RD_UV_TOOLTIP": "Uses road-style UV coordinates for the sidewalks. Use sparingly, as it may look bad when the sidewalk does not have 4 distinct sides (e.g. when going from a road with sidewalks to another without them)",
 	"TE_CONTINUOUS_TOOLTIP": "If checked, the modifier is applied while holding the left mouse button (by intensity/second), if unchecked it's applied once per click. (by intensity)",
-	"HIDE_OTHER_TOOLTIP": "Hides/shows other entities of the same type as this one"
+	"HIDE_OTHER_TOOLTIP": "Hides/shows other entities of the same type as this one",
+	"SCRIPTS": "Scripts",
+	"SCRIPTS_OPEN_FOLDER": "Open the scripts folder",
+	"SCRIPT_RUN": "Run",
+	"SCRIPT_BUSY": "Another script is running.",
+	"SCRIPT_NO_PYTHON": "Python is not available.",
+	"SCRIPT_FAILED": "The script $NAME failed:",
+	"SCRIPT_UNDONE": "Its changes have been undone.",
+	"PREF_SCRIPT_FOLDERS": "Script folders",
+	"PREF_SCRIPT_FOLDERS_TOOLTIP": "The scripts (.py files, and folders with a script.json) in these folders are listed in the Scripts menu",
+	"PREF_SCRIPT_FOLDERS_DELETE": "Delete folder",
+	"PREF_SCRIPT_FOLDERS_ADD": "Add folder"
 }

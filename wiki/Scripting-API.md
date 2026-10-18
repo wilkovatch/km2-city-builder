@@ -6,19 +6,19 @@ The scripting API loads, reads, edits and exports cities without the mouse tools
 
 ```
  scripts (JSON) ──▶ Api.CommandDispatcher    queue, method table, JSON conversions
-                          │
-                          ▼
+						  │
+						  ▼
  editor panels ──┐   Api.CityApi             references, validation, undo steps, updates
  and tools       │        │
-                 └────────┴──▶ Operations.*  the editing logic, without UI
-                                    │
-                    ElementManager, elements, presets, undo manager, IO
+				 └────────┴──▶ Operations.*  the editing logic, without UI
+									│
+					ElementManager, elements, presets, undo manager, IO
 ```
 
 | Layer | Folder | Purpose |
 |---|---|---|
 | Operations | `Scripts/Operations` | The editing logic of the editor panels and placers (`RoadDrawing`, `Roads`, `Intersections`, `TerrainPatches`, `TerrainPoints`, `BuildingLines`, `Anchors`, `Meshes`, `Props`, `States`, `Presets`, `Builtins`, `Terrain`, `City`, `CityFiles`). The panels and placers call it too, so the API can't behave differently from the editor. The operations return results instead of showing alerts. |
-| API | `Scripts/Api` | `CityApi` (one method per command), `CommandDispatcher` (the JSON protocol), `ApiHost` (the node running the queued commands every frame), `ApiSelfTest`. |
+| API | `Scripts/Api` | `CityApi` (one method per command), `CommandDispatcher` (the JSON protocol), `ApiHost` (the node running the queued commands every frame), `ScriptRunner` (the transport of the Python scripts), `ApiSelfTest`. |
 
 The long operations (loading, saving, exporting, whole city generation, rotation, heightmap import) are awaitable: they return a `Task` and report their progress through an `IProgress<(float, string)>`. The decisions they need from the user (migrating a city, installing Python modules) go through `Operations.IInteraction`: `UiInteraction` asks with the editor popups, `FixedInteraction` answers from the options of the call, so a script is never blocked by a popup.
 
@@ -28,13 +28,15 @@ The long operations (loading, saving, exporting, whole city generation, rotation
 
 When the command line contains an argument starting with `--api-`, the program is driven by a script: the last city is not loaded at startup and Python is not checked until the script loads a city.
 
+The Python scripts of the Scripts menu (and the one given with `--api-script`) are run by `ScriptRunner`, which sends the lines written by the script to the dispatcher and writes the responses back to it: see [Python Scripts](Python-Scripts).
+
 ### Self-test
 
 ```
 Godot_v4.7.1-stable_mono_win64_console.exe --path . [--headless] -- --api-selftest=<new folder>
 ```
 
-Creates a city in the folder (from the SF template of the Midtown Madness 2 core) and drives it only with JSON commands: every kind of element, anchors, terrain points and heights, parameters, arrays, presets, props, undo and redo of each change, batches, transactions, errors, a script changing an element open in the editor, parity with the elements made with the editor tools, whole city generation, save and load, export JSON, geometry and the core exporter. It also contains the whole city terrain and building generation written with the commands only (`ScriptTerrain`, `ScriptBuildings`), checked against `city.generateTerrain` and `city.generateBuildings`: they are the reference for scripts generating cities. It writes `api_selftest.log` next to the folder and exits with code 1 if anything failed.
+Creates a city in the folder (from the SF template of the Midtown Madness 2 core) and drives it only with JSON commands: every kind of element, anchors, terrain points and heights, parameters, arrays, presets, props, undo and redo of each change, batches, transactions, errors, a script changing an element open in the editor, parity with the elements made with the editor tools, whole city generation, save and load, export JSON, geometry and the core exporter. It also contains the whole city terrain and building generation written with the commands only (`ScriptTerrain`, `ScriptBuildings`), checked against `city.generateTerrain` and `city.generateBuildings`: they are the reference for scripts generating cities. The same generators written in Python (the `cityTerrain` and `cityBuildings` examples of `wiki/examples/scripts`, see [Python Scripts](Python-Scripts#examples)) are run through `ScriptRunner` and checked in the same way, along with the runner itself (inputs, selection, single undo step, failures, cancelling, settings restored) and the input panel of the scripts. It writes `api_selftest.log` next to the folder and exits with code 1 if anything failed.
 
 ## Protocol
 
@@ -139,7 +141,7 @@ Each command changing the city is an undo step, like an action in the editor: `h
 
 After each change the city is updated, so that what is computed from the elements (curves, anchors, intersection sizes, buildings) can be read and used by the next command. With `autoFlush: false` the updates wait until `city.flush` (or the next frame).
 
-A transaction makes several commands a single undo step, also when the script reads the city between them (unlike a batch): `history.begin` opens it, `history.commit` closes it, `history.rollback` closes it undoing its changes. Each command still fails alone: a failed command is undone, the transaction stays open. While a transaction is open, undo and redo are not possible (from the script or the Edit menu), nor are the city rotation and the heightmap import; the changes made meanwhile in the editor become part of it.
+A transaction makes several commands a single undo step, also when the script reads the city between them (unlike a batch): `history.begin` opens it, `history.commit` closes it, `history.rollback` closes it undoing its changes. Each command still fails alone: a failed command is undone, the transaction stays open. While a transaction is open, undo and redo are not possible (from the script or the Edit menu), nor are the city rotation, the heightmap import and loading, creating, reloading or closing a city; the changes made meanwhile in the editor become part of it. While a Python script runs with the transaction of its run, it can't open or close transactions itself.
 
 When a script changes the city while the editor is open, the editors are closed first, as before an undo.
 
@@ -187,12 +189,12 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 ```json
 {"id": 1, "method": "city.load", "params": {"folder": "C:/cities/test"}}
 {"id": 2, "method": "roads.create", "params": {"points": [
-    {"position": [0, 0, 0], "onGround": true},
-    {"position": [200, 0, 0], "onGround": true},
-    {"roadMiddle": {"road": "Road 3", "near": [400, 0, 0]}}]}}
+	{"position": [0, 0, 0], "onGround": true},
+	{"position": [200, 0, 0], "onGround": true},
+	{"roadMiddle": {"road": "Road 3", "near": [400, 0, 0]}}]}}
 {"id": 3, "method": "elements.get", "params": {"ref": 25, "derived": true}}
 {"id": 4, "method": "patches.create", "params": {"perimeter": [
-    {"anchor": {"of": 25, "index": 0}}, {"position": [0, 0, -50], "onGround": true}, {"position": [100, 0, -50], "onGround": true}]}}
+	{"anchor": {"of": 25, "index": 0}}, {"position": [0, 0, -50], "onGround": true}, {"position": [100, 0, -50], "onGround": true}]}}
 {"id": 5, "method": "city.save"}
 {"id": 6, "method": "city.export", "params": {"path": "C:/cities/test/out", "exporter": "psdl", "flags": {"bai": false}}}
 ```
@@ -435,6 +437,18 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 |---|---|---|---|
 | `project.settings.get` | - | object | The settings of the city: extra asset folders (of the city, and global) and ground overlay texture |
 | `project.settings.set` | `extraFolders: string[] = null`<br>`overlayTexture: string = null` | object | Changes the settings of the city: extra asset folders of the city and ground overlay texture |
+
+### `script.*`
+
+Only while a Python script is running (see [Python Scripts](Python-Scripts)); otherwise they fail with `invalid_operation`.
+
+| Method | Parameters | Result | Description |
+|---|---|---|---|
+| `script.alert` | `text: string`<br>`title: string = null` | - | Shows a message when the running script ends |
+| `script.inputs` | - | any | The values entered in the input panel of the running script, by parameter name (enums as indices, arrays as lists of objects) |
+| `script.log` | `text: string`<br>`level: string = 'info'` | - | Writes a line in the log of the program; level: info, warning or error |
+| `script.progress` | `value: number`<br>`text: string = null` | - | Shows the progress of the running script (value from 0 to 1), with a text (null: keeps the last one) |
+| `script.selection` | - | int[] | The ids of the elements selected or being edited when the running script was started |
 
 ### Dispatcher
 

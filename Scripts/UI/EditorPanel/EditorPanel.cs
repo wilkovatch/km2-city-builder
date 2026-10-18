@@ -116,6 +116,16 @@ public abstract partial class EditorPanel {
         return true;
     }
 
+    //the text of a string key of the parameters (the child panels use the strings of their parent)
+    protected virtual string GetString(string key) {
+        return parentPanel != null ? parentPanel.GetString(key) : SM.Get(key);
+    }
+
+    //the parameter types that exist only for the inputs of the scripts (preset, file, folder) can be shown
+    protected virtual bool AllowsScriptParameterTypes() {
+        return parentPanel != null && parentPanel.AllowsScriptParameterTypes();
+    }
+
     protected void AddParameters(EditorPanelPage p, ref float curW, float totW, CityElements.Types.Parameter[] parameters, CityElements.Types.TabElement elem, System.Func<IObjectWithState> getObject, bool prependstate) {
         //TODO: in practice only processes one parameter, rename to AddParameter and pass directly the correct parameter?
         curW += elem.width;
@@ -130,34 +140,44 @@ public abstract partial class EditorPanel {
                 EditorPanelElement field = null;
                 switch (param.type) {
                     case "bool":
-                        field = p.AddFieldCheckbox(SM.Get(param.label), getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        field = p.AddFieldCheckbox(GetString(param.label), getObject, pFullName, null, elem.width, GetString(param.tooltip));
                         break;
                     case "float":
-                        field = p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), GameEngine.InputContentType.Decimal, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        field = p.AddFieldInputField(GetString(param.label), GetString(param.placeholder), GameEngine.InputContentType.Decimal, getObject, pFullName, null, elem.width, GetString(param.tooltip));
                         break;
                     case "texture":
-                        field = p.AddFieldTextureField(builder, SM.Get(param.label), SM.Get(param.placeholder), getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        field = p.AddFieldTextureField(builder, GetString(param.label), GetString(param.placeholder), getObject, pFullName, null, elem.width, GetString(param.tooltip));
                         break;
                     case "mesh":
-                        field = p.AddFieldMeshField(builder, SM.Get(param.label), SM.Get(param.placeholder), getObject, pFullName, null, true, elem.width, SM.Get(param.tooltip));
+                        field = p.AddFieldMeshField(builder, GetString(param.label), GetString(param.placeholder), getObject, pFullName, null, true, elem.width, GetString(param.tooltip));
                         break;
                     case "string":
-                        field = p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), GameEngine.InputContentType.Standard, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        field = p.AddFieldInputField(GetString(param.label), GetString(param.placeholder), GameEngine.InputContentType.Standard, getObject, pFullName, null, elem.width, GetString(param.tooltip));
                         break;
                     case "int":
-                        field = p.AddFieldInputField(SM.Get(param.label), SM.Get(param.placeholder), GameEngine.InputContentType.Integer, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        field = p.AddFieldInputField(GetString(param.label), GetString(param.placeholder), GameEngine.InputContentType.Integer, getObject, pFullName, null, elem.width, GetString(param.tooltip));
                         break;
                     case "enum":
                         var typesNames = new List<string>();
-                        foreach (var t in param.enumLabels) typesNames.Add(SM.Get(t));
-                        field = p.AddFieldDropdown(SM.Get(param.label), typesNames, getObject, pFullName, null, elem.width, SM.Get(param.tooltip));
+                        foreach (var t in param.enumLabels) typesNames.Add(GetString(t));
+                        field = p.AddFieldDropdown(GetString(param.label), typesNames, getObject, pFullName, null, elem.width, GetString(param.tooltip));
                         break;
                     case "objectInstance":
-                        var objBtn = p.AddButton(SM.Get(param.label), delegate { EditObjectInstanceParameter(param.fullName(), new List<string>() { }); }, elem.width, SM.Get(param.tooltip));
+                        var objBtn = p.AddButton(GetString(param.label), delegate { EditObjectInstanceParameter(param.fullName(), new List<string>() { }); }, elem.width, GetString(param.tooltip));
                         objectInstanceParameters.Add((objBtn, param));
                         break;
                     case "customElement":
-                        p.AddButton(SM.Get(param.label), delegate { SelectCustomElement(param); }, elem.width, SM.Get(param.tooltip), null);
+                        p.AddButton(GetString(param.label), delegate { SelectCustomElement(param); }, elem.width, GetString(param.tooltip), null);
+                        break;
+                    case "preset":
+                        if (!AllowsScriptParameterTypes()) break;
+                        field = p.AddFieldNamedDropdown(GetString(param.label), ScriptCatalog.PresetNames(param.presetCategory), getObject, pFullName, null, elem.width, GetString(param.tooltip));
+                        break;
+                    case "file":
+                    case "folder":
+                        if (!AllowsScriptParameterTypes()) break;
+                        field = p.AddFieldInputField(GetString(param.label), GetString(param.placeholder), GameEngine.InputContentType.Standard, getObject, pFullName, null, elem.width * 0.8f, GetString(param.tooltip));
+                        p.AddButton("...", delegate { BrowsePath(param, getObject, pFullName); }, elem.width * 0.2f, GetString(param.tooltip));
                         break;
                     case "array":
                         if (!complexElements.ContainsKey(typeof(IOList))) {
@@ -182,9 +202,9 @@ public abstract partial class EditorPanel {
                             );*/
                         }
                         var l = GetComplexElement<IOList>();
-                        l.AddFullEditableList(p, param.fullName(), SM.Get(param.label),
+                        l.AddFullEditableList(p, param.fullName(), GetString(param.label),
                             SM.Get("ARRAY_ADD"), SM.Get("ARRAY_EDIT"), SM.Get("ARRAY_DELETE"), param.arrayProperties.maxElements,
-                            AddArrayElementD, SelectArrayElementD, DeleteArrayElementD, GetArrayD, 5.0f, elem.width, SM.Get(param.tooltip), null, extraButtons);
+                            AddArrayElementD, SelectArrayElementD, DeleteArrayElementD, GetArrayD, 5.0f, elem.width, GetString(param.tooltip), null, extraButtons);
                         curW = 0;
                         break;
                 }
@@ -192,6 +212,20 @@ public abstract partial class EditorPanel {
                 if (prependstate && param.instanceSpecific && EditingPreset()) field?.SetInteractable(false);
                 break;
             }
+        }
+    }
+
+    //a file or folder parameter: chosen with the file dialog
+    void BrowsePath(CityElements.Types.Parameter param, System.Func<IObjectWithState> getObject, string fieldName) {
+        System.Action<string> set = path => {
+            new FieldStatus(getObject, fieldName, null).SetValue(path);
+            ReadCurValues();
+        };
+        if (param.type == "folder") {
+            builder.fileBrowser.LoadFolder(set);
+        } else {
+            var extensions = param.extensions != null && param.extensions.Length > 0 ? param.extensions : new[] { "" };
+            builder.fileBrowser.LoadFile(GetString(param.label), extensions, extensions[0], set);
         }
     }
 
@@ -500,6 +534,9 @@ public abstract partial class EditorPanel {
             case "string":
             case "texture":
             case "mesh":
+            case "preset":
+            case "file":
+            case "folder":
                 return elem.Str(param.fullName());
             case "objectInstance":
                 var res = elem.State(param.fullName())?.Str("meshPath");

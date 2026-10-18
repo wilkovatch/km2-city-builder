@@ -9,7 +9,7 @@ namespace Api {
     public partial class CityApi {
         public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "meshInstance", "terrainPoint", "cityProperties" };
 
-        static int IdOf(object element) {
+        internal static int IdOf(object element) {
             return element is CityProperties ? History.ElementRegistry.CityPropertiesId : History.ElementRegistry.GetId(element);
         }
 

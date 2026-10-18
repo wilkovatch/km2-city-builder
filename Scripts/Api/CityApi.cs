@@ -46,6 +46,9 @@ namespace Api {
             if (!HasCity) throw new ApiException("no_city", "no city is loaded");
         }
 
+        //a long operation (see RunLong) or a whole city generation is running
+        public bool IsLongRunning => busy > 0 || IsLongOperationRunning();
+
         static bool IsLongOperationRunning() {
             //the long operations (whole city generation, rotation) keep the history busy while running
             return History.UndoManager.IsBusy;
@@ -173,12 +176,19 @@ namespace Api {
         // History
 
         void RequireNoTransaction(string what) {
+            if (ScriptRunner.OwnsTransaction) throw ApiException.InvalidOperation(what + " is not possible while the changes of the script are a single undo step (\"transaction\": false in its script.json)");
             if (History.UndoManager.IsGroupOpen) throw ApiException.InvalidOperation(what + " is not possible while a transaction is open (history.commit or history.rollback first)");
+        }
+
+        //the transaction of a script run is opened and closed by the runner
+        void RequireNotScriptTransaction() {
+            if (ScriptRunner.OwnsTransaction) throw ApiException.InvalidOperation("the changes of the script are already a single undo step, closed when it ends (\"transaction\": false in its script.json to manage it)");
         }
 
         [ApiMethod("history.begin", "Opens a transaction: the changes until history.commit become a single undo step (each command still fails alone)")]
         public object BeginTransaction(string label = "script") {
             RequireCity();
+            RequireNotScriptTransaction();
             if (busy > 0 || IsLongOperationRunning()) throw new ApiException("busy", "another operation is running");
             if (History.UndoManager.IsGroupOpen) throw ApiException.InvalidOperation("a transaction is already open");
             if (!recordHistory) throw ApiException.InvalidOperation("transactions need the history (api.configure with history: true)");
@@ -190,6 +200,7 @@ namespace Api {
         [ApiMethod("history.commit", "Closes the transaction: its changes become a single undo step")]
         public object CommitTransaction() {
             RequireCity();
+            RequireNotScriptTransaction();
             if (!History.UndoManager.IsGroupOpen) throw ApiException.InvalidOperation("no transaction is open");
             if (busy > 0 || IsLongOperationRunning()) throw new ApiException("busy", "another operation is running");
             Flush();
@@ -200,6 +211,7 @@ namespace Api {
         [ApiMethod("history.rollback", "Closes the transaction undoing its changes")]
         public object RollbackTransaction() {
             RequireCity();
+            RequireNotScriptTransaction();
             if (!History.UndoManager.IsGroupOpen) throw ApiException.InvalidOperation("no transaction is open");
             if (busy > 0 || IsLongOperationRunning()) throw new ApiException("busy", "another operation is running");
             builder.BeginExternalChange();

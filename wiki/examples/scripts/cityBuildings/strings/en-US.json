@@ -1,0 +1,5 @@
+{
+	"SCRIPT_CITY_BUILDINGS": "Whole city buildings (script)",
+	"SCRIPT_CITY_BUILDINGS_DESC": "Building lines around the blocks between the roads, made with the scripting API",
+	"SCRIPT_CITY_BUILDINGS_NO_PRESETS": "Add at least one building preset to the list"
+}

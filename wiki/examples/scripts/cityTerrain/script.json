@@ -1,0 +1,29 @@
+{
+	"label": "SCRIPT_CITY_TERRAIN",
+	"description": "SCRIPT_CITY_TERRAIN_DESC",
+	"entry": "main.py",
+	"parameters": [
+		{ "name": "distance", "type": "float", "label": "CT_THICKNESS", "placeholder": "DISTANCE_PH", "tooltip": "CT_OUTER_PATCH_THICKNESS_TOOLTIP", "defaultValue": 5.0 },
+		{ "name": "segmentLength", "type": "float", "label": "CT_SEGMENT_LENGTH", "placeholder": "LENGTH_PH", "tooltip": "CT_OUTER_PATCH_SEGMENT_LENGTH_TOOLTIP", "defaultValue": 100.0 },
+		{ "name": "fusionDistance", "type": "float", "label": "CT_FUSION_DIST", "placeholder": "DISTANCE_PH", "tooltip": "CT_OUTER_PATCH_FUSION_DISTANCE_TOOLTIP", "defaultValue": 0.0 },
+		{ "name": "smoothing", "type": "int", "label": "CT_SMOOTHING", "placeholder": "CT_SMOOTHING_PH", "defaultValue": 0 },
+		{ "name": "internalDistance", "type": "float", "label": "CT_INT_PT_DIST", "placeholder": "DISTANCE_PH", "tooltip": "CT_INT_PT_DIST_TOOLTIP", "defaultValue": 0.0 },
+		{ "name": "texture", "type": "texture", "label": "TEXTURE", "placeholder": "TEXTURE_PH", "tooltip": "SCRIPT_CITY_TERRAIN_TEXTURE_TOOLTIP" }
+	],
+	"ui": {
+		"menuWidth": 1.5,
+		"tabs": [
+			{
+				"label": "",
+				"elements": [
+					{ "name": "distance", "width": 0.5 },
+					{ "name": "segmentLength", "width": 0.5 },
+					{ "name": "fusionDistance", "width": 0.5 },
+					{ "name": "smoothing", "width": 0.75 },
+					{ "name": "internalDistance", "width": 0.75 },
+					{ "name": "texture", "width": 1.5 }
+				]
+			}
+		]
+	}
+}

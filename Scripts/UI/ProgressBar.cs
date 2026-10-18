@@ -3,13 +3,15 @@ using Godot;
 /// <summary>
 /// Loading panel: a 400x70 white panel centred on screen with a 20px
 /// message at the top and a 300x20 bar (translucent white background, green fill, centred
-/// percentage) 10px below the panel centre.
+/// percentage) 10px below the panel centre. With a cancel action, the panel is taller and has a Cancel button at the bottom.
 /// </summary>
 public class ProgressBar {
     private readonly Control root;
     private readonly Label messageLabel;
     private readonly Label percentLabel;
     private readonly ColorRect fill;
+    private readonly Button cancelButton;
+    private System.Action cancelAction;
 
     public ProgressBar(Control parent, string message) {
         root = new Panel { Name = "LoadingPanel", Visible = false };
@@ -36,7 +38,17 @@ public class ProgressBar {
         UILayout.Stretch(percentLabel);
         background.AddChild(percentLabel);
 
+        cancelButton = Alert.AddButton(root, "Cancel", StringManager.Get("CANCEL"), 0, () => cancelAction?.Invoke());
+        cancelButton.Visible = false;
+
         parent.AddChild(root);
+    }
+
+    //shows a Cancel button calling the action (none: hides it)
+    public void SetCancelAction(System.Action action) {
+        cancelAction = action;
+        cancelButton.Visible = action != null;
+        UILayout.SetRect(root, 0.5f, 0.5f, 0.5f, 0.5f, 0, 0, 400, action != null ? 125 : 70);
     }
 
     public void SetText(string message) {

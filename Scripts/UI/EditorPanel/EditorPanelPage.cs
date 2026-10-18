@@ -341,6 +341,18 @@ public class EditorPanelPage {
         return element;
     }
 
+    //a dropdown of names whose field holds the name chosen (e.g. a preset)
+    public EditorPanelElements.NamedDropdown AddFieldNamedDropdown(string title, List<string> names, System.Func<object> objGetter, string fieldName,
+        Dictionary<string, System.Func<string>> indexGetters, float widthFactor = 1.0f, string tooltip = null, string tag = null, System.Action<string> extraAction = null) {
+
+        var status = new FieldStatus(objGetter, fieldName, valueChangedAction, indexGetters);
+        var element = new EditorPanelElements.NamedDropdown(title, names, value => Recorded(title, () => { status.SetValue(value); BaseExtraAction(value, extraAction); }),
+            panel, GetPosition(curRow), widthFactor, tooltip, tag);
+        var fieldElement = AddElement(element, curRow);
+        fieldElements.Add(fieldElement, status);
+        return element;
+    }
+
     public EditorPanelElements.TextureField AddFieldTextureField(CityBuilderMenuBar builder, string title, string placeholder, System.Func<object> objGetter, string fieldName,
         Dictionary<string, System.Func<string>> indexGetters, float widthFactor = 1.0f, string tooltip = null, string tag = null, System.Action<string> extraAction = null) {
 

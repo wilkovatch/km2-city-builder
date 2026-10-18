@@ -35,6 +35,7 @@ public partial class CityBuilderMenuBar : Control {
     BatchUpdateEditorPanel batchUpdateEditorPanel = new BatchUpdateEditorPanel();
     WholeCityRotationEditorPanel rotateCityPanel = new WholeCityRotationEditorPanel();
     CustomExporterEditorPanel customExporterPanel = new CustomExporterEditorPanel();
+    ScriptInputEditorPanel scriptInputEditorPanel = new ScriptInputEditorPanel();
 
     ElementPlacer.RoadPlacer roadPlacer;
     ElementPlacer.TerrainPlacer terrainPlacer;
@@ -52,6 +53,8 @@ public partial class CityBuilderMenuBar : Control {
     public static int panelsActive = 0;
     TerrainModifier.Null nullModifier;
     int selectedEntityMenuItemIndex = -1;
+    int scriptsMenuIndex = -1;
+    List<ScriptCatalog.ScriptInfo> menuScripts = new List<ScriptCatalog.ScriptInfo>();
 
     Node3D selectedObject = null;
     bool noCity = false;
@@ -186,19 +189,26 @@ public partial class CityBuilderMenuBar : Control {
             SM.Get("CREATE_ROAD"),
             SM.Get("CREATE_TERRAIN_PATCH"),
             SM.Get("CREATE_BUILDING_LINE"),
+            SM.Get("CREATE_MESH_INSTANCE"),
+            MenuBar.Divider,
             SM.Get("CREATE_WHOLE_CITY_TERRAIN"),
             SM.Get("CREATE_WHOLE_CITY_BUILDINGS"),
-            SM.Get("CREATE_MESH_INSTANCE")
         };
         actions = new List<System.Action> {
             CreateRoad,
             CreateTerrain,
             CreateBuildingLine,
+            CreateMeshInstance,
+            null,
             CreateCityTerrain,
-            CreateCityBuildings,
-            CreateMeshInstance
+            CreateCityBuildings
         };
         menuBar.AddElement(SM.Get("CREATE"), entries, Recorded(entries, actions), GameEngine.Color.black);
+
+        //Scripts (the entries are listed when it opens, the runs are undo steps of their own)
+        menuBar.AddElement(SM.Get("SCRIPTS"), new List<string>(), new List<System.Action>(), GameEngine.Color.black);
+        scriptsMenuIndex = menuBar.GetElementCount() - 1;
+        menuBar.SetOnOpen(scriptsMenuIndex, ReloadScriptsMenu);
 
         //Settings
         entries = new List<string> {
@@ -249,7 +259,8 @@ public partial class CityBuilderMenuBar : Control {
             batchUpdateEditorPanel,
             rotateCityPanel,
             customExporterPanel,
-            cityPropertiesEditorPanel
+            cityPropertiesEditorPanel,
+            scriptInputEditorPanel
         };
 
         foreach (var panel in panels) {
@@ -265,6 +276,7 @@ public partial class CityBuilderMenuBar : Control {
         Api.ApiHost.Create(this);
         History.UndoSelfTest.StartIfRequested(this); //only with the --undo-selftest command line argument
         Api.ApiSelfTest.StartIfRequested(this); //only with the --api-selftest command line argument
+        Api.ScriptRunner.StartIfRequested(this); //only with the --api-script command line argument
         GuideScreenshots.StartIfRequested(this); //only with the --guide-screenshots command line argument
     }
 
@@ -480,7 +492,7 @@ public partial class CityBuilderMenuBar : Control {
         var standalonePanels = new List<EditorPanel> {
             cityPropertiesEditorPanel, newCityEditorPanel, heightmapEditorPanel, presetEditorPanel, cityTerrainEditorPanel,
             cityBuildingsEditorPanel, objectListEditorPanel, meshListEditorPanel, settingsEditorPanel, projectSettingsEditorPanel,
-            batchUpdateEditorPanel, rotateCityPanel, customExporterPanel
+            batchUpdateEditorPanel, rotateCityPanel, customExporterPanel, scriptInputEditorPanel
         };
         if (standalonePanels.Contains(root)) {
             return _ => {
@@ -610,6 +622,77 @@ public partial class CityBuilderMenuBar : Control {
         for (int i = 1; i < menuBar.GetElementCount() - 3; i++) {
             menuBar.EnableElement(i, enabled);
         }
+    }
+
+    //while a script runs the editor is locked: no clicks on the city, no menus (except Help), no shortcuts
+    public void SetScriptRunning(bool running) {
+        terrainClick.uiEnabled = !running;
+        var menuBar = GetMenuBar();
+        var count = menuBar.GetElementCount();
+        menuBar.EnableElement(0, !running);
+        for (int i = 1; i < count - 3; i++) menuBar.EnableElement(i, !running && !noCity);
+        menuBar.EnableElement(count - 3, !running);
+    }
+
+    // Scripts
+
+    void ReloadScriptsMenu() {
+        menuScripts = ScriptCatalog.List();
+        var entries = new List<string>();
+        var actions = new List<System.Action>();
+        var lastSource = menuScripts.Count > 0 ? menuScripts[0].source : null;
+        foreach (var script in menuScripts) {
+            if (script.source != lastSource) {
+                entries.Add(MenuBar.Divider);
+                actions.Add(null);
+                lastSource = script.source;
+            }
+            var s = script;
+            entries.Add(script.label + (script.HasInputs ? "..." : ""));
+            actions.Add(() => StartScript(s));
+        }
+        if (entries.Count > 0) {
+            entries.Add(MenuBar.Divider);
+            actions.Add(null);
+        }
+        entries.Add(SM.Get("SCRIPTS_OPEN_FOLDER"));
+        actions.Add(OpenScriptsFolder);
+        GetMenuBar().SetEntries(scriptsMenuIndex, entries, actions);
+    }
+
+    void StartScript(ScriptCatalog.ScriptInfo script) {
+        if (noCity) {
+            NoCityAlert();
+            return;
+        }
+        var selection = GetSelectedElementIds();
+        if (script.HasInputs) {
+            DisableAllPanels(scriptInputEditorPanel);
+            scriptInputEditorPanel.Open(script, selection);
+        } else {
+            _ = Api.ScriptRunner.Run(this, script, null, selection);
+        }
+    }
+
+    void OpenScriptsFolder() {
+        var folder = ScriptCatalog.ProgramFolder();
+        Directory.CreateDirectory(folder);
+        OS.ShellShowInFileManager(folder, true);
+    }
+
+    //the ids of the element edited and of the element of the selected control point, for the scripts acting on them
+    public List<int> GetSelectedElementIds() {
+        var res = new List<int>();
+        void Add(object element) {
+            if (element == null) return;
+            var id = Api.CityApi.IdOf(element);
+            if (id >= 0 && !res.Contains(id)) res.Add(id);
+        }
+        Add(GetActivePanel()?.GetUndoTarget());
+        if (gizmo.mainTargetRoot != null && GodotObject.IsInstanceValid(gizmo.mainTargetRoot)) {
+            Add(History.UndoManager.ResolveOwner(gizmo.mainTargetRoot));
+        }
+        return res;
     }
 
     public void Reload() {
@@ -1001,6 +1084,7 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     void ForceQuit() {
+        Api.ScriptRunner.Current?.Cancel();
         quitEnabled = true;
         GetTree().Quit();
     }
@@ -1416,6 +1500,7 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     public override void _Process(double delta) {
+        if (Api.ScriptRunner.IsRunning) return; //the editor is locked while a script runs
         if (Input.GetInputStart(KeyCommand.Close)) {
             History.UndoManager.Record(SM.Get("CLOSE"), DeselectAndCloseCurrentPanel);
         }

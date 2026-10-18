@@ -15,6 +15,11 @@ namespace CityElements.Types {
         public bool instanceSpecific;
         public ArrayProperties arrayProperties;
         public ObjectInstanceSettings objectInstanceSettings;
+        //only for the inputs of the Python scripts: the starting value, the category of a "preset" parameter and the
+        //extensions of a "file" parameter
+        public object defaultValue;
+        public string presetCategory;
+        public string[] extensions;
 
         public string fullName() {
             return container != null ? container + "_" + name : name;

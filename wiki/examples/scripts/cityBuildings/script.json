@@ -1,0 +1,41 @@
+{
+	"label": "SCRIPT_CITY_BUILDINGS",
+	"description": "SCRIPT_CITY_BUILDINGS_DESC",
+	"entry": "main.py",
+	"parameters": [
+		{ "name": "linePreset", "type": "preset", "presetCategory": "buildingLine", "label": "BUILDING_LINE_PRESET" },
+		{
+			"name": "buildingPresets",
+			"type": "array",
+			"label": "BL_LOOP_PRESET_LIST_TITLE",
+			"tooltip": "BL_PRESET_LIST_TOOLTIP",
+			"arrayProperties": {
+				"maxElements": -1,
+				"elementLabel": "preset",
+				"elementProperties": [
+					{ "name": "preset", "type": "preset", "presetCategory": "building", "label": "BUILDING_PRESET" }
+				]
+			}
+		},
+		{ "name": "maxLength", "type": "float", "label": "BL_LOOP_MAX_LENGTH", "placeholder": "LENGTH_PH", "defaultValue": 15.0 },
+		{ "name": "minLength", "type": "float", "label": "BL_LOOP_MIN_LENGTH", "placeholder": "LENGTH_PH", "defaultValue": 15.0 },
+		{ "name": "subdivide", "type": "bool", "label": "BL_LOOP_SUBDIVIDE", "defaultValue": true },
+		{ "name": "nullOnly", "type": "bool", "label": "CB_NULL_ONLY", "defaultValue": false }
+	],
+	"ui": {
+		"menuWidth": 1.5,
+		"tabs": [
+			{
+				"label": "",
+				"elements": [
+					{ "name": "linePreset", "width": 1.5 },
+					{ "name": "buildingPresets", "width": 1.5 },
+					{ "name": "maxLength", "width": 0.75 },
+					{ "name": "minLength", "width": 0.75 },
+					{ "name": "subdivide", "width": 1.5 },
+					{ "name": "nullOnly", "width": 1.5 }
+				]
+			}
+		]
+	}
+}

@@ -349,6 +349,35 @@ class PythonManager {
         return process;
     }
 
+    //starts a script talking to the program on its standard input and output (the scripting API protocol, see
+    //Api.ScriptRunner): everything is redirected, the citybuilder module (Files/python) can be imported
+    public static Process StartScriptProcess(string script, string workingDirectory, Dictionary<string, string> environment) {
+        var utf8 = new UTF8Encoding(false);
+        var startInfo = new ProcessStartInfo {
+            FileName = GetPythonExecutable(),
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardInputEncoding = utf8,
+            StandardOutputEncoding = utf8,
+            StandardErrorEncoding = utf8
+        };
+        startInfo.ArgumentList.Add("-u");
+        startInfo.ArgumentList.Add(script);
+        var libraryPath = Path.Combine(PathHelper.FilesPath(true), "python");
+        var pythonPath = startInfo.Environment.TryGetValue("PYTHONPATH", out var current) && !string.IsNullOrEmpty(current)
+            ? libraryPath + Path.PathSeparator + current : libraryPath;
+        startInfo.Environment["PYTHONPATH"] = pythonPath;
+        startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+        if (environment != null) {
+            foreach (var pair in environment) startInfo.Environment[pair.Key] = pair.Value;
+        }
+        return Process.Start(startInfo);
+    }
+
     static string GetProcessData(Process process) {
         if (!process.StartInfo.RedirectStandardOutput) return null;
         var stdout = process.StandardOutput.ReadToEnd();
@@ -357,7 +386,7 @@ class PythonManager {
         return process.ExitCode == 0 ? stdout : LastError(stderr);
     }
 
-    static string LastError(string stderr) {
+    internal static string LastError(string stderr) {
         if (string.IsNullOrWhiteSpace(stderr)) return "Python process failed without an error message.";
         var lines = stderr.Trim().Split('\n');
         var last = lines[lines.Length - 1].Trim();
@@ -368,7 +397,7 @@ class PythonManager {
         return message != "" ? message : last;
     }
 
-    static void LogProcessOutput(string stdout, string stderr) {
+    internal static void LogProcessOutput(string stdout, string stderr) {
         var log = Path.Combine(PathHelper.BasePath(), "pythonLog.txt");
         if (!string.IsNullOrEmpty(stderr)) File.AppendAllText(log, stderr + System.Environment.NewLine);
         if (!string.IsNullOrEmpty(stdout)) File.AppendAllText(log, stdout + System.Environment.NewLine);

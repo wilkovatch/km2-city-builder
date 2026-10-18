@@ -21,6 +21,7 @@ This page covers the classes that manage configuration files, file lookup, trans
 | `pythonPort` | int | Port of the local Python server (default 5005). |
 | `pythonDebug` | bool | Show the console windows of the Python processes (on Windows; elsewhere the server output goes to the program's standard output). |
 | `extraFolders` | string[] | Asset folders searched by every city (see [`PathHelper`](#pathhelper)). |
+| `scriptFolders` | string[] | Folders of the user's Python scripts, listed in the Scripts menu (see [Python Scripts](Python-Scripts)). |
 | `LastCity` | string | Path of the last opened `city.json.gz`, reopened at startup. |
 | `Language` | string | String table language (default `en-US`, no UI to change it yet). |
 
@@ -34,6 +35,7 @@ This page covers the classes that manage configuration files, file lookup, trans
 | `overlayTex`, `OverlayActive`, `TransparentOverlay` | | Ground overlay image and its display state. |
 | `curTerrainTexture` | string | Last texture used for terrain patches. |
 | `renderingMode`, `shadowsEnabled`, `propsCullingDistance` | | Graphics options from the project settings panel. |
+| `scriptInputs:<source>:<name>` | string | The values last entered in the input panel of a Python script (a JSON object). |
 
 ## `GenericSettingsManager`
 
@@ -90,6 +92,8 @@ Runs the Python interpreter for three purposes: one-shot scripts (migrations, ex
 ### Scripts
 
 `RunScript(script, absolute, args, useShellExecute)` and `RunScriptAsync(...)` run a script (a name relative to `Files/python`, or an absolute path) and return its exit code and output. With `useShellExecute` the script gets its own visible console window (used by exporters, which may wait for a key press); otherwise its output is captured. All output goes to `<base>/pythonLog.txt`. On failure the error message is the last line of standard error without the exception type: for `Exception: MIGRATION_ERROR_MISSING_MIGRATIONS` it is `MIGRATION_ERROR_MISSING_MIGRATIONS`, so scripts can report errors as string keys.
+
+`StartScriptProcess(script, workingDirectory, environment)` starts a script of the Scripts menu with its standard input, output and error redirected (UTF-8) and `Files/python` on its `PYTHONPATH`, for the `citybuilder` module; see [Python Scripts](Python-Scripts).
 
 `RunScriptTask(...)` is the awaitable version of `RunScriptAsync`. Without a console window it sends a few empty lines to the standard input of the script and closes it, so that the scripts waiting for a key press at the end (as the exporters do in their console) end instead of failing.
 

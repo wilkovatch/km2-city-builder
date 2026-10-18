@@ -211,6 +211,7 @@ namespace Api {
                 await Parity();
                 await WholeCity();
                 await ScriptedGenerators();
+                await PythonScripts();
                 await Files();
             } catch (Abort e) {
                 Log("aborted: " + e.Message);
@@ -1071,6 +1072,176 @@ namespace Api {
             var generatedLines = await Shapes("buildingLine", linesBefore);
             SameShapes("the scripted building generation gives the lines of city.generateBuildings", scriptedLines, generatedLines);
             await Call("history.undo");
+        }
+
+        // Python scripts run by ScriptRunner
+
+        async Task<int> CountOf(string kind) {
+            return ((JArray)await Call("elements.list", new { kind })).Count;
+        }
+
+        async Task PythonScripts() {
+            if (!PythonManager.IsPythonReady()) {
+                Log("     Python is not available: the script tests are skipped");
+                return;
+            }
+            //the examples of the wiki, listed as the scripts of a user folder
+            var scripts = new List<ScriptCatalog.ScriptInfo>();
+            var examples = Path.Combine(PathHelper.BasePath(), "wiki", "examples", "scripts");
+            typeof(ScriptCatalog).GetMethod("Scan", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(null, new object[] { examples, "user", scripts });
+            var terrain = scripts.FirstOrDefault(s => s.id == "user:cityTerrain");
+            var buildings = scripts.FirstOrDefault(s => s.id == "user:cityBuildings");
+            Check("the scripts of a folder are listed", terrain != null && buildings != null && scripts.Any(s => s.id == "user:citySummary.py" && !s.HasInputs));
+            if (terrain == null || buildings == null) return;
+            Check("the label of a script is read from its strings", terrain.label == "Whole city terrain (script)");
+            var defaults = ScriptCatalog.ToInputs(ScriptCatalog.DefaultValues(terrain));
+            Check("the default inputs of a script", terrain.parameters.Length == 6 && defaults["distance"]?.Value<float>() == 5
+                && defaults["segmentLength"]?.Value<float>() == 100 && defaults["smoothing"]?.Value<int>() == 0);
+            var buildingDefaults = ScriptCatalog.ToInputs(ScriptCatalog.DefaultValues(buildings));
+            var linePreset = ((JArray)await Call("presets.list", new { category = "buildingLine" }))[0].Value<string>();
+            var buildingPreset = ((JArray)await Call("presets.list", new { category = "building" }))[0].Value<string>();
+            Check("a preset input defaults to the default preset", buildingDefaults["linePreset"]?.Value<string>() == linePreset && buildingDefaults["subdivide"]?.Value<bool>() == true);
+
+            //the generators written in Python give the elements of the built-in ones
+            var patchesBefore = await Ids("terrainPatch");
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var inputs = new JObject { ["distance"] = 5, ["segmentLength"] = 100, ["fusionDistance"] = 0, ["smoothing"] = 2, ["internalDistance"] = 0, ["texture"] = "" };
+            var res = await ScriptRunner.Run(builder, terrain, inputs, null, false);
+            Check("the terrain script runs" + (res.success ? "" : " (" + res.error + ")"), res.success);
+            Log("     Python terrain generation: " + watch.Elapsed.TotalSeconds.ToString("0.0") + " s");
+            var scripted = await Shapes("terrainPatch", patchesBefore);
+            await Call("history.undo");
+            Check("a script run is a single undo step", (await Ids("terrainPatch")).SetEquals(patchesBefore));
+            await Call("city.generateTerrain", new { distance = 5, segmentLength = 100, fusionDistance = 0, smoothing = 2, internalDistance = 0 });
+            SameShapes("the Python terrain script gives the patches of city.generateTerrain", scripted, await Shapes("terrainPatch", patchesBefore));
+            await Call("history.undo");
+
+            var linesBefore = await Ids("buildingLine");
+            watch.Restart();
+            var buildingInputs = new JObject {
+                ["linePreset"] = linePreset, ["buildingPresets"] = new JArray(new JObject { ["preset"] = buildingPreset }),
+                ["minLength"] = 15, ["maxLength"] = 15, ["subdivide"] = false, ["nullOnly"] = false
+            };
+            res = await ScriptRunner.Run(builder, buildings, buildingInputs, null, false);
+            Check("the buildings script runs" + (res.success ? "" : " (" + res.error + ")"), res.success);
+            Log("     Python building generation: " + watch.Elapsed.TotalSeconds.ToString("0.0") + " s");
+            var scriptedLines = await Shapes("buildingLine", linesBefore);
+            await Call("history.undo");
+            await Call("city.generateBuildings", new { linePreset, buildingPresets = new[] { buildingPreset }, minLength = 15, maxLength = 15, subdivide = false });
+            SameShapes("the Python buildings script gives the lines of city.generateBuildings", scriptedLines, await Shapes("buildingLine", linesBefore));
+            await Call("history.undo");
+            buildingInputs["buildingPresets"] = new JArray();
+            res = await ScriptRunner.Run(builder, buildings, buildingInputs, null, false);
+            Check("the error of a script is translated (" + res.error + ")", !res.success && res.error == buildings.GetString("SCRIPT_CITY_BUILDINGS_NO_PRESETS") && res.error != "SCRIPT_CITY_BUILDINGS_NO_PRESETS");
+
+            //the runner
+            var dir = Path.GetFullPath(Path.Combine(folder, "..", "api_scripts"));
+            Directory.CreateDirectory(dir);
+            ScriptCatalog.ScriptInfo Script(string name, string code, string settings = null) {
+                var path = Path.Combine(dir, name);
+                if (settings == null) {
+                    File.WriteAllText(path + ".py", code);
+                    return ScriptCatalog.FromPath(path + ".py");
+                }
+                Directory.CreateDirectory(path);
+                File.WriteAllText(Path.Combine(path, "main.py"), code);
+                File.WriteAllText(Path.Combine(path, ScriptCatalog.SettingsFile), settings);
+                return ScriptCatalog.FromPath(path);
+            }
+            const string header = "import os, sys, time\nimport citybuilder as cb\nfrom citybuilder import api\n"
+                + "def road(x):\n    return api.roads.create(points=[{\"position\": [x, 0, 900], \"onGround\": True}, {\"position\": [x + 60, 0, 900], \"onGround\": True}])\n";
+
+            var roads = await CountOf("road");
+            var selected = new List<int> { square[0] };
+            res = await ScriptRunner.Run(builder, Script("ok", header + @"
+values = cb.inputs()
+assert values == {'a': 1, 'b': 'x'}, values
+assert cb.selection() == [" + square[0] + @"], cb.selection()
+for i in range(300):
+    print('a line printed by the script', i)
+os.write(1, b'not a command\n')
+r = road(-950)
+road(-850)
+api.elements.rename(ref=r, name='Piazza è')
+cb.progress(0.5, 'halfway')
+assert cb.batch([('api.version', {}), {'method': 'city.info'}])[0]['protocol'] == 1
+api.api.configure(autoFlush=False)
+for method in ('history.begin', 'city.reload', 'history.undo'):
+    try:
+        cb.call(method)
+    except cb.ApiError as e:
+        cb.alert(e.code, method)
+cb.alert('done', 'test')
+"), new JObject { ["a"] = 1, ["b"] = "x" }, selected, false);
+            Check("a script gets its inputs and the selection, can print and write to its output" + (res.success ? "" : " (" + res.error + ")"), res.success);
+            Check("a script can't open a transaction, load a city or undo during its own transaction",
+                res.messages.Count(m => m.text == "invalid_operation") == 3 && res.messages.Any(m => m.title == "test" && m.text == "done"));
+            Check("the settings changed by a script are restored", ApiHost.Instance.Api.autoFlush);
+            Check("the text sent by a script is UTF-8", ((JArray)await Call("elements.list", new { name = "Piazza è" })).Count == 1);
+            Check("the changes of the script are kept", await CountOf("road") == roads + 2);
+            await Call("history.undo");
+            Check("the changes of the script are undone in one step", await CountOf("road") == roads);
+
+            res = await ScriptRunner.Run(builder, Script("fail", header + @"
+road(-950)
+raise RuntimeError('deliberate failure')
+"), null, null, false);
+            Check("a failing script reports its error (" + res.error + ")", !res.success && !res.cancelled && res.error == "deliberate failure" && res.undone);
+            Check("the changes of a failing script are undone", await CountOf("road") == roads && !(await Call("history.state"))["canRedo"].Value<bool>()
+                && (await Call("history.state"))["transaction"].Type == JTokenType.Null);
+
+            var running = ScriptRunner.Run(builder, Script("loop", header + @"
+road(-950)
+cb.alert('started')
+while True:
+    time.sleep(0.05)
+"), null, null, false);
+            for (int i = 0; i < 600 && await CountOf("road") == roads; i++) await Frames(1);
+            Check("a script is running", ScriptRunner.IsRunning && await CountOf("road") == roads + 1);
+            var second = await ScriptRunner.Run(builder, Script("other", header), null, null, false);
+            Check("only one script runs at a time", !second.success && second.error == StringManager.Get("SCRIPT_BUSY"));
+            ScriptRunner.Current?.Cancel();
+            res = await running;
+            Check("a cancelled script is stopped and its changes undone", res.cancelled && !res.success && !ScriptRunner.IsRunning && await CountOf("road") == roads);
+
+            res = await ScriptRunner.Run(builder, Script("manual", header + @"
+with cb.transaction('manual'):
+    road(-950)
+    road(-850)
+road(-750)
+", "{\"transaction\": false}"), null, null, false);
+            Check("a script without the run transaction manages its own" + (res.success ? "" : " (" + res.error + ")"), res.success && await CountOf("road") == roads + 3);
+            await Call("history.undo");
+            Check("its last change is an undo step of its own", await CountOf("road") == roads + 2);
+            await Call("history.undo");
+            Check("its transaction is a single undo step", await CountOf("road") == roads);
+
+            //the editor: the Scripts menu and the input panels
+            CallBuilder<object>("ReloadScriptsMenu");
+            var panel = (EditorPanels.ScriptInputEditorPanel)typeof(CityBuilderMenuBar).GetField("scriptInputEditorPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder);
+            CallBuilder<object>("StartScript", buildings);
+            await Frames(3);
+            Check("the input panel of a script opens", panel.ActiveSelf());
+            Screenshot("script_panel_buildings.png");
+            CallBuilder<object>("StartScript", terrain);
+            await Frames(3);
+            Screenshot("script_panel_terrain.png");
+            patchesBefore = await Ids("terrainPatch");
+            typeof(EditorPanels.ScriptInputEditorPanel).GetMethod("Run", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(panel, null);
+            Check("the input panel closes when the script is run", !panel.ActiveSelf());
+            for (int i = 0; i < 10 && !ScriptRunner.IsRunning; i++) await Frames(1);
+            Check("the Run button starts the script", ScriptRunner.IsRunning);
+            await Frames(20);
+            Screenshot("script_running.png");
+            for (int i = 0; i < 3000 && ScriptRunner.IsRunning; i++) await Frames(1);
+            Check("the script run from the panel creates the patches", (await Ids("terrainPatch")).Count > patchesBefore.Count);
+            Check("the values of the panel are kept for the next run", PreferencesManager.Get<string>("scriptInputs:user:cityTerrain", null) != null);
+            await Call("history.undo");
+        }
+
+        void Screenshot(string name) {
+            if (DisplayServer.GetName() == "headless") return;
+            builder.GetViewport().GetTexture().GetImage().SavePng(Path.Combine(folder, "..", name));
         }
 
         //the geometry of each kind of element is the one of the export file

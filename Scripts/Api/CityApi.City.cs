@@ -14,6 +14,7 @@ namespace Api {
         public Task<object> NewCity(string folder, string core, string template, int terrainSize = 4096, int heightmapResolution = 4096, float maxHeight = 1000,
             bool installPythonModules = false) {
 
+            RequireNoTransaction("creating a city");
             return RunLong(async () => {
                 if (string.IsNullOrEmpty(folder)) throw ApiException.InvalidParam("missing folder");
                 RequireCore(core);
@@ -57,6 +58,7 @@ namespace Api {
 
         [ApiMethod("city.load", "Loads the city of a folder. migrate: 'always' to migrate a city made with another version of its core (the city files are changed), 'never' to fail instead. remember: load it again when the program starts")]
         public Task<object> Load(string folder, string migrate = "never", bool installPythonModules = false, bool remember = false) {
+            RequireNoTransaction("loading a city");
             return RunLong(() => {
                 if (string.IsNullOrEmpty(folder)) throw ApiException.InvalidParam("missing folder");
                 if (!File.Exists(Path.Combine(folder, "city.json.gz"))) throw ApiException.NotFound("city in '" + folder + "'");
@@ -67,6 +69,7 @@ namespace Api {
         [ApiMethod("city.reload", "Loads the current city again from its saved file (the unsaved changes are lost)")]
         public Task<object> Reload() {
             RequireCity();
+            RequireNoTransaction("reloading the city");
             var folder = PreferencesManager.workingDirectory;
             return RunLong(() => LoadCity(folder, "never", false));
         }
@@ -84,6 +87,7 @@ namespace Api {
 
         [ApiMethod("city.close", "Closes the city (the unsaved changes are lost)")]
         public void Close() {
+            RequireNoTransaction("closing the city");
             if (busy > 0 || IsLongOperationRunning()) throw new ApiException("busy", "another operation is running");
             builder.CloseAllPanels();
             drawings.Clear();

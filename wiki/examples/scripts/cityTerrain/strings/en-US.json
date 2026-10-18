@@ -1,0 +1,5 @@
+{
+	"SCRIPT_CITY_TERRAIN": "Whole city terrain (script)",
+	"SCRIPT_CITY_TERRAIN_DESC": "Terrain patches between the roads, made with the scripting API",
+	"SCRIPT_CITY_TERRAIN_TEXTURE_TOOLTIP": "The texture of the patches (blank: the last texture used for a terrain patch)"
+}

@@ -390,7 +390,13 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
                         }
                     }
                     break;
+                case "preset":
+                    //the default preset of the category unless another one is given
+                    res.SetStr(p.fullName(), p.defaultValueInArray as string ?? ScriptCatalog.DefaultPreset(p.presetCategory));
+                    break;
                 case "string":
+                case "file":
+                case "folder":
                     if (p.defaultValueInArray != null) {
                         if (p.defaultValueInArray is string dvs) {
                             res.SetStr(p.fullName(), dvs);
