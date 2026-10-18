@@ -30,10 +30,7 @@ namespace ElementPlacer {
         }
 
         void CreateBuilding() {
-            var name = "Building " + Actions.Helpers.GetLatestObjectNumber(manager.GetBuildingContainer(), "Building ");
-            curBuilding = GS.Create<BuildingLine>(name, manager.GetBuildingContainer());
-            curBuilding.Initialize(manager.GetTerrainPointContainer());
-            if (manager != null) manager.AddBuildingLine(curBuilding);
+            curBuilding = Operations.BuildingLines.Create(manager);
         }
 
         public BuildingLine GetLine(bool createIfNull = true) {
@@ -60,8 +57,7 @@ namespace ElementPlacer {
             var hit = GetHit(hits);
             if (GO.IsNull(curBuilding)) CreateBuilding();
             var pointOnly = !Input.GetInputPressed(KeyCommand.Modifier2);
-            var newPoint = curBuilding.AddPoint((Node3D)hit.collider, hit.point, pointOnly);
-            if (newPoint != null) newPoint.dividing = placementMode == PlacementMode.DividingPoint;
+            Operations.BuildingLines.AddPoint(curBuilding, (Node3D)hit.collider, hit.point, pointOnly, placementMode == PlacementMode.DividingPoint);
         }
 
         public override void ShowOnMap(List<RaycastHit?> hits) {

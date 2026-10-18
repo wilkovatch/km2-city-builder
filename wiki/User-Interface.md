@@ -21,6 +21,8 @@ The script of the `Editor` control and the central coordinator of the editor.
 
 ## Editor panels
 
+What the panels and the mouse tools do to the city is implemented in the operations layer (`Scripts/Operations`, see [Scripting API](Scripting-API)), shared with the scripting API: the panels and tools read the user input, call the operations and show their results (alerts, refreshed fields).
+
 ### Framework
 
 | Class | Description |
@@ -76,7 +78,7 @@ Runs every frame before the gizmo. When a tool (`modifier`, a `TerrainAction`) i
 | Class | Description |
 |---|---|
 | `TerrainAction` (`UI/Actions/TerrainAction.cs`) | Base class: `ShowOnMap(hits)`, `Apply(hits)`, `GetLayerMasks()`. |
-| `ElementPlacer.RoadPlacer` | Adds, inserts and moves road points, creates and joins intersections. Clicking the line along another road (`RoadSplitLine`) connects the road to its middle, splitting it (`RoadSplitter`). When this is the first point, the split waits for the second point. |
+| `ElementPlacer.RoadPlacer` | Adds, inserts and moves road points, creates and joins intersections. Clicking the line along another road (`RoadSplitLine`) connects the road to its middle, splitting it (`RoadSplitter`). When this is the first point, the split waits for the second point. The placer only classifies what was clicked: the road being drawn and its connections are handled by `Operations.RoadDrawing`. |
 | `ElementPlacer.TerrainPlacer` | Adds perimeter, internal and border mesh points to a terrain patch (snapping to anchors and existing points). |
 | `ElementPlacer.BuildingPlacer` | Adds points to a building line and marks dividing points. |
 | `ElementPlacer.MeshPlacer` | Places mesh instances, using the layer mask from the core's mesh instance rules. |

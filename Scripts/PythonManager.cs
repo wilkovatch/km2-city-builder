@@ -189,6 +189,42 @@ class PythonManager {
         return false;
     }
 
+    //the checks without the prompts of CheckPython and CheckPythonForCore
+    public static bool IsPythonReady() {
+        return GetPythonStatus() == InstallationStatus.Valid;
+    }
+
+    public static bool IsReadyForCore(string core) {
+        return IsPythonReady() && GetPythonStatus(core) == InstallationStatus.Valid;
+    }
+
+    //installs the Python modules required by the core (Python itself must be available)
+    public static async System.Threading.Tasks.Task InstallCoreRequirementsAsync(string core) {
+        var requirements = Path.Combine(PathHelper.BasePath(), "Files", "cores", core, "pythonInfo", "requirements.txt");
+        var startInfo = new ProcessStartInfo {
+            FileName = GetPythonExecutable(),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = Path.GetDirectoryName(requirements)
+        };
+        startInfo.ArgumentList.Add("-m");
+        startInfo.ArgumentList.Add("pip");
+        startInfo.ArgumentList.Add("install");
+        startInfo.ArgumentList.Add("-r");
+        startInfo.ArgumentList.Add(requirements);
+        try {
+            using var process = Process.Start(startInfo);
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            LogProcessOutput(await stdoutTask, await stderrTask);
+        } catch (Exception e) {
+            GameEngine.LogError("Could not install the Python packages: " + e.Message);
+        }
+    }
+
     static void InstallPython(CityBuilderMenuBar menuBar) {
         if (!OperatingSystem.IsWindows()) {
             //no installer script: download a portable Python (same minor version as on Windows) in this program's "python" folder
@@ -290,7 +326,7 @@ class PythonManager {
         return SettingsManager.Get("pythonPort", 5005);
     }
 
-    static Process RunScriptBase(string script, bool absolute, List<string> args, bool useShellExecute = false) {
+    static Process RunScriptBase(string script, bool absolute, List<string> args, bool useShellExecute = false, bool redirectInput = false) {
         var startInfo = new ProcessStartInfo();
         startInfo.FileName = GetPythonExecutable();
         var trueScriptName = absolute ? script : Path.Combine(PathHelper.FilesPath(true), "python", script);
@@ -307,6 +343,7 @@ class PythonManager {
             startInfo.CreateNoWindow = !GetPythonDebug();
             startInfo.RedirectStandardOutput = true;
             startInfo.RedirectStandardError = true;
+            startInfo.RedirectStandardInput = redirectInput;
         }
         var process = Process.Start(startInfo);
         return process;
@@ -355,6 +392,27 @@ class PythonManager {
     public static void RunScriptAsync(string script, bool absolute, List<string> args, Action<int, string> post, ElementManager manager, bool useShellExecute = false) {
         var process = RunScriptBase(script, absolute, args, useShellExecute);
         WaitForScriptEnd(process, post, manager.builder);
+    }
+
+    //runs the script and waits for it to end: the exit code and the output (the last error if it failed)
+    public static async System.Threading.Tasks.Task<(int code, string data)> RunScriptTask(string script, bool absolute, List<string> args, bool useShellExecute = false) {
+        var process = RunScriptBase(script, absolute, args, useShellExecute, !useShellExecute);
+        if (process.StartInfo.RedirectStandardInput) {
+            //without a console of their own, the scripts waiting for a key press at the end (e.g. the exporters) get it
+            try {
+                for (int i = 0; i < 4; i++) process.StandardInput.WriteLine();
+                process.StandardInput.Close();
+            } catch (IOException) {
+                //the script ended without reading it
+            }
+        }
+        var stdoutTask = process.StartInfo.RedirectStandardOutput ? process.StandardOutput.ReadToEndAsync() : System.Threading.Tasks.Task.FromResult("");
+        var stderrTask = process.StartInfo.RedirectStandardError ? process.StandardError.ReadToEndAsync() : System.Threading.Tasks.Task.FromResult("");
+        await process.WaitForExitAsync();
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+        LogProcessOutput(stdout, stderr);
+        return (process.ExitCode, process.ExitCode == 0 ? stdout : LastError(stderr));
     }
 
     static async void WaitForScriptEnd(Process process, Action<int, string> post, Node caller) {

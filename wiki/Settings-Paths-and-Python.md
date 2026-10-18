@@ -85,10 +85,13 @@ Runs the Python interpreter for three purposes: one-shot scripts (migrations, ex
 * Only the interpreter configured in `pythonPath`, or the embedded one in `<base>/python` when that setting is empty, is used. The system-wide Python is never used implicitly.
 * `CheckPython` verifies that the interpreter exists and that the base modules listed in `pythonInstaller/imports.txt` can be imported. If not, it offers to install them: on Windows by running `pythonInstaller/run_installer.bat` (which downloads the embedded Python and runs `pip` on `pythonInstaller/requirements.txt`); on Linux by downloading a portable CPython 3.10 build (python-build-standalone, the same minor version as on Windows) into `<base>/python` (it is extracted with the system `tar`) and installing the requirements in it. Either way the same package versions are used on every platform.
 * `CheckPythonForCore` additionally checks the modules in the core's `pythonInfo/imports.txt` and offers to install the core's `pythonInfo/requirements.txt` with `pip`. It runs before a city is loaded.
+* `IsPythonReady` and `IsReadyForCore` are the same checks without the prompts, and `InstallCoreRequirementsAsync` installs the core's requirements without a console window (used when a script loads a city).
 
 ### Scripts
 
 `RunScript(script, absolute, args, useShellExecute)` and `RunScriptAsync(...)` run a script (a name relative to `Files/python`, or an absolute path) and return its exit code and output. With `useShellExecute` the script gets its own visible console window (used by exporters, which may wait for a key press); otherwise its output is captured. All output goes to `<base>/pythonLog.txt`. On failure the error message is the last line of standard error without the exception type: for `Exception: MIGRATION_ERROR_MISSING_MIGRATIONS` it is `MIGRATION_ERROR_MISSING_MIGRATIONS`, so scripts can report errors as string keys.
+
+`RunScriptTask(...)` is the awaitable version of `RunScriptAsync`. Without a console window it sends a few empty lines to the standard input of the script and closes it, so that the scripts waiting for a key press at the end (as the exporters do in their console) end instead of failing.
 
 ### Mesh and texture server
 

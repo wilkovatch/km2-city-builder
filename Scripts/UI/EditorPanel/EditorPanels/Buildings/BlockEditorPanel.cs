@@ -90,11 +90,11 @@ namespace EditorPanels {
             }
 
             ObjectState GetBlock() {
-                return curSide.State.Array<ObjectState>("blockDict")[curBlock];
+                return Operations.BuildingLines.GetBlock(curSide, curBlock);
             }
 
             void SetBlock(ObjectState state) {
-                curSide.State.Array<ObjectState>("blockDict")[curBlock].ReplaceWith(state);
+                Operations.BuildingLines.SetBlockState(curSide, curBlock, state);
             }
 
             public override void BaseExtraAction<T>(T p, System.Action<T> a) {

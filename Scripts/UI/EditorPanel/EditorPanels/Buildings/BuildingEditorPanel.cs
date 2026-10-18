@@ -84,19 +84,7 @@ namespace EditorPanels {
 
             void SetAllSidesEqual(bool x) {
                 if (refreshingAllSidesCheckbox) return;
-                var state = (ObjectState)GetBuilding().State.Clone();
-                state.SetBool("allSidesEqual", x);
-                if (x) {
-                    state.State("frontState", false).FlagAsChanged();
-                    state.SetState("rightState", new ObjectState());
-                    state.SetState("leftState", new ObjectState());
-                    state.SetState("backState", new ObjectState());
-                } else {
-                    state.SetState("rightState", (ObjectState)state.State("frontState").Clone());
-                    state.SetState("leftState", (ObjectState)state.State("frontState").Clone());
-                    state.SetState("backState", (ObjectState)state.State("frontState").Clone());
-                }
-                GetBuilding().State = state;
+                Operations.BuildingLines.SetAllSidesEqual(GetBuilding(), x);
                 builder.NotifyChange();
                 RefreshSidesDelayed();
             }
@@ -118,7 +106,7 @@ namespace EditorPanels {
             public override void SetActive(bool active) {
                 var pS = GetComplexElement<PresetSelector>();
                 if (active) {
-                    System.Func<ObjectState, ObjectState> setter = x => { GetBuilding().State = (ObjectState)x.Clone(); return GetBuilding().State; };
+                    System.Func<ObjectState, ObjectState> setter = x => { Operations.BuildingLines.SetBuildingState(GetBuilding(), x); return GetBuilding().State; };
                     pS.LoadPreset(GetBuilding() == null ? pS.dropdowns["building"][0].lastPreset : null, "building", setter, 0);
                 }
                 if (curBuilding != null) {

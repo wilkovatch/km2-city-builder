@@ -57,7 +57,7 @@ namespace EditorPanels {
                 builder.CreateAlert(SM.Get("ERROR"), SM.Get("CT_NO_TEXTURE"), SM.Get("OK"));
                 return;
             }*/
-            builder.helper.elementManager.CreateCityTerrain(distance, segmentLength, vertexFusionDistance, smoothing, internalDistance);
+            _ = builder.helper.elementManager.CreateCityTerrain(distance, segmentLength, vertexFusionDistance, smoothing, internalDistance);
         }
 
         void EraseCityTerrain() {

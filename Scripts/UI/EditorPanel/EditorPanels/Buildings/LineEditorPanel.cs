@@ -147,22 +147,20 @@ namespace EditorPanels {
 
             void AutoCloseLoop() {
                 if (GetPlacer() != null && GetCurLine(false) != null) {
-                    if (RPB.loopPresets.Count == 0) {
-                        builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_NEED_PRESETS_FOR_AUTOCLOSE"), SM.Get("OK"));
-                    } else {
-                        var res = GetCurLine().AutoClose(RPB.minLoopLength, RPB.maxLoopLength, RPB.loopPresets, RPB.subdivide);
-                        switch (res.resultCode) {
-                            case 1:
-                                builder.NotifyChange();
-                                ReadCurValues();
-                                break;
-                            case -1:
-                                builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_CANNOT_AUTOCLOSE_ERROR"), SM.Get("OK"));
-                                break;
-                            default: //0
-                                builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_NO_LOOP_FOUND_ERROR"), SM.Get("OK"));
-                                break;
-                        }
+                    switch (Operations.BuildingLines.AutoClose(GetCurLine(), RPB.minLoopLength, RPB.maxLoopLength, RPB.loopPresets, RPB.subdivide)) {
+                        case Operations.AutoCloseResult.NoPresets:
+                            builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_NEED_PRESETS_FOR_AUTOCLOSE"), SM.Get("OK"));
+                            break;
+                        case Operations.AutoCloseResult.Closed:
+                            builder.NotifyChange();
+                            ReadCurValues();
+                            break;
+                        case Operations.AutoCloseResult.CannotClose:
+                            builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_CANNOT_AUTOCLOSE_ERROR"), SM.Get("OK"));
+                            break;
+                        default: //no loop found
+                            builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_NO_LOOP_FOUND_ERROR"), SM.Get("OK"));
+                            break;
                     }
                 }
             }
@@ -229,14 +227,7 @@ namespace EditorPanels {
             public BuildingSideGenerator GetBuildingSide(int buildingIndex, string side) {
                 var line = GetCurLine(false);
                 if (line == null || buildingIndex < 0 || buildingIndex >= line.buildings.Count) return null;
-                var building = line.buildings[buildingIndex];
-                switch (side) {
-                    case "front": return building?.front;
-                    case "left": return building?.left;
-                    case "right": return building?.right;
-                    case "back": return building?.back;
-                    default: return null;
-                }
+                return Operations.BuildingLines.GetSide(line.buildings[buildingIndex], side);
             }
 
             public void SetPointPlacementMode(int mode) {
@@ -291,14 +282,14 @@ namespace EditorPanels {
 
             void DeleteLastPoint() {
                 if (GetPlacer() != null && GetCurLine(false) != null) {
-                    GetCurLine().RemoveLastLinePoint();
+                    Operations.BuildingLines.RemoveLastPoint(GetCurLine());
                     builder.NotifyChange();
                 }
             }
 
             void ClearEmptyLine() {
-                if (GetCurLine(false) != null && GetCurLine(false).GetPointCount() < 2) {
-                    GetCurLine(false).Delete();
+                if (Operations.BuildingLines.IsIncomplete(GetCurLine(false))) {
+                    Operations.BuildingLines.Delete(GetCurLine(false));
                     builder.NotifyChange();
                 }
             }
@@ -327,14 +318,13 @@ namespace EditorPanels {
             }
 
             ObjectState SetBuildingsState(ObjectState state) {
-                foreach (var b in GetBuildings()) {
-                    b.SetState(state);
-                }
+                var line = GetCurLine(false);
+                if (line != null) Operations.BuildingLines.SetAllBuildingsState(line, state);
                 return state;
             }
 
             ObjectState SetCurLineState(ObjectState state) {
-                GetCurLine().state = (ObjectState)state.Clone();
+                Operations.BuildingLines.SetLineState(GetCurLine(), state);
                 return GetCurLine().state;
             }
 
@@ -401,7 +391,7 @@ namespace EditorPanels {
             }
 
             public void Delete() {
-                GetCurLine().Delete();
+                Operations.BuildingLines.Delete(GetCurLine());
                 builder.NotifyChange();
                 Terminate();
             }
@@ -466,10 +456,7 @@ namespace EditorPanels {
                 var line = GetLine();
                 if (obj != null && line != null) {
                     var point = GS.FindRecursive<TerrainPoint>(obj);
-                    if (point != null && line.ContainsPoint(point)) {
-                        History.UndoManager.Touch(point);
-                        point.dividing = !point.dividing;
-                        //line.UpdateLine();
+                    if (Operations.BuildingLines.ToggleDividing(line, point)) {
                         builder.NotifyChange();
                         ReloadList(true);
                     }

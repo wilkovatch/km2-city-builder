@@ -14,6 +14,7 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 | Understand how the program is put together | [Architecture Overview](Architecture-Overview) |
 | Find what a given class does | The **Class reference** pages below |
 | Add support for a new game | [Creating a Core](Creating-a-Core), then the **Core reference** pages |
+| Load, edit or export cities from scripts | [Scripting API](Scripting-API) |
 | Write geometry formulas for a core | [Expression Language](Expression-Language) |
 
 ## Class reference (program internals)
@@ -27,7 +28,8 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 7. [Geometry Generation](Geometry-Generation): the generators that turn types and state into meshes.
 8. [Input and Output](Input-and-Output): saving, loading, exporting, mesh/texture import, materials.
 9. [User Interface](User-Interface): menu bar, editor panels, placers and terrain tools, camera, debug console.
-10. [Third-Party Code](Third-Party-Code): bundled libraries and addons.
+10. [Scripting API](Scripting-API): the operations layer, the API and its JSON commands.
+11. [Third-Party Code](Third-Party-Code): bundled libraries and addons.
 
 ## Core reference (creating cores)
 

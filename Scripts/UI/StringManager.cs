@@ -20,6 +20,15 @@ public class StringManager {
         }
     }
 
+    //the string, or the key itself if there is none (without logging it as an error)
+    public static string GetOrKey(string key) {
+        if (key == null) return null;
+        var instance = GetInstance();
+        if (instance.localStringMap != null && instance.localStringMap.TryGetValue(key, out var local)) return local;
+        if (instance.stringMap != null && instance.stringMap.TryGetValue(key, out var res)) return res;
+        return key;
+    }
+
     public static string Get(string key) {
         if (key == null) return null;
         var res = GetRaw(key);

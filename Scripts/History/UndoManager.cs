@@ -215,7 +215,7 @@ namespace History {
             var helper = manager.builder.helper;
             var tRes = CityGroundHelper.heightmapResolution + 1;
             var heights = GameEngine.Terrain.GetHeights(helper.terrainObj, 0, 0, tRes, tRes);
-            helper.SetHeights(EditorPanels.WholeCityRotationEditorPanel.RotateHeights(heights, rot));
+            helper.SetHeights(Operations.City.RotateHeights(heights, rot));
         }
 
         public void Undo(ElementManager manager) => Rotate(manager, Inverse(rotation));
@@ -296,8 +296,16 @@ namespace History {
         static bool loading = false;
         static HistoryEntry lastApplied = null;
 
-        public static bool CanUndo => undoStack.Count > 0 && !IsBusy;
-        public static bool CanRedo => redoStack.Count > 0 && !IsBusy;
+        //the undo steps above the marker of an open group become a single step when the group is closed
+        static int groupMarker = -1;
+        static string groupLabel = null;
+
+        public static bool CanUndo => undoStack.Count > 0 && !IsBusy && !IsGroupOpen;
+        //changes every time an undo step is added, to know if an action recorded one
+        public static int Version { get; private set; } = 0;
+        public static bool CanRedo => redoStack.Count > 0 && !IsBusy && !IsGroupOpen;
+        public static bool IsGroupOpen => groupMarker >= 0;
+        public static string GroupLabel => groupLabel;
         public static bool IsBusy => busy > 0 || applying || depth > 0;
         public static bool IsLoading => loading;
 
@@ -546,10 +554,12 @@ namespace History {
                 undoStack.Add(entry);
             }
             canCoalesceTop = true;
+            Version++;
             Trim();
         }
 
         static void Trim() {
+            if (IsGroupOpen) return; //the steps of the group must stay until it is closed
             long total = 0;
             foreach (var e in undoStack) total += e.Bytes;
             foreach (var e in redoStack) total += e.Bytes;
@@ -612,7 +622,64 @@ namespace History {
             canCoalesceTop = false;
         }
 
+        //undoes the last step and discards it (e.g. a script command that failed halfway)
+        public static void UndoAndForget() {
+            if (IsBusy) return;
+            FinalizePending(true);
+            if (undoStack.Count == 0) return;
+            var entry = undoStack[undoStack.Count - 1];
+            undoStack.RemoveAt(undoStack.Count - 1);
+            Apply(entry, true);
+            canCoalesceTop = false;
+            Version++;
+        }
+
+        // Groups: several actions (e.g. the commands of a script) that become a single undo step. Each action keeps its
+        // own step while the group is open, so that a failed one can still be undone alone (UndoAndForget).
+
+        public static void OpenGroup(string label) {
+            FinalizePending(true);
+            groupMarker = undoStack.Count;
+            groupLabel = label;
+            canCoalesceTop = false; //the steps of the group must not merge with the one before it
+        }
+
+        //merges the steps recorded since the group was opened into one
+        public static void CloseGroup() {
+            if (!IsGroupOpen) return;
+            FinalizePending(true);
+            var marker = groupMarker;
+            groupMarker = -1;
+            if (undoStack.Count > marker + 1) {
+                var merged = undoStack[marker];
+                for (int i = marker + 1; i < undoStack.Count; i++) merged.MergeLater(undoStack[i]);
+                undoStack.RemoveRange(marker, undoStack.Count - marker);
+                if (!merged.IsEmpty) undoStack.Add(merged);
+                Version++;
+            }
+            if (undoStack.Count > marker) {
+                undoStack[undoStack.Count - 1].label = groupLabel;
+                undoStack[undoStack.Count - 1].coalesceKey = null;
+            }
+            groupLabel = null;
+            canCoalesceTop = false;
+            Trim();
+        }
+
+        //undoes and discards the steps recorded since the group was opened
+        public static void DiscardGroup() {
+            if (!IsGroupOpen) return;
+            FinalizePending(true);
+            var marker = groupMarker;
+            groupMarker = -1;
+            groupLabel = null;
+            while (undoStack.Count > marker && !IsBusy) UndoAndForget();
+            Trim();
+        }
+
         public static void Clear() {
+            groupMarker = -1;
+            groupLabel = null;
             undoStack.Clear();
             redoStack.Clear();
             current = null;

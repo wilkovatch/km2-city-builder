@@ -84,38 +84,18 @@ namespace EditorPanels.Props {
         }
 
         void DeleteElem(string name, int i) {
-            var list = new List<ObjectState>();
-            var array = GetContainer().Array<ObjectState>(name);
-            if (array != null) list.AddRange(array);
-            else return;
-            list.RemoveAt(i);
-            GetContainer().SetArray(name, list.ToArray());
+            if (!Operations.Props.RemoveElement(GetContainer(), name, i)) return;
             parentState?.FlagAsChanged();
             builder.NotifyChange(true);
             ReadCurValues();
         }
 
         List<string> GetAllowedTypes(string name) {
-            var tS = TS();
-            var type = tS.types[tS.curType];
-            var types = new List<string>();
-            foreach (var parameter in type.parameters) {
-                if (parameter.name == name) {
-                    if (parameter.allowedTypes != null) types = new List<string>(parameter.allowedTypes);
-                    break;
-                }
-            }
-            return types;
+            return Operations.Props.GetAllowedTypes(GetContainer(), name);
         }
 
         void AddElem(string name) {
-            var types = GetAllowedTypes(name);
-            var elem = PresetManager.GetFirstPresetByAllowedTypes("propElem", types);
-            var list = new List<ObjectState>();
-            var array = GetContainer().Array<ObjectState>(name);
-            if (array != null) list.AddRange(array);
-            list.Add(elem);
-            GetContainer().SetArray(name, list.ToArray());
+            Operations.Props.AddElement(GetContainer(), name);
             parentState?.FlagAsChanged();
             builder.NotifyChange(true);
         }
@@ -157,11 +137,7 @@ namespace EditorPanels.Props {
         }
 
         void EditSingleElem(string name) {
-            var elem = GetContainer().State(name);
-            if (elem == null) {
-                elem = new ObjectState();
-                GetContainer().SetState(name, elem);
-            }
+            var elem = Operations.Props.EnsureSingleElement(GetContainer(), name);
             SetTypesList(name);
             elemEditor.SetEditedElem(elem);
             elemEditor.editedName = name;

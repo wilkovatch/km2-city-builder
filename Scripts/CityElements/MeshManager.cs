@@ -29,7 +29,7 @@ public class MeshManager {
         var res = new (string, Bounds, GameObject)[meshes.Count];
         int i = 0;
         foreach (var key in meshes.Keys) {
-            res[i] = (key, bounds[key], meshes[key]);
+            res[i] = (key, GetBounds_instance(key), meshes[key]); //no bounds if they could not be computed
             i++;
         }
         return res;

@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Threading.Tasks;
 using Godot;
 using GameObject = Godot.Node3D;
 using PhysicsGameObject = Godot.StaticBody3D;
@@ -8,23 +9,66 @@ using SM = StringManager;
 using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
 
-//TODO: fix decoding for Godot
 namespace CityDecoder {
+    public class LoadOptions {
+        public Operations.IInteraction interaction; //the editor popups if null
+        public System.IProgress<(float value, string text)> progress;
+        public bool rememberAsLastCity = true; //loaded again when the program starts
+    }
+
+    public class LoadResult {
+        public bool success;
+        public string error; //migration_required, migration_failed, core_not_found, city_for_newer_core, python_missing, io_error
+        public string message;
+
+        public static LoadResult Ok() {
+            return new LoadResult { success = true };
+        }
+
+        public static LoadResult Fail(string error, string message) {
+            return new LoadResult { success = false, error = error, message = message };
+        }
+    }
+
     public class JSON : CityDecoder {
 
         IO.SavedCity.SavedCity loadedCity;
         ElementManager manager;
         string filename;
+        LoadOptions options;
         Dictionary<int, (Intersection, IO.SavedCity.Intersection)> loadedIntersections = new Dictionary<int, (Intersection, IO.SavedCity.Intersection)>();
         Dictionary<int, (Road, IO.SavedCity.Road)> loadedRoads = new Dictionary<int, (Road, IO.SavedCity.Road)>();
-        ProgressBar progressBar;
+        Operations.ProgressReporter progressBar;
 
         public void DecodeCity(ElementManager manager, string filename) {
+            Run(manager, filename, new LoadOptions());
+        }
+
+        //the editor shows the errors itself, an unexpected one is logged
+        async void Run(ElementManager manager, string filename, LoadOptions options) {
+            await DecodeCityAsync(manager, filename, options);
+        }
+
+        public async Task<LoadResult> DecodeCityAsync(ElementManager manager, string filename, LoadOptions options) {
             this.manager = manager;
             this.filename = filename;
-            progressBar = manager.builder.helper.curProgressBar;
+            this.options = options;
+            if (options.interaction == null) options.interaction = new Operations.UiInteraction(manager.builder);
+            loadedIntersections.Clear();
+            loadedRoads.Clear();
+            progressBar = new Operations.ProgressReporter(manager.builder.helper.curProgressBar, options.progress);
             progressBar.SetText(SM.Get("LOADING_CITY"));
-            DecodeCityRoutine(manager.builder.helper);
+            try {
+                return await DecodeCityRoutine(manager.builder.helper);
+            } catch (System.Exception e) {
+                GameEngine.LogError(e.ToString());
+                progressBar.SetActive(false);
+                History.UndoManager.SetLoading(false);
+                await options.interaction.ShowError(SM.Get("CITY_LOAD_ERROR_TEXT") + e.Message);
+                manager.CloseCity();
+                manager.builder.Reload();
+                return LoadResult.Fail("io_error", e.Message);
+            }
         }
 
         (int code, string message) Migrate(bool confirm) {
@@ -70,19 +114,11 @@ namespace CityDecoder {
             return (0, null);
         }
 
-        void MigrateCityDelayed() {
-            //it has to be delayed by one frame, otherwise the error alert doesn't work
-            //(since the previous one is still active)
-            manager.builder.DoDelayed(MigrateCity);
-        }
-
-        void MigrateCity() {
-            var res = Migrate(true);
-            if (res.code == 1) {
-                DecodeCityRoutine(manager.builder.helper);
-            }
-            else {
-                manager.builder.CreateAlert(SM.Get("ERROR"), SM.Get(res.message), SM.Get("OK"), delegate { progressBar.SetActive(false); }, 250);
+        static string GetErrorCode(string message) {
+            switch (message) {
+                case "CORE_NOT_FOUND": return "core_not_found";
+                case "MIGRATION_ERROR_CITY_IS_FOR_NEWER_CORE": return "city_for_newer_core";
+                default: return "migration_failed";
             }
         }
 
@@ -92,31 +128,41 @@ namespace CityDecoder {
             manager.builder.helper.LoadOverlayTexture(PreferencesManager.Get("overlayTex", ""));
         }
 
-        async void DecodeCityRoutine(Node caller) {
+        //the city is closed when it can't be loaded
+        async Task<LoadResult> Fail(string error, string message, bool show) {
+            progressBar.SetActive(false);
+            History.UndoManager.SetLoading(false);
+            if (show) await options.interaction.ShowError(message);
+            manager.CloseCity();
+            manager.builder.Reload();
+            return LoadResult.Fail(error, message);
+        }
+
+        async Task<LoadResult> DecodeCityRoutine(Node caller) {
             //setup
             manager.EraseCity();
             History.UndoManager.SetLoading(true);
 
             //check
             var checkResult = CheckVersion();
-            if (checkResult.code != 0) {
-                if (checkResult.code == 1) {
-                    manager.builder.CreateAlert(SM.Get("MIGRATION_NEEDED_TITLE"), SM.Get(checkResult.message), SM.Get("YES"), SM.Get("NO"), MigrateCityDelayed, delegate { progressBar.SetActive(false); }, 250);
+            if (checkResult.code == 1) {
+                if (!await options.interaction.Confirm("MIGRATION_NEEDED_TITLE", checkResult.message)) {
+                    return await Fail("migration_required", SM.Get(checkResult.message), false);
                 }
-                else {
-                    manager.builder.CreateAlert(SM.Get("ERROR"), SM.Get(checkResult.message), SM.Get("OK"), delegate { progressBar.SetActive(false); manager.CloseCity(); }, 250);
-                }
-                return;
+                //the alert of the question must be closed before an error can be shown
+                await caller.ToSignal(caller.GetTree(), "process_frame");
+                var res = Migrate(true);
+                if (res.code != 1) return await Fail("migration_failed", SM.Get(res.message), true);
+                return await DecodeCityRoutine(caller);
+            } else if (checkResult.code != 0) {
+                return await Fail(GetErrorCode(checkResult.message), SM.Get(checkResult.message), true);
             }
 
             //check python
-            var cores = CoreManager.GetCores();
             var core = PreferencesManager.Get("core", "");
-            var pyRes = PythonManager.CheckPythonForCore(manager.builder, core, delegate { DecodeCity(manager, filename); });
+            var pyRes = await options.interaction.EnsurePythonForCore(core, delegate { Run(manager, filename, options); });
             if (!pyRes) {
-                manager.CloseCity();
-                manager.builder.Reload();
-                return;
+                return await Fail("python_missing", "Python or the Python modules required by the core " + core + " are not available", false);
             }
 
             //show progress bar
@@ -144,15 +190,17 @@ namespace CityDecoder {
             CityGroundHelper.heightmapResolution = loadedCity.heightmapResolution;
             CityGroundHelper.terrainSize = loadedCity.terrainSize;
             if (loadedCity.heightMap != "") {
-                manager.builder.helper.SetHeightsCoroutine(GetDecodedHeights(loadedCity.heightMap), loadedCity.maxHeight, Post, manager.builder.helper);
+                await manager.builder.helper.SetHeightsAsync(GetDecodedHeights(loadedCity.heightMap), loadedCity.maxHeight, progressBar);
             }
             else {
-                manager.builder.helper.SetDefaultHeights(loadedCity.maxHeight, Post, manager.builder.helper);
-
+                await manager.builder.helper.SetDefaultHeightsAsync(loadedCity.maxHeight, progressBar);
             }
+            await caller.ToSignal(caller.GetTree(), "process_frame");
+            await Post(caller);
+            return LoadResult.Ok();
         }
 
-        async void Post(Node caller) {
+        async Task Post(Node caller) {
 
             if (loadedCity.cityProperties == null) loadedCity.cityProperties = new ObjectState();
             if (loadedCity.meshes == null) loadedCity.meshes = new IO.SavedCity.MeshInstance[0];
@@ -322,7 +370,7 @@ namespace CityDecoder {
             progressBar.SetActive(false);
             manager.builder.Reload();
             PresetManager.loaded = false;
-            SettingsManager.Set("LastCity", filename);
+            if (options.rememberAsLastCity) SettingsManager.Set("LastCity", filename);
             History.UndoManager.Clear(); //anything recorded while loading is part of the loaded city
         }
 

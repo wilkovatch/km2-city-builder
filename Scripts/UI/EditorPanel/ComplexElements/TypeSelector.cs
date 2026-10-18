@@ -68,7 +68,7 @@ public abstract partial class EditorPanel {
             var editedState = stateGetter?.Invoke();
             if (editedState != null) {
                 // Only the type changes: the object keeps its other properties (missing ones read as defaults).
-                editedState.SetStr("type", curType);
+                Operations.States.SetType(editedState, curType);
                 objectState = editedState;
                 panel.builder?.NotifyChange();
                 ReinitializePanel();

@@ -108,7 +108,7 @@ namespace EditorPanels {
                 builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_NEED_PRESETS_FOR_AUTOCLOSE"), SM.Get("OK"));
                 return;
             }
-            builder.helper.elementManager.CreateCityBuildings(RPB.minLoopLength, RPB.maxLoopLength, RPB.loopPresets, RPB.subdivide, curLineState, nullOnly ? new List<string>() { "" } : null);
+            _ = builder.helper.elementManager.CreateCityBuildings(RPB.minLoopLength, RPB.maxLoopLength, RPB.loopPresets, RPB.subdivide, curLineState, nullOnly ? new List<string>() { "" } : null);
         }
 
         void EraseCityBuildings() {

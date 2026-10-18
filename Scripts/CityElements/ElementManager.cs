@@ -516,39 +516,34 @@ public partial class ElementManager : Scriptable {
         //TODO maybe: move somewhere else?
         var anchors = new List<TerrainAnchor>();
         var doneAnchors = new List<TerrainAnchor>();
-        var container = GetRoadContainer();
-        for (int i = 0; i < GO.GetChildCount(container); i++) {
-            var childI = GO.GetChildI(container, i);
-            for (int j = 0; j < GO.GetChildCount(childI); j++) {
-                var anchor = GS.FindRecursive<TerrainAnchor>(GO.GetChildI(childI, j));
-                if (anchor != null) {
-                    var notUsed = true;
-                    foreach (var elem in list) {
-                        foreach (var point in pointGetter.Invoke(elem)) {
-                            if (anchor.Equals(point.anchor)) {
-                                notUsed = false;
-                                break;
-                            }
-                        }
-                        if (!notUsed) break;
+        foreach (var anchor in Operations.Anchors.GetAll(this)) {
+            var notUsed = true;
+            foreach (var elem in list) {
+                foreach (var point in pointGetter.Invoke(elem)) {
+                    if (anchor.Equals(point.anchor)) {
+                        notUsed = false;
+                        break;
                     }
-                    if (notUsed) anchors.Add(anchor);
-                    else doneAnchors.Add(anchor);
                 }
+                if (!notUsed) break;
             }
+            if (notUsed) anchors.Add(anchor);
+            else doneAnchors.Add(anchor);
         }
         return (anchors, doneAnchors);
     }
 
-    public void CreateCityTerrain(float distance, float segmentLength, float vertexFusionDistance, int smooth, float internalDistance) {
+    public System.Threading.Tasks.Task CreateCityTerrain(float distance, float segmentLength, float vertexFusionDistance, int smooth, float internalDistance,
+        IProgress<(float, string)> progress = null) {
+
         var ctg = new CitywideTerrainGenerator();
-        ctg.CreateCityTerrainCoroutine(distance, segmentLength, vertexFusionDistance, smooth, internalDistance, this, this);
+        return ctg.CreateCityTerrainCoroutine(distance, segmentLength, vertexFusionDistance, smooth, internalDistance, this, this, progress);
     }
 
-    public void CreateCityBuildings(float minLength, float maxLength, List<ObjectState> states,
-        bool subdivide, ObjectState lineState, List<string> texturesToPlaceOn) {
+    public System.Threading.Tasks.Task CreateCityBuildings(float minLength, float maxLength, List<ObjectState> states,
+        bool subdivide, ObjectState lineState, List<string> texturesToPlaceOn, IProgress<(float, string)> progress = null) {
 
         var ctg = new CitywideBuildingGenerator();
-        ctg.CreateCityBuildingsCoroutine(minLength, maxLength, states, subdivide, this, lineState, texturesToPlaceOn, this);
+        return ctg.CreateCityBuildingsCoroutine(minLength, maxLength, states, subdivide, this, lineState, texturesToPlaceOn, this, progress);
     }
 }

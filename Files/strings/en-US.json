@@ -58,6 +58,7 @@
 	"CITY_EXPORTED_TEXT": "City exported successfully!",
 	"CITY_SAVE_ERROR_TEXT": "Error while saving the city: ",
 	"CITY_EXPORT_ERROR_TEXT": "Error while exporting the city",
+	"CITY_LOAD_ERROR_TEXT": "Error while loading the city: ",
 	"UNSUPPORTED_FORMAT": "Unsupported format",
 	"NO_FORMAT_SPECIFIED": "No format specified (you may have accidentally selected a folder, try typing the extension too)",
 	"NO_CITY_FILE_ERROR": "There is no saved city in the specified folder",

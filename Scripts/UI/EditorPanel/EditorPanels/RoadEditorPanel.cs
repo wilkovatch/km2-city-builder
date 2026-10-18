@@ -145,8 +145,8 @@ namespace EditorPanels {
         void ClearEmptyRoad() {
             var pS = GetComplexElement<PresetSelector>();
             if (pS != null && pS.EditingPreset() && keepActive) return;
-            if (GetCurRoad(false) != null && GetCurRoad(false).points.Count < 2) {
-                GetCurRoad(false).Delete();
+            if (Operations.Roads.IsIncomplete(GetCurRoad(false))) {
+                Operations.Roads.Delete(GetCurRoad(false));
                 builder.NotifyChange();
             }
         }
@@ -156,7 +156,7 @@ namespace EditorPanels {
         }
 
         ObjectState GetPropRule(bool createIfNull) {
-            var res = GetCurRoad().state.State("propRule");
+            var res = Operations.Roads.GetPropRule(GetCurRoad(), false);
             if (res == null && createIfNull) {
                 res = new ObjectState(true);
                 SetPropRule(res);
@@ -165,20 +165,14 @@ namespace EditorPanels {
         }
 
         ObjectState SetPropRule(ObjectState state) {
-            GetCurRoad(true).state.SetState("propRule", state);
+            Operations.Roads.SetPropRule(GetCurRoad(true), state);
             ReadCurValues();
             builder.NotifyChange();
             return state;
         }
 
         void EnablePropContainer(string name, bool enabled) {
-            if (enabled) {
-                GetPropRule(true).SetState(name, new ObjectState(true));
-                GetCurRoad().state.FlagAsChanged();
-            } else {
-                GetPropRule(true).SetState(name, null);
-                GetCurRoad().state.FlagAsChanged();
-            }
+            Operations.Roads.EnablePropContainer(GetCurRoad(), name, enabled);
             ReadCurValues();
             builder.NotifyChange();
         }
@@ -281,24 +275,22 @@ namespace EditorPanels {
         }
 
         public bool Delete(bool deletePointIfSelected) {
-            if (deletePointIfSelected && builder.gizmo.mainTargetRoot != null && GetCurRoad(false) != null && GetCurRoad(false).points.Count > 2) {
+            if (deletePointIfSelected) {
                 var point = builder.gizmo.mainTargetRoot as Godot.StaticBody3D;
-                if (point != null && GetCurRoad().points.Contains(point)) {
-                    History.UndoManager.Touch(GetCurRoad());
-                    GetCurRoad().points.Remove(point);
-                    GameEngine.GameObject.Destroy(point);
+                if (Operations.Roads.CanRemoveControlPoint(GetCurRoad(false), point)) {
+                    Operations.Roads.RemoveControlPoint(GetCurRoad(), point);
                     builder.NotifyChange();
                     return false;
                 }
             }
-            GetCurRoad().Delete();
+            Operations.Roads.Delete(GetCurRoad());
             builder.NotifyChange();
             Terminate();
             return true;
         }
 
         void RemovePoint() {
-            GetCurRoad()?.RemovePoint();
+            Operations.Roads.RemoveLastPoint(GetCurRoad());
             builder.NotifyChange();
         }
 

@@ -31,10 +31,7 @@ namespace ElementPlacer {
         }
 
         void CreateTerrain() {
-            var name = "Terrain " + Actions.Helpers.GetLatestObjectNumber(manager.GetTerrainContainer(), "Terrain "); ;
-            curTerrain = GS.Create<TerrainPatch>(name);
-            curTerrain.Initialize(manager.GetTerrainPointContainer(), manager.GetTerrainContainer());
-            if (manager != null) manager.AddPatch(curTerrain);
+            curTerrain = Operations.TerrainPatches.Create(manager);
         }
 
         public TerrainPatch GetPatch(bool createIfNull = true) {
@@ -64,14 +61,14 @@ namespace ElementPlacer {
             switch (placementMode) {
                 case PlacementMode.Perimeter:
                     var pointOnly = !Input.GetInputPressed(KeyCommand.Modifier2);
-                    patch.AddPerimeterPoint((Node3D)hit.collider, hit.point, pointOnly);
+                    Operations.TerrainPatches.AddPerimeterPoint(patch, (Node3D)hit.collider, hit.point, pointOnly);
                     break;
                 case PlacementMode.Internal:
-                    patch.AddInternalPoint((Node3D)hit.collider, hit.point);
+                    Operations.TerrainPatches.AddInternalPoint(patch, (Node3D)hit.collider, hit.point);
                     break;
                 case PlacementMode.BorderMesh:
                     var point = GS.FindRecursive<TerrainPoint>((Node3D)hit.collider);
-                    patch.AddPointToBorderMesh(curBorderMesh, point);
+                    Operations.TerrainPatches.AddPointToBorderMesh(patch, curBorderMesh, point);
                     patch.HighlightBorderMesh(curBorderMesh);
                     break;
             }

@@ -93,12 +93,12 @@ namespace EditorPanels {
 
         //same condition under which the delete button is shown (the preset dummy intersection can't be deleted)
         public bool CanDelete() {
-            return !GetComplexElement<PresetSelector>().EditingPreset() && GetCurIntersection() != null && !GetCurIntersection().IsDeleted();
+            return !GetComplexElement<PresetSelector>().EditingPreset() && Operations.Intersections.CanDelete(GetCurIntersection());
         }
 
         public void Delete() {
             if (!CanDelete()) return;
-            GetCurIntersection().Delete();
+            Operations.Intersections.Delete(GetCurIntersection());
             builder.NotifyChange();
             Terminate();
         }

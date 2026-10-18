@@ -120,25 +120,7 @@ namespace EditorPanels {
 
             void DeleteSlice() {
                 if (curSide == null || curSlice < 0) return;
-                if (groundMode) {
-                    var groundFloorState = curSide.state.State("groundFloor");
-                    var slices = groundFloorState.Array<ObjectState>("Slices", false);
-                    if (curSlice > slices.Length - 1) return;
-                    var newSlices = new List<ObjectState>();
-                    newSlices.AddRange(slices);
-                    newSlices.RemoveAt(curSlice);
-                    groundFloorState.SetArray("Slices", newSlices.ToArray());
-                    curSide.SyncWithBuilding();
-                } else {
-                    var curFloorState = curSide.state.Array<ObjectState>("upperFloors")[curFloor];
-                    var slices = curFloorState.Array<ObjectState>("Slices", false);
-                    if (curSlice > slices.Length - 1) return;
-                    var newSlices = new List<ObjectState>();
-                    newSlices.AddRange(slices);
-                    newSlices.RemoveAt(curSlice);
-                    curFloorState.SetArray("Slices", newSlices.ToArray());
-                    curSide.SyncWithBuilding();
-                }
+                if (!Operations.BuildingLines.RemoveSlice(curSide, groundMode ? -1 : curFloor, curSlice)) return;
                 ReloadSlices(true);
                 builder.NotifyChange();
             }
@@ -166,33 +148,7 @@ namespace EditorPanels {
 
             void AddSlice() {
                 if (curSide == null) return;
-                if (groundMode) {
-                    var groundFloorState = curSide.state.State("groundFloor");
-                    var slices = groundFloorState.Array<ObjectState>("Slices", false);
-                    var f = new ObjectState();
-                    f.SetInt("Repetitions", 1);
-                    f.SetFloat("Width", 1);
-                    f.SetInt("top", 0);
-                    f.SetInt("middle", 0);
-                    f.SetInt("bottom", 0);
-                    var newSlices = new List<ObjectState>();
-                    newSlices.AddRange(slices);
-                    newSlices.Add(f);
-                    groundFloorState.SetArray("Slices", newSlices.ToArray());
-                    curSide.SyncWithBuilding();
-                } else {
-                    var curFloorState = curSide.state.Array<ObjectState>("upperFloors")[curFloor];
-                    var slices = curFloorState.Array<ObjectState>("Slices", false);
-                    var f = new ObjectState();
-                    f.SetInt("Repetitions", 1);
-                    f.SetFloat("Width", 1);
-                    f.SetInt("block", 0);
-                    var newSlices = new List<ObjectState>();
-                    newSlices.AddRange(slices);
-                    newSlices.Add(f);
-                    curFloorState.SetArray("Slices", newSlices.ToArray());
-                    curSide.SyncWithBuilding();
-                }
+                Operations.BuildingLines.AddSlice(curSide, groundMode ? -1 : curFloor);
                 ReloadSlices(true);
                 builder.NotifyChange();
             }

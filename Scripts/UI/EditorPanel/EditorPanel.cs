@@ -125,7 +125,7 @@ public abstract partial class EditorPanel {
         }
         foreach (var param in parameters) {
             if (param.fullName() == elem.name) {
-                var pFullName = (prependstate ? (param.instanceSpecific ? "instanceState." : "state.") : "") + "properties." + param.fullName();
+                var pFullName = Operations.States.GetParameterPath(param, prependstate);
                 parameterMap.Add(pFullName, param);
                 EditorPanelElement field = null;
                 switch (param.type) {
@@ -511,17 +511,7 @@ public abstract partial class EditorPanel {
     }
 
     List<ObjectState> GetArrayList(CityElements.Types.Parameter param, IObjectWithState obj) {
-        var arr = obj.GetState().Array<ObjectState>(param.fullName());
-        if (arr == null) {
-            arr = new ObjectState[0] { };
-        }
-        return new List<ObjectState>(arr);
-    }
-
-    void SetArrayList(CityElements.Types.Parameter param, IObjectWithState obj, List<ObjectState> list) {
-        var newArr = list.ToArray();
-        obj.GetState().SetArray(param.fullName(), newArr);
-        builder.NotifyChange();
+        return Operations.States.GetArray(obj.GetState(), param);
     }
 
     List<string> GetArray(CityElements.Types.Parameter param) {
@@ -542,45 +532,22 @@ public abstract partial class EditorPanel {
     void AddArrayElement(CityElements.Types.Parameter param) {
         var obj = getObject?.Invoke();
         if (obj != null) {
-            var arr = GetArrayList(param, obj);
-            var properties = GetArrayProperties(param.arrayProperties);
-            var newObj = ObjectState.CreateFromDefaultProperties(properties);
-            arr.Add(newObj);
-            SetArrayList(param, obj, arr);
+            Operations.States.AddArrayElement(obj.GetState(), param);
+            builder.NotifyChange();
         }
     }
 
     void CloneArrayElement(CityElements.Types.Parameter param, int i) {
         var obj = getObject?.Invoke();
-        if (obj != null) {
-            var arr = GetArrayList(param, obj);
-            if (arr.Count > 0) {
-                arr.Add((ObjectState)arr[i].Clone());
-                SetArrayList(param, obj, arr);
-            } else {
-                GameEngine.LogWarning("Unable to clone, array is empty");
-            }
+        if (obj != null && Operations.States.CloneArrayElement(obj.GetState(), param, i)) {
+            builder.NotifyChange();
         }
     }
 
     void ShiftArrayElement(CityElements.Types.Parameter param, int i, bool positive) {
         var obj = getObject?.Invoke();
-        if (obj != null) {
-            var arr = GetArrayList(param, obj);
-            if (arr.Count > 0) {
-                if ((positive && i < arr.Count - 1) || (!positive && i > 0)) {
-                    var shift = positive ? 1 : -1;
-                    var elem1 = arr[i];
-                    var elem2 = arr[i + shift];
-                    arr[i + shift] = elem1;
-                    arr[i] = elem2;
-                    SetArrayList(param, obj, arr);
-                } else {
-                    GameEngine.LogWarning("Unable to shift");
-                }
-            } else {
-                GameEngine.LogWarning("Unable to shift, array is empty");
-            }
+        if (obj != null && Operations.States.ShiftArrayElement(obj.GetState(), param, i, positive)) {
+            builder.NotifyChange();
         }
     }
 
@@ -594,23 +561,7 @@ public abstract partial class EditorPanel {
     }
 
     protected CityElements.Types.Parameter[] GetSubparams(CityElements.Types.Parameter param) {
-        //TODO: put this duplicate code in some common place
-        CityElements.Types.Parameter[] subparams;
-        if (param.arrayProperties != null) {
-            if (param.arrayProperties.customElementType != null) {
-                var ct = CityElements.Types.Parsers.TypeParser.GetCustomTypes()[param.arrayProperties.customElementType];
-                subparams = ct.parameters;
-            } else {
-                subparams = param.arrayProperties.elementProperties;
-            }
-        } else if (param.customElementType != null) {
-            var ct = CityElements.Types.Parsers.TypeParser.GetCustomTypes()[param.customElementType];
-            subparams = ct.parameters;
-        } else {
-            GameEngine.LogWarning("invalid subparameters for parameter " + param.fullName());
-            subparams = null;
-        }
-        return subparams;
+        return Operations.States.GetSubparams(param);
     }
 
     void SelectArrayElementByState(ObjectState state, string paramName, Stack<GameObject> stack = null) {
@@ -695,16 +646,9 @@ public abstract partial class EditorPanel {
 
     void DeleteArrayElement(CityElements.Types.Parameter param, int i) {
         var obj = getObject?.Invoke();
-        if (obj != null) {
-            var arr = GetArrayList(param, obj);
-            if (arr.Count > 0) {
-                ArrayObject.PruneSelections(arr[i]);
-                builder.NotifyVisibilityChange();
-                arr.RemoveAt(i);
-                SetArrayList(param, obj, arr);
-            } else {
-                GameEngine.LogWarning("Unable to delete, array is empty");
-            }
+        if (obj != null && Operations.States.DeleteArrayElement(obj.GetState(), param, i)) {
+            builder.NotifyVisibilityChange();
+            builder.NotifyChange();
         }
     }
 
@@ -713,33 +657,17 @@ public abstract partial class EditorPanel {
     }
 
     CityElements.Types.Parameter[] GetArrayProperties(CityElements.Types.ArrayProperties type) {
-        if (type == null) return null;
-        if (type.customElementType != null) {
-            var ct = CityElements.Types.Parsers.TypeParser.GetCustomTypes()[type.customElementType];
-            return ct.parameters;
-        } else {
-            return type.elementProperties;
-        }
+        return Operations.States.GetArrayProperties(type);
     }
 
     string GetArraylabel(CityElements.Types.ArrayProperties type) {
-        if (type == null) return null;
-        if (type.customElementType != null) {
-            var ct = CityElements.Types.Parsers.TypeParser.GetCustomTypes()[type.customElementType];
-            return ct.label;
-        } else {
-            return type.elementLabel;
-        }
+        return Operations.States.GetArrayLabel(type);
     }
 
     void SelectCustomElement(CityElements.Types.Parameter param, Stack<GameObject> stack = null) {
         var obj = getObject?.Invoke();
         if (obj != null) {
-            var subObj = obj.GetState().State(param.fullName());
-            if (subObj == null) {
-                subObj = new ObjectState();
-                obj.GetState().SetState(param.fullName(), subObj);
-            }
+            var subObj = Operations.States.EnsureCustomElement(obj.GetState(), param);
             ShowArrayElementPanel(param, subObj, null, stack);
         }
     }

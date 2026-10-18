@@ -64,6 +64,7 @@ public partial class CityGroundHelper: ThisScriptable {
         curProgressBar = new ProgressBar(menuBar, SM.Get("GENERATING_TERRAIN"));
         curProgressBar.SetActive(false);
         menuBar.ManualStart();
+        if (Api.ApiHost.IsScriptSession()) return; //Python is checked when the script loads a city
         var pyRes = PythonManager.CheckPython(menuBar);
         if (pyRes) {
             var lastCity = SettingsManager.Get("LastCity", "");
@@ -75,14 +76,16 @@ public partial class CityGroundHelper: ThisScriptable {
     }
 
     public void SaveCity() {
-        //set core feature version (since in case of non breaking change there is no migration)
-        var core = PreferencesManager.Get("core", "");
-        var curCoreFeatureVersion = CoreManager.GetCoreFeatureVersion(core);
-        PreferencesManager.Set("coreFeatureVersion", curCoreFeatureVersion);
+        SaveCityAsync();
+    }
 
-        SavePreferences();
-
-        CityExporter.SaveCity(elementManager, PreferencesManager.workingDirectory + "/city.json", true);
+    async void SaveCityAsync() {
+        var error = await Operations.CityFiles.Save(elementManager);
+        if (error != null) {
+            menuBar.CreateAlert(SM.Get("ERROR"), SM.Get("CITY_SAVE_ERROR_TEXT") + error, SM.Get("OK"));
+        } else {
+            menuBar.CreateAlert(SM.Get("SUCCESS"), SM.Get("CITY_SAVED_TEXT"), SM.Get("OK"));
+        }
     }
 
     public void SavePreferences() {
@@ -96,24 +99,23 @@ public partial class CityGroundHelper: ThisScriptable {
         RefreshOverlay();
     }
 
-    public async void SetHeightsCoroutine(float[,] heights, float scale, System.Action<Node> post, Node caller) {
+    //creates the terrain with the given heights
+    public async System.Threading.Tasks.Task SetHeightsAsync(float[,] heights, float scale, Operations.ProgressReporter progressBar) {
         maxHeight = scale;
-        curProgressBar.SetText(SM.Get("GENERATING_TERRAIN"));
-        curProgressBar.SetActive(true);
-        curProgressBar.SetProgress(0);
-        await caller.ToSignal(caller.GetTree(), "process_frame");
+        progressBar.SetText(SM.Get("GENERATING_TERRAIN"));
+        progressBar.SetActive(true);
+        progressBar.SetProgress(0);
+        await ToSignal(GetTree(), "process_frame");
         SetHeights(heights);
-        if (post != null) {
-            await caller.ToSignal(caller.GetTree(), "process_frame");
-            post.Invoke(this);
-        }
     }
-    public async void SetDefaultHeights(float scale, System.Action<Node> post, Node caller) {
-    maxHeight = scale;
-        curProgressBar.SetText(SM.Get("GENERATING_TERRAIN"));
-        curProgressBar.SetActive(true);
-        curProgressBar.SetProgress(0);
-        await caller.ToSignal(caller.GetTree(), "process_frame");
+
+    //creates a flat terrain
+    public async System.Threading.Tasks.Task SetDefaultHeightsAsync(float scale, Operations.ProgressReporter progressBar) {
+        maxHeight = scale;
+        progressBar.SetText(SM.Get("GENERATING_TERRAIN"));
+        progressBar.SetActive(true);
+        progressBar.SetProgress(0);
+        await ToSignal(GetTree(), "process_frame");
         GO.Destroy(terrainObj);
         var size = heightmapResolution + 1;
         var heights = new float[size, size];
@@ -123,48 +125,50 @@ public partial class CityGroundHelper: ThisScriptable {
             }
             if (x % 512 == 0) {
                 float percent = 1.0f * x / size;
-                curProgressBar.SetProgress(percent);
-                await caller.ToSignal(caller.GetTree(), "process_frame");
+                progressBar.SetProgress(percent);
+                await ToSignal(GetTree(), "process_frame");
             }
         }
         terrainObj = GameEngine.Terrain.CreateHeightmap(terrainSize, heightmapResolution, maxHeight, heights, this, GetGridMaterial());
         GameEngine.Materials.SetShaderParameter(mat2, "_Size", new Vector4(terrainSize, -terrainSize * 0.5f, terrainSize, -terrainSize * 0.5f));
         RefreshOverlay();
-        curProgressBar.SetActive(false);
-        if (post != null) {
-        await caller.ToSignal(caller.GetTree(), "process_frame");
-        post.Invoke(this);
-        }
+        progressBar.SetActive(false);
     }
 
     public void ApplyHeightmap(string filename, float scale) {
-        ApplyHeightmapCoroutine(filename, scale, this);
+        _ = ApplyHeightmapAsync(filename, scale, null);
     }
 
-    async void ApplyHeightmapCoroutine(string filename, float scale, Node caller) {
-        curProgressBar.SetText(SM.Get("GENERATING_TERRAIN"));
+    //sets the terrain heights from a grayscale image (a single undo step)
+    public async System.Threading.Tasks.Task ApplyHeightmapAsync(string filename, float scale, System.IProgress<(float, string)> progress) {
+        var text = SM.Get("GENERATING_TERRAIN");
+        curProgressBar.SetText(text);
         curProgressBar.SetActive(true);
         curProgressBar.SetProgress(0);
-        var tex = GameEngine.Texture.GetSampleableImage(MaterialManager.GetTexture(filename, true));
-        var size = heightmapResolution + 1;
-        var heights = new float[size, size];
-        await caller.ToSignal(caller.GetTree(), "process_frame");
-        for (int x = 0; x < size; x++) {
-            for (int y = 0; y < size; y++) {
-                var c = GameEngine.Texture.ToGrayscale(GameEngine.Texture.SampleBilinear(tex, 1.0f * x / size, 1.0f * y / size));
-                heights[y, x] = 0.5f + c * 0.5f * scale / maxHeight;
+        try {
+            var tex = GameEngine.Texture.GetSampleableImage(MaterialManager.GetTexture(filename, true));
+            var size = heightmapResolution + 1;
+            var heights = new float[size, size];
+            await ToSignal(GetTree(), "process_frame");
+            for (int x = 0; x < size; x++) {
+                for (int y = 0; y < size; y++) {
+                    var c = GameEngine.Texture.ToGrayscale(GameEngine.Texture.SampleBilinear(tex, 1.0f * x / size, 1.0f * y / size));
+                    heights[y, x] = 0.5f + c * 0.5f * scale / maxHeight;
+                }
+                if (x % 512 == 0) {
+                    float percent = 1.0f * x / size;
+                    curProgressBar.SetProgress(percent);
+                    progress?.Report((percent, text));
+                    await ToSignal(GetTree(), "process_frame");
+                }
             }
-            if (x % 512 == 0) {
-                float percent = 1.0f * x / size;
-                curProgressBar.SetProgress(percent);
-                await caller.ToSignal(caller.GetTree(), "process_frame");
-            }
+            History.UndoManager.Begin(SM.Get("LOAD_HEIGHTMAP"));
+            History.UndoManager.TouchWholeHeightmap();
+            GameEngine.Terrain.SetHeightmap(terrainObj, maxHeight, heights);
+            History.UndoManager.Commit();
+        } finally {
+            curProgressBar.SetActive(false);
         }
-        History.UndoManager.Begin(SM.Get("LOAD_HEIGHTMAP"));
-        History.UndoManager.TouchWholeHeightmap();
-        GameEngine.Terrain.SetHeightmap(terrainObj, maxHeight, heights);
-        History.UndoManager.Commit();
-        curProgressBar.SetActive(false);
     }
 
     float GetTransparency(int value) {

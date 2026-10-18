@@ -16,18 +16,25 @@ namespace CityEncoder {
         }
 
         public void EncodeCity(ElementManager manager, string filename, System.Action post = null) {
-            System.Action<string> postError = x => {
-                manager.builder.CreateAlert(StringManager.Get("ERROR"), StringManager.Get("CITY_SAVE_ERROR_TEXT") + x, StringManager.Get("OK"));
-            };
-            System.Action postDefault = delegate {
-                manager.builder.CreateAlert(StringManager.Get("SUCCESS"), StringManager.Get("CITY_SAVED_TEXT"), StringManager.Get("OK"));
-            };
-            EncodeCityCoroutine(manager, filename, post == null ? postDefault : post, postError, manager.builder);
+            Run(manager, filename, post);
         }
 
-        async void EncodeCityCoroutine(ElementManager manager, string filename, System.Action postSuccess, System.Action<string> postError, Node caller) {
+        async void Run(ElementManager manager, string filename, System.Action post) {
+            var error = await EncodeCityAsync(manager, filename);
+            if (error != null) {
+                manager.builder.CreateAlert(StringManager.Get("ERROR"), StringManager.Get("CITY_SAVE_ERROR_TEXT") + error, StringManager.Get("OK"));
+            } else if (post != null) {
+                post.Invoke();
+            } else {
+                manager.builder.CreateAlert(StringManager.Get("SUCCESS"), StringManager.Get("CITY_SAVED_TEXT"), StringManager.Get("OK"));
+            }
+        }
+
+        //writes the file, returns null on success or the error message
+        public async System.Threading.Tasks.Task<string> EncodeCityAsync(ElementManager manager, string filename, System.IProgress<(float, string)> progress = null) {
+            Node caller = manager.builder;
             await caller.ToSignal(caller.GetTree(), "process_frame");
-            var progressBar = manager.builder.helper.curProgressBar;
+            var progressBar = new Operations.ProgressReporter(manager.builder.helper.curProgressBar, progress);
             progressBar.SetActive(true);
             progressBar.SetProgress(0);
             progressBar.SetText(StringManager.Get("SAVING_CITY"));
@@ -44,8 +51,7 @@ namespace CityEncoder {
             } catch (System.Exception e) {
                 GameEngine.LogError(e.ToString());
                 progressBar.SetActive(false);
-                postError.Invoke(e.Message);
-                return;
+                return e.Message;
             }
 
             var meshArray = new IO.SavedCity.MeshInstance[manager.meshes.Count];
@@ -55,8 +61,7 @@ namespace CityEncoder {
                 } catch (System.Exception e) {
                     GameEngine.LogError(e.ToString());
                     progressBar.SetActive(false);
-                    postError.Invoke(e.Message);
-                    return;
+                    return e.Message;
                 }
 
                 if (i % 100 == 0 || i == manager.meshes.Count - 1) {
@@ -73,8 +78,7 @@ namespace CityEncoder {
                 } catch (System.Exception e) {
                     GameEngine.LogError(e.ToString());
                     progressBar.SetActive(false);
-                    postError.Invoke(e.Message);
-                    return;
+                    return e.Message;
                 }
 
                 if (i % 100 == 0 || i == manager.roads.Count - 1) {
@@ -91,8 +95,7 @@ namespace CityEncoder {
                 } catch (System.Exception e) {
                     GameEngine.LogError(e.ToString());
                     progressBar.SetActive(false);
-                    postError.Invoke(e.Message);
-                    return;
+                    return e.Message;
                 }
 
                 if (i % 100 == 0 || i == manager.intersections.Count - 1) {
@@ -111,8 +114,7 @@ namespace CityEncoder {
                 } catch (System.Exception e) {
                     GameEngine.LogError(e.ToString());
                     progressBar.SetActive(false);
-                    postError.Invoke(e.Message);
-                    return;
+                    return e.Message;
                 }
 
                 if (i % 100 == 0 || i == manager.patches.Count - 1) {
@@ -129,8 +131,7 @@ namespace CityEncoder {
                 } catch (System.Exception e) {
                     GameEngine.LogError(e.ToString());
                     progressBar.SetActive(false);
-                    postError.Invoke(e.Message);
-                    return;
+                    return e.Message;
                 }
 
                 if (i % 10 == 0 || i == manager.buildings.Count - 1) {
@@ -166,12 +167,11 @@ namespace CityEncoder {
             } catch (System.Exception e) {
                 GameEngine.LogError(e.ToString());
                 progressBar.SetActive(false);
-                postError.Invoke(e.Message);
-                return;
+                return e.Message;
             }
 
             progressBar.SetActive(false);
-            postSuccess.Invoke();
+            return null;
         }
 
         IO.SavedCity.TerrainPoint[] GetTerrainPointsArray(Dictionary<TerrainPoint, (int, IO.SavedCity.TerrainPoint)> dict) {

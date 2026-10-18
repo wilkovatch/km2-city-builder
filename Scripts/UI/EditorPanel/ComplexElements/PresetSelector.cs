@@ -228,8 +228,7 @@ public abstract partial class EditorPanel {
                 var origPreset = getter.Invoke();
                 origPreset.Name = str;
             }
-            var preset = (ObjectState)getter.Invoke().Clone();
-            PresetManager.SavePreset(preset, type);
+            PresetManager.SavePreset((ObjectState)getter.Invoke().Clone(), type);
             ReloadValues(type, true);
             panel.ReadCurValues();
         }
@@ -248,8 +247,7 @@ public abstract partial class EditorPanel {
         }
 
         void DeletePreset(string curPreset, string type) {
-            PresetManager.DeletePreset(curPreset, type);
-            ClearPreset(curPreset, type);
+            Operations.Presets.Delete(panel.builder.helper.elementManager, type, curPreset);
             ReloadValues();
         }
 
@@ -275,51 +273,8 @@ public abstract partial class EditorPanel {
         }
 
         void SyncPreset(string name, string type) {
-            var curPreset = PresetManager.GetPresetByName(name, type);
-            switch (type) {
-                case "road":
-                    foreach (var road in panel.builder.helper.elementManager.roads) {
-                        if (road.state.Name == name) {
-                            var newState = (ObjectState)curPreset.Clone();
-                            newState.FlagAsChanged();
-                            road.SetState(newState);
-                        }
-                    }
-                    break;
-                case "intersection":
-                    foreach (var intersection in panel.builder.helper.elementManager.intersections) {
-                        if (intersection.state.Name == name) {
-                            var newState = (ObjectState)curPreset.Clone();
-                            newState.FlagAsChanged();
-                            intersection.SetState(newState);
-                        }
-                    }
-                    break;
-                //TODO: other cases
-                default:
-                    GameEngine.LogWarning("Syncing presets for the type '" + type + "' is unimplemented");
-                    break;
-            }
+            Operations.Presets.Sync(panel.builder.helper.elementManager, type, name);
             panel.builder.NotifyChange();
-        }
-
-        void ClearPreset(string name, string type) {
-            switch (type) {
-                case "road":
-                    foreach (var road in panel.builder.helper.elementManager.roads) {
-                        if (road.state.Name == name) road.state.Name = "";
-                    }
-                    break;
-                case "intersection":
-                    foreach (var intersection in panel.builder.helper.elementManager.intersections) {
-                        if (intersection.state.Name == name) intersection.state.Name = "";
-                    }
-                    break;
-                //TODO: other cases
-                default:
-                    GameEngine.LogWarning("Clearing presets for the type '" + type + "' is unimplemented");
-                    break;
-            }
         }
 
         public bool EditingPreset() {

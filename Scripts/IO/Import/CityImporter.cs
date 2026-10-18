@@ -1,5 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using SM = StringManager;
 
 class CityImporter {
@@ -23,5 +24,14 @@ class CityImporter {
     static void ReadCity(ElementManager manager, CityDecoder.CityDecoder decoder, string filename) {
         MaterialManager.ClearCache(); //TODO: check if other stuff needs to be cleared
         decoder.DecodeCity(manager, filename);
+    }
+
+    //loads the city.json.gz of the folder, the result tells why it could not be loaded
+    public static async Task<CityDecoder.LoadResult> LoadCityAsync(ElementManager manager, string folder, CityDecoder.LoadOptions options) {
+        var name = folder.Replace("\\", "/").TrimEnd('/') + "/city.json.gz";
+        if (!File.Exists(name)) return CityDecoder.LoadResult.Fail("not_found", SM.Get("NO_CITY_FILE_ERROR"));
+        PreferencesManager.workingDirectory = name.Replace("/city.json.gz", "");
+        MaterialManager.ClearCache();
+        return await new CityDecoder.JSON().DecodeCityAsync(manager, name, options);
     }
 }

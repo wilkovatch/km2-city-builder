@@ -59,33 +59,7 @@ namespace EditorPanels {
             if (selectedCore == null) {
                 return (new List<string>() { SM.Get("NONE") }, new List<string>() { "NONE" });
             }
-            var filesPath = Path.Combine(PathHelper.BasePath(), "Files");
-            var corePath = Path.Combine(filesPath, "cores", selectedCore);
-            var dirs = Directory.GetDirectories(Path.Combine(corePath, "templates"));
-            var shownNames = new List<string>();
-            var directories = new List<string>();
-            foreach (var dir in dirs) {
-                if (Path.GetFileName(dir) != "_common") {
-                    var stringName = "TEMPLATE_NAME_" + Path.GetFileName(dir);
-                    var translString = SM.Get(stringName, corePath);
-                    if (translString == stringName) translString = Path.GetFileName(dir);
-                    shownNames.Add(translString);
-                    directories.Add(dir);
-                }
-            }
-
-            //custom templates
-            var customTemplatePath = Path.Combine(filesPath, "custom", "templates", selectedCore);
-            if (!Directory.Exists(customTemplatePath)) Directory.CreateDirectory(customTemplatePath);
-            dirs = Directory.GetDirectories(customTemplatePath);
-            foreach (var dir in dirs) {
-                if (Path.GetFileName(dir) != "_common") {
-                    shownNames.Add(Path.GetFileName(dir));
-                    directories.Add(dir);
-                }
-            }
-
-            return (shownNames, directories);
+            return Operations.CityFiles.GetTemplates(selectedCore);
         }
 
         int FindResolution(int trueValue) {
@@ -156,24 +130,7 @@ namespace EditorPanels {
             for (int i = 0; i < 2; i++) { //once only does not make the file dialog close
                 await caller.ToSignal(caller.GetTree(), "process_frame");
             }
-            var filesPath = Path.Combine(PathHelper.BasePath(), "Files");
-            var templatesPath = Path.Combine(filesPath, "cores", selectedCore, "templates");
-            PathHelper.DirectoryCopy(Path.Combine(templatesPath, "_common"), folder);
-            PathHelper.DirectoryCopy(selectedTemplate, folder);
-            var savedCity = new IO.SavedCity.SavedCity();
-            savedCity.heightmapResolution = heightmapRes;
-            savedCity.terrainSize = terrSize;
-            savedCity.heightMap = "";
-            savedCity.maxHeight = maxHeight;
-
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.Indented);
-            var bytes = System.Text.Encoding.ASCII.GetBytes(json);
-            var stream = new MemoryStream(bytes);
-            using (var compressedFileStream = File.Create(Path.Combine(folder, "city.json.gz"))) {
-                using (var compressor = new GZipStream(compressedFileStream, CompressionMode.Compress)) {
-                    stream.CopyTo(compressor);
-                }
-            }
+            Operations.CityFiles.CreateCityFolder(folder, selectedCore, selectedTemplate, terrSize, heightmapRes, maxHeight);
             SetActive(false);
             CityImporter.LoadCity(builder.helper.elementManager, folder + "/city.json.gz");
         }

@@ -13,6 +13,7 @@
 - [Geometry Generation](Geometry-Generation)
 - [Input and Output](Input-and-Output)
 - [User Interface](User-Interface)
+- [Scripting API](Scripting-API)
 - [Third-Party Code](Third-Party-Code)
 
 **Creating cores**

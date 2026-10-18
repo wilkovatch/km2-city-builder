@@ -31,25 +31,8 @@ namespace ElementPlacer {
             placeEnabled = active;
         }
 
-        CityElements.Types.Runtime.MeshInstanceSettings GetMeshSettings() {
-            var meshSettings = CityElements.Types.Parsers.TypeParser.GetMeshInstanceSettings();
-            if (meshSettings == null || settings == null) return null;
-            meshSettings.FillInitialVariables(meshSettings.variableContainer, settings);
-            return meshSettings;
-        }
-
-        int GetLayer() {
-            var meshSettings = GetMeshSettings();
-            if (meshSettings == null) return -1;
-            var layer = (int)meshSettings.rules.layer.GetValue(meshSettings.variableContainer);
-            return layer;
-        }
-
         int GetLayerMask() {
-            var meshSettings = GetMeshSettings();
-            if (meshSettings == null) return -1;
-            var mask = (int)meshSettings.rules.placerLayerMask.GetValue(meshSettings.variableContainer);
-            return mask;
+            return Operations.Meshes.GetPlacerLayerMask(settings);
         }
 
         public override void Apply(List<RaycastHit?> hits) {
@@ -60,38 +43,11 @@ namespace ElementPlacer {
                 var mousePos = manager.GetViewport().GetMousePosition();
                 if (!Input.GetInputPressed(KeyCommand.Select) || GameEngine.Vector2.Distance(mousePos, lastMousePos) < 1.0f) return;
                 if (curPoint.HasValue) {
-                    var cont = manager.GetMeshContainer();
                     if (deleteMode) {
-                        var layer = GetLayer();
-                        var delList = new List<MeshInstance>();
-                        foreach (var mesh in manager.meshes) {
-                            if (GameEngine.GameObject.GetLayer(mesh) == layer) {
-                                // The root sits on the placement point (only its children are raised by the
-                                // y offset), so it is compared as is.
-                                // curPoint is in program coordinates, so the position must be read through GO.
-                                var dist = GameEngine.Vector3.Distance(GameEngine.GameObject.GetPosition(mesh), curPoint.Value);
-                                if (dist < multipleRadius) {
-                                    delList.Add(mesh);
-                                }
-                            }
-                        }
-                        foreach (var mesh in delList) {
-                            mesh.Delete();
-                        }
+                        Operations.Meshes.EraseInRadius(manager, curPoint.Value, multipleRadius, settings);
                         manager.worldChanged = true;
                     } else if (GameEngine.GetTime() - lastTimePlaced >= minTime) {
-                        var points = new List<Vector3>();
-                        var rnd = RandomManager.rnd;
-                        for (int i = 0; i < multipleIntensity; i++) {
-                            var randomDir = new Vector3((float)rnd.NextDouble() - 0.5f, 0, (float)rnd.NextDouble() - 0.5f).Normalized();
-                            var point = curPoint.Value + randomDir * multipleRadius * (float)rnd.NextDouble();
-                            points.Add(GeometryHelper.ProjectPoint(point, GetLayerMasks()[0]));
-                        }
-                        foreach (var point in points) {
-                            var mesh = MeshInstance.Create(meshPath, point, cont, settings);
-                            if (randomRotation) GameEngine.GameObject.SetRotation(mesh, new Vector3(0, 360 * (float)rnd.NextDouble(), 0));
-                            manager.AddMesh(mesh);
-                        }
+                        Operations.Meshes.Scatter(manager, meshPath, curPoint.Value, multipleRadius, (int)System.Math.Ceiling(multipleIntensity), settings, randomRotation);
                         lastTimePlaced = GameEngine.GetTime();
                         lastMousePos = manager.GetViewport().GetMousePosition();
                     }
@@ -99,10 +55,7 @@ namespace ElementPlacer {
             } else {
                 if (!Input.GetInputStart(KeyCommand.Select)) return;
                 if (curPoint.HasValue) {
-                    var cont = manager.GetMeshContainer();
-                    var mesh = MeshInstance.Create(meshPath, curPoint.Value, cont, settings);
-                    if (randomRotation) GameEngine.GameObject.SetRotation(mesh, new Vector3(0, 360 * (float)RandomManager.rnd.NextDouble(), 0));
-                    manager.AddMesh(mesh);
+                    Operations.Meshes.Create(manager, meshPath, curPoint.Value, settings, randomRotation);
                 }
             }
         }

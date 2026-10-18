@@ -135,14 +135,10 @@ namespace EditorPanels {
         }
 
         void AddBorderMesh() {
-            var tS = TS();
-            var limit = tS.types[tS.curType].typeData.settings.maxBorderMeshes;
-            if (limit > 0 && GetCurPatch().GetBorderMeshCount() >= limit) {
+            if (Operations.TerrainPatches.AddBorderMesh(GetCurPatch()) == Operations.AddBorderMeshResult.LimitReached) {
                 builder.CreateAlert(SM.Get("ERROR"), SM.Get("TP_TOO_MANY_BORDER_MESHES_ERROR"), SM.Get("OK"));
                 return;
             }
-            var state = PresetManager.GetPreset("terrainPatchBorderMesh", 0);
-            GetCurPatch().AddBorderMesh(state, new ObjectState());
             builder.NotifyChange();
             UpdateBorderMeshesList();
             borderMeshDropdown.SetValue(GetCurPatch().GetBorderMeshCount());
@@ -163,7 +159,7 @@ namespace EditorPanels {
         }
 
         void RemoveBorderMesh(int borderMesh) {
-            GetCurPatch().RemoveBorderMesh(borderMesh);
+            Operations.TerrainPatches.RemoveBorderMesh(GetCurPatch(), borderMesh);
             builder.NotifyChange();
             UpdateBorderMeshesList();
         }
@@ -197,12 +193,11 @@ namespace EditorPanels {
 
         void AutoCloseLoop() {
             if (GetPlacer() != null && GetCurPatch(false) != null) {
-                var res = GetCurPatch().AutoClose();
-                switch (res.resultCode) {
-                    case 1:
+                switch (Operations.TerrainPatches.AutoClose(GetCurPatch())) {
+                    case Operations.AutoCloseResult.Closed:
                         builder.NotifyChange();
                         break;
-                    case -1:
+                    case Operations.AutoCloseResult.CannotClose:
                         builder.CreateAlert(SM.Get("ERROR"), SM.Get("TP_CANNOT_AUTOCLOSE_ERROR"), SM.Get("OK"));
                         break;
                     default: //0
@@ -225,14 +220,14 @@ namespace EditorPanels {
 
         void DeleteLastPerimeterPoint() {
             if (GetPlacer() != null && GetCurPatch(false) != null) {
-                GetCurPatch().RemovePerimeterPoint();
+                Operations.TerrainPatches.RemoveLastPerimeterPoint(GetCurPatch());
                 builder.NotifyChange();
             }
         }
 
         void ClearEmptyPatch() {
-            if (GetCurPatch(false) != null && GetCurPatch(false).GetPerimeterPointCount() < 3) {
-                GetCurPatch(false).Delete();
+            if (Operations.TerrainPatches.IsIncomplete(GetCurPatch(false))) {
+                Operations.TerrainPatches.Delete(GetCurPatch(false));
                 builder.NotifyChange();
             }
         }
@@ -282,7 +277,7 @@ namespace EditorPanels {
         }
 
         public void Delete() {
-            GetCurPatch().Delete();
+            Operations.TerrainPatches.Delete(GetCurPatch());
             builder.NotifyChange();
             Terminate();
         }

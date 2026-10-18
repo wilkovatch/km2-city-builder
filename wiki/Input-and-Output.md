@@ -24,23 +24,25 @@ Vectors and quaternions use the serializable structs from `States.Utils` and are
 
 ### `CityEncoder.JSON` (`IO/Export/CityEncoder/Formats/JSON.cs`)
 
-Writes a `SavedCity` (with gzip when used for the city save). Runs as an async method over a few frames so that the progress bar can be shown.
+Writes a `SavedCity` (with gzip when used for the city save). `EncodeCityAsync` runs over a few frames so that the progress bar can be shown, and returns null on success or the error message; `EncodeCity` runs it and shows the result in an alert.
 
 ### `CityDecoder.JSON` (`IO/Import/CityDecoder/Formats/JSON.cs`)
 
 Loads a city:
 
 1. Erases the current city and checks the versions (`CheckVersion`): no core in the preferences, or a core version different from the installed one, means a migration is needed; a city saved with a newer core feature version or an unknown core is an error.
-2. Runs the migration if the user accepts (`Files/python/migrate.py`, see [Core Python Integration](Core-Python-Integration#migrations)).
+2. Runs the migration if accepted (`Files/python/migrate.py`, see [Core Python Integration](Core-Python-Integration#migrations)).
 3. Checks the Python modules of the core.
 4. Loads the preferences (strings, formats, Python server), reads the file and creates the terrain (from the saved heights or flat), then sets the city properties and recreates mesh instances, roads, intersections, terrain patches (with their terrain points, resolving the anchors they are attached to) and building lines. Presets are reloaded from the city folder on first use.
-5. Stores the file in the `LastCity` setting.
+5. Stores the file in the `LastCity` setting (unless `LoadOptions.rememberAsLastCity` is false).
+
+`DecodeCityAsync(manager, filename, options)` returns a `LoadResult` (`success`, or an `error` code and message); if the city can't be loaded it is closed. The questions (migration, missing Python modules) and the errors go through `options.interaction` (`Operations.IInteraction`): the editor's popups by default (`UiInteraction`), the answers given in advance for scripts (`FixedInteraction`). The progress is reported to `options.progress` as well as shown on the progress bar.
 
 ### `CityExporter` and `CityImporter` (`IO/Export/CityExporter.cs`, `IO/Import/CityImporter.cs`)
 
-* `CityImporter.LoadCity(manager, path)` sets the working directory to the folder of `city.json.gz`, clears the material cache and runs `CityDecoder.JSON`.
+* `CityImporter.LoadCity(manager, path)` sets the working directory to the folder of `city.json.gz`, clears the material cache and runs `CityDecoder.JSON`. `LoadCityAsync(manager, folder, options)` does the same and returns the `LoadResult`.
 * `CityExporter.SaveCity(manager, path, gzipped)` dispatches by file extension: an extension matching a core exporter's `format` opens that exporter's dialog; `.json` writes the city save (gzipped) or the export JSON (plain); anything else shows an error.
-* `CityExporter.SaveCityWithExporter(exporter, flags, manager, path)` writes the export JSON next to the output file and then runs the exporter's `export.py` asynchronously in its own console window, deleting the JSON when it finishes (see [Core Python Integration](Core-Python-Integration#exporters)).
+* `CityExporter.SaveCityWithExporter(exporter, flags, manager, path)` writes the export JSON next to the output file and then runs the exporter's `export.py` asynchronously in its own console window, deleting the JSON when it finishes (see [Core Python Integration](Core-Python-Integration#exporters)). `ExportWithExporterAsync` does the same and returns the exit code and output of the exporter; without a console window (`showConsole` false, used by scripts) the output is captured. `FindExporter`, `GetExporterFlags` and `GetLockedFlags` find an exporter by format and compute its flags from their defaults and the `enables`/`disables` rules.
 
 ### Export format: `IO.ExportedCity` (`IO/ExportedCity.cs`) and `CityEncoder.JSON_Export`
 
@@ -57,6 +59,8 @@ The export JSON is meant for core exporters. Unlike the save, it contains the **
 | `b64f_` | Facade instances: a dictionary of lists of lists of 4×4 matrices, each one encoded as a float array (count + 16 floats). |
 
 `Files/python/DecodeExportedJson.py` decodes all of them recursively and strips the prefixes, so exporters normally see plain lists.
+
+The elements are encoded by `CityEncoder.ExportGeometry` (`IO/Export/CityEncoder/ExportGeometry.cs`), which builds the material and mesh dictionaries and encodes one element at a time; `JSON_Export` writes the whole city with it, and the scripting API gives the geometry of single elements with it (`elements.geometry`, see [Scripting API](Scripting-API#geometry)).
 
 Top-level structure (`ExportedCity`):
 

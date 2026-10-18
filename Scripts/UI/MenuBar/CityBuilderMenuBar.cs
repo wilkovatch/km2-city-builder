@@ -262,7 +262,9 @@ public partial class CityBuilderMenuBar : Control {
         menuBar.SetAsLastSibling();
 
         Reload();
+        Api.ApiHost.Create(this);
         History.UndoSelfTest.StartIfRequested(this); //only with the --undo-selftest command line argument
+        Api.ApiSelfTest.StartIfRequested(this); //only with the --api-selftest command line argument
         GuideScreenshots.StartIfRequested(this); //only with the --guide-screenshots command line argument
     }
 
@@ -291,8 +293,31 @@ public partial class CityBuilderMenuBar : Control {
         RestoreEditorState(editorState);
     }
 
+    public void PerformUndo() {
+        Undo();
+    }
+
+    public void PerformRedo() {
+        Redo();
+    }
+
+    //before a change made by a script: the editors are closed like before an undo (closing them can change the city,
+    //e.g. deleting an element left incomplete: that is a separate undo step)
+    public void BeginExternalChange() {
+        if (!HasActivePanels() && gizmo.mainTargetRoot == null) return;
+        History.UndoManager.Record(SM.Get("CLOSE"), PrepareForUndo);
+    }
+
+    //after a change made by a script: the elements are shown as when nothing is selected
+    public void EndExternalChange() {
+        helper.elementManager.ShowAnchors(false);
+        helper.elementManager.ShowIntersections(false);
+        NotifyVisibilityChange();
+        SetSelectObjectMode();
+    }
+
     void Undo() {
-        if (noCity || History.UndoManager.IsBusy) return;
+        if (noCity || History.UndoManager.IsBusy || History.UndoManager.IsGroupOpen) return; //a script transaction is open
         var editorState = CaptureEditorState();
         //closing the editor can delete the element it left incomplete: that is recorded into the last step
         //(and if it was the whole last step, closing the editor is the undo)
@@ -303,7 +328,7 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     void Redo() {
-        if (noCity || History.UndoManager.IsBusy) return;
+        if (noCity || History.UndoManager.IsBusy || History.UndoManager.IsGroupOpen) return; //a script transaction is open
         var editorState = CaptureEditorState();
         //any change made by closing the editor is a new step, which discards the steps to redo
         History.UndoManager.Record(SM.Get("CLOSE"), PrepareForUndo);
@@ -980,7 +1005,7 @@ public partial class CityBuilderMenuBar : Control {
         GetTree().Quit();
     }
 
-    bool AlertActive() {
+    public bool AlertActive() {
         return alert != null && !alert.IsClosed();
     }
 
@@ -1267,7 +1292,7 @@ public partial class CityBuilderMenuBar : Control {
             if (gizmo.mainTargetRoot != null) {
                 var point = GS.FindRecursive<TerrainPoint>(gizmo.mainTargetRoot);
                 if (point != null) {
-                    if (point.DeleteManual(terrainPatchEditorPanel.GetPatch())) {
+                    if (Operations.TerrainPatches.RemovePoint(terrainPatchEditorPanel.GetPatch(), point)) {
                         gizmo.RemoveTarget(gizmo.mainTargetRoot);
                         point.Select(false);
                         NotifyChange();
@@ -1295,7 +1320,7 @@ public partial class CityBuilderMenuBar : Control {
             if (gizmo.mainTargetRoot != null) {
                 var point = GS.FindRecursive<TerrainPoint>(gizmo.mainTargetRoot);
                 if (point != null) {
-                    if (point.DeleteManual(buildingLineEditorPanel.GetLine())) {
+                    if (Operations.BuildingLines.RemovePoint(buildingLineEditorPanel.GetLine(), point)) {
                         gizmo.RemoveTarget(gizmo.mainTargetRoot);
                         point.Select(false);
                         NotifyChange();

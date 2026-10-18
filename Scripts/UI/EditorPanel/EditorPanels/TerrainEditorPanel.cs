@@ -70,19 +70,12 @@ namespace EditorPanels {
         }
 
         public void ReloadTerrainModifier() {
-            switch (lastTerrainModifier) {
-                case 1:
-                    builder.terrainClick.modifier = new TerrainModifier.RaiseFlat(builder.terrainClick.helper, terrainRange, terrainIntensity, singleStep);
-                    break;
-                case 2:
-                    builder.terrainClick.modifier = new TerrainModifier.RaiseFlat(builder.terrainClick.helper, terrainRange, -terrainIntensity, singleStep);
-                    break;
-                case 3:
-                    builder.terrainClick.modifier = new TerrainModifier.Level(builder.terrainClick.helper, terrainRange, terrainIntensity * terrainIntensity, singleStep, terrainHeightActive, terrainHeight);
-                    break;
-                default:
-                    builder.SetSelectObjectMode();
-                    break;
+            var modifier = Operations.Terrain.CreateBrush(builder.terrainClick.helper, (Operations.Terrain.BrushMode)lastTerrainModifier,
+                terrainRange, terrainIntensity, singleStep, terrainHeightActive ? terrainHeight : (float?)null);
+            if (modifier != null) {
+                builder.terrainClick.modifier = modifier;
+            } else {
+                builder.SetSelectObjectMode();
             }
         }
 

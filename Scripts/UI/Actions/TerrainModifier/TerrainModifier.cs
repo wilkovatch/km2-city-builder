@@ -30,7 +30,11 @@ namespace TerrainModifier {
                 if (!Input.GetInputPressed(KeyCommand.Select)) return;
             }
             if (!hits[0].HasValue) return;
-            var hit = hits[0].Value;
+            ApplyAt(hits[0].Value.point, singleStep ? intensity : (intensity * (float)helper.GetProcessDeltaTime()));
+        }
+
+        //one step of the brush centered on the point (program coordinates), with the given strength
+        public void ApplyAt(Vector3 point, float delta) {
             Reset();
 
             var terrain = helper.terrainObj;
@@ -40,16 +44,16 @@ namespace TerrainModifier {
             var terrainSize = GameEngine.Terrain.GetSize(terrain);
             scaledRange = (int)Mathf.Ceil(range / pixelSize);
             size = 2 * scaledRange;
-            var basePos = (hit.point + new Vector3(terrainSize, 0, terrainSize) * 0.5f) / pixelSize - new Vector3(scaledRange, 0, scaledRange);
+            var basePos = (point + new Vector3(terrainSize, 0, terrainSize) * 0.5f) / pixelSize - new Vector3(scaledRange, 0, scaledRange);
             xBase = (int)Mathf.Clamp(basePos.X, 0, resolution - size);
             yBase = (int)Mathf.Clamp(basePos.Z, 0, resolution - size);
             int xBaseDiff = ((int)basePos.X) - xBase;
             int yBaseDiff = ((int)basePos.Z) - yBase;
             loopPos = new Vector3(1, 0, 1) * scaledRange + new Vector3(xBaseDiff, 0, yBaseDiff);
 
-            Scan(terrain, hit.point);
+            Scan(terrain, point);
             History.UndoManager.TouchHeights(xBase, yBase, size, size);
-            Deform(terrain, hit.point, singleStep ? intensity : (intensity * (float)helper.GetProcessDeltaTime()));
+            Deform(terrain, point, delta);
         }
 
         public virtual void Reset() {

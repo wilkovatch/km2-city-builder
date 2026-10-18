@@ -76,7 +76,7 @@ namespace EditorPanels {
             public override void SetActive(bool active) {
                 var pS = GetComplexElement<PresetSelector>();
                 if (active) {
-                    Func<ObjectState, ObjectState> setter = x => { GetSide().State = (ObjectState)x.Clone(); return GetSide().State; };
+                    Func<ObjectState, ObjectState> setter = x => { Operations.BuildingLines.SetSideState(GetSide(), x); return GetSide().State; };
                     pS.LoadPreset(GetSide() == null ? pS.dropdowns["buildingSide"][0].lastPreset : null, "buildingSide", setter, 0);
                 }
                 if (curSide != null) {
@@ -172,27 +172,13 @@ namespace EditorPanels {
 
             void AddFloor() {
                 if (curSide == null) return;
-                var f = new ObjectState();
-                f.SetArray("Slices", new ObjectState[0]);
-                f.SetFloat("height", 1);
-                var newFloors = new List<ObjectState>();
-                var upperFloors = curSide.state.Array<ObjectState>("upperFloors");
-                if (upperFloors != null) newFloors.AddRange(upperFloors);
-                newFloors.Add(f);
-                curSide.state.SetArray("upperFloors", newFloors.ToArray());
-                curSide.SyncWithBuilding();
+                Operations.BuildingLines.AddUpperFloor(curSide);
                 ReloadFloors(true);
                 builder.NotifyChange();
             }
 
             void DeleteFloor() {
-                var upperFloors = curSide.state.Array<ObjectState>("upperFloors");
-                if (curSide == null || curFloorI < 0 || curFloorI > upperFloors.Length - 1) return;
-                var newFloors = new List<ObjectState>();
-                if (upperFloors != null) newFloors.AddRange(upperFloors);
-                newFloors.RemoveAt(curFloorI);
-                curSide.state.SetArray("upperFloors", newFloors.ToArray());
-                curSide.SyncWithBuilding();
+                if (curSide == null || !Operations.BuildingLines.RemoveUpperFloor(curSide, curFloorI)) return;
                 ReloadFloors(true);
                 builder.NotifyChange();
             }
@@ -229,36 +215,13 @@ namespace EditorPanels {
 
             void AddBlock() {
                 if (curSide == null) return;
-
-                //get the first block type
-                var bTypes = CityElements.Types.Parsers.TypeParser.GetBuildingBlockTypes(false);
-                var defType = "";
-                foreach (var elem in bTypes) {
-                    defType = elem.Key;
-                    break;
-                }
-                
-                //create the block
-                var b = new ObjectState();
-                b.SetStr("type", defType);
-                var newBlocks = new List<ObjectState>();
-                var blockDict = curSide.state.Array<ObjectState>("blockDict");
-                if (blockDict != null) newBlocks.AddRange(blockDict);
-                newBlocks.Add(b);
-                curSide.state.SetArray("blockDict", newBlocks.ToArray());
-                curSide.SyncWithBuilding();
+                Operations.BuildingLines.AddBlock(curSide);
                 ReloadBlocks(true);
                 builder.NotifyChange();
             }
 
             void DeleteBlock() {
-                var blockDict = curSide.state.Array<ObjectState>("blockDict");
-                if (curSide == null || curBlockI < 0 || curBlockI > blockDict.Length - 1) return;
-                var newBlocks = new List<ObjectState>();
-                if (blockDict != null) newBlocks.AddRange(blockDict);
-                newBlocks.RemoveAt(curBlockI);
-                curSide.state.SetArray("blockDict", newBlocks.ToArray());
-                curSide.SyncWithBuilding();
+                if (curSide == null || !Operations.BuildingLines.RemoveBlock(curSide, curBlockI)) return;
                 ReloadBlocks(true);
                 builder.NotifyChange();
             }

@@ -7,11 +7,24 @@ using GO = GameEngine.GameObject;
 using SM = StringManager;
 
 class CitywideTerrainGenerator {
-    public async void CreateCityTerrainCoroutine(float distance, float segmentLength, float vertexFusionDistance, int smooth, float internalDistance, ElementManager manager, Node caller) {
-        var progressBar = manager.builder.helper.curProgressBar;
+    public async System.Threading.Tasks.Task CreateCityTerrainCoroutine(float distance, float segmentLength, float vertexFusionDistance, int smooth, float internalDistance, ElementManager manager, Node caller,
+        System.IProgress<(float, string)> progress = null) {
+
+        var progressBar = new Operations.ProgressReporter(manager.builder.helper.curProgressBar, progress);
         progressBar.SetText(SM.Get("GENERATING_PATCHES"));
         progressBar.SetActive(true);
         History.UndoManager.BeginBusy(SM.Get("GENERATING_PATCHES")); //the whole generation is a single undo step
+        try {
+            await CreateCityTerrain(distance, segmentLength, vertexFusionDistance, smooth, internalDistance, manager, caller, progressBar);
+        } finally {
+            progressBar.SetActive(false);
+            History.UndoManager.EndBusy();
+        }
+    }
+
+    async System.Threading.Tasks.Task CreateCityTerrain(float distance, float segmentLength, float vertexFusionDistance, int smooth, float internalDistance, ElementManager manager, Node caller,
+        Operations.ProgressReporter progressBar) {
+
         await caller.ToSignal(caller.GetTree(), "process_frame");
         var (anchors, doneAnchors) = manager.InitRoadAnchorsListForCitywideGeneration(manager.patches, x => { return x.GetPerimeterPointsComponents(); });
         var origAnchors = new List<TerrainAnchor>();
@@ -201,7 +214,5 @@ class CitywideTerrainGenerator {
         manager.worldChanged = true;
         await caller.ToSignal(caller.GetTree(), "process_frame");
         manager.ShowAnchors(false);
-        progressBar.SetActive(false);
-        History.UndoManager.EndBusy();
     }
 }

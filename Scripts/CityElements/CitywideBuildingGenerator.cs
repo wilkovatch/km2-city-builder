@@ -52,13 +52,26 @@ class CitywideBuildingGenerator {
         return false;
     }
 
-    public async void CreateCityBuildingsCoroutine(float minLength, float maxLength, List<ObjectState> states,
-        bool subdivide, ElementManager manager, ObjectState lineState, List<string> texturesToPlaceOn, Node caller) {
+    public async System.Threading.Tasks.Task CreateCityBuildingsCoroutine(float minLength, float maxLength, List<ObjectState> states,
+        bool subdivide, ElementManager manager, ObjectState lineState, List<string> texturesToPlaceOn, Node caller,
+        System.IProgress<(float, string)> progress = null) {
 
-        var progressBar = manager.builder.helper.curProgressBar;
+        var progressBar = new Operations.ProgressReporter(manager.builder.helper.curProgressBar, progress);
         progressBar.SetText(SM.Get("GENERATING_BUILDINGS"));
         progressBar.SetActive(true);
         History.UndoManager.BeginBusy(SM.Get("GENERATING_BUILDINGS")); //the whole generation is a single undo step
+        try {
+            await CreateCityBuildings(minLength, maxLength, states, subdivide, manager, lineState, texturesToPlaceOn, caller, progressBar);
+        } finally {
+            progressBar.SetActive(false);
+            History.UndoManager.EndBusy();
+        }
+    }
+
+    async System.Threading.Tasks.Task CreateCityBuildings(float minLength, float maxLength, List<ObjectState> states,
+        bool subdivide, ElementManager manager, ObjectState lineState, List<string> texturesToPlaceOn, Node caller,
+        Operations.ProgressReporter progressBar) {
+
         await caller.ToSignal(caller.GetTree(), "process_frame");
         var (anchors, doneAnchors) = manager.InitRoadAnchorsListForCitywideGeneration(manager.buildings, x => { return x.GetPointsComponents(); });
         var dict = GetAnchorPatchDict(manager, anchors);
@@ -78,7 +91,7 @@ class CitywideBuildingGenerator {
                     if (validLoop) {
                         var placer = new ElementPlacer.BuildingPlacer(manager);
                         var line = placer.GetLine();
-                        line.state = lineState;
+                        Operations.BuildingLines.SetLineState(line, lineState); //each line gets its own copy
                         line.AddPoint(GO.GetObject(link), (GO.GetPosition(GO.GetParent(link)) + GO.GetPosition(link.next)) * 0.5f);
                         var res = line.AutoClose(minLength, maxLength, states, subdivide);
                         if (res.resultCode == 1) {
@@ -138,7 +151,5 @@ class CitywideBuildingGenerator {
         manager.worldChanged = true;
         await caller.ToSignal(caller.GetTree(), "process_frame");
         manager.ShowAnchors(false);
-        progressBar.SetActive(false);
-        History.UndoManager.EndBusy();
     }
 }

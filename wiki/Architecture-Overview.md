@@ -8,7 +8,9 @@ The code (all under `Scripts/`) is split into a few layers. Each layer only depe
 
 | Layer | Folder | Purpose |
 |---|---|---|
+| Scripting API | `Scripts/Api` | The API used by scripts, and its JSON commands (see [Scripting API](Scripting-API)). |
 | User interface | `Scripts/UI` | Menu bar, editor panels, mouse tools (placers, terrain modifiers), camera, debug console. |
+| Operations | `Scripts/Operations` | The editing logic shared by the editor panels, the mouse tools and the API: what each action does to the elements, without any UI. |
 | City elements | `Scripts/CityElements/Logic`, `ElementManager.cs`, `CityGroundHelper.cs` | The objects a city is made of (roads, intersections, terrain patches, building lines, mesh instances, city properties) and their editable state. |
 | Geometry | `Scripts/CityElements/Geometry`, `GeometryHelper.cs` | Mesh generation for each element type, driven by the core's type definitions. |
 | Type system | `Scripts/CityElements/Types` | Loading the core's JSON element definitions and compiling their expressions. |
@@ -51,22 +53,26 @@ Three autoloads are registered in `project.godot`: `IngameDebugConsole` (`DebugL
 Startup sequence:
 
 1. `CityGroundHelper._Ready` finds the `Editor` node (`CityBuilderMenuBar`), loads the terrain materials, creates the `ElementManager` node and the progress bar, then calls `CityBuilderMenuBar.ManualStart`.
-2. `ManualStart` sets the invariant culture, registers the key bindings (`GameEngine.Input.ReloadKeys`), creates the file browser, transform gizmo, placers and terrain tools, fills the menu bar and initializes every editor panel.
+2. `ManualStart` sets the invariant culture, registers the key bindings (`GameEngine.Input.ReloadKeys`), creates the file browser, transform gizmo, placers and terrain tools, fills the menu bar, initializes every editor panel and creates the `ApiHost` (see [Scripting API](Scripting-API)).
 3. `PythonManager.CheckPython` verifies that a usable Python interpreter is available and offers to install it otherwise.
 4. If the setting `LastCity` points to an existing city, it is loaded with `CityImporter.LoadCity`.
+
+Steps 3 and 4 are skipped when a script drives the program (a command line argument starting with `--api-`).
 
 ## Loading a city
 
 A city is a folder (the *working directory*, `PreferencesManager.workingDirectory`) that contains at least `city.json.gz`, `preferences.json` and `presets.json`. Loading (`CityDecoder.JSON`) does the following:
 
-1. Reads `preferences.json` and checks the core it refers to and the versions it was saved with. If needed, it runs the core's migration scripts through `Files/python/migrate.py` (after asking the user).
-2. Checks that the Python modules required by the core are installed (`PythonManager.CheckPythonForCore`).
+1. Reads `preferences.json` and checks the core it refers to and the versions it was saved with. If needed, it runs the core's migration scripts through `Files/python/migrate.py` (after asking the user, or as the options of a script say).
+2. Checks that the Python modules required by the core are installed (`PythonManager.CheckPythonForCore`, or the options of a script).
 3. Loads the preferences fully: string tables, texture formats, Python server (restarted for the current core) and the per-core common folder.
 4. Recreates every element from `city.json.gz` and flags the world as changed, so that everything is generated on the next frame.
 
+If the city can't be loaded (declined migration, missing core or Python modules, unreadable file), it is closed.
+
 ## The update loop
 
-Elements are never regenerated directly by the UI. Every edit changes the element's `ObjectState` (which marks it dirty) and calls `CityBuilderMenuBar.NotifyChange`, which sets `ElementManager.worldChanged`. `ElementManager` runs its update after every other node (`ProcessPriority = 1000`) and, when the world changed:
+Elements are never regenerated directly by the UI. Every edit changes the element's `ObjectState` (which marks it dirty) and calls `CityBuilderMenuBar.NotifyChange`, which sets `ElementManager.worldChanged`. The API runs the same update right after each change (`CityApi.Flush`), so that a script can read what it derives. `ElementManager` runs its update after every other node (`ProcessPriority = 1000`) and, when the world changed:
 
 1. Removes deleted elements from its lists.
 2. Propagates the injectable city properties to the roads (see [Core City Properties](Core-City-Properties)).

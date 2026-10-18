@@ -126,21 +126,11 @@ namespace EditorPanels.Props {
         }
 
         void DeleteMesh(string name, int i) {
-            var meshes = GetCurElem().Array<string>("meshes");
-            var lst = new List<string>();
-            if (meshes != null) lst.AddRange(meshes);
-            lst.RemoveAt(i);
-            var elem = GetCurElem();
-            elem.SetArray("meshes", lst.ToArray());
+            Operations.Props.RemoveMesh(GetCurElem(), i);
         }
 
         void ChangeMesh(int i) {
-            var meshes = GetCurElem().Array<string>("meshes");
-            var lst = new List<string>();
-            if (meshes != null) lst.AddRange(meshes);
-            lst[i] = tempMesh;
-            var elem = GetCurElem();
-            elem.SetArray("meshes", lst.ToArray());
+            Operations.Props.SetMesh(GetCurElem(), i, tempMesh);
             ReadCurValues();
         }
 
@@ -153,8 +143,7 @@ namespace EditorPanels.Props {
         }
 
         void ChangeSingleMesh() {
-            var elem = GetCurElem();
-            elem.SetStr("mesh", tempMesh);
+            Operations.Props.SetSingleMesh(GetCurElem(), tempMesh);
             ReadCurValues();
         }
 
@@ -168,13 +157,7 @@ namespace EditorPanels.Props {
         }
 
         void AddElem() {
-            var name = tempMesh;
-            var meshes = GetCurElem().Array<string>("meshes");
-            var lst = new List<string>();
-            if (meshes != null) lst.AddRange(meshes);
-            lst.Add(name);
-            var elem = GetCurElem();
-            elem.SetArray("meshes", lst.ToArray());
+            Operations.Props.AddMesh(GetCurElem(), tempMesh);
             ReadCurValues();
             //SetCurElem(elem); //simple?
         }

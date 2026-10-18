@@ -984,25 +984,25 @@ namespace History {
                         case 0: //from the terrain to the middle
                         case 4:
                             other.AddPoint(new Vector3(x, 0, z + 400));
-                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(mid));
+                            placer.Drawing.ConnectToMiddle(road, MiddlePoint(mid));
                             break;
                         case 1: //from the middle to the terrain, after abandoning a road started on the middle
                             var abandonedPlacer = new ElementPlacer.RoadPlacer(M);
                             var abandoned = abandonedPlacer.GetRoad();
-                            Invoke(abandonedPlacer, "ConnectToMiddle", road, MiddlePoint(mid));
+                            abandonedPlacer.Drawing.ConnectToMiddle(road, MiddlePoint(mid));
                             Check("split: a road started on the middle does not split it yet", road.endIntersection == null && abandoned.points.Count == 1);
                             abandoned.Delete();
-                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(mid));
+                            placer.Drawing.ConnectToMiddle(road, MiddlePoint(mid));
                             Check("split: the first point does not split the road", road.endIntersection == null);
-                            Invoke(placer, "AddTerrainPoint", new Vector3(x, 0, z + 400), null);
+                            placer.Drawing.AddPoint(new Vector3(x, 0, z + 400));
                             break;
                         case 2: //from the middle to another point of the middle of the same road
-                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(mid / 2));
-                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(mid + mid / 2));
+                            placer.Drawing.ConnectToMiddle(road, MiddlePoint(mid / 2));
+                            placer.Drawing.ConnectToMiddle(road, MiddlePoint(mid + mid / 2));
                             break;
                         case 3: //from the middle (on a control point) to the end of the same road
-                            Invoke(placer, "ConnectToMiddle", road, MiddlePoint(1));
-                            Invoke(placer, "ConnectToHandle", road.points[road.points.Count - 1]);
+                            placer.Drawing.ConnectToMiddle(road, MiddlePoint(1));
+                            placer.Drawing.ConnectToHandle(road.points[road.points.Count - 1]);
                             break;
                     }
                     Log("  split " + typeName + " in " + watch.ElapsedMilliseconds + " ms");
@@ -1098,8 +1098,7 @@ namespace History {
         }
 
         static void PlaceIntersection(ElementPlacer.RoadPlacer placer, Node3D handle, bool addPoint) {
-            var method = typeof(ElementPlacer.RoadPlacer).GetMethod("PlaceIntersection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            method.Invoke(placer, new object[] { handle, addPoint });
+            placer.Drawing.PlaceIntersection(handle, addPoint);
         }
 
         async Task LoadNewCity(int terrainSize = 512) {
