@@ -515,6 +515,33 @@ namespace History {
                         }
                     }
                     Close();
+
+                    //a building preset chosen in the line editor goes to the buildings of the line and to its new ones, not to the line
+                    var tempPreset = (ObjectState)line.buildings[0].state.Clone();
+                    Operations.Presets.Save(tempPreset, "building", "ui test building");
+                    builder.SelectObject(line, true, null);
+                    await Frames(3);
+                    object presetSelector = null;
+                    foreach (var element in ((System.Collections.IDictionary)typeof(EditorPanel).GetField("complexElements", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(linePanel)).Values) {
+                        if (element.GetType().Name == "PresetSelector") presetSelector = element;
+                    }
+                    var buildingDropdown = (EditorPanelElements.Dropdown)Field(((System.Collections.IList)((System.Collections.IDictionary)Field(presetSelector, "dropdowns"))["building"])[0], "dropdown");
+                    var lineStateBefore = (ObjectState)line.state.Clone();
+                    buildingDropdown.SetValue(System.Array.IndexOf(PresetManager.GetNames("building"), "ui test building") + 1);
+                    await Frames(6);
+                    Check("a building preset chosen in the line editor leaves the state of the line as it was", line.state.Equals(lineStateBefore));
+                    Check("a building preset chosen in the line editor goes to the buildings of the line", line.buildings.TrueForAll(b => b.state.Name == "ui test building"));
+                    Check("a building preset chosen in the line editor goes to the new buildings of the line", line.stateForNewBuildings?.Name == "ui test building");
+                    InvokeBuilder("Undo");
+                    await Frames(6);
+                    Close();
+                    CallBuilder<object>("CreateBuildingLine");
+                    await Frames(3);
+                    var newLine = linePanel.GetLine();
+                    Check("a new line uses the last building preset chosen for its buildings", newLine?.stateForNewBuildings?.Name == "ui test building" && newLine.state.Name != "ui test building");
+                    Close();
+                    await Frames(3);
+                    Operations.Presets.Delete(M, "building", "ui test building");
                 } else {
                     Log("     no building line");
                 }

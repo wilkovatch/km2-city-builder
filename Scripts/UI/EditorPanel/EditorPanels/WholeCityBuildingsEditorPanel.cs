@@ -11,8 +11,6 @@ namespace EditorPanels {
         EditorPanelElements.InputField minLoopLengthField, maxLoopLengthField;
 
         int curLoopPresetI = -1;
-        ObjectState curLoopState = null;
-        ObjectState curLineState = null;
         bool nullOnly = false;
 
         public WholeCityBuildingsEditorPanel() {
@@ -24,8 +22,8 @@ namespace EditorPanels {
             var p0 = GetPage(0);
 
             var pS = GetComplexElement<PresetSelector>();
-            pS.AddPresetLoadDropdown(p0, SM.Get("BUILDING_LINE_PRESET"), true, "buildingLine", null, null, SetCurrentLineState);
-            pS.AddPresetLoadDropdown(p0, SM.Get("BUILDING_PRESET"), true, "building", null, null, SetCurrentLoopState);
+            pS.AddPresetLoadDropdown(p0, SM.Get("BUILDING_LINE_PRESET"), true, "buildingLine", null);
+            pS.AddPresetLoadDropdown(p0, SM.Get("BUILDING_PRESET"), true, "building", null);
             loopPresetList = p0.AddScrollList(SM.Get("BL_LOOP_PRESET_LIST_TITLE"), new List<string>(), x => curLoopPresetI = x, 1.5f, SM.Get("BL_PRESET_LIST_TOOLTIP"));
             p0.IncreaseRow(5.0f);
             p0.AddButton(SM.Get("BL_DELETE_LOOP_PRESET"), DeleteLoopPreset, 0.75f);
@@ -55,31 +53,17 @@ namespace EditorPanels {
         }
 
         void AddLoopPreset() {
-            if (curLoopState == null) return;
-            RPB.loopPresets.Add(curLoopState);
+            var preset = GetComplexElement<PresetSelector>().dropdowns["building"][0].current;
+            if (preset == null) return;
+            RPB.loopPresets.Add(preset);
             ReloadLoopPresetsList(true);
         }
 
         void ReloadLoopPresetsList(bool deselect) {
             loopPresetList.Deselect();
-            var items = new List<string>();
-            for (int i = 0; i < RPB.loopPresets.Count; i++) {
-                items.Add(RPB.loopPresets[i].Name);
-            }
-            loopPresetList.SetItems(items);
+            RPB.RemoveMissing();
+            loopPresetList.SetItems(new List<string>(RPB.loopPresets));
             if (deselect) curLoopPresetI = -1;
-        }
-
-        void SetCurrentLoopState() {
-            var pS = GetComplexElement<PresetSelector>();
-            var state = PresetManager.GetPresetCloneByName(pS.dropdowns["building"][0].current, "building");
-            curLoopState = state;
-        }
-
-        void SetCurrentLineState() {
-            var pS = GetComplexElement<PresetSelector>();
-            var state = PresetManager.GetPresetCloneByName(pS.dropdowns["buildingLine"][0].current, "buildingLine");
-            curLineState = state;
         }
 
         void SetSubdivide(bool input) {
@@ -100,15 +84,18 @@ namespace EditorPanels {
         }
 
         void CreateCityBuildings() {
-            if (curLineState == null) {
+            var lineState = Operations.Presets.Get("buildingLine", GetComplexElement<PresetSelector>().dropdowns["buildingLine"][0].current);
+            if (lineState == null) {
                 builder.CreateAlert(SM.Get("ERROR"), SM.Get("CB_NEED_LINE_PRESET"), SM.Get("OK"));
                 return;
             }
-            if (RPB.loopPresets.Count == 0) {
+            var loopPresets = RPB.GetLoopPresetStates();
+            ReloadLoopPresetsList(true);
+            if (loopPresets.Count == 0) {
                 builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_NEED_PRESETS_FOR_AUTOCLOSE"), SM.Get("OK"));
                 return;
             }
-            _ = builder.helper.elementManager.CreateCityBuildings(RPB.minLoopLength, RPB.maxLoopLength, RPB.loopPresets, RPB.subdivide, curLineState, nullOnly ? new List<string>() { "" } : null);
+            _ = builder.helper.elementManager.CreateCityBuildings(RPB.minLoopLength, RPB.maxLoopLength, loopPresets, RPB.subdivide, lineState, nullOnly ? new List<string>() { "" } : null);
         }
 
         void EraseCityBuildings() {

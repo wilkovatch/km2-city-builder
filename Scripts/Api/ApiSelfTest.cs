@@ -545,6 +545,40 @@ namespace Api {
             await Call("presets.delete", new { category = "road", name = "api test road" });
             await Expect("the default preset can't be deleted", "invalid_operation", "presets.delete", new { category = "road", name = "Default" });
 
+            //building presets: sync and delete reach the lines, the buildings, and the sides and blocks inside them
+            var buildingRef = new { line, building = 0 };
+            var sideRef = new { line, building = 0, side = "front" };
+            var blockRef = new { line, building = 0, side = "front", block = 0 };
+            async Task<float> Param(object r, string name) => (await Call("state.getParam", new { @ref = r, name })).Value<float>();
+            async Task<string> PresetOf(object r) => (await Call("state.get", new { @ref = r }))["state"]?["name"]?.Value<string>() ?? "";
+            async Task SetParam(object r, string name, object value) => await Call("state.setBuiltin", new { @ref = r, name, value });
+            //saved from the inside out, so that the building preset holds the links of its side and block
+            await Call("state.saveAsPreset", new { @ref = blockRef, name = "api test block" });
+            await Call("state.saveAsPreset", new { @ref = sideRef, name = "api test side" });
+            await Call("state.saveAsPreset", new { @ref = buildingRef, name = "api test building" });
+            await Call("state.saveAsPreset", new { @ref = line, name = "api test line" });
+            var savedHeight = await Param(buildingRef, "height");
+            await SetParam(buildingRef, "height", savedHeight + 9);
+            await CheckUndo("building preset sync", () => Call("presets.sync", new { category = "building", name = "api test building" }));
+            Check("presets.sync gives the building preset to the buildings linked to it", await Param(buildingRef, "height") == savedHeight);
+            var savedFloors = await Param(sideRef, "lowUpperFloorsCount");
+            await SetParam(sideRef, "lowUpperFloorsCount", (int)savedFloors + 2);
+            await CheckUndo("building side preset sync", () => Call("presets.sync", new { category = "buildingSide", name = "api test side" }));
+            Check("presets.sync gives the side preset to the building sides linked to it", await Param(sideRef, "lowUpperFloorsCount") == savedFloors);
+            var savedListName = (await Call("state.getParam", new { @ref = blockRef, name = "listName" }))?.Value<string>();
+            await SetParam(blockRef, "listName", "api test changed");
+            await CheckUndo("building block preset sync", () => Call("presets.sync", new { category = "buildingBlock", name = "api test block" }));
+            Check("presets.sync gives the block preset to the blocks linked to it", (await Call("state.getParam", new { @ref = blockRef, name = "listName" }))?.Value<string>() == savedListName);
+            var savedLineHeight = await Param(line, "height");
+            await SetParam(line, "height", savedLineHeight + 7.5);
+            await CheckUndo("building line preset sync", () => Call("presets.sync", new { category = "buildingLine", name = "api test line" }));
+            Check("presets.sync gives the line preset to the lines linked to it", await Param(line, "height") == savedLineHeight && await PresetOf(line) == "api test line");
+            foreach (var (category, name, r) in new (string, string, object)[] { ("buildingBlock", "api test block", blockRef), ("buildingSide", "api test side", sideRef), ("building", "api test building", buildingRef), ("buildingLine", "api test line", line) }) {
+                await CheckUndo(category + " preset delete", () => Call("presets.delete", new { category, name }));
+                Check("deleting the " + category + " preset unlinks the elements using it", await PresetOf(r) == "" && !((JArray)await Call("presets.list", new { category })).Any(x => x.Value<string>() == name));
+            }
+            await Expect("terrain patch border mesh presets can't be synced", "invalid_operation", "presets.sync", new { category = "terrainPatchBorderMesh", name = "Default" });
+
             //city properties: array and custom element parameters
             var cityId = 0;
             var citySchema = await Call("state.schema", new { @ref = cityId });

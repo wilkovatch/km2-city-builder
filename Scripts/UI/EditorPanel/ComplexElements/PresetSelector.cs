@@ -34,6 +34,8 @@ public abstract partial class EditorPanel {
         }
 
         public Dictionary<string, List<DropdownTuple>> dropdowns = new Dictionary<string, List<DropdownTuple>>();
+        //the last preset loaded by each dropdown (by type and index), kept when the panel is rebuilt (the dropdowns are recreated)
+        Dictionary<(string, int), string> lastPresets = new Dictionary<(string, int), string>();
         bool loadOnChange = true;
 
         public PresetSelector(EditorPanel panel): base(panel) {}
@@ -54,6 +56,7 @@ public abstract partial class EditorPanel {
             } else {
                 dropdowns[type].Add(new DropdownTuple(dropdown, false, reloadLast, allowedTypes));
             }
+            if (lastPresets.TryGetValue((type, index), out var lastPreset)) dropdowns[type][index].lastPreset = lastPreset;
             p.IncreaseRow();
         }
 
@@ -71,7 +74,7 @@ public abstract partial class EditorPanel {
                     var list = FilterPresets(dropdown.allowedTypes, key, PresetManager.GetPresets().GetList(key));
                     int presetIndex = PresetIndexInList(curPreset?.Name, list) + 1;
                     dropdown.resetButton?.SetInteractable(!same && hasName && presetIndex > 0);
-                    dropdown.syncButton?.SetInteractable(same && hasName);
+                    dropdown.syncButton?.SetInteractable(same && hasName && Operations.Presets.CanSync(key));
                     dropdown.deleteButton?.SetInteractable(hasName && presetIndex > 1);
                     dropdown.dropdown.actionEnabled = false;
                     dropdown.dropdown.SetValue(presetIndex);
@@ -153,6 +156,7 @@ public abstract partial class EditorPanel {
                 dropdown.dropdown.actionEnabled = false;
                 dropdown.dropdown.SetValue(0);
                 dropdown.dropdown.actionEnabled = true;
+                if (dropdown.stateGetter == null) dropdown.current = null; //a load only dropdown has nothing selected again
                 dropdown.lastPresetCount = presets.Count - 1;
                 dropdown.lastFirstPreset = presets.Count > 1 ? presets[1] : "";
             }
@@ -191,7 +195,7 @@ public abstract partial class EditorPanel {
         public void LoadPreset(int preset, string type, System.Func<ObjectState, ObjectState> setter, int index) {
             var list = FilterPresets(dropdowns[type][index].allowedTypes, type, PresetManager.GetPresets().GetList(type));
             if (preset > 0) {
-                dropdowns[type][index].lastPreset = list[preset - 1].Name;
+                dropdowns[type][index].lastPreset = lastPresets[(type, index)] = list[preset - 1].Name;
                 dropdowns[type][index].current = list[preset - 1].Name;
                 if (setter != null) {
                     var stateClone = (ObjectState)list[preset - 1].Clone();
@@ -208,6 +212,7 @@ public abstract partial class EditorPanel {
                 dropdown.actionEnabled = false;
                 dropdown.SetValue(0);
                 dropdown.actionEnabled = true;
+                if (dropdowns[type][index].stateGetter == null) dropdowns[type][index].current = null; //a load only dropdown shows nothing selected
                 BaseExtraAction();
             }
         }
@@ -234,20 +239,20 @@ public abstract partial class EditorPanel {
         }
 
         void Delete(string type, int i) {
-            var testA = dropdowns[type];
-            var testB = testA[i];
             string preset = dropdowns[type][i].current;
             if (preset == null) {
                 panel.builder.CreateAlert(SM.Get("ERROR"), SM.Get("NO_PRESET_SELECTED_ERROR"), SM.Get("OK"));
-            } else if (preset == "Default") {
+            } else if (preset == Operations.Presets.DefaultName) {
                 panel.builder.CreateAlert(SM.Get("ERROR"), SM.Get("CANNOT_DELETE_DEFAULT_PRESET_ERROR"), SM.Get("OK"));
             } else {
-                panel.builder.CreateAlert(SM.Get("WARNING"), SM.Get("DELETE_PRESET_WARNING"), SM.Get("YES"), SM.Get("NO"), delegate { DeletePreset(preset, type); });
+                //the alert action runs outside the button's undo step (the elements using the preset are unlinked)
+                panel.builder.CreateAlert(SM.Get("WARNING"), SM.Get("DELETE_PRESET_WARNING"), SM.Get("YES"), SM.Get("NO"), delegate { History.UndoManager.Record(SM.Get("DELETE_PRESET"), () => DeletePreset(preset, type)); });
             }
         }
 
         void DeletePreset(string curPreset, string type) {
             Operations.Presets.Delete(panel.builder.helper.elementManager, type, curPreset);
+            panel.builder.NotifyChange();
             ReloadValues();
         }
 
@@ -260,6 +265,7 @@ public abstract partial class EditorPanel {
                 builder.CreateAlert(SM.Get("PRESET_NAME_EMPTY_ERROR_TITLE"), SM.Get("PRESET_NAME_EMPTY_ERROR"), SM.Get("OK"), delegate { SaveNewGenericPreset(builder, saveAction, type, initialText); });
                 return;
             }
+            str = str.Trim(); //the elements are linked to their preset by its exact name
             var exists = PresetManager.DoesPresetExist(str, type);
             if (exists) {
                 builder.CreateAlert(SM.Get("PRESET_OVERWRITE_WARNING_TITLE"), SM.Get("PRESET_OVERWRITE_WARNING"), SM.Get("YES"), SM.Get("NO"), delegate { saveAction(str); }, delegate { SaveNewGenericPreset(builder, saveAction, type, initialText); });
@@ -269,7 +275,8 @@ public abstract partial class EditorPanel {
         }
 
         void SyncPresetAlert(string name, string type) {
-            panel.builder.CreateAlert(SM.Get("WARNING"), SM.Get("PRESET_SYNC_WARNING"), SM.Get("YES"), SM.Get("NO"), delegate { SyncPreset(name, type); });
+            //the alert action runs outside the button's undo step
+            panel.builder.CreateAlert(SM.Get("WARNING"), SM.Get("PRESET_SYNC_WARNING"), SM.Get("YES"), SM.Get("NO"), delegate { History.UndoManager.Record(SM.Get("SYNC_PRESET"), () => SyncPreset(name, type)); });
         }
 
         void SyncPreset(string name, string type) {

@@ -16,7 +16,6 @@ namespace EditorPanels {
             EditorPanelElements.TextureField topTex;
             int curI = -1;
             int curLoopPresetI = -1;
-            ObjectState curLoopState = null;
 
             public LineEditorPanel() {
                 AddComplexElement(new PresetSelector(this));
@@ -88,7 +87,7 @@ namespace EditorPanels {
 
                 } else if (elem.name == "loopGroup") {
                     //Loop tab
-                    pS.AddPresetLoadDropdown(p, SM.Get("BUILDING_PRESET"), true, "building", null, null, SetCurrentLoopState);
+                    pS.AddPresetLoadDropdown(p, SM.Get("BUILDING_PRESET"), true, "building", null);
                     loopPresetList = p.AddScrollList(SM.Get("BL_LOOP_PRESET_LIST_TITLE"), new List<string>(), x => curLoopPresetI = x, w, SM.Get("BL_PRESET_LIST_TOOLTIP"));
                     p.IncreaseRow(5.0f);
 
@@ -134,20 +133,15 @@ namespace EditorPanels {
             }
 
             void AddLoopPreset() {
-                if (curLoopState == null) return;
-                RPB.loopPresets.Add(curLoopState);
+                var preset = GetComplexElement<PresetSelector>().dropdowns["building"][1].current; //the one of the loop tab
+                if (preset == null) return;
+                RPB.loopPresets.Add(preset);
                 ReloadLoopPresetsList(true);
-            }
-
-            void SetCurrentLoopState() {
-                var pS = GetComplexElement<PresetSelector>();
-                var state = PresetManager.GetPresetCloneByName(pS.dropdowns["building"][1].current, "building");
-                curLoopState = state;
             }
 
             void AutoCloseLoop() {
                 if (GetPlacer() != null && GetCurLine(false) != null) {
-                    switch (Operations.BuildingLines.AutoClose(GetCurLine(), RPB.minLoopLength, RPB.maxLoopLength, RPB.loopPresets, RPB.subdivide)) {
+                    switch (Operations.BuildingLines.AutoClose(GetCurLine(), RPB.minLoopLength, RPB.maxLoopLength, RPB.GetLoopPresetStates(), RPB.subdivide)) {
                         case Operations.AutoCloseResult.NoPresets:
                             builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_NEED_PRESETS_FOR_AUTOCLOSE"), SM.Get("OK"));
                             break;
@@ -272,11 +266,8 @@ namespace EditorPanels {
 
             void ReloadLoopPresetsList(bool deselect) {
                 loopPresetList.Deselect();
-                var items = new List<string>();
-                for (int i = 0; i < RPB.loopPresets.Count; i++) {
-                    items.Add(RPB.loopPresets[i].Name);
-                }
-                loopPresetList.SetItems(items);
+                RPB.RemoveMissing();
+                loopPresetList.SetItems(new List<string>(RPB.loopPresets));
                 if (deselect) curLoopPresetI = -1;
             }
 
@@ -311,10 +302,12 @@ namespace EditorPanels {
                 }
             }
 
+            //the buildings added to the line from now on use the last building preset chosen
             void SetDefaultState() {
                 var line = GetCurLine(false);
                 var pS = GetComplexElement<PresetSelector>();
-                if (line != null) SetCurLineState(PresetManager.GetPresetCloneByName(pS.dropdowns["building"][0].lastPreset, "building"));
+                var preset = Operations.Presets.Get("building", pS.dropdowns["building"][0].lastPreset);
+                if (line != null && preset != null) line.stateForNewBuildings = preset;
             }
 
             ObjectState SetBuildingsState(ObjectState state) {
@@ -330,18 +323,17 @@ namespace EditorPanels {
 
             public override void SetActive(bool active) {
                 var pS = GetComplexElement<PresetSelector>();
-                string lastPreset = null;
                 bool noLine = false;
                 if (active) {
                     noLine = GetCurLine(false) == null;
                     ClearEmptyLine();
-                    lastPreset = pS.dropdowns["building"][0].lastPreset;
                 } else {
                     if (ActiveSelf() && !keepActive) Terminate(true);
                 }
                 base.SetActive(active);
                 if (active) {
-                    pS.LoadPreset(noLine ? lastPreset : null, "building", SetCurLineState, 0);
+                    //a new line gets the last presets chosen, for itself and for its buildings
+                    if (noLine) pS.LoadPreset(pS.dropdowns["buildingLine"][0].lastPreset, "buildingLine", SetCurLineState, 0);
                     pS.LoadPreset(-1, "building", null, 0);
                     pointPlacementModeDropdown.SetValue(1);
                     if (!noLine) {
@@ -349,6 +341,7 @@ namespace EditorPanels {
                         pointPlacementModeDropdown.SetValue(0);
                     }
                     GetCurLine()?.SetActive(active, true);
+                    if (noLine) SetDefaultState(); //the line exists now
                     TS().ReadCurValues(); //a new line only gets its state now
                     ReloadList(true);
                     ReloadLoopPresetsList(true);

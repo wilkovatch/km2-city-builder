@@ -131,25 +131,21 @@ namespace Api {
             Operations.Presets.Save(values, category, name);
         }
 
-        [ApiMethod("presets.delete", "Deletes a preset (not the default one); the roads and intersections using it are unlinked from it")]
+        [ApiMethod("presets.delete", "Deletes a preset (not the default one); the roads, intersections, building lines, buildings, building sides and building blocks using it are unlinked from it")]
         public void DeletePreset(string category, string name) {
             RequireCity();
             if (name == Operations.Presets.DefaultName) throw ApiException.InvalidOperation("the default preset can't be deleted");
             ApplyChange("delete preset", () => {
                 if (!Operations.Presets.Exists(category, name)) throw ApiException.NotFound("preset '" + name + "' of " + category);
-                if (category == "road") foreach (var r in M.roads) History.UndoManager.Touch(r);
-                if (category == "intersection") foreach (var i in M.intersections) History.UndoManager.Touch(i);
                 Operations.Presets.Delete(M, category, name);
             });
         }
 
-        [ApiMethod("presets.sync", "Gives the current values of a preset to the roads or intersections linked to it")]
+        [ApiMethod("presets.sync", "Gives the current values of a preset to the roads, intersections, building lines, buildings, building sides or building blocks linked to it")]
         public void SyncPreset(string category, string name) {
             ApplyChange("sync preset", () => {
-                if (category != "road" && category != "intersection") throw ApiException.InvalidOperation("only road and intersection presets can be synced");
+                if (!Operations.Presets.CanSync(category)) throw ApiException.InvalidOperation("only road, intersection, buildingLine, building, buildingSide and buildingBlock presets can be synced");
                 if (!Operations.Presets.Exists(category, name)) throw ApiException.NotFound("preset '" + name + "' of " + category);
-                if (category == "road") foreach (var r in M.roads) if (r.state.Name == name) History.UndoManager.Touch(r);
-                if (category == "intersection") foreach (var i in M.intersections) if (i.state.Name == name) History.UndoManager.Touch(i);
                 Operations.Presets.Sync(M, category, name);
             });
         }

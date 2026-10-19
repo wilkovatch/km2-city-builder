@@ -7,7 +7,7 @@ static class PresetManager {
         public Dictionary<string, ObjectState[]> presets = new Dictionary<string, ObjectState[]>();
 
         public ObjectState[] GetList(string type) {
-            if (!presets.ContainsKey(type)) presets[type] = new ObjectState[1] { new ObjectState() };
+            if (!presets.ContainsKey(type)) presets[type] = new ObjectState[1] { new ObjectState() { Name = Operations.Presets.DefaultName } }; //an empty name is an element without preset
             return presets[type];
         }
 
@@ -34,13 +34,11 @@ static class PresetManager {
 
         public void SavePreset(ObjectState preset, string type) {
             preset = (ObjectState)preset.Clone();
-            var tmpPresets = presetList.GetList(type);
-            if (PresetManager.DoesPresetExist(preset.Name, type)) {
+            var tmpPresets = GetList(type);
+            if (DoesPresetExist(preset.Name, type)) {
                 for (int i = 0; i < tmpPresets.Length; i++) {
-                    var oldPreset = tmpPresets[i];
-                    if (CompareNames(oldPreset.Name, preset.Name)) {
+                    if (tmpPresets[i].Name == preset.Name) {
                         tmpPresets[i] = preset;
-                        presets[type] = tmpPresets;
                         break;
                     }
                 }
@@ -57,10 +55,10 @@ static class PresetManager {
         }
 
         public void DeletePreset(string name, string type) {
-            var tmpList = new List<ObjectState>(presetList.GetList(type));
+            var tmpList = new List<ObjectState>(GetList(type));
             for (int i = 1; i < tmpList.Count; i++) //do not delete the first preset (the default one)
             {
-                if (CompareNames(tmpList[i].Name, name)) {
+                if (tmpList[i].Name == name) {
                     tmpList.RemoveAt(i);
                     presets[type] = tmpList.ToArray();
                     break;
@@ -149,9 +147,5 @@ static class PresetManager {
         GetPresets();
         presetList.DeletePreset(name, type);
         SavePresets();
-    }
-
-    static bool CompareNames(string name1, string name2) {
-        return name1.Trim().ToLower() == name2.Trim().ToLower();
     }
 }

@@ -258,11 +258,11 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
-| `presets.delete` | `category: string`<br>`name: string` | - | Deletes a preset (not the default one); the roads and intersections using it are unlinked from it |
+| `presets.delete` | `category: string`<br>`name: string` | - | Deletes a preset (not the default one); the roads, intersections, building lines, buildings, building sides and building blocks using it are unlinked from it |
 | `presets.get` | `category: string`<br>`name: string` | state | The values of a preset |
 | `presets.list` | `category: string` | string[] | The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, propContainer, propElem, roadPropRule, or a container such as rail); the first one is the default |
 | `presets.save` | `category: string`<br>`name: string`<br>`values: state` | - | Saves a preset with the given values (overwriting the one with the same name) |
-| `presets.sync` | `category: string`<br>`name: string` | - | Gives the current values of a preset to the roads or intersections linked to it |
+| `presets.sync` | `category: string`<br>`name: string` | - | Gives the current values of a preset to the roads, intersections, building lines, buildings, building sides or building blocks linked to it |
 
 ### `assets.*`
 
