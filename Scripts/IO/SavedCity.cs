@@ -1,5 +1,6 @@
 ﻿using SVector3 = States.SerializableVector3;
 using SQuaternion = States.SerializableQuaternion;
+using SVector2 = States.SerializableVector2;
 
 namespace IO.SavedCity {
     [System.Serializable]
@@ -20,6 +21,9 @@ namespace IO.SavedCity {
         public ObjectState state;
         public ObjectState instanceState;
         public SVector3[] points;
+        //yaw and roll of each point (degrees), missing when the road has none
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public SVector2[] pointRotations;
         public int startIntersectionId; //reference to an intersection
         public int endIntersectionId; //reference to an intersection
     }

@@ -244,8 +244,9 @@ namespace CityDecoder {
                 else GO.SetName(roadObj, "Road " + n);
                 roadComp.Initialize();
                 manager.AddRoad(roadComp);
-                foreach (var point in road.points) {
-                    roadComp.AddPoint(point.GetVector());
+                for (int pi = 0; pi < road.points.Length; pi++) {
+                    var rotation = road.pointRotations != null && pi < road.pointRotations.Length ? road.pointRotations[pi].GetVector() : GameEngine.Vector2.zero;
+                    roadComp.AddPoint(road.points[pi].GetVector(), -1, rotation);
                 }
                 roadComp.state = road.state;
                 roadComp.instanceState = road.instanceState;

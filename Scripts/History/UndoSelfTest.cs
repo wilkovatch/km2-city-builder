@@ -246,6 +246,8 @@ namespace History {
                 builder.SelectObject(road, true, null);
                 Log("     road " + roadId + " selected: road panel active " + roadPanel.ActiveSelf() + ", modifier " + builder.terrainClick.modifier?.GetType().Name + ", shown " + PanelName(Shown()));
                 roadPanel.ShowPage(1);
+                await Frames(3);
+                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(folder, "..", "undo_selftest_road_tab2.png"));
                 await CheckRestore("road editor (tab 2)", () => { UndoManager.Touch(road); FieldStatus.SetValue(road, "7", "state.properties.segments"); }, Chain);
                 Close();
 
@@ -283,6 +285,90 @@ namespace History {
                     GO.SetPosition(road.points[1], GO.GetPosition(road.points[1]) + new Vector3(0, 0, 3));
                 }, SelectedPoint);
                 Close();
+
+                //rotation of a control point with the gizmo (in the frame of the curve, yaw around its local Y), preferably
+                //an end on an intersection (its mouth is skewed)
+                var rotIndex = -1;
+                for (int i = 0; i < road.points.Count; i++) if (road.IsYawAllowed(i)) { rotIndex = i; break; }
+                if (road.endIntersection != null && road.IsYawAllowed(road.points.Count - 1)) rotIndex = road.points.Count - 1;
+                if (road.startIntersection != null && road.IsYawAllowed(0)) rotIndex = 0;
+                Check("a road point that can have a yaw (" + rotIndex + ")", rotIndex >= 0 && road.IsYawAllowed(rotIndex));
+                if (rotIndex < 0) rotIndex = 0; //checked above, the rest of the test fails without crashing
+                builder.SelectObject(road, true, null);
+                gizmo.ClearTargets();
+                gizmo.AddTarget(road.points[rotIndex]);
+                CallBuilder<object>("EditCurSelectedObjectTransform");
+                typeof(EditorPanels.TransformPropertiesEditorPanel).GetMethod("SetRotate", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .Invoke(transformPanel, null);
+                Check("rotate mode on a road point: local space, no pitch, yaw and roll as the road type allows",
+                    gizmo.transformType == RuntimeGizmos.TransformType.Rotate && gizmo.space == RuntimeGizmos.TransformSpace.Local
+                    && !gizmo.rotAxesAllowed[0] && gizmo.rotAxesAllowed[1] && gizmo.rotAxesAllowed[2] == road.IsRollAllowed());
+                var yaw0 = road.GetPointRotations()[rotIndex].X;
+                string RotatedPoint() {
+                    var cur = ElementRegistry.Get<Road>(roadId);
+                    var sel = gizmo.mainTargetRoot;
+                    var index = cur != null && sel != null ? cur.points.IndexOf(sel as StaticBody3D) : -1;
+                    return Chain() + " point " + index + " yaw " + (index >= 0 ? cur.GetPointRotations()[index].X.ToString("0.0") : "-");
+                }
+                await CheckRestore("gizmo rotation of a road point", () => {
+                    UndoManager.TouchOwner(road.points[rotIndex]);
+                    var handle = road.points[rotIndex];
+                    handle.GlobalRotate(handle.GlobalBasis.Y.Normalized(), Mathf.DegToRad(10));
+                }, RotatedPoint);
+                InvokeBuilder("Redo"); //CheckRestore leaves the edit undone
+                await Frames(6);
+                var rotated = ElementRegistry.Get<Road>(roadId);
+                var yaw1 = rotated != null ? rotated.GetPointRotations()[rotIndex].X : float.NaN;
+                Check("the gizmo rotation of the handle gives the yaw of the point (" + yaw0 + " -> " + yaw1 + ")", Mathf.Abs(Mathf.Abs(yaw1 - yaw0) - 10) < 0.5f);
+                InvokeBuilder("Undo");
+                await Frames(6);
+                Close();
+
+                //the ends of the edited road on intersections replace the intersection points (hidden), and the intersections follow them
+                var endIndex = road.startIntersection != null ? 0 : road.endIntersection != null ? road.points.Count - 1 : -1;
+                Check("the road has an end on an intersection", endIndex >= 0);
+                if (endIndex >= 0) {
+                    var endIntersection = endIndex == 0 ? road.startIntersection : road.endIntersection;
+                    var intersectionId = Id(endIntersection);
+                    builder.SelectObject(road, true, null);
+                    await Frames(3);
+                    var endHandle = (Handle)road.points[endIndex];
+                    Check("editing a road: its end on an intersection is as big as the intersection point, which is hidden",
+                        endHandle.HandleScale == Vector3.One * Road.IntersectionHandleScale && endHandle.IsHandleActive() && GO.GetEnabled(endHandle)
+                        && !((Handle)endIntersection.point).IsHandleActive());
+                    gizmo.ClearTargets();
+                    gizmo.AddTarget(endIntersection.point);
+                    CallBuilder<object>("EditCurSelectedObjectTransform");
+                    Check("M on the intersection point edits the road end instead",
+                        Shown() == transformPanel && transformPanel.instance == road.points[endIndex] && gizmo.mainTargetRoot == road.points[endIndex]);
+                    string EndState() {
+                        var cur = ElementRegistry.Get<Intersection>(intersectionId);
+                        return SelectedPoint() + " intersection at " + (cur != null ? GO.GetPosition(cur.point).ToString("0.0") : "-");
+                    }
+                    var center0 = GO.GetPosition(endIntersection.point);
+                    var offset = new Vector3(4, 0, 3);
+                    await CheckRestore("road end on an intersection moved", () => {
+                        UndoManager.TouchOwner(road.points[endIndex]);
+                        GO.SetPosition(road.points[endIndex], center0 + offset);
+                    }, EndState);
+                    InvokeBuilder("Redo"); //CheckRestore leaves the edit undone
+                    await Frames(6);
+                    var movedIntersection = ElementRegistry.Get<Intersection>(intersectionId);
+                    var followed = movedIntersection != null;
+                    if (followed) {
+                        var target = center0 + offset;
+                        bool Near(Vector3 p) => new Vector2(p.X - target.X, p.Z - target.Z).Length() < 0.01f;
+                        followed = Near(GO.GetPosition(movedIntersection.point));
+                        foreach (var r in movedIntersection.roads) {
+                            if (r.startIntersection == movedIntersection) followed &= Near(GO.GetPosition(r.points[0]));
+                            if (r.endIntersection == movedIntersection) followed &= Near(GO.GetPosition(r.points[r.points.Count - 1]));
+                        }
+                    }
+                    Check("the intersection and the ends of its other roads follow the road end", followed);
+                    InvokeBuilder("Undo");
+                    await Frames(6);
+                    Close();
+                }
 
                 //intersection editor
                 Intersection intersection = null;

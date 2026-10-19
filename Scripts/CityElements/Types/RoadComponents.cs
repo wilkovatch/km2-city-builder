@@ -23,6 +23,8 @@ namespace CityElements.Types {
 
     public class RoadSettings {
         public bool variableSections;
+        public bool allowYaw = true; //whether the control points can rotate the sections around the vertical axis
+        public bool allowRoll = true; //whether the control points can bank the sections
         public object[] sectionVertices;
         public object anchors;
         public string[] propsContainers;

@@ -72,6 +72,10 @@ namespace History {
                 pointArray[j] = new SVector3(GO.GetPosition(road.points[j]));
             }
             elem.points = pointArray;
+            var rotations = road.GetPointRotations();
+            if (rotations.Exists(r => r != GameEngine.Vector2.zero)) {
+                elem.pointRotations = rotations.ConvertAll(r => new States.SerializableVector2(r)).ToArray();
+            }
             elem.instanceState = road.instanceState;
             elem.state = road.state;
             elem.startIntersectionId = road.startIntersection == null ? -1 : intersectionId(road.startIntersection);
@@ -398,7 +402,7 @@ namespace History {
                     if (r.points != null) {
                         foreach (var p in r.points) points.Add(p.GetVector());
                     }
-                    road.RestorePoints(points);
+                    road.RestorePoints(points, r.pointRotations != null ? States.SerializableVector2.GetRuntimeList(r.pointRotations) : null);
                     road.SetState(Changed(r.state));
                     road.instanceState = Changed(r.instanceState);
                     road.startIntersection = GetAlive<Intersection>(r.startIntersectionId);

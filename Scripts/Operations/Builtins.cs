@@ -43,6 +43,10 @@ namespace Operations {
                 new Property("startIntersectionEnd", "bool", true),
                 new Property("startIntersectionStart", "bool", true),
                 new Property("intersectionMove", "float", true),
+                new Property("endConnectionHeight", "float", true),
+                new Property("startConnectionHeight", "float", true),
+                new Property("endConnectionHeightAuto", "bool", true),
+                new Property("startConnectionHeightAuto", "bool", true),
             },
             ["intersection"] = new[] {
                 new Property("sidewalkSegments", "int"),

@@ -38,7 +38,7 @@ What the panels and the mouse tools do to the city is implemented in the operati
 
 | Panel | Purpose |
 |---|---|
-| `RoadEditorPanel` | Road editing: core parameters plus the built-in groups `mainGroup` (type, preset, point placement mode, projection, segments, smoothing, coplanarity, curve type), `intersectionGroup` (crosswalk sizes, intersection size increase and textures, roads through the intersection) and `propsGroup` (prop rule preset and props containers). |
+| `RoadEditorPanel` | Road editing: core parameters plus the built-in groups `mainGroup` (type, preset, point placement mode, projection, segments, smoothing, coplanarity, curve type), `intersectionGroup` (crosswalk sizes, intersection size increase and textures, roads through the intersection, connection heights) and `propsGroup` (prop rule preset and props containers). |
 | `IntersectionEditorPanel` | Intersection type, preset, sidewalk segments and size increase (`mainGroup`), plus core parameters. |
 | `TerrainPatchEditorPanel` | Terrain patch type, point placement mode (perimeter, internal, border mesh), smoothing, projection, auto-close, texture (`mainGroup`), and the border mesh list (`borderMeshGroup`). |
 | `TerrainPatchBorderMeshEditorPanel` | The parameters of one border mesh. |
@@ -50,7 +50,7 @@ What the panels and the mouse tools do to the city is implemented in the operati
 | `Props/ContainerEditorPanel` | A props container of a road's prop rule: its type and its elements. |
 | `Props/ElemEditorPanel` | A props element: type, preset, meshes and placement parameters. |
 | `Props/PropMeshEditorPanel` | Mesh list of a props element. |
-| `TransformPropertiesEditorPanel` | Position/rotation/scale of a mesh instance or parametric object, its mesh, and the mesh instance parameters of the core. |
+| `TransformPropertiesEditorPanel` | Position/rotation/scale of a mesh instance or parametric object, its mesh, and the mesh instance parameters of the core. On a control point, its position, and for road points the yaw and roll of the sections, set by hand or with the gizmo in local space restricted to the Y (yaw) and Z (roll) axes of the frame of the curve. |
 | `ArrayElemEditorPanel` | One element of an `array` or `customElement` parameter. |
 | `CityPropertiesEditorPanel` | The core's city properties. |
 | `NewCityEditorPanel` | New city: terrain size, heightmap resolution, maximum height, core and template. Copies the template into the chosen folder and creates an empty `city.json.gz`. |

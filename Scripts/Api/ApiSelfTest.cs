@@ -400,6 +400,49 @@ namespace Api {
             await CheckUndo("road point moved", () => Call("roads.movePoint", new { road = roadC, index = 0, position = V(320, 0, 20), onGround = true }));
             await CheckUndo("road point inserted", () => Call("roads.insertPoint", new { road = roadC, index = 1, position = V(250, 0, 0), onGround = true }));
             await CheckUndo("road point removed", () => Call("roads.removePoint", new { road = roadC, index = 1 }));
+
+            //rotation of the sections at the control points (as the road type allows them, a lower yaw limit at an end on an intersection)
+            var roadSettings = CityElements.Types.Parsers.TypeParser.GetRoadTypes()[History.ElementRegistry.Get<Road>(roadC).state.Str("type")].typeData.settings;
+            float Allowed(bool allowed, float value) => allowed ? value : 0;
+            await CheckUndo("road point rotated", () => Call("roads.setPointRotation", new { road = roadC, index = 0, yaw = 15, roll = 10 }));
+            var rotation = await Call("roads.setPointRotation", new { road = roadC, index = 0, roll = 12 });
+            Check("roads.setPointRotation keeps the value not given, the effective values follow the road type (" + rotation.ToString(Newtonsoft.Json.Formatting.None) + ")",
+                rotation["yaw"].Value<float>() == 15 && rotation["roll"].Value<float>() == 12
+                && rotation["effectiveYaw"].Value<float>() == Allowed(roadSettings.allowYaw, 15) && rotation["effectiveRoll"].Value<float>() == Allowed(roadSettings.allowRoll, 12));
+            var last = Len((await Derived(roadC))["points"]) - 1;
+            var endRotation = await Call("roads.setPointRotation", new { road = roadC, index = last, yaw = 100 });
+            var intersectionYaw = Allowed(roadSettings.allowYaw, GeometryHelper.MaxIntersectionYaw);
+            Check("values clamped, a lower yaw limit at the end on an intersection", endRotation["yaw"].Value<float>() == 75 && endRotation["effectiveYaw"].Value<float>() == intersectionYaw);
+            var c = await Derived(roadC);
+            Check("the derived info has the rotations (" + c["pointRotations"].ToString(Newtonsoft.Json.Formatting.None) + " " + c["effectivePointRotations"].ToString(Newtonsoft.Json.Formatting.None) + ")",
+                c["pointRotations"][0][0].Value<float>() == 15 && c["effectivePointRotations"][0][1].Value<float>() == Allowed(roadSettings.allowRoll, 12)
+                && c["pointRotations"][last][0].Value<float>() == 75 && c["effectivePointRotations"][last][0].Value<float>() == intersectionYaw);
+            await Expect("a rotation of a point that doesn't exist", "not_found", "roads.setPointRotation", new { road = roadC, index = 5, yaw = 1 });
+            foreach (var p in new[] { 0, last }) await Call("roads.setPointRotation", new { road = roadC, index = p, yaw = 0, roll = 0 });
+
+            //the height of a road end on an intersection
+            await CheckUndo("connection height set", () => Call("state.setBuiltin", new { @ref = roadC, name = "endConnectionHeight", value = 2.5f }));
+            await Call("state.setBuiltin", new { @ref = roadC, name = "endConnectionHeight", value = 2.5f });
+            c = await Derived(roadC);
+            Check("the derived info has the connection height (" + c["endConnectionHeight"] + ")", System.Math.Abs(c["endConnectionHeight"].Value<float>() - 2.5f) < 1e-4);
+            var cRoad = History.ElementRegistry.Get<Road>(roadC);
+            var cEnd = cRoad.generator.GetCurvePoints();
+            var cCenter = (await Derived(intersection))["center"];
+            Check("the road ends higher on the intersection (" + (cEnd[cEnd.Count - 1][1] - cCenter[1].Value<float>()) + ")",
+                System.Math.Abs(cEnd[cEnd.Count - 1][1] - cCenter[1].Value<float>() - 2.5f) < 0.01f);
+            await Call("history.undo");
+            Check("undo resets the connection height", (await Derived(roadC))["endConnectionHeight"].Value<float>() == 0);
+
+            //moving the end of a road on an intersection moves the intersection, and the ends of its other roads
+            var center0 = (await Derived(intersection))["center"];
+            await CheckUndo("road end on an intersection moved", () => Call("roads.movePoint", new { road = roadC, index = last, position = V(15, 0, 25), onGround = true }));
+            var movedCenter = (await Derived(intersection))["center"];
+            var bEnd = (await Derived(roadB))["points"].Last;
+            bool Near(JToken p, float x, float z) => System.Math.Abs(p[0].Value<float>() - x) < 0.01f && System.Math.Abs(p[2].Value<float>() - z) < 0.01f;
+            Check("the intersection follows the road end", Near(movedCenter, 15, 25) && Near(bEnd, 15, 25));
+            await Call("history.undo");
+            Check("undo moves the intersection back", Near((await Derived(intersection))["center"], center0[0].Value<float>(), center0[2].Value<float>())
+                && Near((await Derived(roadB))["points"].Last, center0[0].Value<float>(), center0[2].Value<float>()));
             await CheckUndo("intersection moved", () => Call("intersections.move", new { intersection, position = V(10, 0, 10), onGround = true }));
             var e = await Call("roads.create", new { points = new[] { Pos(-800, 400), Pos(-700, 400), Pos(-600, 400) } });
             var roadE = e.Value<int>();

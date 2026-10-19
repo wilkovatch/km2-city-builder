@@ -215,6 +215,103 @@ public static class GeometryHelper {
         return GameEngine.Vector3.zero;
     }
 
+    //a value given for each point of a curve (start, control points, end) at the curve parameter, blended as the
+    //curve blends the points: Bernstein weights (Bézier), Hermite interpolation through the values (Hermite), the value
+    //of the point (low-poly). The Hermite spans are found on the points, so that subdivideEqually uses their distances.
+    public static Vector2 GetValueOnCurve(Vector3 start, List<Vector3> controlPoints, Vector3 end, List<Vector2> values, float alpha, int alphaI,
+        CurveType curveType, float hermiteTension = 0.5f, bool subdivideEqually = false) {
+
+        if (values == null || values.Count == 0) return GameEngine.Vector2.zero;
+        if (values.Count != controlPoints.Count + 2) return GameEngine.Vector2.zero;
+        if (AreVectorsEqual(start, end)) return values[0];
+        switch (curveType) {
+            case CurveType.Bezier:
+                var level = new List<Vector2>(values);
+                while (level.Count > 1) {
+                    for (int i = 0; i < level.Count - 1; i++) {
+                        level[i] = level[i] + (level[i + 1] - level[i]) * alpha;
+                    }
+                    level.RemoveAt(level.Count - 1);
+                }
+                return level[0];
+            case CurveType.Hermite:
+                var tempPoints = new List<Vector3> { start };
+                tempPoints.AddRange(controlPoints);
+                tempPoints.Add(end);
+                var segmentCount = tempPoints.Count - 1;
+                var span = GetHermiteSpan(tempPoints, alpha, subdivideEqually, out var a);
+                if (span >= 0) {
+                    var a2 = a * a;
+                    var a3 = a2 * a;
+
+                    var v0 = span < 1 ? values[0] : values[span - 1];
+                    var v1 = values[span];
+                    var v2 = values[span + 1];
+                    var v3 = span > (segmentCount - 2) ? values[values.Count - 1] : values[span + 2];
+
+                    var t1 = hermiteTension * (v2 - v0);
+                    var t2 = hermiteTension * (v3 - v1);
+
+                    var b1 = 2 * a3 - 3 * a2 + 1;
+                    var b2 = -2 * a3 + 3 * a2;
+                    var b3 = a3 - 2 * a2 + a;
+                    var b4 = a3 - a2;
+
+                    return b1 * v1 + b2 * v2 + b3 * t1 + b4 * t2;
+                }
+                break;
+            case CurveType.LowPoly:
+                return values[Mathf.Clamp(alphaI, 0, values.Count - 1)];
+        }
+        return GameEngine.Vector2.zero;
+    }
+
+    //the curve parameter each point of a curve (start, control points, end) is associated with: where a Hermite or
+    //low-poly curve passes through it, where its Bernstein weight peaks for a Bézier curve
+    public static List<float> GetPointParameters(List<Vector3> points, CurveType curveType, bool subdivideEqually) {
+        if (curveType == CurveType.Hermite && points.Count > 1) return GetHermiteKnots(points, subdivideEqually);
+        var res = new List<float>();
+        for (int i = 0; i < points.Count; i++) res.Add(points.Count > 1 ? i / (points.Count - 1.0f) : 0.0f);
+        return res;
+    }
+
+    public const float MaxSectionYaw = 75.0f;
+    public const float MaxSectionRoll = 75.0f;
+    public const float MaxIntersectionYaw = 60.0f; //of a road end on an intersection
+
+    //the right and up vectors of a road section rotated by the yaw (degrees, around the vertical axis, positive to the
+    //right) and then the roll (degrees, around the horizontal forward direction, positive raises the right side) of
+    //its control points. The right vector (pointing left of the direction of the road, as in the generators) keeps its
+    //length divided by the cosine of the yaw, so that the road keeps its width measured across it.
+    public static (Vector3 right, Vector3 up) RotateSection(Vector3 right, float yaw, float roll) {
+        var up = GameEngine.Vector3.up;
+        if (yaw == 0 && roll == 0) return (right, up);
+        var length = GameEngine.Vector3.Magnitude(right);
+        var flatRight = new Vector3(right[0], 0, right[2]);
+        if (length <= 0 || GameEngine.Vector3.Magnitude(flatRight) <= 0) return (right, up);
+        var r = GameEngine.Vector3.Normalize(flatRight);
+        var forward = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(up, r));
+        yaw = Mathf.Clamp(yaw, -MaxSectionYaw, MaxSectionYaw);
+        roll = Mathf.Clamp(roll, -MaxSectionRoll, MaxSectionRoll);
+        var yawRad = yaw * GameEngine.Math.deg2rad;
+        var rollRad = roll * GameEngine.Math.deg2rad;
+        //roll around the forward direction first, then yaw around the vertical axis (the yawed forward stays horizontal)
+        var newRight = r.Rotated(forward, rollRad).Rotated(up, yawRad);
+        var newUp = up.Rotated(forward, rollRad).Rotated(up, yawRad);
+        return (newRight * (length / Mathf.Cos(yawRad)), newUp);
+    }
+
+    //the rotation (program coordinates) of the frame of a section of a road with the given direction: X to the right of
+    //the road, Y up, Z forward, all horizontal but Y
+    public static Quaternion GetSectionFrame(Vector3 direction) {
+        var up = GameEngine.Vector3.up;
+        var flat = new Vector3(direction[0], 0, direction[2]);
+        if (GameEngine.Vector3.Magnitude(flat) <= epsilon) return Quaternion.Identity;
+        var forward = GameEngine.Vector3.Normalize(flat);
+        var trueRight = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(up, forward));
+        return new Basis(trueRight, up, forward).GetRotationQuaternion();
+    }
+
     //the span of a Hermite curve through the points containing alpha (-1 if none), and the position in it
     public static int GetHermiteSpan(List<Vector3> points, float alpha, bool subdivideEqually, out float localAlpha) {
         var factor = 1.0f / (points.Count - 1);

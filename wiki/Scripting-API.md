@@ -327,6 +327,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `roads.props.enable` | `road: ref`<br>`container: string`<br>`enabled: bool` | - | Enables or disables a props container of the prop rule of a road |
 | `roads.props.saveRulePreset` | `road: ref`<br>`name: string` | - | Saves the prop rule of a road as a preset |
 | `roads.removePoint` | `road: ref`<br>`index: int = null` | object | Removes a control point (the road must keep two), or the last one if no index is given (detaching the road from its end intersection, the road is deleted if it is left with one point) |
+| `roads.setPointRotation` | `road: ref`<br>`index: int`<br>`yaw: float = null`<br>`roll: float = null` | object | Sets the yaw (around the vertical axis, positive to the right) and the roll (banking, positive raises the right side) of the sections at a control point, in degrees relative to the direction of the curve (up to 75). The values not given are kept. They are stored even where they have no effect: an axis the road type doesn't allow, or beyond 60 degrees of yaw at an end on an intersection. Returns `{yaw, roll, effectiveYaw, effectiveRoll}` |
 
 ### `intersections.*`
 

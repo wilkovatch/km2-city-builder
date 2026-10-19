@@ -141,10 +141,11 @@ namespace CityElements.Types.Runtime {
                 (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) vars, string name) : base(type, parameterContainer, components, vars, name) {
             }
 
-            public abstract void FillInitialSegmentVariables(RC.VariableContainer variableContainer, Vector3 right0, Vector3 right1, Vector3[] section0, Vector3[] section1);
+            public abstract void FillInitialSegmentVariables(RC.VariableContainer variableContainer, Vector3 right0, Vector3 right1, Vector3 up0, Vector3 up1,
+                Vector3[] section0, Vector3[] section1);
 
             public abstract void FillSegmentVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState, Vector3 pos,
-                Vector3 curSectionRight, float z, float ground, int section, Vector3[] sectionVertices, List<Vector3> curvePoints, int segments);
+                Vector3 curSectionRight, Vector3 curSectionUp, float z, float ground, int section, Vector3[] sectionVertices, List<Vector3> curvePoints, int segments);
 
             public void FillComponentVariables(RC.VariableContainer variableContainer, int c) {
                 FillBaseSubVariables(variableContainer, c);

@@ -15,6 +15,7 @@ public partial class Intersection: IObjectWithState {
 
     public List<Road> roads = new List<Road>();
     public List<float> sizes = new List<float>();
+    public List<float> heights = new List<float>(); //of the ends of the roads relative to the point (see RecalculateHeights)
     public int minI = -1;
 
     public IntersectionGenerator generator;
@@ -93,6 +94,46 @@ public partial class Intersection: IObjectWithState {
         return d;
     }
 
+    //the end of a road on the intersection, as seen from it (horizontally: a rolled end is narrower on the ground and
+    //its vertices are moved vertically only, along its slope; a yawed end is skewed, its corners slide along its edges)
+    public struct RoadMouth {
+        public Vector3 dir; //toward the center, normalized and horizontal
+        public Vector3 leftDir; //normalized and horizontal
+        public Vector3 left; //half of the mouth per unit of width
+        public float groundScale; //of the width (cos of the roll)
+        public float slope; //height per meter along leftDir
+        public float yaw; //radians
+        public float throughRoll; //degrees, of a road through the intersection with its right vector along leftDir
+    }
+
+    public RoadMouth GetMouth(Road road, Vector3 center) {
+        var res = new RoadMouth();
+        res.dir = GameEngine.Vector3.Normalize(GetDirectionToCenter(road, center));
+        res.leftDir = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(res.dir, GameEngine.Vector3.up));
+        //the right vector of the road points to the left here at its end, to the right at its start
+        var sign = road.startIntersection == this ? 1 : -1;
+        var roll = road.GetEndRoll(this);
+        var rollRad = roll * GameEngine.Math.deg2rad;
+        res.yaw = road.GetEndYaw(this) * GameEngine.Math.deg2rad;
+        res.groundScale = Mathf.Cos(rollRad);
+        res.slope = sign * Mathf.Tan(rollRad);
+        res.throughRoll = -sign * roll;
+        if (res.yaw == 0) {
+            res.left = res.leftDir * 0.5f * res.groundScale;
+        } else {
+            //the yawed right vector of the road is longer by 1/cos(yaw) (the road keeps its width), so its bank is steeper
+            //across the road
+            res.left = (res.leftDir + res.dir * Mathf.Tan(res.yaw)) * 0.5f * res.groundScale;
+            res.slope /= Mathf.Cos(res.yaw);
+        }
+        return res;
+    }
+
+    //the height of the end of a road (by index) relative to the point
+    public float GetConnectionHeight(int index) {
+        return index >= 0 && index < heights.Count ? heights[index] : 0.0f;
+    }
+
     private float GetSize(Vector3 v1, Vector3 v2, float width1, float width2) {
         var angle = GameEngine.Vector3.Angle(v1, v2);
         var radAngle = angle * GameEngine.Math.deg2rad;
@@ -124,7 +165,15 @@ public partial class Intersection: IObjectWithState {
         if (caller == null) {
             var posDiff = pos - oldPointPos;
             if (GameEngine.Vector3.SqrMagnitude(posDiff) <= GeometryHelper.epsilon) {
-                return;
+                //the intersection didn't move, but the end of one of its roads may have (the end handle replaces the one of
+                //the intersection while the road is edited): the intersection follows it
+                var movedEnd = GetMovedRoadEnd();
+                if (!movedEnd.HasValue) {
+                    RecordEndPositions();
+                    return;
+                }
+                History.UndoManager.Touch(this);
+                pos = movedEnd.Value;
             }
         } else {
             pos = caller.startIntersection == this ? GO.GetPosition(caller.points[0]) : GO.GetPosition(caller.points[caller.points.Count - 1]);
@@ -134,10 +183,45 @@ public partial class Intersection: IObjectWithState {
         oldPointPos = pos;
         foreach (var road in roads) {
             if (road != caller) {
-                var index = road.startIntersection == this ? 0 : (road.points.Count - 1);
-                GO.SetPosition(road.points[index], pos);
+                foreach (var index in GetEndIndices(road)) GO.SetPosition(road.points[index], pos);
             }
         }
+        RecordEndPositions();
+    }
+
+    //the last known positions of the ends of the roads on the intersection, to tell when one was moved
+    readonly Dictionary<(Road road, int index), Vector3> endPositions = new Dictionary<(Road road, int index), Vector3>();
+
+    List<int> GetEndIndices(Road road) {
+        var res = new List<int>();
+        if (road.points.Count == 0) return res;
+        if (road.startIntersection == this) res.Add(0);
+        if (road.endIntersection == this && road.points.Count > 1) res.Add(road.points.Count - 1);
+        return res;
+    }
+
+    void RecordEndPositions() {
+        endPositions.Clear();
+        foreach (var road in roads) {
+            foreach (var index in GetEndIndices(road)) endPositions[(road, index)] = GO.GetPosition(road.points[index]);
+        }
+    }
+
+    //the position of a road end moved since the last update (only the ends seen before, so that a road just connected
+    //or a city just loaded doesn't move the intersection). The ends of the roads projected on the terrain are compared
+    //horizontally, their projection is not a move.
+    Vector3? GetMovedRoadEnd() {
+        foreach (var road in roads) {
+            var projected = road.state.Bool("project") || road.state.Bool("projectAll");
+            foreach (var index in GetEndIndices(road)) {
+                var pos = GO.GetPosition(road.points[index]);
+                if (!endPositions.TryGetValue((road, index), out var last)) continue;
+                var diff = pos - last;
+                if (projected) diff[1] = 0;
+                if (GameEngine.Vector3.SqrMagnitude(diff) > GeometryHelper.epsilon) return pos;
+            }
+        }
+        return null;
     }
 
     public void RecalculateSize() {
@@ -147,6 +231,16 @@ public partial class Intersection: IObjectWithState {
         oldRoadCount = roads.Count;
         sizes = new List<float>();
         var pointCenter = GO.GetPosition(point);
+        var mouths = new List<RoadMouth>();
+        var groundWidths = new List<float>(); //a rolled end is narrower on the ground
+        var skews = new List<float>(); //how far the left corner of a yawed end is toward the center (the right one away)
+        foreach (var road in roads) {
+            var mouth = GetMouth(road, pointCenter);
+            var groundWidth = road.GetStandardFloat("totalWidth") * mouth.groundScale;
+            mouths.Add(mouth);
+            groundWidths.Add(groundWidth);
+            skews.Add(mouth.yaw == 0 ? 0.0f : 0.5f * groundWidth * Mathf.Tan(mouth.yaw));
+        }
         for (int i = 0; i < roads.Count; i++) {
             var maxSize = 0.0f;
             roads[i].forceRemesh = true;
@@ -154,11 +248,13 @@ public partial class Intersection: IObjectWithState {
             for (int j = 0; j < roads.Count; j++) {
                 if (i == j) continue;
                 var d2 = GetDirectionToCenter(roads[j], pointCenter);
-                var wI = roads[i].GetStandardFloat("totalWidth");
-                var wJ = roads[j].GetStandardFloat("totalWidth");
-                var thisSize = GetSize(d1, d2, wI, wJ);
+                var thisSize = GetSize(d1, d2, groundWidths[i], groundWidths[j]);
+                //the size is where the facing edges cross: the corner on the side of road j must reach it
+                if (skews[i] != 0) thisSize += GameEngine.Vector3.Dot(-d2, mouths[i].leftDir) > 0 ? skews[i] : -skews[i];
                 if (thisSize > maxSize) maxSize = thisSize;
             }
+            //the corner toward the center can't pass the point
+            if (skews[i] != 0) maxSize = Mathf.Max(maxSize, Mathf.Abs(skews[i]));
             sizes.Add(maxSize);
         }
         //check roads that still overlap
@@ -169,25 +265,34 @@ public partial class Intersection: IObjectWithState {
             found = 0;
             for (int i = 0; i < roads.Count; i++) {
                 var maxAdd = 0.0f;
-                var r = roads[i];
-                var dir = GameEngine.Vector3.Normalize(GetDirectionToCenter(r, pointCenter));
-                var left = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up));
+                var dir = mouths[i].dir;
+                var left = mouths[i].leftDir;
                 var roadCenter = pointCenter - dir * sizes[i];
                 var roadLeft = roadCenter + left;
                 var roadUp = roadCenter + GameEngine.Vector3.up;
-                var p1 = GameEngine.Plane.Create(roadCenter, roadLeft, roadUp);
+                var p1 = GameEngine.Plane.Create(roadCenter, roadLeft, roadUp); //facing away from the center
+                var yawTan = mouths[i].yaw == 0 ? 0.0f : Mathf.Tan(mouths[i].yaw);
+                var halfWidth = groundWidths[i] * 0.5f;
+                //how far behind the mouth a point is: a skewed mouth is closer to the center on its left, only along the
+                //road (a point beside it is compared to its corner, as with a square mouth, otherwise the planes of two
+                //skewed roads would push each other away endlessly)
+                float Behind(Vector3 p) {
+                    var d = GameEngine.Plane.DistanceToPoint(p1, p);
+                    if (yawTan == 0) return d;
+                    return d + Mathf.Clamp(GameEngine.Vector3.Dot(p - roadCenter, left), -halfWidth, halfWidth) * yawTan;
+                }
                 int thisFound = 0;
                 for (int j = 0; j < roads.Count; j++) {
                     if (i == j) continue;
-                    var r2 = roads[j];
-                    var dir2 = GameEngine.Vector3.Normalize(GetDirectionToCenter(roads[j], pointCenter));
-                    var left2 = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir2, GameEngine.Vector3.up)) * 0.5f;
+                    var dir2 = mouths[j].dir;
+                    var left2 = mouths[j].leftDir * 0.5f;
+                    if (mouths[j].yaw != 0) left2 += dir2 * (0.5f * Mathf.Tan(mouths[j].yaw));
                     var road2Center = pointCenter - dir2 * sizes[j];
-                    var w = r2.GetStandardFloat("totalWidth");
+                    var w = groundWidths[j];
                     var road2Left = road2Center + left2 * w;
                     var road2Right = road2Center - left2 * w;
-                    var add1 = GameEngine.Plane.DistanceToPoint(p1, road2Left);
-                    var add2 = GameEngine.Plane.DistanceToPoint(p1, road2Right);
+                    var add1 = Behind(road2Left);
+                    var add2 = Behind(road2Right);
                     var add = Mathf.Max(add1, add2);
                     if (add > maxAdd) {
                         thisFound = 1;
@@ -203,6 +308,63 @@ public partial class Intersection: IObjectWithState {
         for (int i = 0; i < roads.Count; i++) {
             sizes[i] += roads[i].GetCrosswalkSize(this) + roads[i].GetIntersectionAdd(this) + state.Float("sizeIncrease");
         }
+        RecalculateHeights(pointCenter, mouths);
+    }
+
+    //the heights of the road ends: their connection height, plus for the automatic ones the height of the plane fitted
+    //through the corners of the mouths of the other roads (the ones not automatic, so that they don't depend on each other)
+    void RecalculateHeights(Vector3 pointCenter, List<RoadMouth> mouths) {
+        heights = new List<float>();
+        var points = new List<Vector3>(); //relative to the point
+        var fixedRoads = new List<int>();
+        for (int i = 0; i < roads.Count; i++) {
+            if (roads[i].IsConnectionHeightAuto(this)) continue;
+            fixedRoads.Add(i);
+            var center = -mouths[i].dir * sizes[i];
+            var corner = mouths[i].left * roads[i].GetStandardFloat("totalWidth");
+            var h = roads[i].GetConnectionHeight(this);
+            var rise = mouths[i].slope * GameEngine.Vector3.Dot(corner, mouths[i].leftDir);
+            points.Add(center + corner + GameEngine.Vector3.up * (h + rise));
+            points.Add(center - corner + GameEngine.Vector3.up * (h - rise));
+        }
+        var plane = FitHeightPlane(points);
+        for (int i = 0; i < roads.Count; i++) {
+            var height = roads[i].GetConnectionHeight(this);
+            if (roads[i].IsConnectionHeightAuto(this) && fixedRoads.Count > 0) {
+                var center = -mouths[i].dir * sizes[i];
+                if (plane.HasValue) {
+                    height += plane.Value[0] + plane.Value[1] * center[0] + plane.Value[2] * center[2];
+                } else {
+                    //a single road (or all the corners in line): its bank extended
+                    var j = fixedRoads[0];
+                    var centerJ = -mouths[j].dir * sizes[j];
+                    height += roads[j].GetConnectionHeight(this) + mouths[j].slope * GameEngine.Vector3.Dot(center - centerJ, mouths[j].leftDir);
+                }
+            }
+            heights.Add(height);
+        }
+    }
+
+    //the plane y = a + b x + c z (least squares), null if the points don't define one
+    static Vector3? FitHeightPlane(List<Vector3> points) {
+        if (points.Count < 3) return null;
+        double n = points.Count, sx = 0, sz = 0, sxx = 0, sxz = 0, szz = 0, sy = 0, sxy = 0, szy = 0;
+        foreach (var p in points) {
+            double x = p[0], y = p[1], z = p[2];
+            sx += x; sz += z; sxx += x * x; sxz += x * z; szz += z * z;
+            sy += y; sxy += x * y; szy += z * y;
+        }
+        double Det(double a1, double b1, double c1, double a2, double b2, double c2, double a3, double b3, double c3) {
+            return a1 * (b2 * c3 - c2 * b3) - b1 * (a2 * c3 - c2 * a3) + c1 * (a2 * b3 - b2 * a3);
+        }
+        var det = Det(n, sx, sz, sx, sxx, sxz, sz, sxz, szz);
+        //relative to the spread of the points, so that the test doesn't depend on the size of the intersection
+        var spread = (sxx + szz) / n;
+        if (spread <= 0 || System.Math.Abs(det) <= 1e-6 * n * n * n * spread * spread) return null;
+        var a = Det(sy, sx, sz, sxy, sxx, sxz, szy, sxz, szz) / det;
+        var b = Det(n, sy, sz, sx, sxy, sxz, sz, szy, szz) / det;
+        var c = Det(n, sx, sy, sx, sxx, sxy, sz, sxz, szy) / det;
+        return new Vector3((float)a, (float)b, (float)c);
     }
 
     public List<Road> GetRoadsSortedClockwise() {

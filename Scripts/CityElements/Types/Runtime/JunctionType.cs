@@ -225,7 +225,8 @@ namespace CityElements.Types.Runtime {
             FillBaseInitialVariables(variableContainer, state, instanceState);
         }
 
-        public override void FillInitialSegmentVariables(RC.VariableContainer variableContainer, Vector3 right0, Vector3 right1, Vector3[] section0, Vector3[] section1) {
+        public override void FillInitialSegmentVariables(RC.VariableContainer variableContainer, Vector3 right0, Vector3 right1, Vector3 up0, Vector3 up1,
+            Vector3[] section0, Vector3[] section1) {
             var fwd0 = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(GameEngine.Vector3.up, right0)); //check if actually reversed
             FillVector3(variableContainer, "localUp0", GameEngine.Vector3.up);
             FillVector3(variableContainer, "localRight0", right0);
@@ -241,7 +242,7 @@ namespace CityElements.Types.Runtime {
         }
 
         public override void FillSegmentVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState, Vector3 pos,
-            Vector3 curSectionRight, float z, float ground, int section, Vector3[] sectionVertices,List<Vector3> curvePoints, int segments) {
+            Vector3 curSectionRight, Vector3 curSectionUp, float z, float ground, int section, Vector3[] sectionVertices,List<Vector3> curvePoints, int segments) {
 
             var fwd = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(GameEngine.Vector3.up, curSectionRight)); //check if actually reversed
             FillVector3(variableContainer, "localUp", GameEngine.Vector3.up);

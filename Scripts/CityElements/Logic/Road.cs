@@ -22,7 +22,9 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     Vector3 start, end;
     RC.VariableContainer variableContainer;
 
+    List<Vector2> rots = new List<Vector2>(); //of all the points (start, control points, end)
     List<Vector3> old_cps = new List<Vector3>();
+    List<Vector2> old_rots = new List<Vector2>();
     List<Vector3> old_intersections = new List<Vector3>();
     Vector3 old_start, old_end;
     CityElements.Types.Runtime.RoadType curType;
@@ -114,9 +116,21 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         splitLine.SetActive(!active && activeIntersection && points.Count >= 2);
         if (active) MarkLastPoint();
 
-        if (startIntersection != null) startIntersection.SetActive(active, true);
-        if (endIntersection != null) endIntersection.SetActive(active, true, true);
+        //while the road is edited, its ends on the intersections are selected and moved instead of the intersections
+        //(which follow them): the handles of the intersections are hidden, the ones of the ends are as big
+        if (startIntersection != null) startIntersection.SetActive(false, true);
+        if (endIntersection != null) endIntersection.SetActive(false, true, true);
+        EnlargeEndsOnIntersections();
     }
+
+    //while the road is edited (also after an undo restored its points)
+    void EnlargeEndsOnIntersections() {
+        if (!activeSelf || points.Count == 0) return;
+        if (startIntersection != null) GS.Cast<Handle>(points[0]).SetScale(GameEngine.Vector3.one * IntersectionHandleScale);
+        if (endIntersection != null) GS.Cast<Handle>(points[points.Count - 1]).SetScale(GameEngine.Vector3.one * IntersectionHandleScale);
+    }
+
+    public const float IntersectionHandleScale = 3.0f; //of the handles of the intersections, and of the road ends on them
 
     public override void Delete() {
         History.UndoManager.Touch(this);
@@ -132,10 +146,12 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         if (start && startIntersection != null) {
             startIntersection.RemoveRoad(this);
             startIntersection = null;
+            if (points.Count > 0) GS.Cast<Handle>(points[0]).SetScale(GameEngine.Vector3.one); //the end is a plain point again
         }
         else if (endIntersection != null) {
             endIntersection.RemoveRoad(this);
             endIntersection = null;
+            if (points.Count > 0) GS.Cast<Handle>(points[points.Count - 1]).SetScale(GameEngine.Vector3.one);
         }
     }
 
@@ -145,21 +161,164 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         }
     }
 
-    public void AddPoint(Vector3 point, int position = -1) {
+    //a point inserted in the middle without a rotation gets the one the curve has there, so that the road keeps its shape
+    public void AddPoint(Vector3 point, int position = -1, Vector2? rotation = null) {
         if (endIntersection != null && position == -1) return;
         History.UndoManager.Touch(this);
+        var inserted = position >= 0 && position < points.Count;
+        var newRotation = rotation ?? (inserted ? GetRotationNear(point) : GameEngine.Vector2.zero);
         var newObj = (PhysicsGameObject)GameEngine.Resources.InstantiateObject("Handle");
         GO.SetParent(newObj, GO.GetObject(this));
         GO.SetPosition(newObj, point);
         GO.SetLayer(newObj, 8);
+        GetHandle(newObj).curveRotation = ClampRotation(newRotation);
         generator.lr.enabled = activeSelf && points.Count > 0;
-        if (position < 0 || position >= points.Count) {
+        if (!inserted) {
             points.Add(newObj);
         }
         else {
             points.Insert(position, newObj);
         }
         MarkLastPoint();
+    }
+
+    // Rotation of the control points (yaw and roll of the sections, relative to the direction of the curve)
+
+    static Handle GetHandle(Node3D point) {
+        return GS.Cast<Handle>(point);
+    }
+
+    static Vector2 ClampRotation(Vector2 rotation) {
+        return new Vector2(Mathf.Clamp(rotation.X, -GeometryHelper.MaxSectionYaw, GeometryHelper.MaxSectionYaw),
+            Mathf.Clamp(rotation.Y, -GeometryHelper.MaxSectionRoll, GeometryHelper.MaxSectionRoll));
+    }
+
+    //the rotations of the points as set (start, control points, end)
+    public List<Vector2> GetPointRotations() {
+        var res = new List<Vector2>();
+        foreach (var point in points) res.Add(GetHandle(point)?.curveRotation ?? GameEngine.Vector2.zero);
+        return res;
+    }
+
+    public void SetPointRotation(int index, Vector2 rotation) {
+        History.UndoManager.Touch(this);
+        GetHandle(points[index]).curveRotation = ClampRotation(rotation);
+    }
+
+    CityElements.Types.RoadSettings GetTypeSettings() {
+        var types = CityElements.Types.Parsers.TypeParser.GetRoadTypes();
+        var typeName = state.Str("type", null);
+        return typeName != null && types.TryGetValue(typeName, out var type) ? type.typeData.settings : null;
+    }
+
+    public bool IsYawAllowed(int index) {
+        var settings = GetTypeSettings();
+        return settings != null && settings.allowYaw;
+    }
+
+    public bool IsRollAllowed() {
+        var settings = GetTypeSettings();
+        return settings != null && settings.allowRoll;
+    }
+
+    //an end on an intersection has a lower yaw limit (the corners of its mouth move by tan(yaw) times half its width)
+    static float ClampIntersectionYaw(float yaw) {
+        return Mathf.Clamp(yaw, -GeometryHelper.MaxIntersectionYaw, GeometryHelper.MaxIntersectionYaw);
+    }
+
+    //the rotations used by the geometry: the ones the road type doesn't allow are 0
+    public List<Vector2> GetEffectiveRotations() {
+        var res = GetPointRotations();
+        var settings = GetTypeSettings();
+        var allowYaw = settings != null && settings.allowYaw;
+        var allowRoll = settings != null && settings.allowRoll;
+        for (int i = 0; i < res.Count; i++) {
+            var onIntersection = (i == 0 && startIntersection != null) || (i == res.Count - 1 && endIntersection != null);
+            var r = ClampRotation(res[i]);
+            var yaw = onIntersection ? ClampIntersectionYaw(r.X) : r.X;
+            res[i] = new Vector2(allowYaw ? yaw : 0.0f, allowRoll ? r.Y : 0.0f);
+        }
+        return res;
+    }
+
+    int GetEndIndex(Intersection intersection) {
+        return startIntersection == intersection ? 0 : points.Count - 1;
+    }
+
+    //the roll of the end of the road on an intersection (degrees)
+    public float GetEndRoll(Intersection intersection) {
+        if (points.Count == 0 || !IsRollAllowed()) return 0.0f;
+        return ClampRotation(GetHandle(points[GetEndIndex(intersection)]).curveRotation).Y;
+    }
+
+    //the yaw of the end of the road on an intersection (degrees)
+    public float GetEndYaw(Intersection intersection) {
+        if (points.Count == 0 || !IsYawAllowed(GetEndIndex(intersection))) return 0.0f;
+        return ClampIntersectionYaw(GetHandle(points[GetEndIndex(intersection)]).curveRotation.X);
+    }
+
+    //the rotation of the curve at the point closest to the given one (from the rotations of the points)
+    Vector2 GetRotationNear(Vector3 point) {
+        if (points.Count < 2 || curvePoints.Count < 2) return GameEngine.Vector2.zero;
+        GeometryHelper.ClosestPointToCurve(point, curvePoints, out var minI);
+        if (minI < 0) return GameEngine.Vector2.zero;
+        var f = GeometryHelper.ClosestPointFactor(point, curvePoints[minI], curvePoints[minI + 1]);
+        var t = (minI + f) / (curvePoints.Count - 1.0f);
+        var positions = new List<Vector3>();
+        foreach (var p in points) positions.Add(GO.GetPosition(p));
+        var hermiteTension = state.Float("hermiteTension", 0.5f);
+        var subEq = state.Bool("subdivideEqually");
+        return GeometryHelper.GetValueOnCurve(positions[0], positions.GetRange(1, positions.Count - 2), positions[positions.Count - 1],
+            GetPointRotations(), t, Mathf.RoundToInt(minI + f), GetCurveType(), hermiteTension, subEq);
+    }
+
+    //the direction of the curve at a curve parameter (where it passes through a sample, around it)
+    Vector3 GetCurveDirection(float t) {
+        var n = curvePoints.Count;
+        var f = Mathf.Clamp(t, 0.0f, 1.0f) * (n - 1);
+        var k = Mathf.RoundToInt(f);
+        if (Mathf.Abs(f - k) < 0.001f) return curvePoints[Mathf.Min(k + 1, n - 1)] - curvePoints[Mathf.Max(k - 1, 0)];
+        var a = Mathf.Clamp(Mathf.FloorToInt(f), 0, n - 2);
+        return curvePoints[a + 1] - curvePoints[a];
+    }
+
+    //the handles show the rotation of the sections at the points, in the frame of the curve there
+    void OrientHandles() {
+        if (points.Count < 2 || curvePoints.Count < 2) return;
+        var positions = new List<Vector3>();
+        foreach (var p in points) positions.Add(GO.GetPosition(p));
+        var parameters = GeometryHelper.GetPointParameters(positions, GetCurveType(), state.Bool("subdivideEqually"));
+        var rotations = GetEffectiveRotations();
+        for (int i = 0; i < points.Count; i++) {
+            var handle = GetHandle(points[i]);
+            if (handle == null) continue;
+            handle.curveFrame = GeometryHelper.GetSectionFrame(GetCurveDirection(parameters[i]));
+            OrientHandle(handle, rotations[i]);
+        }
+    }
+
+    static void OrientHandle(Handle handle, Vector2 rotation) {
+        var orientation = (handle.curveFrame * GameEngine.Quaternion.Euler(0, rotation.X, rotation.Y)).Normalized();
+        handle.curveOrientation = orientation;
+        GO.SetRotation(handle, orientation);
+    }
+
+    //a handle rotated by the gizmo (in the frame of the curve) gives its yaw and roll to the point, without the pitch
+    public void ReadRotatedHandles() {
+        var target = GameEngine.Gizmo.GetMainTargetRoot();
+        if (target == null || !GodotObject.IsInstanceValid(target) || target.GetParent() != this) return;
+        for (int i = 0; i < points.Count; i++) {
+            var handle = GetHandle(points[i]);
+            if (handle == null || !handle.curveOrientation.HasValue) continue;
+            var rotation = GO.GetRotationQuaternion(handle);
+            if (rotation.AngleTo(handle.curveOrientation.Value) < 0.001f) continue; //the conversions make tiny differences
+            var euler = (handle.curveFrame.Inverse() * rotation).Normalized().GetEuler();
+            var cur = handle.curveRotation;
+            handle.curveRotation = ClampRotation(new Vector2(IsYawAllowed(i) ? Mathf.RadToDeg(euler.Y) : cur.X,
+                IsRollAllowed() ? Mathf.RadToDeg(euler.Z) : cur.Y));
+            var effective = GetEffectiveRotations()[i];
+            OrientHandle(handle, effective);
+        }
     }
 
     public void RemovePoint(bool force = false) {
@@ -176,8 +335,9 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         }
     }
 
-    //sets the control points to the given positions (used by undo/redo and when splitting the road)
-    public void RestorePoints(List<Vector3> positions) {
+    //sets the control points to the given positions and rotations (none: no rotation), used by undo/redo and when
+    //splitting the road
+    public void RestorePoints(List<Vector3> positions, List<Vector2> rotations = null) {
         //the old end points may end up in the middle, without the look and layer of the free road ends
         if (points.Count > 0) {
             ResetIntersectionPoint(points[0]);
@@ -197,6 +357,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         }
         for (int i = 0; i < positions.Count; i++) {
             GO.SetPosition(points[i], positions[i]);
+            var rotation = rotations != null && i < rotations.Count ? rotations[i] : GameEngine.Vector2.zero;
+            GetHandle(points[i]).curveRotation = ClampRotation(rotation);
         }
         generator.lr.enabled = activeSelf && points.Count > 0;
         MarkLastPoint();
@@ -224,6 +386,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             cps.Add(GO.GetPosition(points[i]));
         }
         end = GO.GetPosition(points[points.Count - 1]);
+        ReadRotatedHandles();
+        rots = GetPointRotations();
     }
 
     float GetLineLength() {
@@ -326,6 +490,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         generator.hasEndIntersection = endIntersection != null;
         generator.segments = GetSegments();
         generator.cps = new List<Vector3>(cps);
+        generator.cpRotations = GetEffectiveRotations();
         generator.start = start;
         generator.end = end;
         generator.valid = points.Count > 1;
@@ -341,18 +506,26 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
                 start + 2.0f / 3.0f * (cps[0] - start),
                 end + 2.0f / 3.0f * (cps[0] - end)
             };
+            var r = generator.cpRotations;
+            generator.cpRotations = new List<Vector2> { r[0], r[0] + 2.0f / 3.0f * (r[1] - r[0]), r[2] + 2.0f / 3.0f * (r[1] - r[2]), r[2] };
         }
 
         if (startIntersection != null) {
             var dir = curvePoints[1] - curvePoints[0];
             dir = new Vector3(dir[0], 0, dir[2]);
-            generator.start += GameEngine.Vector3.Normalize(dir) * startIntersection.sizes[startIntersection.roads.IndexOf(this)];
+            var index = startIntersection.roads.IndexOf(this);
+            generator.start += GameEngine.Vector3.Normalize(dir) * startIntersection.sizes[index];
+            var height = startIntersection.GetConnectionHeight(index);
+            if (height != 0) generator.start += GameEngine.Vector3.up * height;
             generator.startIntersectionCenter = GO.GetPosition(startIntersection.point);
         }
         if (endIntersection != null) {
             var dir = curvePoints[curvePoints.Count - 2] - curvePoints[curvePoints.Count - 1];
             dir = new Vector3(dir[0], 0, dir[2]);
-            generator.end += GameEngine.Vector3.Normalize(dir) * endIntersection.sizes[endIntersection.roads.IndexOf(this)];
+            var index = endIntersection.roads.IndexOf(this);
+            generator.end += GameEngine.Vector3.Normalize(dir) * endIntersection.sizes[index];
+            var height = endIntersection.GetConnectionHeight(index);
+            if (height != 0) generator.end += GameEngine.Vector3.up * height;
             generator.endIntersectionCenter = GO.GetPosition(endIntersection.point);
         }
 
@@ -371,6 +544,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         }
         anchorManager.Update(GO.GetObject(this), generator.sidePoints, startConns, endConns, centerLines);
         splitLine.MarkDirty();
+        OrientHandles();
+        EnlargeEndsOnIntersections();
 
         UpdateOlds();
     }
@@ -389,6 +564,10 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         for (int i = 0; i < cps.Count; i++) {
             if (!GeometryHelper.AreVectorsEqual(cps[i], old_cps[i])) return true;
         }
+        if (rots.Count != old_rots.Count) return true;
+        for (int i = 0; i < rots.Count; i++) {
+            if (rots[i] != old_rots[i]) return true;
+        }
         if (!GeometryHelper.AreVectorsEqual(start, old_start)) return true;
         if (!GeometryHelper.AreVectorsEqual(end, old_end)) return true;
         if (state.HasChanged()) return true;
@@ -398,6 +577,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
 
     void UpdateOlds() {
         old_cps = new List<Vector3>(cps);
+        old_rots = new List<Vector2>(rots);
         old_intersections = new List<Vector3>();
         if (startIntersection != null) old_intersections.Add(GO.GetPosition(startIntersection.point));
         if (endIntersection != null) old_intersections.Add(GO.GetPosition(endIntersection.point));
@@ -417,6 +597,16 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
 
     public float GetIntersectionAdd(Intersection intersection) {
         return intersection == startIntersection ? state.Float("startIntersectionAdd") : state.Float("endIntersectionAdd");
+    }
+
+    //the height of the end on an intersection relative to the intersection point (added to the automatic one if set)
+    public float GetConnectionHeight(Intersection intersection) {
+        return intersection == startIntersection ? instanceState.Float("startConnectionHeight") : instanceState.Float("endConnectionHeight");
+    }
+
+    //whether the end on an intersection takes the height of the other roads there
+    public bool IsConnectionHeightAuto(Intersection intersection) {
+        return intersection == startIntersection ? instanceState.Bool("startConnectionHeightAuto") : instanceState.Bool("endConnectionHeightAuto");
     }
 
     public void UpdateLine() {

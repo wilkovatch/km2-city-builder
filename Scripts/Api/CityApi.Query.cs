@@ -183,9 +183,14 @@ namespace Api {
                     try { width = road.GetStandardFloat("totalWidth"); } catch (System.Exception) { }
                     return new {
                         points,
+                        pointRotations = road.GetPointRotations(), //[yaw, roll] as set
+                        effectivePointRotations = road.GetEffectiveRotations(), //as used by the geometry
                         curve = road.curvePoints,
                         startIntersection = road.startIntersection != null ? IdOf(road.startIntersection) : (int?)null,
                         endIntersection = road.endIntersection != null ? IdOf(road.endIntersection) : (int?)null,
+                        //of the ends on the intersections relative to their points (the automatic ones included)
+                        startConnectionHeight = road.startIntersection?.GetConnectionHeight(road.startIntersection.roads.IndexOf(road)),
+                        endConnectionHeight = road.endIntersection?.GetConnectionHeight(road.endIntersection.roads.IndexOf(road)),
                         totalWidth = width,
                         anchors = AnchorsOf(road.anchorManager),
                         props = Operations.Roads.GetPropContainerNames(road),

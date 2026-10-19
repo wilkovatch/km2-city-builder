@@ -1427,6 +1427,12 @@ public partial class CityBuilderMenuBar : Control {
     void EditCurSelectedObjectTransform() {
         var obj = GetCurSelectedObject();
         if (obj == null || transformPropertiesEditorPanel.ActiveSelf()) return;
+        var roadEnd = GetEditedRoadEnd(obj);
+        if (roadEnd != null) {
+            gizmo.ClearTargets();
+            gizmo.AddTarget(roadEnd);
+            obj = roadEnd;
+        }
         var ownerPanel = GS.Cast<Handle>(obj) != null ? GetActivePanel() : null;
         if (ownerPanel != null) {
             //control point: hide the editor of its element instead of closing it,
@@ -1442,6 +1448,18 @@ public partial class CityBuilderMenuBar : Control {
         }
         transformPropertiesEditorPanel.instance = obj;
         transformPropertiesEditorPanel.SetActive(true);
+    }
+
+    //the end of the road being edited on the intersection whose point is given (null if it isn't one): it is edited
+    //instead of the intersection point, and the intersection follows it
+    Node3D GetEditedRoadEnd(Node3D obj) {
+        var component = GS.FindRecursive<Intersection.IntersectionComponent>(obj);
+        if (component == null || GO.GetParent(component) != obj) return null;
+        var road = (GetActivePanel() as EditorPanels.RoadEditorPanel)?.GetUndoTarget() as Road;
+        if (road == null || road.points.Count == 0) return null;
+        if (road.startIntersection == component.intersection) return road.points[0];
+        if (road.endIntersection == component.intersection) return road.points[road.points.Count - 1];
+        return null;
     }
 
     //called by the transform panel before returning to (or terminating) the editor owning the control point

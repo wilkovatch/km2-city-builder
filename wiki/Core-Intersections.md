@@ -21,7 +21,7 @@ intersections/<type>/
 
 ## Size and placement
 
-The program computes how far each road stops from the center so that the road edges do not overlap (using the `totalWidth` getter of the roads), then adds the road's crosswalk size, its intersection size increase and the intersection's `sizeIncrease`. Roads are sorted clockwise around the center; for each pair (I, J) of consecutive roads, the junction of type `<type of I>_<type of J>` is used.
+The program computes how far each road stops from the center so that the road edges do not overlap (using the `totalWidth` getter of the roads, the width on the ground for a banked end; the end of a road can also be skewed by its yaw, and raised by its connection height), then adds the road's crosswalk size, its intersection size increase and the intersection's `sizeIncrease`. Roads are sorted clockwise around the center; for each pair (I, J) of consecutive roads, the junction of type `<type of I>_<type of J>` is used.
 
 ## `parameters.json`
 

@@ -14,7 +14,7 @@ The classes in `Scripts/IO` save and load cities, export them for the core expor
 | `heightMap` | Terrain heights: raw bytes from `GameEngine.Terrain.GetHeightBytes`, Deflate-compressed, Base64-encoded (empty for a new city). |
 | `cityProperties` | State of the city properties. |
 | `meshes` | Mesh instances: `id`, `name`, `mesh` (relative path), `settings`, `position`, `scale`, `rotation`. |
-| `roads` | `id`, `name`, `state`, `instanceState`, control `points`, `startIntersectionId`, `endIntersectionId` (-1 if none). |
+| `roads` | `id`, `name`, `state`, `instanceState`, control `points`, `pointRotations` (yaw and roll of each point in degrees, missing when they are all zero), `startIntersectionId`, `endIntersectionId` (-1 if none). |
 | `intersections` | `id`, `name`, `roads` (road ids), `center`, `state`, `instanceState`. |
 | `terrainPoints` | Every terrain point, with what it is anchored to: `linkType` (`None`, `Point`: an anchor of a road or intersection, `Line`: a point on a link between two terrain points), `elementType` + `elementId` + `anchorIndex` to find the anchor, `percent` for line links, and the `dividing` flag. |
 | `terrainPatches` | `id`, `name`, `state`, perimeter and internal point ids, `borderMeshes` (state, instance state, segment point ids). |

@@ -435,7 +435,13 @@ namespace History {
         }
 
         public static void TouchOwner(Node3D node) {
-            Touch(ResolveOwner(node));
+            var owner = ResolveOwner(node);
+            Touch(owner);
+            //the end of a road on an intersection moves the intersection too
+            if (owner is Road road && road.points.Count > 0) {
+                if (road.points[0] == node) Touch(road.startIntersection);
+                if (road.points[road.points.Count - 1] == node) Touch(road.endIntersection);
+            }
         }
 
         public static void NotifyCreated(object element, int id) {

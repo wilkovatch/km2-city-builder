@@ -119,6 +119,19 @@ namespace Api {
             });
         }
 
+        [ApiMethod("roads.setPointRotation", "Sets the yaw (around the vertical axis, positive to the right) and the roll (banking, positive raises the right side) of the sections at a control point, in degrees relative to the direction of the curve (up to 75). The values not given are kept. They are stored even where they have no effect: an axis the road type doesn't allow, the yaw of an end on an intersection")]
+        public object SetRoadPointRotation(ElementRef road, int index, float? yaw = null, float? roll = null) {
+            return ApplyChange("rotate road point", () => {
+                var r = Resolve<Road>(road, "road");
+                if (index < 0 || index >= r.points.Count) throw ApiException.NotFound("point " + index);
+                var cur = r.GetPointRotations()[index];
+                r.SetPointRotation(index, new Vector2(yaw ?? cur.X, roll ?? cur.Y));
+                var set = r.GetPointRotations()[index];
+                var effective = r.GetEffectiveRotations()[index];
+                return new { yaw = set.X, roll = set.Y, effectiveYaw = effective.X, effectiveRoll = effective.Y };
+            });
+        }
+
         [ApiMethod("roads.removePoint", "Removes a control point (the road must keep two), or the last one if no index is given (detaching the road from its end intersection, the road is deleted if it is left with one point)")]
         public object RemoveRoadPoint(ElementRef road, int? index = null) {
             return ApplyChange("remove road point", () => {

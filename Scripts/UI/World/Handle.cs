@@ -13,6 +13,13 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
 
     public bool hideIfUnusedMode = false;
     public bool hideIfUnusedShow = false;
+
+    //road control points: the yaw (x) and roll (y) of the sections in degrees, relative to the direction of the curve
+    public Vector2 curveRotation = Vector2.Zero;
+    //the frame of the curve at the point and the rotation the road gave the handle (program coordinates), to tell when
+    //the gizmo rotated it
+    public Quaternion curveFrame = Quaternion.Identity;
+    public Quaternion? curveOrientation = null;
     MeshInstance3D meshInstance;
     CollisionShape3D collisionShape;
 
@@ -78,6 +85,14 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
     public void SetScale(Vector3 scale) {
         this.scale = scale;
         transformChanged = true;
+    }
+
+    public Vector3 HandleScale => scale;
+
+    //shown and clickable (see SetHandleActive)
+    public bool IsHandleActive() {
+        if (collisionShape == null) collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
+        return collisionShape == null || !collisionShape.Disabled;
     }
 
     //the camera position and frustum are shared by all the handles, they are read once per frame (in Godot coordinates)

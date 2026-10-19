@@ -21,7 +21,15 @@ public partial class IntersectionGenerator : PhysicsScriptable {
     List<Vector3> roadCenters2 = new List<Vector3>();
     List<Vector3> roadCentersPlusDir = new List<Vector3>();
     List<Vector3> roadLefts = new List<Vector3>();
+    List<Vector3> roadLeftDirections = new List<Vector3>(); //normalized and horizontal
+    List<float> roadBankSlopes = new List<float>(); //height per meter to the left, where the end of the road is rolled
+    List<float> roadGroundScales = new List<float>(); //of the widths of the roads (a rolled end is narrower on the ground)
+    List<float> roadHeights = new List<float>(); //of the road ends relative to the point
+    List<float> roadYaws = new List<float>(); //of the road ends (degrees), their mouths are skewed
+    List<float> roadThroughRolls = new List<float>(); //of a road through the intersection, with its right vector to the left
+    List<Vector3> roadPlaneNormals = new List<Vector3>(); //of the planes along the roads
     List<Vector3> upFactors2 = new List<Vector3>();
+    List<List<Vector2>> throughRotations = new List<List<Vector2>>(); //of the sections of the roads through, as their directions
     public List<int> sortOrder;
     int curSubRoad = -1;
     int lastSubRoad = -1;
@@ -175,6 +183,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
     public void RebuildMesh(List<GameObject> roadsThrough, List<List<Vector3>> throughDirections, bool isThroughRoad, List<int> startRoads, int endRoad) {
         Clear();
         curType = GetIntersectionType();
+        foreach (var directions in throughDirections) throughRotations.Add(new List<Vector2>());
         CalculateVerticesAndCenters();
         var pointCenter = GO.GetPosition(parentIntersection.point);
         sortOrder = GeometryHelper.SortClockwise(roadCenters, pointCenter);
@@ -200,7 +209,15 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         roadCenters2.Clear();
         roadCentersPlusDir.Clear();
         roadLefts.Clear();
+        roadLeftDirections.Clear();
+        roadBankSlopes.Clear();
+        roadGroundScales.Clear();
+        roadHeights.Clear();
+        roadYaws.Clear();
+        roadThroughRolls.Clear();
+        roadPlaneNormals.Clear();
         upFactors2.Clear();
+        throughRotations.Clear();
         curSubRoad = -1;
         lastSubRoad = -1;
         lastI = -1;
@@ -222,8 +239,18 @@ public partial class IntersectionGenerator : PhysicsScriptable {
 
         //calculate road and crosswalk vertices and get road centers (for sidewalk vertices)
         for (int i = 0; i < roads.Count; i++) {
-            var dir = GameEngine.Vector3.Normalize(parentIntersection.GetDirectionToCenter(roads[i], pointCenter));
-            var left = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up)) * 0.5f;
+            //a rolled road end is narrower on the ground, and its vertices are moved vertically only, along its slope; a
+            //yawed one is skewed (see Intersection.GetMouth)
+            var mouth = parentIntersection.GetMouth(roads[i], pointCenter);
+            var dir = mouth.dir;
+            roadLeftDirections.Add(mouth.leftDir);
+            roadBankSlopes.Add(mouth.slope);
+            roadGroundScales.Add(mouth.groundScale);
+            roadHeights.Add(parentIntersection.GetConnectionHeight(i));
+            roadYaws.Add(mouth.yaw * GameEngine.Math.rad2deg);
+            roadThroughRolls.Add(mouth.throughRoll);
+            var left = mouth.left;
+            roadPlaneNormals.Add(mouth.yaw == 0 ? left : mouth.leftDir);
             var upFactor2 = GameEngine.Vector3.up * roads[i].GetStandardFloat("height");
             var leftFactor = left * roads[i].GetStandardFloat("roadWidth");
             var roadCenter = pointCenter - dir * sizes[i];
@@ -236,13 +263,48 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             upFactors2.Add(upFactor2);
             if (roads[i].GetCrosswalkSize(parentIntersection) > 0) {
                 var thisCrosswalkVertices = new List<Vector3>();
-                thisCrosswalkVertices.Add(roadCenter + leftFactor - upFactor2);
-                thisCrosswalkVertices.Add(roadCenter2 + leftFactor - upFactor2);
-                thisCrosswalkVertices.Add(roadCenter - leftFactor - upFactor2);
-                thisCrosswalkVertices.Add(roadCenter2 - leftFactor - upFactor2);
+                thisCrosswalkVertices.Add(Bank(i, roadCenter + leftFactor - upFactor2));
+                thisCrosswalkVertices.Add(Bank(i, roadCenter2 + leftFactor - upFactor2));
+                thisCrosswalkVertices.Add(Bank(i, roadCenter - leftFactor - upFactor2));
+                thisCrosswalkVertices.Add(Bank(i, roadCenter2 - leftFactor - upFactor2));
                 genState.crosswalkVertices.Add(thisCrosswalkVertices);
             }
         }
+    }
+
+    //the height of a point near the end of a road: its connection height, plus its offset from the center line along
+    //the slope where the end is rolled
+    float BankHeight(int road, Vector3 point) {
+        if (roadBankSlopes[road] == 0) return roadHeights[road];
+        return roadHeights[road] + roadBankSlopes[road] * GameEngine.Vector3.Dot(point - roadCenters[road], roadLeftDirections[road]);
+    }
+
+    Vector3 Bank(int road, Vector3 point) {
+        if (roadBankSlopes[road] == 0 && roadHeights[road] == 0) return point;
+        return point + GameEngine.Vector3.up * BankHeight(road, point);
+    }
+
+    //the rotation (yaw, roll) of a road through the intersection at the end of a road, with its right vector to the left
+    //(toward the center) or to the right (away from it) of the road there
+    Vector2 GetThroughRotation(int road, bool rightToTheLeft) {
+        var roll = roadThroughRolls[road];
+        return new Vector2(roadYaws[road], rightToTheLeft ? roll : -roll);
+    }
+
+    //the direction along the mouth of a road of one of its section vertices (with the length of the mouth per unit of width)
+    Vector3 MouthDirection(int road, Vector3 vertexOffset) {
+        if (roadYaws[road] == 0) return GameEngine.Vector3.Normalize(vertexOffset) * roadGroundScales[road];
+        var sign = GameEngine.Vector3.Dot(vertexOffset, roadLeftDirections[road]) < 0 ? -1 : 1;
+        return roadLefts[road] * (2.0f * sign);
+    }
+
+    //the offset across a road through the intersection, from the side to the left of its direction: rolled (the width
+    //on the ground is narrower, the far side higher or lower) and yawed (skewed along the direction)
+    static Vector3 ThroughOffset(float width, Vector3 dir, Vector3 left, float yaw, float roll) {
+        var rollRad = roll * GameEngine.Math.deg2rad;
+        var yawRad = yaw * GameEngine.Math.deg2rad;
+        var horizontal = (left + GameEngine.Vector3.Normalize(dir) * Mathf.Tan(yawRad)) * (width * Mathf.Cos(rollRad));
+        return -horizontal + GameEngine.Vector3.up * (width * Mathf.Sin(rollRad) / Mathf.Cos(yawRad));
     }
 
     void RebuildRoadsThrough(List<GameObject> roadsThrough, List<List<Vector3>> throughDirections, bool isThroughRoad, List<int> startRoads, int endRoad) {
@@ -251,14 +313,17 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             var roadGen = GS.FindRecursive<RoadGenerator>(roadThrough);
             if (throughDirections[i].Count == 0) {
                 roadGen.segments = 2;
-                roadGen.start = roadCenters2[startRoads[i]];
-                roadGen.end = roadCenters2[endRoad];
+                roadGen.start = Bank(startRoads[i], roadCenters2[startRoads[i]]);
+                roadGen.end = Bank(endRoad, roadCenters2[endRoad]);
                 roadGen.valid = true;
                 var dir1 = GameEngine.Vector3.Normalize(roadCentersPlusDir[startRoads[i]] - roadCenters[startRoads[i]]);
                 var dir2 = GameEngine.Vector3.Normalize(roadCenters[endRoad] - roadCentersPlusDir[endRoad]);
                 throughDirections[i].AddRange(new List<Vector3>() { dir1, dir2 });
+                throughRotations[i].Clear();
+                throughRotations[i].Add(GetThroughRotation(startRoads[i], true));
+                throughRotations[i].Add(GetThroughRotation(endRoad, false));
             }
-            roadGen.Rebuild(throughDirections[i]);
+            roadGen.Rebuild(throughDirections[i], throughRotations[i]);
         }
     }
 
@@ -351,7 +416,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         var leftJRoad = leftJs[junction.typeData.roadSplineVertex];
 
         //find out if the spline is self intersecting (at least the case where the total intersection size increase of any road is negative)
-        var planeSW = GameEngine.Plane.Create(roadLefts[trueI], centerI);
+        var planeSW = GameEngine.Plane.Create(roadPlaneNormals[trueI], centerI);
         var d0 = GameEngine.Plane.DistanceToPoint(planeSW, centerI + leftIs[0] * GeometryHelper.epsilon);
         var d1 = GameEngine.Plane.DistanceToPoint(planeSW, centerJ - leftJs[0] * GeometryHelper.epsilon);
         var convex = GameEngine.Math.Sign(d0) != GameEngine.Math.Sign(d1);
@@ -390,16 +455,16 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         var thisGroundHeights = new List<float>();
 
         foreach (var sv in leftIs) {
-            thisSidewalk.Add(centerI + sv);
+            thisSidewalk.Add(Bank(trueI, centerI + sv));
         }
         foreach (var sv in leftIs) {
-            thisSidewalk.Add(centerI2 + sv);
+            thisSidewalk.Add(Bank(trueI, centerI2 + sv));
         }
 
         thisGroundHeights.Add(upFactors2[trueI][1]);
         thisGroundHeights.Add(upFactors2[trueI][1]);
-        var ILeftPoint = centerI2 + leftIRoad - upFactors2[trueI];
-        var IRightPoint = centerI2 - leftIRoad - upFactors2[trueI];
+        var ILeftPoint = Bank(trueI, centerI2 + leftIRoad - upFactors2[trueI]);
+        var IRightPoint = Bank(trueI, centerI2 - leftIRoad - upFactors2[trueI]);
 
         var startIndex = startRoads.Contains(trueI) ? trueI : startRoads.Contains(trueJ) ? trueJ : -1;
         var indexInList = startRoads.IndexOf(startIndex);
@@ -415,8 +480,9 @@ public partial class IntersectionGenerator : PhysicsScriptable {
                 } else {
                     var dir1 = GameEngine.Vector3.Normalize(roadCentersPlusDir[trueI] - roadCenters[trueI]);
                     throughDirections[indexInList].Add(dir1);
-                    var throughStart = roadCenters2[startIndex];
-                    var throughEnd = roadCenters2[endRoad] + roadLefts[endRoad] * roads[startIndex].instanceState.Float("intersectionMove");
+                    throughRotations[indexInList].Add(GetThroughRotation(trueI, true));
+                    var throughStart = Bank(startIndex, roadCenters2[startIndex]);
+                    var throughEnd = Bank(endRoad, roadCenters2[endRoad] + roadLefts[endRoad] * roads[startIndex].instanceState.Float("intersectionMove"));
                     throughComp.start = startIndex == trueI ? throughStart : throughEnd;
                     throughComp.end = startIndex == trueI ? throughEnd : throughStart;
                 }
@@ -425,8 +491,8 @@ public partial class IntersectionGenerator : PhysicsScriptable {
 
         List<Vector3> roadThroughSegment = null;
         if (isThroughRoad && IsMainRoad && indexInList != -1) {
-            var move = isEnd ? (GameEngine.Vector3.Normalize(leftIRoad) * (roadJ.instanceState.Float("intersectionMove") - throughWidth) * 0.5f) : GameEngine.Vector3.zero;
-            var firstPoint = isEnd ? (centerI2 + move - upFactors2[trueI]) : IRightPoint;
+            var move = isEnd ? (MouthDirection(trueI, leftIRoad) * (roadJ.instanceState.Float("intersectionMove") - throughWidth) * 0.5f) : GameEngine.Vector3.zero;
+            var firstPoint = isEnd ? Bank(trueI, centerI2 + move - upFactors2[trueI]) : IRightPoint;
             roadThroughSegment = new List<Vector3>() { firstPoint };
         }
 
@@ -462,9 +528,15 @@ public partial class IntersectionGenerator : PhysicsScriptable {
                 sectionCenters.Add(sectionCenterK(vi, alpha));
             }
 
-            var centerInsideK = sectionCenters[junction.typeData.roadSplineVertex];
+            var centerInsideKFlat = sectionCenters[junction.typeData.roadSplineVertex];
             var centerInsideKPlus = sectionCenterK(junction.typeData.roadSplineVertex, alpha + GeometryHelper.epsilon);
-            var centerInsideKDir = GameEngine.Vector3.Normalize(centerInsideKPlus - centerInsideK);
+            var centerInsideKDir = GameEngine.Vector3.Normalize(centerInsideKPlus - centerInsideKFlat);
+            for (int vi = 0; vi < leftIs.Count; vi++) {
+                var heightI = BankHeight(trueI, centerI2 + leftIs[vi]);
+                var heightJ = BankHeight(trueJ, centerJ2 - leftJs[vi]);
+                if (heightI != 0 || heightJ != 0) sectionCenters[vi] += GameEngine.Vector3.up * Mathf.Lerp(heightI, heightJ, alpha);
+            }
+            var centerInsideK = sectionCenters[junction.typeData.roadSplineVertex];
             var centerInsideKLeft = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(centerInsideKDir, GameEngine.Vector3.up));
             var upFactor2K = GameEngine.Vector3.Lerp(upFactors2[trueI], upFactors2[trueJ], alpha);
             var centerInsideKGround = centerInsideK - upFactor2K;
@@ -474,21 +546,69 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             sidewalkRoadSegment.Add(centerInsideKGround);
 
             if (isThroughRoad && IsMainRoad && indexInList != -1) {
-                var throughCenter = centerInsideK - throughWidth * 0.5f * centerInsideKLeft;
                 if (sameMainRoad) {
+                    //the road through spans from this corner to the one on the other side, rolled if they are at different heights
                     var t = throughComp.cps.Count - 1;
                     var throughCenter_Other = throughComp.cps[t - (k - 1)];
                     var centerInsideKDir_Other = throughDirections[indexInList][2 + t - k];
+                    var rotation_Other = throughRotations[indexInList][2 + t - k];
+                    var roll_Other = rotation_Other[1] * GameEngine.Math.deg2rad;
                     var centerInsideKLeft_Other = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(centerInsideKDir_Other, GameEngine.Vector3.up));
-                    var centerInsideK_Other = throughCenter_Other + throughWidth * 0.5f * centerInsideKLeft_Other;
+                    Vector3 centerInsideK_Other;
+                    if (rotation_Other[0] != 0) {
+                        centerInsideK_Other = throughCenter_Other - ThroughOffset(throughWidth, centerInsideKDir_Other, centerInsideKLeft_Other, rotation_Other[0], rotation_Other[1]) * 0.5f;
+                    } else {
+                        var otherOffset = roll_Other == 0 ? centerInsideKLeft_Other
+                            : centerInsideKLeft_Other * Mathf.Cos(roll_Other) - GameEngine.Vector3.up * Mathf.Sin(roll_Other);
+                        centerInsideK_Other = throughCenter_Other + throughWidth * 0.5f * otherOffset;
+                    }
                     throughComp.cps[t - (k - 1)] = (centerInsideK + centerInsideK_Other) * 0.5f;
-                    var mult = GameEngine.Vector3.Magnitude(centerInsideK - centerInsideK_Other) / throughWidth;
-                    throughDirections[indexInList][2 + t - k] = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(centerInsideK - centerInsideK_Other, GameEngine.Vector3.up)) * mult;
+                    var span = centerInsideK - centerInsideK_Other;
+                    var mult = GameEngine.Vector3.Magnitude(span) / throughWidth;
+                    var spanDirection = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(span, GameEngine.Vector3.up)) * mult;
+                    var flatSpan = Mathf.Sqrt(span[0] * span[0] + span[2] * span[2]);
+                    var spanRoll = Mathf.Abs(span[1]) < GeometryHelper.epsilon ? 0.0f : Mathf.Atan2(span[1], flatSpan) * GameEngine.Math.rad2deg;
+                    var spanYaw = 0.0f;
+                    if (roadYaws[trueI] != 0 || roadYaws[trueJ] != 0) {
+                        //between skewed mouths the span is skewed too: the direction follows the two sides (this one runs
+                        //the other way) and the yaw turns the section onto the span, keeping the edges on the sides
+                        var travel = GameEngine.Vector3.Normalize(centerInsideKDir_Other) - centerInsideKDir;
+                        travel = new Vector3(travel[0], 0, travel[2]);
+                        if (GameEngine.Vector3.SqrMagnitude(travel) > GeometryHelper.epsilon) {
+                            travel = GameEngine.Vector3.Normalize(travel);
+                            var sectionRight = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(travel, GameEngine.Vector3.up));
+                            var spanRight = -GameEngine.Vector3.Normalize(new Vector3(span[0], 0, span[2]));
+                            var yawCos = GameEngine.Vector3.Dot(spanRight, sectionRight);
+                            if (yawCos > Mathf.Cos(GeometryHelper.MaxSectionYaw * GameEngine.Math.deg2rad)) {
+                                spanYaw = Mathf.Atan2(GameEngine.Vector3.Dot(spanRight, travel), yawCos) * GameEngine.Math.rad2deg;
+                                spanDirection = travel * (mult * yawCos);
+                            }
+                        }
+                    }
+                    throughDirections[indexInList][2 + t - k] = spanDirection;
+                    throughRotations[indexInList][2 + t - k] = new Vector2(spanYaw, spanRoll);
                 } else {
+                    //the rotation blends from the one of road I to the one of road J, and so does the width on the ground
+                    var throughRotation = GetThroughRotation(trueI, true).Lerp(GetThroughRotation(trueJ, false), alpha);
+                    var throughRoll = throughRotation[1];
+                    var throughYaw = throughRotation[0];
+                    var throughCenter = centerInsideK - throughWidth * 0.5f * centerInsideKLeft;
+                    var segmentPoint = centerInsideKGround - throughWidth * centerInsideKLeft;
+                    if (throughYaw != 0) {
+                        var offset = ThroughOffset(throughWidth, centerInsideKDir, centerInsideKLeft, throughYaw, throughRoll);
+                        throughCenter = centerInsideK + offset * 0.5f;
+                        segmentPoint = centerInsideKGround + offset;
+                    } else if (throughRoll != 0) {
+                        var rollRad = throughRoll * GameEngine.Math.deg2rad;
+                        var groundWidth = throughWidth * Mathf.Cos(rollRad);
+                        var rise = throughWidth * Mathf.Sin(rollRad);
+                        throughCenter = centerInsideK - groundWidth * 0.5f * centerInsideKLeft + GameEngine.Vector3.up * (rise * 0.5f);
+                        segmentPoint = centerInsideKGround - groundWidth * centerInsideKLeft + GameEngine.Vector3.up * rise;
+                    }
                     throughComp.cps.Add(throughCenter);
                     throughDirections[indexInList].Add(centerInsideKDir);
-                    var mult = isEnd ? 1 : 1;
-                    roadThroughSegment.Add(centerInsideKGround - throughWidth * centerInsideKLeft * mult);
+                    throughRotations[indexInList].Add(new Vector2(throughYaw, throughRoll));
+                    roadThroughSegment.Add(segmentPoint);
                 }
             }
         }
@@ -497,27 +617,30 @@ public partial class IntersectionGenerator : PhysicsScriptable {
                 var dir2 = GameEngine.Vector3.Normalize(roadCenters[trueJ] - roadCentersPlusDir[trueJ]);
                 throughComp.segments = thisSidewalkSegments + 1;
                 throughDirections[indexInList].Add(dir2);
+                throughRotations[indexInList].Add(GetThroughRotation(trueJ, false));
             }
         }
 
         foreach (var sv in leftJs) {
-            thisSidewalk.Add(centerJ2 - sv);
+            thisSidewalk.Add(Bank(trueJ, centerJ2 - sv));
         }
         foreach (var sv in leftJs) {
-            thisSidewalk.Add(centerJ - sv);
+            thisSidewalk.Add(Bank(trueJ, centerJ - sv));
         }
 
         thisGroundHeights.Add(upFactors2[trueJ][1]);
         thisGroundHeights.Add(upFactors2[trueJ][1]);
 
-        var JLeftPoint = centerJ2 - leftJRoad - upFactors2[trueJ];
+        var JLeftPoint = Bank(trueJ, centerJ2 - leftJRoad - upFactors2[trueJ]);
         sidewalkRoadSegment.Add(JLeftPoint);
 
         genState.sidewalkVertices.Add(thisSidewalk);
         genState.groundHeights.Add(thisGroundHeights);
         if (roadThroughSegment != null) {
-            var move = GameEngine.Vector3.Normalize(leftJRoad) * (throughWidth * 0.5f);
-            roadThroughSegment.Add((isEnd ? (centerJ2) : throughComp.end) + move - upFactors2[trueJ]);
+            var move = MouthDirection(trueJ, leftJRoad) * (throughWidth * 0.5f);
+            //the end of the road through is already raised: from its flat position
+            var throughEndFlat = isEnd ? centerJ2 : throughComp.end - GameEngine.Vector3.up * BankHeight(trueJ, throughComp.end);
+            roadThroughSegment.Add(Bank(trueJ, throughEndFlat + move - upFactors2[trueJ]));
         }
 
         // Road patch
@@ -526,7 +649,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         var LastIIsRoadStart = startRoads.Contains(lastI);
         var drawingBetweenRoads = JIsRoadStart && (IIsRoadStart || LastIIsRoadStart) && trueI != endRoad;
         var drawnAlongRoad = false;
-        var plane = GameEngine.Plane.Create(roadLefts[trueI], roadCenters[trueI]);
+        var plane = GameEngine.Plane.Create(roadPlaneNormals[trueI], roadCenters[trueI]);
         genState.planes.Add(plane);
 
         if (texI == "") {

@@ -13,8 +13,10 @@ public class RoadLikeGenerator<T> {
     public List<Vector3> curvePoints = new List<Vector3>();
     public List<Vector3> curveDirections = new List<Vector3>();
     public List<Vector3> curveRightVectors = new List<Vector3>();
+    public List<Vector3> curveUpVectors = new List<Vector3>(); //optional (world up when missing)
     public List<float> groundHeights = new List<float>();
     public List<Vector3> sectionRights = new List<Vector3>();
+    public List<Vector3> sectionUps = new List<Vector3>(); //optional (world up when missing)
     public List<Vector3[]> sectionVertices = new List<Vector3[]>();
     public RC.VariableContainer variableContainer;
 
@@ -65,7 +67,9 @@ public class RoadLikeGenerator<T> {
         curvePoints.Clear();
         curveDirections.Clear();
         curveRightVectors.Clear();
+        curveUpVectors.Clear();
         sectionRights.Clear();
+        sectionUps.Clear();
         sectionVertices.Clear();
         groundHeights.Clear();
     }
@@ -78,21 +82,29 @@ public class RoadLikeGenerator<T> {
         curvePoints.Clear();
         curveDirections.Clear();
         curveRightVectors.Clear();
+        curveUpVectors.Clear();
         sectionRights.Clear();
+        sectionUps.Clear();
         sectionVertices.Clear();
         groundHeights.Clear();
     }
 
     public void InitBaseSectionsInfo() {
-        if (sectionVertices.Count == 0) curType.FillInitialSegmentVariables(variableContainer, GameEngine.Vector3.zero, GameEngine.Vector3.zero, new Vector3[0], new Vector3[0]);
-        else curType.FillInitialSegmentVariables(variableContainer, sectionRights[0], sectionRights[sectionRights.Count - 1], sectionVertices[0], sectionVertices[sectionVertices.Count - 1]);
+        if (sectionVertices.Count == 0) curType.FillInitialSegmentVariables(variableContainer, GameEngine.Vector3.zero, GameEngine.Vector3.zero,
+            GameEngine.Vector3.up, GameEngine.Vector3.up, new Vector3[0], new Vector3[0]);
+        else curType.FillInitialSegmentVariables(variableContainer, sectionRights[0], sectionRights[sectionRights.Count - 1],
+            GetSectionUp(0), GetSectionUp(sectionRights.Count - 1), sectionVertices[0], sectionVertices[sectionVertices.Count - 1]);
     }
 
     public void InitSection(int i) {
         if (i == 1) n = tempVertices.Count;
         var g = groundHeights != null && groundHeights.Count > i ? groundHeights[i] : 0.0f;
         curType.FillSegmentVariables(variableContainer, state, instanceState, curvePoints[i],
-            sectionRights[i], sectionMarkers[i], g, i + 1, sectionVertices[i], curvePoints, segments);
+            sectionRights[i], GetSectionUp(i), sectionMarkers[i], g, i + 1, sectionVertices[i], curvePoints, segments);
+    }
+
+    public Vector3 GetSectionUp(int i) {
+        return i < sectionUps.Count ? sectionUps[i] : GameEngine.Vector3.up;
     }
 
     public void AddSection(int i, List<List<Vector3>> sidePoints, int curAnchorLine = 0) {
@@ -140,7 +152,7 @@ public class RoadLikeGenerator<T> {
             }
 
             //start cap
-            curType.FillSegmentVariables(variableContainer, state, instanceState, curvePoints[0], sectionRights[0], sectionMarkers[0], 0, 1, sectionVertices[0], curvePoints, segments);
+            curType.FillSegmentVariables(variableContainer, state, instanceState, curvePoints[0], sectionRights[0], GetSectionUp(0), sectionMarkers[0], 0, 1, sectionVertices[0], curvePoints, segments);
             for (int c = 0; c < components.Length; c++) {
                 var comp = components[c];
                 var compMesh = curType.componentMeshes[c];
@@ -197,8 +209,8 @@ public class RoadLikeGenerator<T> {
         var values = curType.segmentVerticesCalculators.GetValues(variableContainer);
         var res = new Vector3[values.Length];
         var pos = curvePoints[i];
-        var right = forcedRight ?? curveRightVectors[i];
-        right *= GameEngine.Vector3.Magnitude(curveRightVectors[i]);
+        //a forced right vector gives only the direction, the length (the width multiplier) is the one of the curve
+        var right = forcedRight.HasValue ? forcedRight.Value * GameEngine.Vector3.Magnitude(curveRightVectors[i]) : curveRightVectors[i];
         for (int j = 0; j < res.Length; j++) {
             res[j] = pos + right * values[j];
         }

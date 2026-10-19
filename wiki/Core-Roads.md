@@ -18,7 +18,7 @@ Terrain patch border meshes use exactly the same format (see [Core Terrain Patch
 
 ## How a road is generated
 
-1. The road curve is sampled into *sections* (one per segment boundary). For each section the program knows its center point, its direction and its `localRight` vector.
+1. The road curve is sampled into *sections* (one per segment boundary). For each section the program knows its center point, its direction and its `localRight` vector, rotated by the yaw and roll of the control points if the road has any (see [Rotated sections](#rotated-sections)).
 2. The `sectionVertices` expressions give lateral offsets; section vertex `v<n>` is placed at `center + localRight * offset<n>`. These are the reference points of the cross section (edges of sidewalks, road, divider...).
 3. Each **component** whose condition is true contributes a **cross-section** (a list of vertices, usually built from `v<n>`, heights and offsets) to every section, and faces that join each section to the previous one. Components can also have caps at the start and end of the road.
 4. Faces are assigned to textures through `facesTextures` and `texturesMapping`; each texture becomes one submesh.
@@ -30,6 +30,16 @@ Terrain patch border meshes use exactly the same format (see [Core Terrain Patch
 * `localRight` is `normalize(cross(direction, up))`. In a left-handed system this vector points to the **left** of the direction of travel, so negative section offsets are on the right side (the MM2 core uses `v0` for the right edge, with an offset of `-0.5*totalWidth`, and `v6` for the left edge).
 * Faces: a quad from vertex `j` to `j + 1` is visible from above when, looking along the direction of travel, vertex `j` is on the right and vertex `j + 1` on the left (that is, when the vertices are listed in increasing order of their offset along `localRight`). For vertical faces, think of the same rule rotated. If a face is invisible, swap the order of its two vertices.
 * Cap triangles (start/end meshes) are visible from the side where they are listed clockwise.
+
+### Rotated sections
+
+The control points of a road can rotate its sections: a **yaw** around the vertical axis (positive to the right) and then a **roll** around the horizontal direction of the road (positive raises the right side, the side of the negative offsets). The values of the points are blended along the curve as the curve blends the points. A rotated section has:
+
+* `localRight` rotated, and divided by the cosine of the yaw, so that the road keeps its width measured across it (the section vertices are farther apart along the skewed section).
+* `localUp` rotated by the roll, so the parts built with it (heights, curbs, walls) lean with the road. The sections at an end connected to an intersection, and the roads through intersections, keep `localUp` vertical, as the intersections move their vertices only vertically.
+* `localForward` rotated by the yaw (`cross(localUp, localRight)`).
+
+A core that builds every vertex from `v<n>`, `localRight` and `localUp` needs nothing else. A road type can disable either rotation with `allowYaw` and `allowRoll` (for example, when the target game can't handle banked roads). A rolled road can't be made coplanar section by section, so `makeCoplanar` has no effect on it.
 
 ## `settings.json`
 
@@ -58,6 +68,8 @@ Terrain patch border meshes use exactly the same format (see [Core Terrain Patch
 |---|---|---|
 | `sectionVertices` | yes | Float expression array: the lateral offsets of the section vertices `v0`, `v1`, ... |
 | `variableSections` | no | If true, the dynamic definitions are evaluated before computing each section's vertices, so offsets can vary along the road (by default they only use parameters and static definitions). |
+| `allowYaw` | no | Default true. If false, the yaw of the control points has no effect on roads of this type (see [Rotated sections](#rotated-sections)). |
+| `allowRoll` | no | Default true. If false, the roll of the control points has no effect on roads of this type. |
 | `anchors` | no | Vec3 expression array: one terrain anchor line per entry (evaluated at every section). Usually the outer edges of the road. Components can add more. Without anchors, terrain patches and building lines cannot snap to the road. |
 | `components` | yes | List of `{name, condition}`: the components of the road, in drawing order. The condition is a boolean expression evaluated per section; it can depend on dynamic variables. |
 | `textures` | yes | List of texture *names*: each entry is the name of a parameter (or state property) holding a texture path, or a built-in material (`_TRANSPARENT_`). One submesh per entry. |
@@ -89,7 +101,7 @@ A getter that is missing, or points to a missing definition, logs a warning once
 
 ### Built-in parameters
 
-Besides the core's parameters, every road has these built-in state properties (edited in `mainGroup` and `intersectionGroup`): `type`, `segments`, `segmentsPer100m`, `project`, `projectAll`, `lpf` (smoothing), `makeCoplanar`, `pointPlaneTreshold`, `adjustLowPolyWidth`, `curveType` (0 Bézier, 1 Hermite, 2 low-poly), `subdivideEqually`, `hermiteTension`, `startCrosswalkSize`, `endCrosswalkSize`, `startIntersectionAdd`, `endIntersectionAdd`, `startIntersectionTexture`, `endIntersectionTexture`, `propRule`; and in the instance state `startIntersectionStart`, `startIntersectionEnd`, `endIntersectionStart`, `endIntersectionEnd`, `intersectionMove`. Preset values for them should be provided by the templates.
+Besides the core's parameters, every road has these built-in state properties (edited in `mainGroup` and `intersectionGroup`): `type`, `segments`, `segmentsPer100m`, `project`, `projectAll`, `lpf` (smoothing), `makeCoplanar`, `pointPlaneTreshold`, `adjustLowPolyWidth`, `curveType` (0 Bézier, 1 Hermite, 2 low-poly), `subdivideEqually`, `hermiteTension`, `startCrosswalkSize`, `endCrosswalkSize`, `startIntersectionAdd`, `endIntersectionAdd`, `startIntersectionTexture`, `endIntersectionTexture`, `propRule`; and in the instance state `startIntersectionStart`, `startIntersectionEnd`, `endIntersectionStart`, `endIntersectionEnd`, `intersectionMove`, `startConnectionHeight`, `endConnectionHeight`, `startConnectionHeightAuto`, `endConnectionHeightAuto`. Preset values for them should be provided by the templates.
 
 ## Built-in variables
 
@@ -108,7 +120,7 @@ Available in every expression of a road type, in addition to its parameters and 
 | `startDir`, `endDir` | vec3 | always | Direction of the curve at the start and at the end. |
 | `z` | float | per section | Distance of the section from the start of the road. |
 | `segment` | float | per section | Index of the section, from 1 to `segments`. |
-| `localUp`, `localRight`, `localForward` | vec3 | per section | Section frame. `localUp` is always `(0,1,0)`. |
+| `localUp`, `localRight`, `localForward` | vec3 | per section | Section frame. `localUp` is `(0,1,0)` unless the section is rolled (see [Rotated sections](#rotated-sections)). |
 | `v<n>` | vec3 | per section | Position of section vertex `n`. |
 | `x<n>` | float | per section | Distance of `v<n>` from the section center. |
 | `absX<n>`, `absY<n>`, `absZ<n>` | float | per section | World coordinates of `v<n>` (useful for world-aligned UVs). |

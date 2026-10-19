@@ -129,6 +129,21 @@ Points are kept on the ground by default. Hold Shift while placing them to snap 
 
 Select a point (or a mesh) and drag the gizmo, or press M and enter the new position by hand. To select more than one control point at a time, hold Ctrl while clicking (Ctrl-clicking a selected point unselects it).
 
+While a road is edited, its ends on intersections are shown as big points in place of the points of the intersections: moving one of them moves the intersection, and the other roads connected to it follow.
+
+### Rotating road sections
+
+The sections of a road are normally perpendicular to its curve and level. A control point can rotate them: select it, press M, and enter its *Yaw* and *Roll* in degrees (up to 75), or click *Rotate* and drag the gizmo, whose axes follow the direction of the road at the point (*Move* goes back to moving it).
+
+- *Yaw* turns the sections around the vertical axis (positive to the right). The road keeps its width, only its cut is skewed.
+- *Roll* banks the sections (positive raises the right side, looking along the road).
+
+The rotation blends along the curve from point to point, and a road type can disable either rotation (the MM2 PSDL roads can't be banked). At an intersection:
+
+- A yawed end is cut skewed, for example along the edge of a road crossing at an angle: the intersection keeps the edges of the road and moves its corners along them. The yaw of an end on an intersection is limited to 60 degrees.
+- A banked road counts as narrower (its width on the ground), and the intersection only moves its vertices up and down to follow it.
+- A road normally ends at the height of the intersection point. Its *Connection height* (in the *Inters.* tab of the road, for the start and the end) raises or lowers its end. With *Auto* the end takes the height of the other roads there (the plane through their ends, plus the value set): use it for a road joining a banked road, otherwise the intersection gets steep between them.
+
 ### Keyboard shortcuts
 
 | **Shortcut** | **Action** |

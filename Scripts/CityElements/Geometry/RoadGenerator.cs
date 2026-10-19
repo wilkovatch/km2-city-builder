@@ -55,6 +55,7 @@ public partial class RoadGenerator : PhysicsScriptable {
 
     int numMeshes;
     public List<Vector3> cps = new List<Vector3>();
+    public List<Vector2> cpRotations = null; //yaw and roll of start, cps and end (none: no rotation)
     public Vector3 start, end;
     public Vector3? startIntersectionCenter, endIntersectionCenter;
 
@@ -64,6 +65,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     public bool valid = false;
 
     float totalLength;
+    bool rolled; //some sections are rolled: they can't be made coplanar (a twisted road has no planar faces)
     float curLineSize = 0.1f;
     public int vertsPerSection;
 
@@ -178,9 +180,10 @@ public partial class RoadGenerator : PhysicsScriptable {
         return subGen.variableContainer.floatIndex.ContainsKey(name) || curType.boolDefinitions.ContainsKey(name);
     }
 
-    public void Rebuild(List<Vector3> forcedDirections = null) {
+    //the forced directions (and rotations, yaw and roll) are of each section, see IntersectionGenerator
+    public void Rebuild(List<Vector3> forcedDirections = null, List<Vector2> forcedRotations = null) {
         if (curType != oldType) ResetType();
-        RebuildLine(forcedDirections);
+        RebuildLine(forcedDirections, forcedRotations);
         RebuildMesh();
     }
 
@@ -188,7 +191,7 @@ public partial class RoadGenerator : PhysicsScriptable {
         curType.FillInitialVariables(subGen.variableContainer, state, instanceState, runtimeState, totalLength, segments);
     }
 
-    void RebuildLine(List<Vector3> forcedDirections = null) {
+    void RebuildLine(List<Vector3> forcedDirections = null, List<Vector2> forcedRotations = null) {
         float epsilon = 0.01f;
         var curveLength = 0.0f;
         subGen.Reset(curType, state, instanceState, segments, numMeshes);
@@ -217,12 +220,16 @@ public partial class RoadGenerator : PhysicsScriptable {
             curvePoints = GH.LowPassFilter(curvePoints, lpf, segments);
             subGen.curvePoints = curvePoints;
         }
+        var hasRotations = cpRotations != null && cpRotations.Count == cps.Count + 2 && cpRotations.Exists(r => r != GameEngine.Vector2.zero);
+        rolled = false;
         for (int i = 0; i < segments; i++) {
             lr.SetPosition(i, curvePoints[i]);
             Vector3 dir, right;
+            var rotation = GameEngine.Vector2.zero;
             if (forcedDirections != null && forcedDirections.Count >= segments) {
                 dir = forcedDirections[i];
                 right = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up)) * GameEngine.Vector3.Magnitude(dir);
+                if (forcedRotations != null && i < forcedRotations.Count) rotation = forcedRotations[i];
             } else {
                 var t = i / (segments - 1.0f);
                 if (i == 0) {
@@ -261,8 +268,19 @@ public partial class RoadGenerator : PhysicsScriptable {
                     }
                 }
                 right = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up));
+                if (hasRotations) rotation = GH.GetValueOnCurve(start, cps, end, cpRotations, t, i, curveType, hermiteTension, subdivideEqually);
+            }
+            var up = GameEngine.Vector3.up;
+            if (rotation != GameEngine.Vector2.zero) {
+                if (rotation[1] != 0) rolled = true;
+                (right, up) = GH.RotateSection(right, rotation[0], rotation[1]);
+                //the intersections move their vertices only vertically: the sections joining them (and the roads through
+                //them) keep the vertical up direction, only the right vector is rolled
+                var atIntersection = (i == 0 && hasStartIntersection) || (i == segments - 1 && hasEndIntersection);
+                if (atIntersection || forcedRotations != null) up = GameEngine.Vector3.up;
             }
             subGen.curveDirections.Add(dir);
+            subGen.curveUpVectors.Add(up);
             if (i > 0) {
                 curveLength += GameEngine.Vector3.Magnitude(curvePoints[i] - curvePoints[i - 1]);
             }
@@ -271,15 +289,17 @@ public partial class RoadGenerator : PhysicsScriptable {
         }
         curType.FillInitialVariables(subGen.variableContainer, state, instanceState, runtimeState, totalLength, segments);
         subGen.sectionRights.Clear();
+        subGen.sectionUps.Clear();
         subGen.sectionVertices.Clear();
         subGen.InitBaseSectionsInfo();
         for (int i = 0; i < segments; i++) {
             if (curType.typeData.settings.variableSections || curType.NeedsLowPolyFix(state, segments))
-                curType.FillSegmentVariables(subGen.variableContainer, state, instanceState, curvePoints[i], GameEngine.Vector3.zero,
+                curType.FillSegmentVariables(subGen.variableContainer, state, instanceState, curvePoints[i], GameEngine.Vector3.zero, subGen.curveUpVectors[i],
                     subGen.sectionMarkers[i], 0, i + 1, new Vector3[0], curvePoints, segments);
             var v = GetRealSectionVertices(i);
             subGen.sectionVertices.Add(v.Item1);
             subGen.sectionRights.Add(v.Item2);
+            subGen.sectionUps.Add(subGen.curveUpVectors[i]);
         }
         curType.FillCommonLateVariables(subGen.variableContainer, curvePoints[0], curvePoints[segments - 1], subGen.sectionVertices[0], subGen.sectionVertices[segments - 1]);
         GenerateLanesPre();
@@ -556,7 +576,7 @@ public partial class RoadGenerator : PhysicsScriptable {
 
     (Vector3[], Vector3) GetRealSectionVertices(int i) {
         var v = subGen.GetRawSectionVertices(i);
-        if (i > 0 && state.Bool("makeCoplanar") && !(i == segments - 1 && hasEndIntersection)) {
+        if (i > 0 && state.Bool("makeCoplanar") && !rolled && !(i == segments - 1 && hasEndIntersection)) {
             v = GetCoplanarRawSectionVertices(v, i);
         }
         return v;

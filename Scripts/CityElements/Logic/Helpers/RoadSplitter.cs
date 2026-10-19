@@ -22,6 +22,7 @@ public static class RoadSplitter {
         public Road road;
         public GH.CurveType curveType;
         public List<Vector3> original; //the control points of the road before the splits (Hermite)
+        public List<Vector2> originalRotations; //and their rotations (yaw, roll)
         public float tension;
         public bool subdivideEqually;
         public bool projected; //the control points are projected on the terrain, only their horizontal positions matter
@@ -31,6 +32,7 @@ public static class RoadSplitter {
 
     class SplitPoints {
         public List<Vector3> first, second; //the control points of the two parts
+        public List<Vector2> firstRotations, secondRotations; //their rotations (yaw, roll)
         public Vector3 point; //where the parts meet
         public Part firstPart, secondPart; //null for Bézier curves, split exactly
     }
@@ -57,6 +59,19 @@ public static class RoadSplitter {
         return GH.GetPointOnCurve(controlPoints[0], cps, controlPoints[controlPoints.Count - 1], alpha, alphaI, curveType, tension, subdivideEqually);
     }
 
+    static Vector2 EvaluateRotation(List<Vector3> controlPoints, List<Vector2> rotations, float alpha, GH.CurveType curveType, float tension, bool subdivideEqually) {
+        var cps = controlPoints.GetRange(1, controlPoints.Count - 2);
+        return GH.GetValueOnCurve(controlPoints[0], cps, controlPoints[controlPoints.Count - 1], rotations, alpha, 0, curveType, tension, subdivideEqually);
+    }
+
+    static List<Vector3> Pack(List<Vector2> values) {
+        return values.ConvertAll(v => new Vector3(v.X, v.Y, 0));
+    }
+
+    static List<Vector2> Unpack(List<Vector3> values) {
+        return values.ConvertAll(v => new Vector2(v.X, v.Y));
+    }
+
     static float HorizontalDistance(Vector3 a, Vector3 b) {
         return new Vector2(a[0] - b[0], a[2] - b[2]).Length();
     }
@@ -79,6 +94,7 @@ public static class RoadSplitter {
         var controlPoints = new List<Vector3>();
         foreach (var p in road.points) controlPoints.Add(GO.GetPosition(p));
         if (controlPoints.Count < 2) return null;
+        var rotations = road.GetPointRotations();
         var curveType = road.GetCurveType();
         var tension = road.state.Float("hermiteTension", 0.5f);
         var subdivideEqually = road.state.Bool("subdivideEqually");
@@ -87,13 +103,15 @@ public static class RoadSplitter {
 
         if (curveType == GH.CurveType.Bezier) {
             var (left, right) = GH.SplitBezier(controlPoints, t);
-            return new SplitPoints { first = left, second = right, point = left[left.Count - 1] };
+            var (leftRotations, rightRotations) = GH.SplitBezier(Pack(rotations), t);
+            return new SplitPoints { first = left, second = right, point = left[left.Count - 1], firstRotations = Unpack(leftRotations), secondRotations = Unpack(rightRotations) };
         }
 
         var lowPoly = curveType == GH.CurveType.LowPoly;
         //a part of a road split by the same action is split on the original curve, so that the errors don't add up
         var fromOriginal = !lowPoly && previousPart != null && previousPart.curveType == curveType;
         var source = fromOriginal ? previousPart.original : controlPoints;
+        var sourceRotations = fromOriginal ? previousPart.originalRotations : rotations;
         var from = fromOriginal ? previousPart.from : 0.0f;
         var to = fromOriginal ? previousPart.to : 1.0f;
         if (fromOriginal) {
@@ -108,25 +126,40 @@ public static class RoadSplitter {
         var point = lowPoly
             ? GameEngine.Vector3.Lerp(controlPoints[segment], controlPoints[segment + 1], fraction)
             : Evaluate(source, t, 0, curveType, tension, subdivideEqually);
+        var pointRotation = lowPoly
+            ? rotations[segment].Lerp(rotations[segment + 1], fraction)
+            : EvaluateRotation(source, sourceRotations, t, curveType, tension, subdivideEqually);
         var first = new List<Vector3> { controlPoints[0] };
         var second = new List<Vector3>();
+        var firstRotations = new List<Vector2> { rotations[0] };
+        var secondRotations = new List<Vector2>();
         for (int i = 0; i < source.Count; i++) {
             if (knots[i] <= from + ParamEpsilon || knots[i] >= to - ParamEpsilon) continue; //the ends
-            if (knots[i] < t - ParamEpsilon) first.Add(source[i]);
-            else if (knots[i] > t + ParamEpsilon) second.Add(source[i]);
-            else point = source[i]; //the split point is a control point
+            if (knots[i] < t - ParamEpsilon) {
+                first.Add(source[i]);
+                firstRotations.Add(sourceRotations[i]);
+            } else if (knots[i] > t + ParamEpsilon) {
+                second.Add(source[i]);
+                secondRotations.Add(sourceRotations[i]);
+            } else {
+                point = source[i]; //the split point is a control point
+                pointRotation = sourceRotations[i];
+            }
         }
         first.Add(point);
         second.Insert(0, point);
         second.Add(controlPoints[controlPoints.Count - 1]);
+        firstRotations.Add(pointRotation);
+        secondRotations.Insert(0, pointRotation);
+        secondRotations.Add(rotations[rotations.Count - 1]);
 
         Part NewPart(float partFrom, float partTo, bool startIsCut, bool endIsCut) => new Part {
-            curveType = curveType, original = source, tension = tension, subdivideEqually = subdivideEqually,
+            curveType = curveType, original = source, originalRotations = sourceRotations, tension = tension, subdivideEqually = subdivideEqually,
             projected = road.state.Bool("project") || road.state.Bool("projectAll"),
             from = partFrom, to = partTo, startIsCut = startIsCut, endIsCut = endIsCut
         };
         return new SplitPoints {
-            first = first, second = second, point = point,
+            first = first, second = second, point = point, firstRotations = firstRotations, secondRotations = secondRotations,
             firstPart = NewPart(from, t, previousPart?.startIsCut ?? false, true),
             secondPart = NewPart(t, to, true, previousPart?.endIsCut ?? false)
         };
@@ -200,7 +233,14 @@ public static class RoadSplitter {
         points.Add((part.to, end));
         //a Hermite curve through two points is a straight line, split exactly
         if (part.original.Count > 2) RefineHermitePart(points, startClearance, endClearance, part.original, part.tension, part.subdivideEqually, part.projected);
-        road.RestorePoints(GetPoints(points));
+        var currentRotations = road.GetPointRotations();
+        var rotations = new List<Vector2>();
+        for (int i = 0; i < points.Count; i++) {
+            if (i == 0) rotations.Add(currentRotations[0]);
+            else if (i == points.Count - 1) rotations.Add(currentRotations[currentRotations.Count - 1]);
+            else rotations.Add(EvaluateRotation(part.original, part.originalRotations, points[i].knot, GH.CurveType.Hermite, part.tension, part.subdivideEqually));
+        }
+        road.RestorePoints(GetPoints(points), rotations);
         return true;
     }
 
@@ -351,8 +391,8 @@ public static class RoadSplitter {
         var newRoad = manager.CreateRoad();
         newRoad.SetState((ObjectState)road.state.Clone());
         newRoad.instanceState = (ObjectState)road.instanceState.Clone();
-        foreach (var point in split.second) newRoad.AddPoint(point);
-        road.RestorePoints(split.first);
+        for (int i = 0; i < split.second.Count; i++) newRoad.AddPoint(split.second[i], -1, split.secondRotations[i]);
+        road.RestorePoints(split.first, split.firstRotations);
 
         //the through road flags of the old end go to the new road, the new intersection has none
         ClearIntersectionFlags(road.instanceState, "end");

@@ -140,13 +140,14 @@ namespace CityElements.Types.Runtime {
             return segments > 2 && (GetCurveType(state) == GeometryHelper.CurveType.LowPoly || state.Bool("adjustLowPolyWidth"));
         }
 
-        public override void FillInitialSegmentVariables(RC.VariableContainer variableContainer, Vector3 right0, Vector3 right1, Vector3[] section0, Vector3[] section1) {
-            var fwd0 = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(GameEngine.Vector3.up, right0)); //check if actually reversed
-            FillVector3(variableContainer, "localUp0", GameEngine.Vector3.up);
+        public override void FillInitialSegmentVariables(RC.VariableContainer variableContainer, Vector3 right0, Vector3 right1, Vector3 up0, Vector3 up1,
+            Vector3[] section0, Vector3[] section1) {
+            var fwd0 = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(up0, right0)); //check if actually reversed
+            FillVector3(variableContainer, "localUp0", up0);
             FillVector3(variableContainer, "localRight0", right0);
             FillVector3(variableContainer, "localForward0", fwd0);
-            var fwd1 = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(GameEngine.Vector3.up, right1)); //check if actually reversed
-            FillVector3(variableContainer, "localUp1", GameEngine.Vector3.up);
+            var fwd1 = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(up1, right1)); //check if actually reversed
+            FillVector3(variableContainer, "localUp1", up1);
             FillVector3(variableContainer, "localRight1", right1);
             FillVector3(variableContainer, "localForward1", fwd1);
             for (int i = 0; i < section0.Length; i++) {
@@ -156,10 +157,11 @@ namespace CityElements.Types.Runtime {
         }
 
         public override void FillSegmentVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState, Vector3 pos,
-            Vector3 curSectionRight, float z, float ground, int section, Vector3[] sectionVertices, List<Vector3> curvePoints, int segments) {
+            Vector3 curSectionRight, Vector3 curSectionUp, float z, float ground, int section, Vector3[] sectionVertices, List<Vector3> curvePoints, int segments) {
 
-            var fwd = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(GameEngine.Vector3.up, curSectionRight)); //check if actually reversed
-            FillVector3(variableContainer, "localUp", GameEngine.Vector3.up);
+            //the up vector is not vertical where the control points roll the sections
+            var fwd = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(curSectionUp, curSectionRight)); //check if actually reversed
+            FillVector3(variableContainer, "localUp", curSectionUp);
             FillVector3(variableContainer, "localRight", curSectionRight);
             FillVector3(variableContainer, "localForward", fwd);
             FillFloat(variableContainer, "z", z);

@@ -55,6 +55,14 @@ namespace EditorPanels {
                 }
             } else {
                 p0.AddButton(SM.Get("END_EDITING"), EndHandleEditing, w);
+                if (GetHandleRoad() != null) {
+                    //road control points: the sections can be rotated (yaw and roll) in the frame of the curve
+                    p0.IncreaseRow();
+                    var rotBtn = p0.AddButton(SM.Get("TRANSF_P_ROTATE"), SetRotate, w * 0.5f, SM.Get("TRANSF_P_ROTATE_POINT_TOOLTIP"));
+                    p0.AddButton(SM.Get("TRANSF_P_MOVE"), SetMove, w * 0.5f);
+                    var axes = GetPointRotationAxes();
+                    rotBtn.SetInteractable(axes[1] || axes[2]);
+                }
             }
             p0.IncreaseRow();
             p0.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), GetGizmo, "snapToGrid", null, w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
@@ -72,6 +80,16 @@ namespace EditorPanels {
             var posFieldName = onParametricObject ? "localPosition" : "position";
             var posField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_POS"), GetCurTransform, "transform." + posFieldName, null, w, null, null, value => { Reselect(); });
             p0.IncreaseRow();
+            if (!notOnHandle && GetHandleRoad() != null) {
+                var axes = GetPointRotationAxes();
+                var yawField = p0.AddFieldInputField(SM.Get("TRANSF_P_YAW"), SM.Get("TRANSF_P_YAW"), GameEngine.InputContentType.Decimal, GetCurPointRotation,
+                    "rotation.yaw", null, w * 0.5f, SM.Get("TRANSF_P_YAW_TOOLTIP"));
+                var rollField = p0.AddFieldInputField(SM.Get("TRANSF_P_ROLL"), SM.Get("TRANSF_P_ROLL"), GameEngine.InputContentType.Decimal, GetCurPointRotation,
+                    "rotation.roll", null, w * 0.5f, SM.Get("TRANSF_P_ROLL_TOOLTIP"));
+                yawField.SetInteractable(axes[1]);
+                rollField.SetInteractable(axes[2]);
+                p0.IncreaseRow();
+            }
             if (notOnHandle) {
                 var rotFieldName = onParametricObject ? "localRotation" : "rotation";
                 var rotField = p0.AddFieldRotationVectorInputField(SM.Get("TRANSF_P_ROT"), GetCurTransform, "transform." + rotFieldName, null, w, null, null, value => { Reselect(); });
@@ -243,10 +261,59 @@ namespace EditorPanels {
 
         void SetMove() {
             builder.gizmo.transformType = RuntimeGizmos.TransformType.Move;
+            if (!notOnHandle) builder.gizmo.space = RuntimeGizmos.TransformSpace.Global;
         }
 
         void SetRotate() {
+            if (!notOnHandle) {
+                //a road control point rotates in the frame of the curve (the handle follows it): yaw around Y, roll around Z
+                if (GetHandleRoad() == null) return;
+                builder.gizmo.rotAxesAllowed = GetPointRotationAxes();
+                builder.gizmo.space = RuntimeGizmos.TransformSpace.Local;
+            }
             builder.gizmo.transformType = RuntimeGizmos.TransformType.Rotate;
+        }
+
+        //the road of the handle being edited, if it is one of its control points
+        Road GetHandleRoad() {
+            DropDeletedInstance();
+            if (instance == null || notOnHandle) return null;
+            var road = GS.Cast<Road>(instance.GetParentNode3D());
+            return road != null && road.points.Contains(instance as StaticBody3D) ? road : null;
+        }
+
+        //the rotation axes of the gizmo for a road control point (X: none, Y: yaw, Z: roll)
+        bool[] GetPointRotationAxes() {
+            var road = GetHandleRoad();
+            if (road == null) return new bool[] { false, false, false };
+            return new bool[] { false, road.IsYawAllowed(road.points.IndexOf(instance as StaticBody3D)), road.IsRollAllowed() };
+        }
+
+        object GetCurPointRotation() {
+            var road = GetHandleRoad();
+            return road != null ? new PointRotationBinding(road, instance) : null;
+        }
+
+        //accessor for the "rotation.*" field bindings of a road control point
+        class PointRotationBinding {
+            readonly Road road;
+            readonly Node3D point;
+
+            public PointRotationBinding(Road road, Node3D point) {
+                this.road = road;
+                this.point = point;
+            }
+
+            public PointRotationBinding rotation => this;
+            int Index => road.points.IndexOf(point as StaticBody3D);
+
+            Vector2 Get() {
+                road.ReadRotatedHandles(); //the gizmo may have rotated the handle since the last update
+                return road.GetPointRotations()[Index];
+            }
+
+            public float yaw { get => Get().X; set => road.SetPointRotation(Index, new Vector2(value, Get().Y)); }
+            public float roll { get => Get().Y; set => road.SetPointRotation(Index, new Vector2(Get().X, value)); }
         }
 
         void SetScale() {
@@ -409,8 +476,9 @@ namespace EditorPanels {
             }
 
             public TransformBinding transform => this;
-            public Vector3 position { get => GO.GetPosition(obj); set => GO.SetPosition(obj, value); }
-            public Vector3 localPosition { get => GO.GetLocalPosition(obj); set => GO.SetLocalPosition(obj, value); }
+            //the owner was recorded by the panel, but a road end on an intersection moves the intersection too
+            public Vector3 position { get => GO.GetPosition(obj); set { History.UndoManager.TouchOwner(obj); GO.SetPosition(obj, value); } }
+            public Vector3 localPosition { get => GO.GetLocalPosition(obj); set { History.UndoManager.TouchOwner(obj); GO.SetLocalPosition(obj, value); } }
             public Quaternion rotation { get => GO.GetRotationQuaternion(obj); set => GO.SetRotation(obj, value); }
             public Quaternion localRotation { get => GameEngine.Quaternion.Encode(obj.Quaternion); set => GO.SetLocalRotation(obj, value); }
             public Vector3 localScale { get => GO.GetLocalScale(obj); set => GO.SetLocalScale(obj, value); }

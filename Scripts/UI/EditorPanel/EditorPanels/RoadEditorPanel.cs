@@ -97,6 +97,15 @@ namespace EditorPanels {
                 instanceFields.Add(p.AddFieldInputField(SM.Get("RD_IS_MOVE"), "move", GameEngine.InputContentType.Decimal, GetCurRoad, "instanceState.properties.intersectionMove", null, w, null));
                 p.IncreaseRow();
 
+                p.AddLabel(SM.Get("RD_IS_CONN_HEIGHT"), w, null, null, 0.4f);
+                p.IncreaseRow(0.4f);
+                var autoTooltip = SM.Get("RD_IS_CONN_AUTO_TOOLTIP");
+                instanceFields.Add(p.AddFieldCheckbox(SM.Get("RD_IS_CONN_AUTO"), GetCurRoad, "instanceState.properties.endConnectionHeightAuto", null, w / 4, autoTooltip));
+                instanceFields.Add(p.AddFieldInputField(SM.Get("END"), SM.Get("HEIGHT_PH"), GameEngine.InputContentType.Decimal, GetCurRoad, "instanceState.properties.endConnectionHeight", null, w / 4, null));
+                instanceFields.Add(p.AddFieldCheckbox(SM.Get("RD_IS_CONN_AUTO"), GetCurRoad, "instanceState.properties.startConnectionHeightAuto", null, w / 4, autoTooltip));
+                instanceFields.Add(p.AddFieldInputField(SM.Get("START"), SM.Get("HEIGHT_PH"), GameEngine.InputContentType.Decimal, GetCurRoad, "instanceState.properties.startConnectionHeight", null, w / 4, null));
+                p.IncreaseRow(1.2f);
+
                 //presets never store instance specific values
                 if (pS.EditingPreset()) {
                     foreach (var field in instanceFields) field.SetInteractable(false);
