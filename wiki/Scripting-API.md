@@ -322,7 +322,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `roads.delete` | `road: ref` | - | Deletes a road (and the intersections left with no road) |
 | `roads.extend` | `road: ref`<br>`point: point` | - | Adds a point at the end of a road, as with the road tool in add mode (a road end, an intersection or the middle of a road connect the road there) |
 | `roads.insertPoint` | `road: ref`<br>`index: int`<br>`position: vec3`<br>`onGround: bool = false` | - | Inserts a control point at the index, as with the road tool in insert mode |
-| `roads.split` | `road: ref`<br>`near: vec3` | object | Splits a road at the point of its free part (outside the intersections at its ends) closest to near, as with the road tool in split mode: the road keeps the first part, a new road with the same properties gets the second one, and a new intersection connects them. Returns {newRoad, intersection} |
+| `roads.split` | `road: ref`<br>`near: vec3` | object | Splits a road at the point of its free part (outside the intersections at its ends) closest to near, as with the road tool in split mode: the road keeps the first part, a new road with the same properties gets the second one, and a new seamless intersection connects them (see intersections.setSeamless). Returns {newRoad, intersection} |
 | `roads.movePoint` | `road: ref`<br>`index: int`<br>`position: vec3`<br>`onGround: bool = false` | - | Moves a control point of a road |
 | `roads.props.applyRulePreset` | `road: ref`<br>`preset: string` | - | Gives the prop rule of a road the values of a prop rule preset (of its road type) |
 | `roads.props.enable` | `road: ref`<br>`container: string`<br>`enabled: bool` | - | Enables or disables a props container of the prop rule of a road |
@@ -337,6 +337,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `intersections.delete` | `intersection: ref` | - | Deletes an intersection (the roads are detached from it) |
 | `intersections.mergeRoads` | `intersection: ref`<br>`keep: ref = null` | int | Merges the two roads of an intersection into one road, deleting the intersection (keep: the road whose settings are kept, by default the first one; the end on the intersection gets the properties of the far end of the other road). The other road is reversed if needed, only its geometry: its left and right properties are not swapped. The merged road keeps the curve type of the kept road: the merge is exact for roads with the same curve (two Bézier roads only if they are the two parts of a curve, as after a split), otherwise its curve follows both roads as closely as its type allows. Returns the id of the merged road |
 | `intersections.move` | `intersection: ref`<br>`position: vec3`<br>`onGround: bool = false` | - | Moves an intersection (the roads follow it) |
+| `intersections.setSeamless` | `intersection: ref`<br>`seamless: bool = true` | - | Makes the two roads of an intersection join seamlessly (or not): the intersection has no surface and no size, and the ends of the roads share their direction and roll (no yaw). Kept with more than two roads, but without effect |
 
 ### `patches.*`
 

@@ -198,6 +198,41 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         GenerateMesh();
     }
 
+    //a seamless intersection has no surface: only the terrain anchor lines joining the edges of its two roads, from the
+    //ends of the anchor lines of the first road to the closest ones of the second (a single point where they meet)
+    public void RebuildSeamless() {
+        Clear();
+        curType = GetIntersectionType();
+        var roads = parentIntersection.roads;
+        sortOrder = new List<int> { 0, 1 };
+        var ends0 = GetAnchorLineEnds(roads[0]);
+        var ends1 = GetAnchorLineEnds(roads[1]);
+        foreach (var p0 in ends0) {
+            if (ends1.Count == 0) break;
+            var p1 = ends1[0];
+            foreach (var p in ends1) {
+                if (GameEngine.Vector3.Distance(p, p0) < GameEngine.Vector3.Distance(p1, p0)) p1 = p;
+            }
+            var line = new List<Vector3> { p0 };
+            if (GameEngine.Vector3.Distance(p0, p1) >= 0.01f) line.Add(p1);
+            sidePoints.Add(line);
+            sidePointStartRoads.Add(roads[0]);
+            sidePointEndRoads.Add(roads[1]);
+        }
+        GameEngine.Mesh.AssignData(m, new Material[0], new List<int[]>(), new List<Vector3>(), new List<Vector2>(), GO.GetName(parentIntersection.geo));
+        GameEngine.Mesh.RefreshCollider(m, mc, false);
+    }
+
+    //the points of the anchor lines of the road at its end on the intersection
+    List<Vector3> GetAnchorLineEnds(Road road) {
+        var res = new List<Vector3>();
+        var isStart = road.startIntersection == parentIntersection;
+        foreach (var line in road.generator.sidePoints) {
+            if (line.Count > 0) res.Add(isStart ? line[0] : line[line.Count - 1]);
+        }
+        return res;
+    }
+
     public ObjectState GetMainRailState() {
         return mainRailState;
     }

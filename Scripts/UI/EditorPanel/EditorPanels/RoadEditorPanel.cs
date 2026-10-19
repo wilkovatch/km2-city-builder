@@ -6,6 +6,7 @@ using SM = StringManager;
 namespace EditorPanels {
     public class RoadEditorPanel : EditorPanel {
         EditorPanelElements.Dropdown pointPlacementModeDropdown;
+        EditorPanelElements.Button startIntersectionButton, endIntersectionButton;
         Dictionary<string, (EditorPanelElements.Button button, EditorPanelElements.Checkbox checkbox)> propControls = new Dictionary<string, (EditorPanelElements.Button, EditorPanelElements.Checkbox)>();
 
         public RoadEditorPanel() {
@@ -71,6 +72,15 @@ namespace EditorPanels {
 
             } else if (elem.name == "intersectionGroup") {
                 //Intersection
+                endIntersectionButton = null;
+                startIntersectionButton = null;
+                if (!pS.EditingPreset()) {
+                    var tooltip = SM.Get("RD_EDIT_INTERSECTION_TOOLTIP");
+                    endIntersectionButton = p.AddButton(SM.Get("RD_EDIT_END_INTERSECTION"), () => EditIntersection(false), w / 2, tooltip);
+                    startIntersectionButton = p.AddButton(SM.Get("RD_EDIT_START_INTERSECTION"), () => EditIntersection(true), w / 2, tooltip);
+                    p.IncreaseRow();
+                }
+
                 p.AddLabel(SM.Get("IS_CW_SIZE"), w / 2, null, null, 0.4f);
                 p.AddLabel(SM.Get("IS_SIZE_INCREASE"), w / 2, null, null, 0.4f);
                 p.IncreaseRow(0.4f);
@@ -188,6 +198,7 @@ namespace EditorPanels {
 
         protected override void ReadCurValues() {
             base.ReadCurValues();
+            Update();
             foreach (var key in propControls.Keys) {
                 var rule = GetPropRule();
                 var enabled = rule != null && rule.State(key) != null;
@@ -301,6 +312,27 @@ namespace EditorPanels {
         void RemovePoint() {
             Operations.Roads.RemoveLastPoint(GetCurRoad());
             builder.NotifyChange();
+        }
+
+        //the intersection the start or the end of the road is on, if any
+        Intersection GetIntersection(bool atStart) {
+            var road = GetCurRoad(false);
+            var intersection = road == null ? null : atStart ? road.startIntersection : road.endIntersection;
+            return intersection != null && !intersection.IsDeleted() ? intersection : null;
+        }
+
+        //switches to the editor of the intersection the start or the end of the road is on
+        void EditIntersection(bool atStart) {
+            var intersection = GetIntersection(atStart);
+            if (intersection == null) return;
+            Terminate();
+            builder.SelectObject(intersection.geo, true, null);
+        }
+
+        //the road can be connected or detached while the editor is open
+        public override void Update() {
+            startIntersectionButton?.SetInteractable(GetIntersection(true) != null);
+            endIntersectionButton?.SetInteractable(GetIntersection(false) != null);
         }
 
         public override void Terminate() {

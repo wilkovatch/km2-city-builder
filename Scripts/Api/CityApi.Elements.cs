@@ -109,7 +109,7 @@ namespace Api {
             });
         }
 
-        [ApiMethod("roads.split", "Splits a road at the point of its free part (outside the intersections at its ends) closest to near, as with the road tool in split mode: the road keeps the first part, a new road with the same properties gets the second one, and a new intersection connects them. Returns {newRoad, intersection}")]
+        [ApiMethod("roads.split", "Splits a road at the point of its free part (outside the intersections at its ends) closest to near, as with the road tool in split mode: the road keeps the first part, a new road with the same properties gets the second one, and a new seamless intersection connects them (see intersections.setSeamless). Returns {newRoad, intersection}")]
         public object SplitRoad(ElementRef road, Vector3 near) {
             return ApplyChange<object>("split road", () => {
                 var r = Resolve<Road>(road, "road");
@@ -229,6 +229,13 @@ namespace Api {
                 if (!Operations.Intersections.CanDelete(i)) throw ApiException.InvalidOperation("the intersection can't be deleted");
                 History.UndoManager.Touch(i);
                 Operations.Intersections.Delete(i);
+            });
+        }
+
+        [ApiMethod("intersections.setSeamless", "Makes the two roads of an intersection join seamlessly (or not): the intersection has no surface and no size, and the ends of the roads share their direction and roll (no yaw). Kept with more than two roads, but without effect")]
+        public void SetIntersectionSeamless(ElementRef intersection, bool seamless = true) {
+            ApplyChange("seamless intersection", () => {
+                Operations.Intersections.SetSeamless(Resolve<Intersection>(intersection, "intersection"), seamless);
             });
         }
 

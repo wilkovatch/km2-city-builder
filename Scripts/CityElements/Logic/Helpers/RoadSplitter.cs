@@ -380,7 +380,7 @@ public static class RoadSplitter {
     }
 
     //splits the road at a point of its curve (curve segment and position in it): the road keeps the first part,
-    //a new road with the same properties gets the second one, and a new intersection connects them
+    //a new road with the same properties gets the second one, and a new seamless intersection connects them
     public static (Intersection intersection, Road newRoad) Split(ElementManager manager, Road road, int segment, float fraction) {
         var split = GetSplitPoints(road, manager.GetSplitPart(road), segment, fraction);
         if (split == null) return (null, null);
@@ -406,7 +406,9 @@ public static class RoadSplitter {
             endIntersection.forceRemesh = true;
         }
 
+        //the two parts are the same road: they join seamlessly
         var intersection = manager.CreateIntersection(split.point);
+        intersection.instanceState.SetBool("seamless", true);
         intersection.roads.Add(road);
         intersection.roads.Add(newRoad);
         road.endIntersection = intersection;

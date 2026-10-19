@@ -58,6 +58,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     public List<Vector2> cpRotations = null; //yaw and roll of start, cps and end (none: no rotation)
     public Vector3 start, end;
     public Vector3? startIntersectionCenter, endIntersectionCenter;
+    public Vector3? startTangent, endTangent; //imposed to the ends of the curve, their directions to their sections (seamless intersections)
 
     public List<List<Vector3>> sidePoints = new List<List<Vector3>>();
 
@@ -191,6 +192,16 @@ public partial class RoadGenerator : PhysicsScriptable {
         curType.FillInitialVariables(subGen.variableContainer, state, instanceState, runtimeState, totalLength, segments);
     }
 
+    //of the width of a section whose direction differs from the one of the segment next to it, so that the road keeps
+    //its width across the segment (as the sections between the segments of a low-poly road)
+    static float GetMiterFactor(Vector3 sectionDir, Vector3 segmentDir) {
+        var a = new Vector3(sectionDir[0], 0, sectionDir[2]);
+        var b = new Vector3(segmentDir[0], 0, segmentDir[2]);
+        if (GameEngine.Vector3.Magnitude(a) <= GH.epsilon || GameEngine.Vector3.Magnitude(b) <= GH.epsilon) return 1.0f;
+        var angle = Mathf.Min(GameEngine.Vector3.Angle(a, b), GH.MaxSectionYaw);
+        return 1.0f / Mathf.Cos(angle * GameEngine.Math.deg2rad);
+    }
+
     void RebuildLine(List<Vector3> forcedDirections = null, List<Vector2> forcedRotations = null) {
         float epsilon = 0.01f;
         var curveLength = 0.0f;
@@ -208,7 +219,7 @@ public partial class RoadGenerator : PhysicsScriptable {
         var curvePoints = subGen.curvePoints;
 
         for (int i = 0; i < segments; i++) {
-            var pos = GH.GetPointOnCurve(start, cps, end, i / (segments - 1.0f), i, curveType, hermiteTension, subdivideEqually);
+            var pos = GH.GetPointOnCurve(start, cps, end, i / (segments - 1.0f), i, curveType, hermiteTension, subdivideEqually, startTangent, endTangent);
             var dontProject = (i == 0 && hasStartIntersection) || (i == segments - 1 && hasEndIntersection);
             if (!dontProject && projectAll) pos = GH.ProjectPoint(pos);
             curvePoints.Add(pos);
@@ -225,6 +236,7 @@ public partial class RoadGenerator : PhysicsScriptable {
         for (int i = 0; i < segments; i++) {
             lr.SetPosition(i, curvePoints[i]);
             Vector3 dir, right;
+            var widthFactor = 1.0f;
             var rotation = GameEngine.Vector2.zero;
             if (forcedDirections != null && forcedDirections.Count >= segments) {
                 dir = forcedDirections[i];
@@ -232,7 +244,14 @@ public partial class RoadGenerator : PhysicsScriptable {
                 if (forcedRotations != null && i < forcedRotations.Count) rotation = forcedRotations[i];
             } else {
                 var t = i / (segments - 1.0f);
-                if (i == 0) {
+                var lowPolyWidth = adjustLowPolyWidth || curveType == GH.CurveType.LowPoly;
+                if (i == 0 && startTangent.HasValue) {
+                    dir = GameEngine.Vector3.Normalize(startTangent.Value);
+                    widthFactor = lowPolyWidth ? GetMiterFactor(dir, curvePoints[i + 1] - curvePoints[i]) : 1.0f;
+                } else if (i == segments - 1 && endTangent.HasValue) {
+                    dir = GameEngine.Vector3.Normalize(endTangent.Value);
+                    widthFactor = lowPolyWidth ? GetMiterFactor(dir, curvePoints[i] - curvePoints[i - 1]) : 1.0f;
+                } else if (i == 0) {
                     var p1 = curvePoints[i];
                     if (startIntersectionCenter.HasValue) {
                         dir = p1 - startIntersectionCenter.Value;
@@ -256,10 +275,10 @@ public partial class RoadGenerator : PhysicsScriptable {
                         p2 = curvePoints[i + 1];
                     } else {
                         //get the accurate direction
-                        p1 = GH.GetPointOnCurve(start, cps, end, t - epsilon * 0.5f, i - 1, curveType, hermiteTension, subdivideEqually);
-                        p2 = GH.GetPointOnCurve(start, cps, end, t + epsilon * 0.5f, i + 1, curveType, hermiteTension, subdivideEqually);
+                        p1 = GH.GetPointOnCurve(start, cps, end, t - epsilon * 0.5f, i - 1, curveType, hermiteTension, subdivideEqually, startTangent, endTangent);
+                        p2 = GH.GetPointOnCurve(start, cps, end, t + epsilon * 0.5f, i + 1, curveType, hermiteTension, subdivideEqually, startTangent, endTangent);
                     }
-                    if (adjustLowPolyWidth || curveType == GH.CurveType.LowPoly) {
+                    if (lowPolyWidth) {
                         var p1a = GameEngine.Vector3.Normalize(curvePoints[i] - p1);
                         var p2a = GameEngine.Vector3.Normalize(p2 - curvePoints[i]);
                         dir = GameEngine.Vector3.Normalize(p1a + p2a);
@@ -267,8 +286,8 @@ public partial class RoadGenerator : PhysicsScriptable {
                         dir = p2 - p1;
                     }
                 }
-                right = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up));
-                if (hasRotations) rotation = GH.GetValueOnCurve(start, cps, end, cpRotations, t, i, curveType, hermiteTension, subdivideEqually);
+                right = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up)) * widthFactor;
+                if (hasRotations) rotation = GH.GetValueOnCurve(start, cps, end, cpRotations, t, i, curveType, hermiteTension, subdivideEqually, startTangent, endTangent);
             }
             var up = GameEngine.Vector3.up;
             if (rotation != GameEngine.Vector2.zero) {

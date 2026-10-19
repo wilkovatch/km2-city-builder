@@ -457,6 +457,7 @@ namespace Api {
             Check("removing the last point keeps the road", !removed["deleted"].Value<bool>());
             await CheckUndo("road deleted", () => Call("roads.delete", new { road = roadE }));
             await MergeRoads();
+            await SeamlessIntersections();
             await Call("elements.rename", new { @ref = roadA, name = "Main street" });
             Check("elements.list by name", ((JArray)await Call("elements.list", new { name = "Main street" })).Count == 1);
             Check("reference by name", (await Call("elements.get", new { @ref = "Main street" }))["id"].Value<int>() == roadA);
@@ -596,6 +597,142 @@ namespace Api {
             }
             foreach (var r in new[] { main, r1, corner }) await Call("roads.delete", new { road = r });
             Check("merge: the test roads are deleted", await CountOf("road") == roadsBefore && await CountOf("intersection") == intersectionsBefore);
+        }
+
+        //two roads joining seamlessly (no surface, the same direction and section at the joint), as after a split, on roads
+        //of their own deleted at the end
+        async Task SeamlessIntersections() {
+            async Task<int> CountOf(string kind) => ((JArray)await Call("elements.list", new { kind })).Count;
+            //the direction of the end of a road on an intersection (from the joint, along the road) and its section
+            (Vector3 dir, Vector3[] section) EndOf(int id, int joint) {
+                var road = History.ElementRegistry.Get<Road>(id);
+                var sub = road.generator.subGen;
+                var atStart = road.startIntersection == History.ElementRegistry.Get<Intersection>(joint);
+                var i = atStart ? 0 : sub.curveDirections.Count - 1;
+                var dir = sub.curveDirections[i].Normalized();
+                return (atStart ? dir : -dir, sub.sectionVertices[i]);
+            }
+            //the angle between the ends (0 if they go on each other) and the largest distance between their section vertices
+            (float angle, float gap) Joint(int a, int b, int joint) {
+                var (dirA, secA) = EndOf(a, joint);
+                var (dirB, secB) = EndOf(b, joint);
+                var gap = 0.0f;
+                foreach (var p in secA) {
+                    var min = float.MaxValue;
+                    foreach (var q in secB) min = Mathf.Min(min, p.DistanceTo(q));
+                    gap = Mathf.Max(gap, min);
+                }
+                return (Mathf.RadToDeg(dirA.AngleTo(-dirB)), gap);
+            }
+            string Fmt((float angle, float gap) j) => j.angle.ToString("0.000") + "°, " + j.gap.ToString("0.000") + " m";
+            List<Vector3> Curve(JToken curve) => curve.Select(p => new Vector3(p[0].Value<float>(), p[1].Value<float>(), p[2].Value<float>())).ToList();
+            //the largest angle between consecutive segments of a curve (degrees)
+            float Sharpest(List<Vector3> curve) {
+                var res = 0.0f;
+                for (int i = 1; i < curve.Count - 1; i++) res = Mathf.Max(res, Mathf.RadToDeg((curve[i] - curve[i - 1]).AngleTo(curve[i + 1] - curve[i])));
+                return res;
+            }
+
+            var roadsBefore = await CountOf("road");
+            var intersectionsBefore = await CountOf("intersection");
+            var x = -800.0f;
+            foreach (var type in Operations.Builtins.CurveTypes) {
+                var road = (await Call("roads.create", new { points = new[] { Pos(x, 1250), Pos(x + 120, 1330), Pos(x + 260, 1240), Pos(x + 360, 1300) } })).Value<int>();
+                await Call("state.setBuiltin", new { @ref = road, name = "curveType", value = type });
+                var curve = (await Derived(road))["curve"];
+                var near = curve[curve.Count() / 2];
+                JToken split = null;
+                await CheckUndo("road split (" + type + ")", async () => split = await Call("roads.split", new { road, near = near.ToObject<float[]>() }));
+                var joint = split["intersection"].Value<int>();
+                var second = split["newRoad"].Value<int>();
+                var j = await Derived(joint);
+                Check("seamless: a split gives a seamless intersection without size (" + type + ")",
+                    j["seamless"].Value<bool>() && j["seamlessActive"].Value<bool>() && j["sizes"].All(s => s.Value<float>() == 0));
+                var joined = Joint(road, second, joint);
+                Check("seamless: the parts of a " + type + " road have the same direction and section at the joint (" + Fmt(joined) + ")", joined.angle < 0.01f && joined.gap < 0.01f);
+                if (type != "lowPoly") {
+                    //two roads at a right angle made seamless: the curves turn to go on through the joint instead of meeting
+                    //at a corner (a low-poly road keeps its segments, only its sections line up)
+                    var c1 = (await Call("roads.create", new { points = new[] { Pos(x, 1450), Pos(x + 80, 1460), Pos(x + 160, 1450) } })).Value<int>();
+                    var c2 = (await Call("roads.create", new { points = new object[] { new { roadEnd = new { road = c1, end = "end" } }, Pos(x + 170, 1530), Pos(x + 160, 1610) } })).Value<int>();
+                    foreach (var r in new[] { c1, c2 }) await Call("state.setBuiltin", new { @ref = r, name = "curveType", value = type });
+                    var cj = (await Derived(c1))["endIntersection"].Value<int>();
+                    async Task<float> JointAngle() {
+                        var a = Curve((await Derived(c1))["curve"]);
+                        var b = Curve((await Derived(c2))["curve"]);
+                        return Mathf.RadToDeg((a[a.Count - 1] - a[a.Count - 2]).AngleTo(b[1] - b[0]));
+                    }
+                    var cornerAngle = await JointAngle();
+                    await Call("intersections.setSeamless", new { intersection = cj });
+                    var smoothAngle = await JointAngle();
+                    var c1Curve = Curve((await Derived(c1))["curve"]);
+                    var c2Curve = Curve((await Derived(c2))["curve"]);
+                    var cornerJoint = Joint(c1, c2, cj);
+                    if (type == "bezier") {
+                        var sharpest = Mathf.Max(Sharpest(c1Curve), Sharpest(c2Curve));
+                        Check("seamless: two " + type + " roads at a corner go on through the joint (" + cornerAngle.ToString("0.0") + "° -> " + smoothAngle.ToString("0.0") + "°, "
+                            + sharpest.ToString("0.0") + "° along the roads, " + Fmt(cornerJoint) + ")",
+                            cornerAngle > 45 && smoothAngle <= sharpest * 1.5f + 0.1f && cornerJoint.angle < 0.01f && cornerJoint.gap < 0.01f);
+                    } else {
+                        //the joint is like a point in the middle of a single Hermite curve through the points of both roads
+                        //(the segments next to the joint have the same length, its direction is the one of that curve)
+                        var all = new List<Vector3>();
+                        foreach (var p in (await Derived(c1))["points"]) all.Add(new Vector3(p[0].Value<float>(), 0, p[2].Value<float>()));
+                        foreach (var p in (await Derived(c2))["points"].Skip(1)) all.Add(new Vector3(p[0].Value<float>(), 0, p[2].Value<float>()));
+                        var single = new List<Vector3>();
+                        for (int i = 0; i <= 2000; i++) {
+                            single.Add(GeometryHelper.GetPointOnCurve(all[0], all.GetRange(1, all.Count - 2), all[all.Count - 1], i / 2000.0f, i, GeometryHelper.CurveType.Hermite));
+                        }
+                        var deviation = 0.0f;
+                        foreach (var curvePoint in c1Curve.Concat(c2Curve)) {
+                            var p = new Vector3(curvePoint[0], 0, curvePoint[2]); //horizontally
+                            GeometryHelper.ClosestPointToCurve(p, single, out var minI);
+                            deviation = Mathf.Max(deviation, p.DistanceTo(GeometryHelper.ClosestPoint(p, single[minI], single[minI + 1])));
+                        }
+                        Check("seamless: two " + type + " roads at a corner follow a single curve through their points (" + cornerAngle.ToString("0.0") + "° -> " + smoothAngle.ToString("0.0")
+                            + "° between the segments at the joint, " + deviation.ToString("0.000") + " m, " + Fmt(cornerJoint) + ")",
+                            cornerAngle > 45 && deviation < 0.05f && cornerJoint.angle < 0.01f && cornerJoint.gap < 0.01f);
+                    }
+                    foreach (var r in new[] { c1, c2 }) await Call("roads.delete", new { road = r });
+                }
+
+                if (type == "hermite") {
+                    //the direction of the joint depends on both roads
+                    var dirBefore = EndOf(road, joint).dir;
+                    var p1 = (await Derived(second))["points"][1];
+                    await Call("roads.movePoint", new { road = second, index = 1, position = V(p1[0].Value<float>(), 0, p1[2].Value<float>() + 40), onGround = true });
+                    var moved = Joint(road, second, joint);
+                    Check("seamless: moving the point next to the joint on a road turns the end of the other one (" + Mathf.RadToDeg(dirBefore.AngleTo(EndOf(road, joint).dir)).ToString("0.00") + "°, "
+                        + Fmt(moved) + ")", dirBefore.AngleTo(EndOf(road, joint).dir) > 0.001f && moved.angle < 0.01f && moved.gap < 0.01f);
+
+                    //the roll set on an end is given to the other one
+                    if (History.ElementRegistry.Get<Road>(road).IsRollAllowed()) {
+                        var last = Len((await Derived(road))["points"]) - 1;
+                        await Call("roads.setPointRotation", new { road, index = last, yaw = 0, roll = 8 });
+                        var otherRoll = (await Derived(second))["pointRotations"][0][1].Value<float>();
+                        var rolled = Joint(road, second, joint);
+                        Check("seamless: the roll set on an end is given to the other one (" + otherRoll + "°, " + Fmt(rolled) + ")", otherRoll == 8 && rolled.gap < 0.01f);
+                    }
+
+                    await CheckUndo("intersection not seamless", () => Call("intersections.setSeamless", new { intersection = joint, seamless = false }));
+                    var off = await Derived(joint);
+                    Check("seamless off: the intersection has a size again", !off["seamless"].Value<bool>() && off["sizes"].Any(s => s.Value<float>() > 0));
+                    await Call("intersections.setSeamless", new { intersection = joint });
+
+                    //with a third road the intersection isn't seamless, without it again
+                    var third = (await Call("roads.create", new { points = new object[] { new { intersection = joint }, Pos(x + 200, 1150) } })).Value<int>();
+                    var three = await Derived(joint);
+                    Check("seamless: no effect with a third road", three["seamless"].Value<bool>() && !three["seamlessActive"].Value<bool>() && three["sizes"].All(s => s.Value<float>() > 0));
+                    await Call("roads.delete", new { road = third });
+                    Check("seamless: back without the third road", (await Derived(joint))["seamlessActive"].Value<bool>() && Joint(road, second, joint).gap < 0.01f);
+                }
+                //the Hermite roads are kept, so that the city is saved, loaded and exported with a seamless intersection
+                if (type != "hermite") {
+                    foreach (var r in new[] { road, second }) await Call("roads.delete", new { road = r });
+                }
+                x += 450;
+            }
+            Check("seamless: the test roads are deleted (but two)", await CountOf("road") == roadsBefore + 2 && await CountOf("intersection") == intersectionsBefore + 1);
         }
 
         async Task TerrainAndBuildings() {
@@ -1807,6 +1944,12 @@ road(-750)
                 sameStates &= names.TryGetValue(name, out var saved) && SameToken(saved, state, name, new List<string>());
             }
             Check("save and load keep the road states", sameStates);
+            var seamlessLoaded = false;
+            foreach (var e in (JArray)await Call("elements.list", new { kind = "intersection" })) {
+                var derived = await Derived(e["id"].Value<int>());
+                seamlessLoaded |= derived["seamlessActive"].Value<bool>() && derived["sizes"].All(x => x.Value<float>() == 0);
+            }
+            Check("save and load keep the seamless intersection", seamlessLoaded);
 
             var exportJson = Path.Combine(folder, "..", "api_export.json");
             await Call("city.exportJson", new { path = exportJson });

@@ -25,6 +25,7 @@ public partial class Intersection: IObjectWithState {
 
     Vector3 oldPointPos;
     int oldRoadCount = 0;
+    bool oldSeamless = false;
     List<GameObject> roadsThrough = new List<GameObject>();
 
     public TerrainAnchorLineManager anchorManager;
@@ -129,6 +130,78 @@ public partial class Intersection: IObjectWithState {
         return res;
     }
 
+    // Seamless intersections: the two roads join without a surface between them, with the same direction at the joint
+
+    //set on the intersection (kept with more than two roads, but without effect)
+    public bool IsSeamlessSet() {
+        return instanceState.Bool("seamless");
+    }
+
+    public bool IsSeamless() {
+        return IsSeamlessSet() && roads.Count == 2 && roads[0] != roads[1];
+    }
+
+    //the point of the road next to its end on the intersection, null if the road has no other point
+    Vector3? GetNeighborPoint(Road road) {
+        if (road.points.Count < 2) return null;
+        return GO.GetPosition(road.startIntersection == this ? road.points[1] : road.points[road.points.Count - 2]);
+    }
+
+    //the direction (normalized) toward which the end of the road on the intersection points
+    Vector3? GetInwardDirection(Road road) {
+        var neighbor = GetNeighborPoint(road);
+        if (!neighbor.HasValue) return null;
+        var end = GO.GetPosition(road.startIntersection == this ? road.points[0] : road.points[road.points.Count - 1]);
+        var dir = end - neighbor.Value;
+        if (GameEngine.Vector3.SqrMagnitude(dir) <= GeometryHelper.epsilon) return null;
+        return GameEngine.Vector3.Normalize(dir);
+    }
+
+    //the tangent shared by the two roads at a seamless intersection, from the joint into the given road, from the control
+    //points next to their ends (not the curves, so that the roads don't depend on each other): its direction is between
+    //the directions of the ends (so that the sections of low-poly roads match), its length the distance between those
+    //points, as the tangent of a Hermite curve through them (see Road.GetEndTangents). Null if the intersection isn't
+    //seamless or the roads fold back on each other.
+    public Vector3? GetSeamlessTangent(Road road) {
+        if (!IsSeamless()) return null;
+        var index = roads.IndexOf(road);
+        if (index < 0) return null;
+        var in0 = GetInwardDirection(roads[0]);
+        var in1 = GetInwardDirection(roads[1]);
+        if (!in0.HasValue || !in1.HasValue) return null;
+        var flow = in0.Value - in1.Value; //from road 0 into road 1
+        if (GameEngine.Vector3.Magnitude(flow) < 0.01f) return null;
+        var length = GameEngine.Vector3.Distance(GetNeighborPoint(roads[0]).Value, GetNeighborPoint(roads[1]).Value);
+        flow = GameEngine.Vector3.Normalize(flow) * length;
+        return index == 0 ? -flow : flow;
+    }
+
+    //the roll (degrees) shared by the ends of the two roads at a seamless intersection, for the given road: the average of
+    //their rolls, the one of the other road negated if the roads go the opposite way along the joint (end to end or start
+    //to start), since the roll is relative to the direction of the road. No roll if a road type doesn't allow it.
+    public float GetSeamlessRoll(Road road) {
+        var index = roads.IndexOf(road);
+        if (!IsSeamless() || index < 0) return 0.0f;
+        var other = roads[1 - index];
+        if (!road.IsRollAllowed() || !other.IsRollAllowed()) return 0.0f;
+        var otherRoll = other.GetOwnEndRoll(other.startIntersection == this);
+        return (road.GetOwnEndRoll(road.startIntersection == this) + (IsSameWay() ? otherRoll : -otherRoll)) * 0.5f;
+    }
+
+    //whether one of the two roads ends on the intersection and the other starts there
+    bool IsSameWay() {
+        return (roads[0].startIntersection == this) != (roads[1].startIntersection == this);
+    }
+
+    //gives the roll set on the end of the road to the end of the other one (see GetSeamlessRoll)
+    public void SetSeamlessRoll(Road road, float roll) {
+        var index = roads.IndexOf(road);
+        if (!IsSeamless() || index < 0) return;
+        var other = roads[1 - index];
+        if (!other.IsRollAllowed()) return;
+        other.SetOwnEndRoll(other.startIntersection == this, IsSameWay() ? roll : -roll);
+    }
+
     //the height of the end of a road (by index) relative to the point
     public float GetConnectionHeight(int index) {
         return index >= 0 && index < heights.Count ? heights[index] : 0.0f;
@@ -151,9 +224,10 @@ public partial class Intersection: IObjectWithState {
     }
 
     public void RebuildRoads(Road caller) {
-        if (state.HasChanged()) {
+        if (state.HasChanged() || instanceState.HasChanged()) {
             forceRemesh = true; //TODO: ???
             state.FlagAsUnchanged();
+            instanceState.FlagAsUnchanged();
         }
         var pos = GO.GetPosition(point);
         foreach (var road in roads) {
@@ -225,11 +299,22 @@ public partial class Intersection: IObjectWithState {
     }
 
     public void RecalculateSize() {
-        if (oldRoadCount != roads.Count) forceRemesh = true;
+        if (oldRoadCount != roads.Count || oldSeamless != IsSeamless()) forceRemesh = true;
         if (!forceRemesh) return;
         forceRemesh = true;
         oldRoadCount = roads.Count;
+        oldSeamless = IsSeamless();
         sizes = new List<float>();
+        if (IsSeamless()) {
+            //the roads end on the point, at its height
+            heights = new List<float>();
+            foreach (var road in roads) {
+                road.forceRemesh = true;
+                sizes.Add(0.0f);
+                heights.Add(0.0f);
+            }
+            return;
+        }
         var pointCenter = GO.GetPosition(point);
         var mouths = new List<RoadMouth>();
         var groundWidths = new List<float>(); //a rolled end is narrower on the ground
@@ -486,13 +571,18 @@ public partial class Intersection: IObjectWithState {
         if (!forceRemesh) return 0;
         forceRemesh = false;
 
-        int endRoad = -1;
-        var startRoads = GetStartAndEndRoads(ref endRoad);
+        if (IsSeamless()) {
+            UpdateRoadsThroughAndGetDirections(new List<int>(), false);
+            generator.RebuildSeamless();
+        } else {
+            int endRoad = -1;
+            var startRoads = GetStartAndEndRoads(ref endRoad);
 
-        bool isThroughRoad = startRoads.Count > 0 && endRoad != -1;
-        var throughDirections = UpdateRoadsThroughAndGetDirections(startRoads, isThroughRoad);
+            bool isThroughRoad = startRoads.Count > 0 && endRoad != -1;
+            var throughDirections = UpdateRoadsThroughAndGetDirections(startRoads, isThroughRoad);
 
-        generator.RebuildMesh(roadsThrough, throughDirections, isThroughRoad, startRoads, endRoad);
+            generator.RebuildMesh(roadsThrough, throughDirections, isThroughRoad, startRoads, endRoad);
+        }
 
         var centers = new List<List<Vector3>>();
         if (generator.sidePoints.Count > 0) {

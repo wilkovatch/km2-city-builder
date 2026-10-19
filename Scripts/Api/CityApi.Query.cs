@@ -204,6 +204,8 @@ namespace Api {
                         center = GO.GetPosition(intersection.point),
                         roadsClockwise = roads,
                         sizes = intersection.sizes,
+                        seamless = Operations.Intersections.IsSeamless(intersection),
+                        seamlessActive = intersection.IsSeamless(), //only with two roads
                         anchors = AnchorsOf(intersection.anchorManager)
                     };
                 }

@@ -65,6 +65,8 @@ namespace Operations {
             var oldEnd = best.points[best.points.Count - 1];
             var (intersection, newRoad) = RoadSplitter.Split(manager, best, bestPos.segment, bestPos.fraction);
             if (intersection == null) return null;
+            //the road being drawn is connected to it: not a joint of the parts of the split road
+            intersection.instanceState.SetBool("seamless", false);
             splitParts[road] = newRoad;
             //the end of the split road is now the end of the new road
             var newEnd = newRoad.points[newRoad.points.Count - 1];

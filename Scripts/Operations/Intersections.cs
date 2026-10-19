@@ -22,6 +22,17 @@ namespace Operations {
             return RoadMerger.Merge(manager, intersection, keep);
         }
 
+        //whether the two roads of the intersection join seamlessly (no surface, the same direction at the joint); set
+        //with more roads too, but without effect
+        public static bool IsSeamless(Intersection intersection) {
+            return intersection.IsSeamlessSet();
+        }
+
+        public static void SetSeamless(Intersection intersection, bool seamless) {
+            History.UndoManager.Touch(intersection);
+            intersection.instanceState.SetBool("seamless", seamless);
+        }
+
         //intersections are not created on their own, but by connecting roads (see RoadDrawing)
         public static void Move(Intersection intersection, Godot.Vector3 position) {
             History.UndoManager.Touch(intersection);

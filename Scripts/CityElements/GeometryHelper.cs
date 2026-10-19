@@ -166,13 +166,20 @@ public static class GeometryHelper {
         return res;
     }
 
-    public static Vector3 GetPointOnCurve(Vector3 start, List<Vector3> controlPoints, Vector3 end, float alpha, int alphaI, CurveType curveType, float hermiteTension = 0.5f, bool subdivideEqually = false) {
+    //the end tangents (along the curve) are imposed to the curve when given: as the tangents of the end spans of a
+    //Hermite curve (times the tension, as the tangents between its spans), only their directions for a Bézier curve, with
+    //a hidden control point next to the end (at the distance keeping the speed of the curve there), not at all for a
+    //low-poly curve
+    public static Vector3 GetPointOnCurve(Vector3 start, List<Vector3> controlPoints, Vector3 end, float alpha, int alphaI, CurveType curveType, float hermiteTension = 0.5f, bool subdivideEqually = false,
+        Vector3? startTangent = null, Vector3? endTangent = null) {
+
         if (AreVectorsEqual(start, end)) return start;
         var tempPoints = new List<Vector3> { start };
         tempPoints.AddRange(controlPoints);
         tempPoints.Add(end);
         switch (curveType) {
             case CurveType.Bezier:
+                tempPoints = WithHiddenBezierPoints(tempPoints, startTangent, endTangent);
                 var intermediatePoints = new List<Vector3>();
                 while (tempPoints.Count > 1) {
                     for (int i = 0; i < tempPoints.Count - 1; i++) {
@@ -197,6 +204,8 @@ public static class GeometryHelper {
 
                     var t1 = hermiteTension * (p2 - p0);
                     var t2 = hermiteTension * (p3 - p1);
+                    if (span == 0 && startTangent.HasValue) t1 = hermiteTension * startTangent.Value;
+                    if (span == segmentCount - 1 && endTangent.HasValue) t2 = hermiteTension * endTangent.Value;
 
                     var b1 = 2 * a3 - 3 * a2 + 1;
                     var b2 = -2 * a3 + 3 * a2;
@@ -218,8 +227,9 @@ public static class GeometryHelper {
     //a value given for each point of a curve (start, control points, end) at the curve parameter, blended as the
     //curve blends the points: Bernstein weights (Bézier), Hermite interpolation through the values (Hermite), the value
     //of the point (low-poly). The Hermite spans are found on the points, so that subdivideEqually uses their distances.
+    //The hidden control points of the end tangents (see GetPointOnCurve) take the values of the ends.
     public static Vector2 GetValueOnCurve(Vector3 start, List<Vector3> controlPoints, Vector3 end, List<Vector2> values, float alpha, int alphaI,
-        CurveType curveType, float hermiteTension = 0.5f, bool subdivideEqually = false) {
+        CurveType curveType, float hermiteTension = 0.5f, bool subdivideEqually = false, Vector3? startTangent = null, Vector3? endTangent = null) {
 
         if (values == null || values.Count == 0) return GameEngine.Vector2.zero;
         if (values.Count != controlPoints.Count + 2) return GameEngine.Vector2.zero;
@@ -227,6 +237,8 @@ public static class GeometryHelper {
         switch (curveType) {
             case CurveType.Bezier:
                 var level = new List<Vector2>(values);
+                if (startTangent.HasValue) level.Insert(1, values[0]);
+                if (endTangent.HasValue) level.Insert(level.Count - 1, values[values.Count - 1]);
                 while (level.Count > 1) {
                     for (int i = 0; i < level.Count - 1; i++) {
                         level[i] = level[i] + (level[i + 1] - level[i]) * alpha;
@@ -264,6 +276,27 @@ public static class GeometryHelper {
                 return values[Mathf.Clamp(alphaI, 0, values.Count - 1)];
         }
         return GameEngine.Vector2.zero;
+    }
+
+    //the control polygon of a Bézier curve with a hidden control point next to each end with a given tangent: along it,
+    //at the distance keeping the speed of the curve at the end (the degree grows with each hidden point)
+    static List<Vector3> WithHiddenBezierPoints(List<Vector3> points, Vector3? startTangent, Vector3? endTangent) {
+        if (!startTangent.HasValue && !endTangent.HasValue) return points;
+        var degree = points.Count - 1;
+        var newDegree = degree + (startTangent.HasValue ? 1 : 0) + (endTangent.HasValue ? 1 : 0);
+        var factor = degree / (float)newDegree;
+        var res = new List<Vector3>(points);
+        var first = points[0];
+        var last = points[points.Count - 1];
+        if (startTangent.HasValue) {
+            var dir = GameEngine.Vector3.Normalize(startTangent.Value);
+            res.Insert(1, first + dir * (GameEngine.Vector3.Magnitude(points[1] - first) * factor));
+        }
+        if (endTangent.HasValue) {
+            var dir = GameEngine.Vector3.Normalize(endTangent.Value);
+            res.Insert(res.Count - 1, last - dir * (GameEngine.Vector3.Magnitude(last - points[points.Count - 2]) * factor));
+        }
+        return res;
     }
 
     //the curve parameter each point of a curve (start, control points, end) is associated with: where a Hermite or

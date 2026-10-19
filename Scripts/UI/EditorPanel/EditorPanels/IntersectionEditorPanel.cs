@@ -7,6 +7,7 @@ namespace EditorPanels {
     public class IntersectionEditorPanel : EditorPanel {
         public Intersection intersection = null;
         readonly List<EditorPanelElements.Button> mergeButtons = new List<EditorPanelElements.Button>();
+        EditorPanelElements.Checkbox seamlessCheckbox;
 
         public IntersectionEditorPanel() {
             AddComplexElement(new PresetSelector(this));
@@ -50,6 +51,11 @@ namespace EditorPanels {
 
                 p.AddFieldInputField(SM.Get("RD_SIDEWALK_SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetCurIntersection, "state.properties.sidewalkSegments", null, w * 0.5f, null);
                 p.AddFieldInputField(SM.Get("IS_SIZE_INCREASE"), SM.Get("SIZE_PH"), GameEngine.InputContentType.Decimal, GetCurIntersection, "state.properties.sizeIncrease", null, w * 0.5f, null);
+                p.IncreaseRow();
+
+                //presets never store instance specific values
+                seamlessCheckbox = p.AddFieldCheckbox(SM.Get("IS_SEAMLESS"), GetCurIntersection, "instanceState.properties.seamless", null, w, SM.Get("IS_SEAMLESS_TOOLTIP"));
+                if (pS.EditingPreset()) seamlessCheckbox.SetInteractable(false);
                 p.IncreaseRow();
             } else {
                 return false;
@@ -129,7 +135,11 @@ namespace EditorPanels {
 
         protected override void ReadCurValues() {
             base.ReadCurValues();
+            //only an intersection with two roads can be merged or seamless
+            var twoRoads = GetCurIntersection()?.roads.Count == 2;
+            if (seamlessCheckbox != null && !GetComplexElement<PresetSelector>().EditingPreset()) seamlessCheckbox.SetInteractable(twoRoads);
             for (int i = 0; i < mergeButtons.Count; i++) {
+                mergeButtons[i].SetActive(twoRoads);
                 var road = GetMergeRoad(i);
                 mergeButtons[i].SetTitle(road != null ? SM.Get("IS_MERGE_INTO").Replace("$ROAD", GameEngine.GameObject.GetName(road)) : SM.Get("IS_MERGE"));
                 mergeButtons[i].SetInteractable(road != null && Operations.Intersections.CanMerge(GetCurIntersection(), road));

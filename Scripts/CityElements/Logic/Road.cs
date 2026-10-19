@@ -23,6 +23,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     RC.VariableContainer variableContainer;
 
     List<Vector2> rots = new List<Vector2>(); //of all the points (start, control points, end)
+    (Vector3? startTangent, Vector3? endTangent, Vector2 startRotation, Vector2 endRotation) seamlessEnds, old_seamlessEnds;
     List<Vector3> old_cps = new List<Vector3>();
     List<Vector2> old_rots = new List<Vector2>();
     List<Vector3> old_intersections = new List<Vector3>();
@@ -203,6 +204,58 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     public void SetPointRotation(int index, Vector2 rotation) {
         History.UndoManager.Touch(this);
         GetHandle(points[index]).curveRotation = ClampRotation(rotation);
+        SyncSeamlessRoll(index);
+    }
+
+    //the intersection the point (by index) is the end on, if seamless
+    Intersection GetSeamlessIntersection(int index) {
+        Intersection intersection = null;
+        if (index == 0) intersection = startIntersection;
+        else if (index == points.Count - 1) intersection = endIntersection;
+        return intersection != null && intersection.IsSeamless() ? intersection : null;
+    }
+
+    //the roll set on an end on a seamless intersection is given to the end of the other road too, so that the roll they
+    //share (see Intersection.GetSeamlessRoll) is the one set
+    void SyncSeamlessRoll(int index) {
+        var intersection = GetSeamlessIntersection(index);
+        if (intersection == null || !IsRollAllowed()) return;
+        intersection.SetSeamlessRoll(this, ClampRotation(GetHandle(points[index]).curveRotation).Y);
+    }
+
+    //the roll (degrees) of the end of the road on its start or end, as set on its point
+    public float GetOwnEndRoll(bool atStart) {
+        if (points.Count == 0 || !IsRollAllowed()) return 0.0f;
+        return ClampRotation(GetHandle(points[atStart ? 0 : points.Count - 1]).curveRotation).Y;
+    }
+
+    public void SetOwnEndRoll(bool atStart, float roll) {
+        if (points.Count == 0) return;
+        History.UndoManager.Touch(this);
+        var handle = GetHandle(points[atStart ? 0 : points.Count - 1]);
+        handle.curveRotation = ClampRotation(new Vector2(handle.curveRotation.X, roll));
+    }
+
+    //the tangents (along the curve) imposed to its ends by the seamless intersections they are on
+    public (Vector3? start, Vector3? end) GetEndTangents() {
+        var start = startIntersection?.GetSeamlessTangent(this);
+        var end = endIntersection?.GetSeamlessTangent(this);
+        return (start, end.HasValue ? -end.Value : null);
+    }
+
+    //the control points between the ends and the rotations of all the points the curve is evaluated with: a quadratic
+    //Bézier road between two intersections is evaluated as the same cubic one (the generator needs two intermediate
+    //control points), for the line too (the hidden control points of the seamless ends would make them differ)
+    (List<Vector3> cps, List<Vector2> rotations) GetEvaluatedControlPoints(Vector3 start, List<Vector3> cps, Vector3 end, List<Vector2> rotations) {
+        var isBezier = GetCurveType() == GeometryHelper.CurveType.Bezier;
+        if (!isBezier || startIntersection == null || endIntersection == null || cps.Count != 1) return (cps, rotations);
+        var newCps = new List<Vector3> {
+            start + 2.0f / 3.0f * (cps[0] - start),
+            end + 2.0f / 3.0f * (cps[0] - end)
+        };
+        if (rotations == null || rotations.Count != 3) return (newCps, rotations);
+        var r = rotations;
+        return (newCps, new List<Vector2> { r[0], r[0] + 2.0f / 3.0f * (r[1] - r[0]), r[2] + 2.0f / 3.0f * (r[1] - r[2]), r[2] });
     }
 
     CityElements.Types.RoadSettings GetTypeSettings() {
@@ -233,6 +286,12 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         var allowYaw = settings != null && settings.allowYaw;
         var allowRoll = settings != null && settings.allowRoll;
         for (int i = 0; i < res.Count; i++) {
+            //the ends on a seamless intersection share their roll, without yaw (the joint has the direction of both roads)
+            var seamless = GetSeamlessIntersection(i);
+            if (seamless != null) {
+                res[i] = new Vector2(0.0f, seamless.GetSeamlessRoll(this));
+                continue;
+            }
             var onIntersection = (i == 0 && startIntersection != null) || (i == res.Count - 1 && endIntersection != null);
             var r = ClampRotation(res[i]);
             var yaw = onIntersection ? ClampIntersectionYaw(r.X) : r.X;
@@ -268,8 +327,11 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         foreach (var p in points) positions.Add(GO.GetPosition(p));
         var hermiteTension = state.Float("hermiteTension", 0.5f);
         var subEq = state.Bool("subdivideEqually");
-        return GeometryHelper.GetValueOnCurve(positions[0], positions.GetRange(1, positions.Count - 2), positions[positions.Count - 1],
-            GetPointRotations(), t, Mathf.RoundToInt(minI + f), GetCurveType(), hermiteTension, subEq);
+        var first = positions[0];
+        var last = positions[positions.Count - 1];
+        var (evalCps, evalRotations) = GetEvaluatedControlPoints(first, positions.GetRange(1, positions.Count - 2), last, GetPointRotations());
+        var (startTangent, endTangent) = GetEndTangents();
+        return GeometryHelper.GetValueOnCurve(first, evalCps, last, evalRotations, t, Mathf.RoundToInt(minI + f), GetCurveType(), hermiteTension, subEq, startTangent, endTangent);
     }
 
     //the direction of the curve at a curve parameter (where it passes through a sample, around it)
@@ -316,6 +378,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             var cur = handle.curveRotation;
             handle.curveRotation = ClampRotation(new Vector2(IsYawAllowed(i) ? Mathf.RadToDeg(euler.Y) : cur.X,
                 IsRollAllowed() ? Mathf.RadToDeg(euler.Z) : cur.Y));
+            if (handle.curveRotation.Y != cur.Y) SyncSeamlessRoll(i);
             var effective = GetEffectiveRotations()[i];
             OrientHandle(handle, effective);
         }
@@ -388,6 +451,15 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         end = GO.GetPosition(points[points.Count - 1]);
         ReadRotatedHandles();
         rots = GetPointRotations();
+        seamlessEnds = GetSeamlessEnds();
+    }
+
+    //what the seamless intersections at the ends impose to them (from the other roads too)
+    (Vector3? startTangent, Vector3? endTangent, Vector2 startRotation, Vector2 endRotation) GetSeamlessEnds() {
+        var (startTangent, endTangent) = GetEndTangents();
+        var rotations = GetEffectiveRotations();
+        if (rotations.Count == 0) return (startTangent, endTangent, GameEngine.Vector2.zero, GameEngine.Vector2.zero);
+        return (startTangent, endTangent, rotations[0], rotations[rotations.Count - 1]);
     }
 
     float GetLineLength() {
@@ -445,10 +517,12 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         ReloadType();
         curvePoints.Clear();
         var segments = GetSegments();
+        var (evalCps, _) = GetEvaluatedControlPoints(start, cps, end, null);
+        var (startTangent, endTangent) = GetEndTangents();
         for (int i = 0; i < segments; i++) {
             var hermiteTension = state.Float("hermiteTension", 0.5f);
             var subEq = state.Bool("subdivideEqually");
-            var pos = GeometryHelper.GetPointOnCurve(start, cps, end, i / (segments - 1.0f), i, GetCurveType(), hermiteTension, subEq);
+            var pos = GeometryHelper.GetPointOnCurve(start, evalCps, end, i / (segments - 1.0f), i, GetCurveType(), hermiteTension, subEq, startTangent, endTangent);
             if (state.Bool("project") || state.Bool("projectAll")) pos = GeometryHelper.ProjectPoint(pos);
             curvePoints.Add(pos);
         }
@@ -496,21 +570,11 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         generator.valid = points.Count > 1;
         generator.startIntersectionCenter = null;
         generator.endIntersectionCenter = null;
+        (generator.startTangent, generator.endTangent) = GetEndTangents();
+        (generator.cps, generator.cpRotations) = GetEvaluatedControlPoints(start, generator.cps, end, generator.cpRotations);
 
-        var isBezier = GetCurveType() == GeometryHelper.CurveType.Bezier;
-
-        if (isBezier && startIntersection != null && endIntersection != null && generator.cps.Count == 1) //we need two intermediate control points, but we have just one
-        {
-            //Transform quadratic b�zier curve to cubic
-            generator.cps = new List<Vector3> {
-                start + 2.0f / 3.0f * (cps[0] - start),
-                end + 2.0f / 3.0f * (cps[0] - end)
-            };
-            var r = generator.cpRotations;
-            generator.cpRotations = new List<Vector2> { r[0], r[0] + 2.0f / 3.0f * (r[1] - r[0]), r[2] + 2.0f / 3.0f * (r[1] - r[2]), r[2] };
-        }
-
-        if (startIntersection != null) {
+        //the ends on a seamless intersection are on its point, their sections along the direction of the joint
+        if (startIntersection != null && !startIntersection.IsSeamless()) {
             var dir = curvePoints[1] - curvePoints[0];
             dir = new Vector3(dir[0], 0, dir[2]);
             var index = startIntersection.roads.IndexOf(this);
@@ -519,7 +583,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             if (height != 0) generator.start += GameEngine.Vector3.up * height;
             generator.startIntersectionCenter = GO.GetPosition(startIntersection.point);
         }
-        if (endIntersection != null) {
+        if (endIntersection != null && !endIntersection.IsSeamless()) {
             var dir = curvePoints[curvePoints.Count - 2] - curvePoints[curvePoints.Count - 1];
             dir = new Vector3(dir[0], 0, dir[2]);
             var index = endIntersection.roads.IndexOf(this);
@@ -568,6 +632,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         for (int i = 0; i < rots.Count; i++) {
             if (rots[i] != old_rots[i]) return true;
         }
+        if (seamlessEnds != old_seamlessEnds) return true;
         if (!GeometryHelper.AreVectorsEqual(start, old_start)) return true;
         if (!GeometryHelper.AreVectorsEqual(end, old_end)) return true;
         if (state.HasChanged()) return true;
@@ -578,6 +643,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     void UpdateOlds() {
         old_cps = new List<Vector3>(cps);
         old_rots = new List<Vector2>(rots);
+        old_seamlessEnds = seamlessEnds;
         old_intersections = new List<Vector3>();
         if (startIntersection != null) old_intersections.Add(GO.GetPosition(startIntersection.point));
         if (endIntersection != null) old_intersections.Add(GO.GetPosition(endIntersection.point));
