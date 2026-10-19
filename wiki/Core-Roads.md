@@ -10,7 +10,7 @@ roads/<type>/
 └── components/<component>.json      components specific to this type
 ```
 
-Components can also be placed in `elements/sharedComponents/`, where they can be used by several road types, intersection types and border mesh types; a component is looked up in the type's own `components` folder first.
+Components can also be placed in `elements/sharedComponents/`, where they can be used by several road types, intersection types and border mesh types; a component is looked up in the type's own `components` folder first (then in those of the types it extends, see [Core Type Inheritance](Core-Type-Inheritance)).
 
 The type name (folder name) is stored in each road's state and is used to name junction files (`<typeA>_<typeB>.json`), so it must not contain underscores.
 

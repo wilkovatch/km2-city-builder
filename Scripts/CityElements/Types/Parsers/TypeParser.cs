@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using TI = CityElements.Types.Parsers.TypeInheritance;
 
 namespace CityElements.Types.Parsers {
     public class TypeParser {
@@ -12,16 +13,50 @@ namespace CityElements.Types.Parsers {
             return Path.Combine(PathHelper.BasePath(), "Files", "cores", core, "elements");
         }
 
-        static Dictionary<string, T> GetTypes<T>(ref Dictionary<string, T> res, System.Action<string> func, bool reload = false) {
+        static string CategoryDir(string elementsDir, string category) {
+            return Path.Combine(elementsDir, category.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        //loads the types of a category of the current core, keeping their ancestries (see TypeInheritance)
+        static Dictionary<string, T> GetTypes<T>(ref Dictionary<string, T> res, string category,
+            System.Func<string, Dictionary<string, string[]>, Dictionary<string, T>> load, bool reload = false) {
+
             if (res != null && !reload) return res;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return new Dictionary<string, T>();
-            if (res == null || reload) {
-                res = new Dictionary<string, T>();
-                func.Invoke(elementsDir);
-                return res;
+            var ancestries = new Dictionary<string, string[]>();
+            res = load(elementsDir, ancestries);
+            TI.SetAncestries(category, ancestries);
+            return res;
+        }
+
+        //the folder types of a category, without the abstract ones
+        static Dictionary<string, T> LoadFolderTypes<T>(string elementsDir, string category, Dictionary<string, string[]> ancestries, System.Func<string, string, T> create) {
+            var res = new Dictionary<string, T>();
+            foreach (var dir in Directory.GetDirectories(CategoryDir(elementsDir, category))) {
+                if (TI.IsAbstractFolder(dir)) continue;
+                var key = Path.GetFileName(dir);
+                res.Add(key, create(dir, key));
+                ancestries?.Add(key, TI.FolderAncestry(dir));
             }
             return res;
+        }
+
+        //the single file types of a category, without the abstract ones
+        static Dictionary<string, T> LoadFileTypes<T>(string elementsDir, string category, Dictionary<string, string[]> ancestries, System.Func<string, string, T> create) {
+            var res = new Dictionary<string, T>();
+            foreach (var file in Directory.GetFiles(CategoryDir(elementsDir, category))) {
+                if (TI.IsAbstractFile(file)) continue;
+                var key = Path.GetFileNameWithoutExtension(file);
+                res[key] = create(file, key);
+                if (ancestries != null) ancestries[key] = TI.SingleFileAncestry(file);
+            }
+            return res;
+        }
+
+        //the type followed by its ancestors, nearest first (category: one of the constants of TypeInheritance)
+        public static string[] GetAncestry(string category, string name) {
+            return TI.GetAncestry(category, name);
         }
 
 
@@ -29,15 +64,16 @@ namespace CityElements.Types.Parsers {
         //Roads
         static Dictionary<string, Runtime.RoadType> roadTypes;
         public static Dictionary<string, Runtime.RoadType> GetRoadTypes(bool reload = false) {
-            return GetTypes(ref roadTypes, elementsDir => {
-                var dirs = Directory.GetDirectories(Path.Combine(elementsDir, "roads"));
-                var commonDir = Path.Combine(elementsDir, "sharedComponents");
-                foreach (var dir in dirs) {
-                    var tr = new RoadType(dir, commonDir);
-                    var key = Path.GetFileName(dir);
-                    roadTypes.Add(key, new Runtime.RoadType(tr, key));
-                }
-            }, reload);
+            return GetTypes(ref roadTypes, TI.Roads, LoadRoadTypes, reload);
+        }
+
+        public static Dictionary<string, Runtime.RoadType> LoadRoadTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            var commonDir = Path.Combine(elementsDir, "sharedComponents");
+            return LoadFolderTypes(elementsDir, TI.Roads, ancestries, (dir, key) => {
+                //the junctions of the intersections are named <road type>_<road type>
+                if (key.Contains("_")) GameEngine.LogWarning("Road type '" + key + "': the name of a road type should not contain '_'");
+                return new Runtime.RoadType(new RoadType(dir, commonDir), key);
+            });
         }
 
 
@@ -45,27 +81,20 @@ namespace CityElements.Types.Parsers {
         //Props
         static Dictionary<string, Runtime.PropsElementType> propsTypes;
         public static Dictionary<string, Runtime.PropsElementType> GetPropsElementTypes(bool reload = false) {
-            return GetTypes(ref propsTypes, elementsDir => {
-                var files = Directory.GetFiles(Path.Combine(elementsDir, "props", "elements"));
-                foreach (var file in files) {
-                    var content = File.ReadAllText(file);
-                    var tp = Newtonsoft.Json.JsonConvert.DeserializeObject<PropsElementType>(content);
-                    var key = Path.GetFileNameWithoutExtension(file);
-                    propsTypes.Add(key, new Runtime.PropsElementType(tp, key));
-                }
-            }, reload);
+            return GetTypes(ref propsTypes, TI.PropsElements, LoadPropsElementTypes, reload);
+        }
+
+        public static Dictionary<string, Runtime.PropsElementType> LoadPropsElementTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFileTypes(elementsDir, TI.PropsElements, ancestries, (file, key) => new Runtime.PropsElementType(TI.LoadSingle<PropsElementType>(file), key));
         }
 
         static Dictionary<string, PropsContainerType> propsContainersTypes;
         public static Dictionary<string, PropsContainerType> GetPropsContainersTypes(bool reload = false) {
-            return GetTypes(ref propsContainersTypes, elementsDir => {
-                var files = Directory.GetFiles(Path.Combine(elementsDir, "props", "containers"));
-                foreach (var file in files) {
-                    var content = File.ReadAllText(file);
-                    var tp = Newtonsoft.Json.JsonConvert.DeserializeObject<PropsContainerType>(content);
-                    propsContainersTypes.Add(Path.GetFileNameWithoutExtension(file), tp);
-                }
-            }, reload);
+            return GetTypes(ref propsContainersTypes, TI.PropsContainers, LoadPropsContainersTypes, reload);
+        }
+
+        public static Dictionary<string, PropsContainerType> LoadPropsContainersTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFileTypes(elementsDir, TI.PropsContainers, ancestries, (file, key) => TI.LoadSingle<PropsContainerType>(file));
         }
 
 
@@ -73,27 +102,21 @@ namespace CityElements.Types.Parsers {
         //Terrain patchces
         static Dictionary<string, Runtime.RoadType> terrainPatchBorderMeshTypes;
         public static Dictionary<string, Runtime.RoadType> GetTerrainPatchBorderMeshTypes(bool reload = false) {
-            return GetTypes(ref terrainPatchBorderMeshTypes, elementsDir => {
-                var dirs = Directory.GetDirectories(Path.Combine(elementsDir, "terrainPatches", "borderMeshes"));
-                var commonDir = Path.Combine(elementsDir, "sharedComponents");
-                foreach (var dir in dirs) {
-                    var tr = new RoadType(dir, commonDir);
-                    var key = Path.GetFileName(dir);
-                    terrainPatchBorderMeshTypes.Add(key, new Runtime.RoadType(tr, key));
-                }
-            }, reload);
+            return GetTypes(ref terrainPatchBorderMeshTypes, TI.BorderMeshes, LoadTerrainPatchBorderMeshTypes, reload);
+        }
+
+        public static Dictionary<string, Runtime.RoadType> LoadTerrainPatchBorderMeshTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            var commonDir = Path.Combine(elementsDir, "sharedComponents");
+            return LoadFolderTypes(elementsDir, TI.BorderMeshes, ancestries, (dir, key) => new Runtime.RoadType(new RoadType(dir, commonDir), key));
         }
 
         static Dictionary<string, Runtime.TerrainPatchType> terrainPatchTypes;
         public static Dictionary<string, Runtime.TerrainPatchType> GetTerrainPatchTypes(bool reload = false) {
-            return GetTypes(ref terrainPatchTypes, elementsDir => {
-                var dirs = Directory.GetDirectories(Path.Combine(elementsDir, "terrainPatches", "terrainPatches"));
-                foreach (var dir in dirs) {
-                    var tr = new TerrainPatchType(dir);
-                    var key = Path.GetFileName(dir);
-                    terrainPatchTypes.Add(key, new Runtime.TerrainPatchType(tr, key));
-                }
-            }, reload);
+            return GetTypes(ref terrainPatchTypes, TI.TerrainPatches, LoadTerrainPatchTypes, reload);
+        }
+
+        public static Dictionary<string, Runtime.TerrainPatchType> LoadTerrainPatchTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFolderTypes(elementsDir, TI.TerrainPatches, ancestries, (dir, key) => new Runtime.TerrainPatchType(new TerrainPatchType(dir), key));
         }
 
 
@@ -101,15 +124,12 @@ namespace CityElements.Types.Parsers {
         //Intersections
         static Dictionary<string, Runtime.IntersectionType> intersectionTypes;
         public static Dictionary<string, Runtime.IntersectionType> GetIntersectionTypes(bool reload = false) {
-            return GetTypes(ref intersectionTypes, elementsDir => {
-                var dirs = Directory.GetDirectories(Path.Combine(elementsDir, "intersections"));
-                var commonDir = Path.Combine(elementsDir, "sharedComponents");
-                foreach (var dir in dirs) {
-                    var tr = new IntersectionType(dir, commonDir);
-                    var key = Path.GetFileName(dir);
-                    intersectionTypes.Add(key, new Runtime.IntersectionType(tr, key));
-                }
-            }, reload);
+            return GetTypes(ref intersectionTypes, TI.Intersections, LoadIntersectionTypes, reload);
+        }
+
+        public static Dictionary<string, Runtime.IntersectionType> LoadIntersectionTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            var commonDir = Path.Combine(elementsDir, "sharedComponents");
+            return LoadFolderTypes(elementsDir, TI.Intersections, ancestries, (dir, key) => new Runtime.IntersectionType(new IntersectionType(dir, commonDir), key));
         }
 
 
@@ -117,14 +137,11 @@ namespace CityElements.Types.Parsers {
         //Buildings
         static Dictionary<string, Runtime.Buildings.BuildingType> buildingTypes;
         public static Dictionary<string, Runtime.Buildings.BuildingType> GetBuildingTypes(bool reload = false) {
-            return GetTypes(ref buildingTypes, elementsDir => {
-                var dirs = Directory.GetDirectories(Path.Combine(elementsDir, "buildings"));
-                foreach (var dir in dirs) {
-                    var tr = new Buildings.BuildingType(dir);
-                    var key = Path.GetFileName(dir);
-                    buildingTypes.Add(key, new Runtime.Buildings.BuildingType(tr, key));
-                }
-            }, reload);
+            return GetTypes(ref buildingTypes, TI.Buildings, LoadBuildingTypes, reload);
+        }
+
+        public static Dictionary<string, Runtime.Buildings.BuildingType> LoadBuildingTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFolderTypes(elementsDir, TI.Buildings, ancestries, (dir, key) => new Runtime.Buildings.BuildingType(new Buildings.BuildingType(dir), key));
         }
 
         public static Dictionary<string, Runtime.Buildings.BuildingType.Line> GetBuildingLineTypes(bool reload = false) {
@@ -157,14 +174,11 @@ namespace CityElements.Types.Parsers {
         //Building blocks
         static Dictionary<string, Runtime.Buildings.BlockType> buildingBlockTypes;
         public static Dictionary<string, Runtime.Buildings.BlockType> GetBuildingBlockTypes(bool reload = false) {
-            return GetTypes(ref buildingBlockTypes, elementsDir => {
-                var dirs = Directory.GetDirectories(Path.Combine(elementsDir, "buildingBlocks"));
-                foreach (var dir in dirs) {
-                    var tr = new Buildings.BlockType(dir);
-                    var key = Path.GetFileName(dir);
-                    buildingBlockTypes.Add(key, new Runtime.Buildings.BlockType(tr, key));
-                }
-            }, reload);
+            return GetTypes(ref buildingBlockTypes, TI.BuildingBlocks, LoadBuildingBlockTypes, reload);
+        }
+
+        public static Dictionary<string, Runtime.Buildings.BlockType> LoadBuildingBlockTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFolderTypes(elementsDir, TI.BuildingBlocks, ancestries, (dir, key) => new Runtime.Buildings.BlockType(new Buildings.BlockType(dir), key));
         }
 
         //MeshInstance (just one)
@@ -186,26 +200,26 @@ namespace CityElements.Types.Parsers {
             if (parametricMeshInstanceSettings != null && !reload) return parametricMeshInstanceSettings;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return null;
-            var folder = Path.Combine(elementsDir, "props", "parametric");
-            var files = Directory.GetFiles(folder);
-            var res = new Dictionary<string, Runtime.MeshInstanceSettings>();
-            foreach (var file in files) {
-                var content = File.ReadAllText(file);
-                var typeData = Newtonsoft.Json.JsonConvert.DeserializeObject<MeshInstanceSettings>(content);
-                var settings = new Runtime.MeshInstanceSettings(typeData);
-                res[Path.GetFileNameWithoutExtension(file)] = settings;
-            }
+            var ancestries = new Dictionary<string, string[]>();
+            var res = LoadParametricMeshInstanceSettings(elementsDir, ancestries);
+            TI.SetAncestries(TI.ParametricObjects, ancestries);
             return res;
+        }
+
+        public static Dictionary<string, Runtime.MeshInstanceSettings> LoadParametricMeshInstanceSettings(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFileTypes(elementsDir, TI.ParametricObjects, ancestries, (file, key) => new Runtime.MeshInstanceSettings(TI.LoadSingle<MeshInstanceSettings>(file)));
         }
 
         //City (only one type, dictionary here for compatibility with the InitializeWithCustomParameters method)
         static Dictionary<string, Runtime.CitySettings> citySettings = null;
         public static Dictionary<string, Runtime.CitySettings> GetCitySettings(bool reload = false) {
-            return GetTypes(ref citySettings, elementsDir => {
-                var dir = Path.Combine(elementsDir, "cityProperties");
-                var tr = new CitySettings.CitySettings(dir);
-                citySettings.Add("city", new Runtime.CitySettings(tr));
-            }, reload);
+            if (citySettings != null && !reload) return citySettings;
+            var elementsDir = GetElementsDir();
+            if (elementsDir == null) return new Dictionary<string, Runtime.CitySettings>();
+            var dir = Path.Combine(elementsDir, "cityProperties");
+            var tr = new CitySettings.CitySettings(dir);
+            citySettings = new Dictionary<string, Runtime.CitySettings> { { "city", new Runtime.CitySettings(tr) } };
+            return citySettings;
         }
 
         static Dictionary<string, CustomElement> customTypes = null;
@@ -213,15 +227,29 @@ namespace CityElements.Types.Parsers {
             if (customTypes != null && !reload) return customTypes;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return null;
-            var folder = Path.Combine(elementsDir, "customTypes");
-            var files = Directory.GetFiles(folder);
-            var res = new Dictionary<string, CustomElement>();
-            foreach (var file in files) {
-                var content = File.ReadAllText(file);
-                var typeData = Newtonsoft.Json.JsonConvert.DeserializeObject<CustomElement>(content);
-                res[Path.GetFileNameWithoutExtension(file)] = typeData;
-            }
+            var ancestries = new Dictionary<string, string[]>();
+            var res = LoadCustomTypes(elementsDir, ancestries);
+            TI.SetAncestries(TI.CustomTypes, ancestries);
             return res;
+        }
+
+        public static Dictionary<string, CustomElement> LoadCustomTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFileTypes(elementsDir, TI.CustomTypes, ancestries, (file, key) => TI.LoadSingle<CustomElement>(file));
+        }
+
+        //the ancestries of the types of every category of the current core
+        public static List<(string category, string name, string[] ancestry)> GetAllAncestries() {
+            GetRoadTypes();
+            GetIntersectionTypes();
+            GetTerrainPatchTypes();
+            GetTerrainPatchBorderMeshTypes();
+            GetBuildingTypes();
+            GetBuildingBlockTypes();
+            GetPropsElementTypes();
+            GetPropsContainersTypes();
+            GetParametricMeshInstanceSettings();
+            GetCustomTypes();
+            return TI.GetAllAncestries();
         }
     }
 }

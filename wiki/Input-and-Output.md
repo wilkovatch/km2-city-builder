@@ -74,6 +74,7 @@ Top-level structure (`ExportedCity`):
 | `buildingLines` | `data`, `linePoints`, `sides`, `roof`, `buildings` (each with `front`, `left`, `right`, `back` sides, `roof` and splines). Each side has its merged `data.mesh`, plus `meshDict`, `facades` and `paramMeshes` with the block instancing data. |
 | `meshInstances` | `id`, `name`, `settings`, `reference` (`meshId` into `meshDict`, position, scale, rotation). |
 | `cityProperties` | State of the city properties. |
+| `typeAncestry` | For every type of the core: `category` (its folder in `elements`), `name` and `ancestry` (the type, then the types it extends, nearest first; see [Core Type Inheritance](Core-Type-Inheritance#exporters)). |
 
 `BaseData` (the `data` field of most elements):
 

@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Godot;
 using Newtonsoft.Json.Linq;
 using GO = GameEngine.GameObject;
+using TI = CityElements.Types.Parsers.TypeInheritance;
+using TP = CityElements.Types.Parsers.TypeParser;
 
 namespace Api {
     //Development self-test of the scripting API, run with "-- selftest api <new folder>" on the command line. Creates a city
@@ -192,7 +194,9 @@ namespace Api {
                 await Frames(10);
                 await Basics();
                 LuaScripts();
+                TypeMerging();
                 await NewCity();
+                InheritedTypeFiles();
                 await Roads();
                 await TrafficLights();
                 await TerrainAndBuildings();
@@ -209,6 +213,7 @@ namespace Api {
                 await WholeCity();
                 await ScriptedGenerators();
                 await PythonScripts();
+                await InheritedTypes();
                 await Files();
             } catch (Abort e) {
                 Log("aborted: " + e.Message);
@@ -1417,6 +1422,204 @@ road(-750)
             Check("the script run from the panel creates the patches", (await Ids("terrainPatch")).Count > patchesBefore.Count);
             Check("the values of the panel are kept for the next run", PreferencesManager.Get<string>("scriptInputs:user:cityTerrain", null) != null);
             await Call("history.undo");
+        }
+
+        // Inheritance between the types of a core
+
+        //the merge rules, on JSON literals
+        void TypeMerging() {
+            bool Merges(string what, string parent, string child, string expected) {
+                var parentToken = JToken.Parse(parent);
+                var res = TI.Merge(parentToken, JToken.Parse(child));
+                TI.StripMarkers(res);
+                var ok = JToken.DeepEquals(res, JToken.Parse(expected)) && JToken.DeepEquals(parentToken, JToken.Parse(parent));
+                Check("type merge: " + what + (ok ? "" : " (got " + res.ToString(Newtonsoft.Json.Formatting.None) + ")"), ok);
+                return ok;
+            }
+            Merges("objects are merged, the child wins", "{'a': 1, 'b': {'c': 2, 'd': 3}}", "{'b': {'d': 4}, 'e': 5}", "{'a': 1, 'b': {'c': 2, 'd': 4}, 'e': 5}");
+            Merges("$replace replaces an object", "{'b': {'c': 2, 'd': 3}}", "{'b': {'$replace': true, 'd': 4}}", "{'b': {'d': 4}}");
+            Merges("a null value is kept", "{'a': 1}", "{'a': null}", "{'a': null}");
+            Merges("arrays of values are replaced", "{'v': ['a', 'b', 'c']}", "{'v': ['x']}", "{'v': ['x']}");
+            Merges("arrays of objects without names are replaced", "{'l': [{'containerName': 'a'}, {'containerName': 'b'}]}", "{'l': [{'containerName': 'a', 'x': 1}]}",
+                "{'l': [{'containerName': 'a', 'x': 1}]}");
+            Merges("named elements are merged in place, new ones appended", "[{'name': 'a', 'v': 1}, {'name': 'b', 'v': 2}]", "[{'name': 'a', 'v': 3}, {'name': 'c'}]",
+                "[{'name': 'a', 'v': 3}, {'name': 'b', 'v': 2}, {'name': 'c'}]");
+            Merges("the container tells apart parameters with the same name, $after takes the container prefix",
+                "[{'name': 't', 'type': 'texture'}, {'name': 't', 'container': 'rail', 'type': 'texture'}, {'name': 'w'}]",
+                "[{'name': 't', 'container': 'rail', 'label': 'R'}, {'name': 'n', '$after': 'rail_t'}, {'name': 'm', '$after': 't'}]",
+                "[{'name': 't', 'type': 'texture'}, {'name': 'm'}, {'name': 't', 'container': 'rail', 'type': 'texture', 'label': 'R'}, {'name': 'n'}, {'name': 'w'}]");
+            Merges("fromStart tells apart imported parameters (missing is false)",
+                "[{'name': 'x', 'fromStart': true, 'newName': 'A'}, {'name': 'x', 'fromStart': false, 'newName': 'B'}]", "[{'name': 'x', 'newName': 'C'}]",
+                "[{'name': 'x', 'fromStart': true, 'newName': 'A'}, {'name': 'x', 'fromStart': false, 'newName': 'C'}]");
+            Merges("$remove and $before", "[{'name': 'a'}, {'name': 'b'}, {'name': 'c'}]", "[{'name': 'b', '$remove': true}, {'name': 'c', '$before': 'a'}]",
+                "[{'name': 'c'}, {'name': 'a'}]");
+            Merges("$after moves an inherited element", "[{'name': 'a'}, {'name': 'b'}, {'name': 'c'}]", "[{'name': 'a', '$after': 'c'}]",
+                "[{'name': 'b'}, {'name': 'c'}, {'name': 'a'}]");
+            Merges("tabs (by label) and their elements are merged",
+                "{'tabs': [{'label': 'T1', 'elements': [{'name': 'a', 'width': 1}, {'name': 'b', 'width': 1}]}, {'label': 'T2', 'elements': [{'name': 'c', 'width': 1}]}]}",
+                "{'tabs': [{'label': 'T1', 'elements': [{'name': 'x', 'width': 0.5, '$after': 'a'}, {'name': 'b', 'width': 2}]}]}",
+                "{'tabs': [{'label': 'T1', 'elements': [{'name': 'a', 'width': 1}, {'name': 'x', 'width': 0.5}, {'name': 'b', 'width': 2}]}, {'label': 'T2', 'elements': [{'name': 'c', 'width': 1}]}]}");
+            Merges("late definitions are merged by category", "[{'category': 'c1', 'definitions': [{'name': 'a', 'value': '1'}]}]",
+                "[{'category': 'c1', 'definitions': [{'name': 'a', 'value': '2'}]}]", "[{'category': 'c1', 'definitions': [{'name': 'a', 'value': '2'}]}]");
+            Merges("an inherited array with repeated names is replaced", "[{'name': 'a', 'v': 1}, {'name': 'a', 'v': 2}]", "[{'name': 'a', 'v': 3}]", "[{'name': 'a', 'v': 3}]");
+            bool Throws(string parent, string child) {
+                try {
+                    TI.Merge(JToken.Parse(parent), JToken.Parse(child));
+                    return false;
+                } catch (InvalidDataException e) {
+                    Log("     " + e.Message);
+                    return true;
+                }
+            }
+            Check("type merge: $after an element that is not there is an error", Throws("[{'name': 'a'}]", "[{'name': 'b', '$after': 'z'}]"));
+            Check("type merge: $after an ambiguous element is an error", Throws("[{'name': 'x', 'fromStart': true}, {'name': 'x'}]", "[{'name': 'y', '$after': 'x'}]"));
+        }
+
+        static void CopyFolder(string from, string to) {
+            Directory.CreateDirectory(to);
+            foreach (var file in Directory.GetFiles(from)) File.Copy(file, Path.Combine(to, Path.GetFileName(file)), true);
+            foreach (var dir in Directory.GetDirectories(from)) CopyFolder(dir, Path.Combine(to, Path.GetFileName(dir)));
+        }
+
+        static string CoreElementsDir() {
+            return Path.Combine(PathHelper.BasePath(), "Files", "cores", "MidtownMadness2", "elements");
+        }
+
+        static bool SameJson(object a, object b) {
+            if (a == null || b == null) return a == b;
+            return JToken.DeepEquals(JToken.FromObject(a), JToken.FromObject(b));
+        }
+
+        //types loaded from a scratch elements folder, made of copies of the types of the core and of types extending them
+        void InheritedTypeFiles() {
+            var core = CoreElementsDir();
+            var dir = Path.Combine(folder + "_types", "elements");
+            if (Directory.Exists(folder + "_types")) Directory.Delete(folder + "_types", true);
+            foreach (var sub in new[] { "roads/psdl", "intersections/psdl", "sharedComponents", "props/elements" }) {
+                CopyFolder(Path.Combine(core, sub), Path.Combine(dir, sub));
+            }
+            void Write(string path, string json) {
+                var full = Path.Combine(dir, path);
+                Directory.CreateDirectory(Path.GetDirectoryName(full));
+                File.WriteAllText(full, json.Replace('\'', '"'));
+            }
+            Write("roads/child/type.json", "{'extends': 'psdl'}");
+            Write("roads/base/type.json", "{'extends': 'psdl', 'abstract': true}");
+            Write("roads/child2/type.json", "{'extends': 'base'}");
+            Write("roads/child2/settings.json", "{'components': [{'name': 'singleRoad', 'condition': 'false'}]}");
+            Write("roads/child2/parameters.json", "{'parameters': [{'name': 'tunnel', 'label': 'RD_TUNNEL', 'type': 'bool', '$after': 'echo'}]}");
+            Write("roads/child2/ui.json", "{'tabs': [{'label': 'RD_TAB_MAIN', 'elements': [{'name': 'doNotExport', '$remove': true}]}]}");
+            Write("roads/child2/components/singleRoad.json", "{'mainMesh': {'uvs': ['vec2(zRd, 0)', 'vec2(zRd, 2)']}}");
+            Write("intersections/child/type.json", "{'extends': 'psdl'}");
+            Write("props/elements/narrow.json", "{'extends': 'psdl', 'label': 'PROP_TYPE_NARROW'}");
+            Write("props/elements/hidden.json", "{'extends': 'psdl', 'abstract': true}");
+
+            var ancestries = new Dictionary<string, string[]>();
+            var roads = TP.LoadRoadTypes(dir, ancestries);
+            Check("inherited road types: the abstract type is not listed (" + string.Join(", ", roads.Keys) + ")",
+                roads.ContainsKey("child") && roads.ContainsKey("child2") && !roads.ContainsKey("base"));
+            Check("inherited road types: the ancestries (" + string.Join(" -> ", ancestries["child2"]) + ")",
+                ancestries["child"].SequenceEqual(new[] { "child", "psdl" }) && ancestries["child2"].SequenceEqual(new[] { "child2", "base", "psdl" })
+                && ancestries["psdl"].SequenceEqual(new[] { "psdl" }));
+            var psdl = roads["psdl"].typeData;
+            Check("inherited road types: a type with only type.json is its parent", SameJson(roads["child"].typeData, psdl));
+
+            var child2 = roads["child2"].typeData;
+            var expectedSettings = JToken.FromObject(psdl.settings);
+            expectedSettings["components"].First(c => c["name"].Value<string>() == "singleRoad")["condition"] = "false";
+            Check("inherited road types: settings merged (component condition overridden)", JToken.DeepEquals(JToken.FromObject(child2.settings), expectedSettings));
+            var names = psdl.parameters.parameters.Select(p => p.fullName()).ToList();
+            names.Insert(names.IndexOf("echo") + 1, "tunnel");
+            Check("inherited road types: a parameter added after another one", child2.parameters.parameters.Select(p => p.fullName()).SequenceEqual(names)
+                && SameJson(child2.parameters.parameters.Where(p => p.name != "tunnel").ToArray(), psdl.parameters.parameters)
+                && SameJson(child2.parameters.staticDefinitions, psdl.parameters.staticDefinitions));
+            var tabElements = psdl.ui.tabs[0].elements.Select(e => e.name).Where(n => n != "doNotExport");
+            Check("inherited road types: a UI element removed", child2.ui.tabs[0].elements.Select(e => e.name).SequenceEqual(tabElements)
+                && child2.ui.tabs.Length == psdl.ui.tabs.Length && SameJson(child2.ui.tabs[1], psdl.ui.tabs[1]));
+            var expectedComponents = JToken.FromObject(psdl.components);
+            var single = System.Array.FindIndex(psdl.settings.components, c => c.name == "singleRoad");
+            expectedComponents[single]["mainMesh"]["uvs"] = new JArray("vec2(zRd, 0)", "vec2(zRd, 2)");
+            Check("inherited road types: a component merged over the inherited one", JToken.DeepEquals(JToken.FromObject(child2.components), expectedComponents));
+
+            var intersections = TP.LoadIntersectionTypes(dir);
+            Check("inherited intersection type: same junctions and components as its parent", intersections.ContainsKey("child")
+                && intersections["child"].typeData.junctions.Keys.SequenceEqual(intersections["psdl"].typeData.junctions.Keys)
+                && SameJson(intersections["child"].typeData, intersections["psdl"].typeData));
+
+            var props = TP.LoadPropsElementTypes(dir);
+            Check("inherited props element: label overridden, parameters inherited, abstract one not listed", props.ContainsKey("narrow") && !props.ContainsKey("hidden")
+                && props["narrow"].typeData.label == "PROP_TYPE_NARROW" && SameJson(props["narrow"].typeData.parametersInfo, props["psdl"].typeData.parametersInfo));
+
+            var bad = Path.Combine(folder + "_types", "bad");
+            void WriteBad(string path, string json) {
+                var full = Path.Combine(bad, path);
+                Directory.CreateDirectory(Path.GetDirectoryName(full));
+                File.WriteAllText(full, json.Replace('\'', '"'));
+            }
+            WriteBad("roads/a/type.json", "{'extends': 'b'}");
+            WriteBad("roads/b/type.json", "{'extends': 'a'}");
+            WriteBad("roads/orphan/type.json", "{'extends': 'nope'}");
+            WriteBad("roads/escape/type.json", "{'extends': '../a'}");
+            WriteBad("props/x.json", "{'extends': 'y'}");
+            WriteBad("props/y.json", "{'extends': 'x'}");
+            bool Throws(System.Action action) {
+                try {
+                    action();
+                    return false;
+                } catch (InvalidDataException e) {
+                    Log("     " + e.Message);
+                    return true;
+                }
+            }
+            Check("inheritance cycle is an error", Throws(() => TI.FolderAncestry(Path.Combine(bad, "roads", "a"))));
+            Check("extending a missing type is an error", Throws(() => TI.FolderAncestry(Path.Combine(bad, "roads", "orphan"))));
+            Check("extending a type outside the category is an error", Throws(() => TI.FolderAncestry(Path.Combine(bad, "roads", "escape"))));
+            Check("inheritance cycle of single file types is an error", Throws(() => TI.SingleFileAncestry(Path.Combine(bad, "props", "x.json"))));
+        }
+
+        //a road type of the core extending another one, in a city
+        async Task InheritedTypes() {
+            var typeDir = Path.Combine(CoreElementsDir(), "roads", "zzInheritTest");
+            var steps = 0;
+            try {
+                Directory.CreateDirectory(typeDir);
+                File.WriteAllText(Path.Combine(typeDir, "type.json"), "{\"extends\": \"psdl\"}");
+                TP.GetRoadTypes(true);
+                var types = (JArray)await Call("types.list", new { kind = "road" });
+                var listed = types.FirstOrDefault(t => t["name"].Value<string>() == "zzInheritTest");
+                Check("types.list gives the ancestry of an inherited type", listed != null && listed["ancestry"].ToObject<string[]>().SequenceEqual(new[] { "zzInheritTest", "psdl" })
+                    && types.First(t => t["name"].Value<string>() == "psdl")["ancestry"].ToObject<string[]>().SequenceEqual(new[] { "psdl" }));
+
+                var road = (await Call("roads.create", new { points = new[] { Pos(600, -600), Pos(700, -650), Pos(800, -600) }, type = "psdl" })).Value<int>();
+                steps++;
+                var parentMesh = (await Call("elements.geometry", new { @ref = road }))["element"]["data"]["mesh"];
+                await Call("state.setType", new { @ref = road, type = "zzInheritTest" });
+                steps++;
+                var childMesh = (await Call("elements.geometry", new { @ref = road }))["element"]["data"]["mesh"];
+                Check("a road of a type extending psdl has the geometry of a psdl road", parentMesh.Type != JTokenType.Null && JToken.DeepEquals(parentMesh, childMesh));
+
+                var other = (await Call("roads.create", new { points = new object[] { Pos(700, -400), Pos(780, -500), new { roadEnd = new { road, end = "end" } } }, type = "psdl" })).Value<int>();
+                steps++;
+                var crossing = (await Derived(other))["endIntersection"];
+                Check("an intersection joins the inherited type and psdl", crossing.Type != JTokenType.Null
+                    && (await Call("elements.geometry", new { @ref = crossing.Value<int>() }))["element"]["data"]["mesh"].Type != JTokenType.Null);
+                var intersectionType = TP.GetIntersectionTypes()["psdl"];
+                var psdlJunction = intersectionType.junctionTypes[("psdl", "psdl")];
+                Check("the junction of the inherited type is the one of its parent", intersectionType.GetJunctionType("zzInheritTest", "psdl") == psdlJunction
+                    && intersectionType.GetJunctionType("psdl", "zzInheritTest") == psdlJunction && intersectionType.GetJunctionType("zzInheritTest", "zzInheritTest") == psdlJunction);
+
+                var exportJson = Path.Combine(folder, "..", "api_export_inherit.json");
+                await Call("city.exportJson", new { path = exportJson });
+                var exported = JObject.Parse(File.ReadAllText(exportJson));
+                var entry = ((JArray)exported["typeAncestry"])?.FirstOrDefault(t => t["category"].Value<string>() == "roads" && t["name"].Value<string>() == "zzInheritTest");
+                Check("the export JSON has the ancestry of the inherited type", entry != null && entry["ancestry"].ToObject<string[]>().SequenceEqual(new[] { "zzInheritTest", "psdl" }));
+                File.Delete(exportJson);
+            } finally {
+                for (int i = 0; i < steps; i++) await Call("history.undo");
+                if (Directory.Exists(typeDir)) Directory.Delete(typeDir, true);
+                TP.GetRoadTypes(true);
+            }
+            Check("the type is gone after reloading", !TP.GetRoadTypes().ContainsKey("zzInheritTest"));
         }
 
         void Screenshot(string name) {

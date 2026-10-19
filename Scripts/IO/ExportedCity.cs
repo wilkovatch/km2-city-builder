@@ -128,6 +128,14 @@ namespace IO.ExportedCity {
         public ObjectState data;
     }
 
+    //a type of the core and the types it extends (category: the folder of the type in the elements folder of the core)
+    [System.Serializable]
+    public class TypeAncestry {
+        public string category;
+        public string name;
+        public string[] ancestry; //the type itself, then its ancestors, nearest first
+    }
+
     [System.Serializable]
     public class ExportedCity {
         public DictMesh[] meshDict;
@@ -138,5 +146,6 @@ namespace IO.ExportedCity {
         public BuildingLine[] buildingLines;
         public MeshInstance[] meshInstances;
         public ObjectState cityProperties;
+        public TypeAncestry[] typeAncestry;
     }
 }

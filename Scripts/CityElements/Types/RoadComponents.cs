@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using CityElements.Types.Parsers;
 
 namespace CityElements.Types {
     public class PropLine {
@@ -61,26 +62,12 @@ namespace CityElements.Types {
         public RoadComponent[] components;
 
         public RoadType(string folder, string commonFolder) {
-            var uiFile = Path.Combine(folder, "ui.json");
-            var uiContent = File.ReadAllText(uiFile);
-            var parametersFile = Path.Combine(folder, "parameters.json");
-            var parametersContent = File.ReadAllText(parametersFile);
-            var settingsFile = Path.Combine(folder, "settings.json");
-            var settingsContent = File.ReadAllText(settingsFile);
-            ui = Newtonsoft.Json.JsonConvert.DeserializeObject<Panel>(uiContent);
-            parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<ParameterContainer>(parametersContent);
-            settings = Newtonsoft.Json.JsonConvert.DeserializeObject<RoadSettings>(settingsContent);
-            var compDir = Path.Combine(folder, "components");
-            var componentFiles = new string[settings.components.Length];
-            for (int i = 0; i < componentFiles.Length; i++) {
-                var compPath = Path.Combine(compDir, settings.components[i].name + ".json");
-                if (!File.Exists(compPath)) compPath = Path.Combine(commonFolder, settings.components[i].name + ".json");
-                componentFiles[i] = compPath;
-            }
-            components = new RoadComponent[componentFiles.Length];
-            for (int i = 0; i < componentFiles.Length; i++) {
-                var compContent = File.ReadAllText(componentFiles[i]);
-                components[i] = Newtonsoft.Json.JsonConvert.DeserializeObject<RoadComponent>(compContent);
+            ui = TypeInheritance.Load<Panel>(folder, "ui.json");
+            parameters = TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
+            settings = TypeInheritance.Load<RoadSettings>(folder, "settings.json");
+            components = new RoadComponent[settings.components.Length];
+            for (int i = 0; i < components.Length; i++) {
+                components[i] = TypeInheritance.LoadComponent<RoadComponent>(folder, settings.components[i].name, commonFolder);
             }
         }
 
@@ -177,30 +164,17 @@ namespace CityElements.Types {
         public IntersectionSettings settings;
 
         public IntersectionType(string folder, string commonFolder) {
-            var uiFile = Path.Combine(folder, "ui.json");
-            var uiContent = File.ReadAllText(uiFile);
-            var parametersFile = Path.Combine(folder, "parameters.json");
-            var parametersContent = File.ReadAllText(parametersFile);
-            var settingsFile = Path.Combine(folder, "settings.json");
-            var settingsContent = File.ReadAllText(settingsFile);
-            ui = Newtonsoft.Json.JsonConvert.DeserializeObject<Panel>(uiContent);
-            parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<ParameterContainer>(parametersContent);
-            settings = Newtonsoft.Json.JsonConvert.DeserializeObject<IntersectionSettings>(settingsContent);
-            var junctionsPath = Path.Combine(folder, "junctions");
-            var junctionFiles = Directory.GetFiles(junctionsPath, "*.json");
+            ui = TypeInheritance.Load<Panel>(folder, "ui.json");
+            parameters = TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
+            settings = TypeInheritance.Load<IntersectionSettings>(folder, "settings.json");
             junctions = new Dictionary<string, JunctionType>();
-            var compDir = Path.Combine(folder, "components");
             components = new Dictionary<string, RoadComponent>();
-            for (int i = 0; i < junctionFiles.Length; i++) {
-                var junctionContent = File.ReadAllText(Path.Combine(junctionsPath, junctionFiles[i]));
-                var cleanName = Path.GetFileName(junctionFiles[i]).Replace(".json", "");
-                junctions[cleanName] = Newtonsoft.Json.JsonConvert.DeserializeObject<JunctionType>(junctionContent);
-                foreach (var elem in junctions[cleanName].components) {
+            foreach (var junctionName in TypeInheritance.FileNames(folder, "junctions")) {
+                var junction = TypeInheritance.Load<JunctionType>(folder, Path.Combine("junctions", junctionName + ".json"));
+                junctions[junctionName] = junction;
+                foreach (var elem in junction.components) {
                     if (!components.ContainsKey(elem.name)) {
-                        var compPath = Path.Combine(compDir, elem.name + ".json");
-                        if (!File.Exists(compPath)) compPath = Path.Combine(commonFolder, elem.name + ".json");
-                        var compContent = File.ReadAllText(compPath);
-                        components[elem.name] = Newtonsoft.Json.JsonConvert.DeserializeObject<RoadComponent>(compContent);
+                        components[elem.name] = TypeInheritance.LoadComponent<RoadComponent>(folder, elem.name, commonFolder);
                     }
                 }
             }

@@ -139,6 +139,12 @@ namespace CityEncoder {
 
                 savedCity.cityProperties = manager.GetDummy<CityProperties>().GetState();
 
+                var ancestries = new List<IO.ExportedCity.TypeAncestry>();
+                foreach (var (category, name, ancestry) in CityElements.Types.Parsers.TypeParser.GetAllAncestries()) {
+                    ancestries.Add(new IO.ExportedCity.TypeAncestry { category = category, name = name, ancestry = ancestry });
+                }
+                savedCity.typeAncestry = ancestries.ToArray();
+
                 geometry.Dispose();
 
                 var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.None);

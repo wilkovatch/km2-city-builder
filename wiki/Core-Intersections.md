@@ -95,14 +95,14 @@ A junction file describes the strip between road A (the first road clockwise) an
 | `staticDefinitions`, `dynamicDefinitions` | no | Added after the intersection type's own definitions. Late definitions are not supported in junctions. |
 | `textureDefinitions` | no | Chooses a texture among several state properties: the junction state property `name` is set to the value of `options[index]`, `index` being a float expression. |
 | `anchors` | no | Anchor lines along the junction (vec3 expressions). Needed whenever the roads have anchors. They must start and end exactly (within 1 cm) on the corresponding anchors of the two roads, so that the anchor chains connect and terrain patches can follow them around the corner. |
-| `components` | yes | As for roads; components are looked up in the intersection type's `components` folder, then in `sharedComponents`. |
+| `components` | yes | As for roads; components are looked up in the intersection type's `components` folder (then in those of the types it extends), then in `sharedComponents`. |
 | `textures`, `texturesMapping` | yes | As for roads, but the texture names refer to the junction state (intersection parameters, imported textures, texture definitions). |
 | `trafficLanes`, `propsLines` | no | Parsed but not generated for junctions yet. |
 | `extraTerrainSplines` | no | For each extra terrain piece, the vertex (vec3 expression) the piece passes through at each junction section. |
 
 ### Missing junctions
 
-If the junction for a pair of road types is missing, the program uses the junction of road A's type with itself, then road B's, then any junction of the intersection type, and logs a warning. Providing a junction for every pair of road types that can meet avoids surprises.
+If the junction for a pair of road types is missing, the program uses the junction of the nearest pair of types they extend, if any (see [Core Type Inheritance](Core-Type-Inheritance#junctions)). Otherwise it uses the junction of road A's type (or of a type it extends) with itself, then road B's, then any junction of the intersection type, and logs a warning. Providing a junction for every pair of road types that can meet avoids surprises.
 
 ### Junction variables
 

@@ -21,6 +21,7 @@
 **Creating cores**
 - [Creating a Core](Creating-a-Core)
 - [Core Structure](Core-Structure)
+- [Type Inheritance](Core-Type-Inheritance)
 - [Expression Language](Expression-Language)
 - [Parameters and UI](Parameters-and-UI)
 - [Roads](Core-Roads)

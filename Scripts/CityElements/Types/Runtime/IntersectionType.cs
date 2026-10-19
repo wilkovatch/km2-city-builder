@@ -25,13 +25,32 @@ namespace CityElements.Types.Runtime {
         public Dictionary<string, ExtraPieceCalculators> extraPiecesCalculators = new Dictionary<string, ExtraPieceCalculators>();
         Dictionary<(string, string), JunctionType> fallbackJunctionTypes = new Dictionary<(string, string), JunctionType>();
 
-        // Junctions are defined per pair of road types: a pair missing from the core falls back to the junction of either
-        // road type with itself (or any junction), reported once per pair.
+        // Junctions are defined per pair of road types: a pair missing from the core uses the junction of the nearest pair
+        // of their ancestors (road types extending other ones), otherwise it falls back to the junction of either road type
+        // (or of one of its ancestors) with itself, or any junction, reported once per pair.
         public JunctionType GetJunctionType(string roadTypeI, string roadTypeJ) {
             var key = (roadTypeI, roadTypeJ);
             if (junctionTypes.TryGetValue(key, out var junction)) return junction;
             if (fallbackJunctionTypes.TryGetValue(key, out junction)) return junction;
-            if (!junctionTypes.TryGetValue((roadTypeI, roadTypeI), out junction) && !junctionTypes.TryGetValue((roadTypeJ, roadTypeJ), out junction)) {
+            var ancestryI = Parsers.TypeParser.GetAncestry(Parsers.TypeInheritance.Roads, roadTypeI);
+            var ancestryJ = Parsers.TypeParser.GetAncestry(Parsers.TypeInheritance.Roads, roadTypeJ);
+            for (int depth = 1; depth <= ancestryI.Length + ancestryJ.Length - 2; depth++) {
+                for (int i = 0; i <= depth; i++) {
+                    var j = depth - i;
+                    if (i < ancestryI.Length && j < ancestryJ.Length && junctionTypes.TryGetValue((ancestryI[i], ancestryJ[j]), out junction)) {
+                        fallbackJunctionTypes[key] = junction;
+                        return junction;
+                    }
+                }
+            }
+            junction = null;
+            foreach (var ancestor in ancestryI) {
+                if (junction == null) junctionTypes.TryGetValue((ancestor, ancestor), out junction);
+            }
+            foreach (var ancestor in ancestryJ) {
+                if (junction == null) junctionTypes.TryGetValue((ancestor, ancestor), out junction);
+            }
+            if (junction == null) {
                 foreach (var j in junctionTypes.Values) { junction = j; break; }
             }
             fallbackJunctionTypes[key] = junction;

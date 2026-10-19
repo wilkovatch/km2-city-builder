@@ -26,6 +26,17 @@ Static entry point. Every getter reads its folder of the current core (`Files/co
 | `GetCitySettings` | `cityProperties/` | `Runtime.CitySettings` under the key `"city"` |
 | `GetCustomTypes` | `customTypes/<name>.json` | `CustomElement` |
 
+### Inheritance (`Types/Parsers/TypeInheritance.cs`)
+
+A type can extend another type of its category (see [Core Type Inheritance](Core-Type-Inheritance) for the format and the merge rules). The data type constructors don't read their files directly but through `TypeInheritance`:
+
+* `Load<T>(folder, file)` finds the file in the type folder and in the folders of its ancestors; a file found once is deserialized as it is, files found several times are parsed as `JToken`s, merged (`Merge`, farthest ancestor first), stripped of the `$` markers and converted with `ToObject<T>`;
+* `LoadComponent<T>(folder, name, commonFolder)` does the same for a component, falling back to the shared components folder;
+* `FileNames(folder, subfolder)` lists the junction files of the type and of its ancestors;
+* `LoadSingle<T>(file)` loads a single file type (`extends` key in the file).
+
+`FolderAncestry` and `SingleFileAncestry` give the type followed by its ancestors (errors for missing parents and cycles), `IsAbstractFolder`/`IsAbstractFile` tell the abstract types, which `TypeParser` leaves out of its dictionaries. Each `Load…Types(elementsDir, ancestries)` method of `TypeParser` (the getters call them for the current core; the self-test calls them on scratch folders) fills the ancestries of the types it loads, and the getters keep them in `TypeInheritance`: `TypeParser.GetAncestry(category, name)` gives the ancestry of a loaded type (the category is one of the constants of `TypeInheritance`, the folder of the types in `elements`), `GetAllAncestries()` those of all the types (written in the export JSON). The intersection types use the ancestries of the road types to find the junction of a pair of road types.
+
 ## Data types
 
 ### Common (`CommonComponents.cs`)

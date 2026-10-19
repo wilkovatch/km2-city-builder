@@ -12,7 +12,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 ├── strings/
 │   └── en-US.json               core strings (required: at least CORE_NAME)
 ├── elements/                    element type definitions (required)
-│   ├── roads/<type>/
+│   ├── roads/<type>/             (type.json: optional parent type, see Core Type Inheritance)
 │   ├── intersections/<type>/
 │   ├── sharedComponents/
 │   ├── terrainPatches/
@@ -46,7 +46,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
     └── licenses.txt             licenses of the Python dependencies
 ```
 
-The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, so **all the folders under `elements` must exist**, even when empty, and `props/meshInstance.json` must be present. A type is identified by its folder (or file) name; avoid underscores in road type names, because junction files are named `<roadTypeA>_<roadTypeB>.json`.
+The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, so **all the folders under `elements` must exist**, even when empty, and `props/meshInstance.json` must be present. A type is identified by its folder (or file) name; avoid underscores in road type names, because junction files are named `<roadTypeA>_<roadTypeB>.json`. A type can extend another type of its folder and give only what differs from it (see [Core Type Inheritance](Core-Type-Inheritance)).
 
 ## `settings.json`
 
@@ -81,6 +81,8 @@ Each city stores the `coreVersion` and `coreFeatureVersion` it was last saved wi
 * city `coreFeatureVersion` > core's: error, the city needs a newer core;
 * city `coreVersion` lower than the core's: the user is asked to run the migrations (see [Core Python Integration](Core-Python-Integration#migrations));
 * city `coreVersion` higher than the core's: error, the city needs a newer core.
+
+Cores using [type inheritance](Core-Type-Inheritance) need `featureVersion` 2 or higher.
 
 Cities with no `core` in their preferences predate cores; they are treated as Midtown Madness 2 cities and migrated.
 

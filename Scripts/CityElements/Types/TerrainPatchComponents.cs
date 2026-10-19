@@ -15,15 +15,9 @@ namespace CityElements.Types {
         public TerrainPatchSettings settings;
 
         public TerrainPatchType(string folder) {
-            var uiFile = Path.Combine(folder, "ui.json");
-            var uiContent = File.ReadAllText(uiFile);
-            var parametersFile = Path.Combine(folder, "parameters.json");
-            var parametersContent = File.ReadAllText(parametersFile);
-            var settingsFile = Path.Combine(folder, "settings.json");
-            var settingsContent = File.ReadAllText(settingsFile);
-            ui = Newtonsoft.Json.JsonConvert.DeserializeObject<Panel>(uiContent);
-            parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<ParameterContainer>(parametersContent);
-            settings = Newtonsoft.Json.JsonConvert.DeserializeObject<TerrainPatchSettings>(settingsContent);
+            ui = Parsers.TypeInheritance.Load<Panel>(folder, "ui.json");
+            parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
+            settings = Parsers.TypeInheritance.Load<TerrainPatchSettings>(folder, "settings.json");
         }
 
         public ParameterContainer GetParameters() {

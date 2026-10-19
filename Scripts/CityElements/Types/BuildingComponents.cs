@@ -14,15 +14,9 @@ namespace CityElements.Types.Buildings {
         public BuildingLineSettings settings;
 
         public BuildingLineType(string folder) {
-            var uiFile = Path.Combine(folder, "line_ui.json");
-            var uiContent = File.ReadAllText(uiFile);
-            var parametersFile = Path.Combine(folder, "line_parameters.json");
-            var parametersContent = File.ReadAllText(parametersFile);
-            var settingsFile = Path.Combine(folder, "line_settings.json");
-            var settingsContent = File.ReadAllText(settingsFile);
-            ui = Newtonsoft.Json.JsonConvert.DeserializeObject<Panel>(uiContent);
-            parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<ParameterContainer>(parametersContent);
-            settings = Newtonsoft.Json.JsonConvert.DeserializeObject<BuildingLineSettings>(settingsContent);
+            ui = Parsers.TypeInheritance.Load<Panel>(folder, "line_ui.json");
+            parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "line_parameters.json");
+            settings = Parsers.TypeInheritance.Load<BuildingLineSettings>(folder, "line_settings.json");
         }
 
         public ParameterContainer GetParameters() {
@@ -47,15 +41,9 @@ namespace CityElements.Types.Buildings {
         public BuildingBuildingSettings settings;
 
         public BuildingBuildingType(string folder) {
-            var uiFile = Path.Combine(folder, "building_ui.json");
-            var uiContent = File.ReadAllText(uiFile);
-            var parametersFile = Path.Combine(folder, "building_parameters.json");
-            var parametersContent = File.ReadAllText(parametersFile);
-            var settingsFile = Path.Combine(folder, "building_settings.json");
-            var settingsContent = File.ReadAllText(settingsFile);
-            ui = Newtonsoft.Json.JsonConvert.DeserializeObject<Panel>(uiContent);
-            parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<ParameterContainer>(parametersContent);
-            settings = Newtonsoft.Json.JsonConvert.DeserializeObject<BuildingBuildingSettings>(settingsContent);
+            ui = Parsers.TypeInheritance.Load<Panel>(folder, "building_ui.json");
+            parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "building_parameters.json");
+            settings = Parsers.TypeInheritance.Load<BuildingBuildingSettings>(folder, "building_settings.json");
         }
 
         public ParameterContainer GetParameters() {
@@ -90,29 +78,15 @@ namespace CityElements.Types.Buildings {
         public BlockComponent[] components;
 
         public BlockType(string folder) {
-            var uiFile = Path.Combine(folder, "ui.json");
-            var uiContent = File.ReadAllText(uiFile);
-            var parametersFile = Path.Combine(folder, "parameters.json");
-            var parametersContent = File.ReadAllText(parametersFile);
-            var settingsFile = Path.Combine(folder, "settings.json");
-            var settingsContent = File.ReadAllText(settingsFile);
-            ui = Newtonsoft.Json.JsonConvert.DeserializeObject<Panel>(uiContent);
-            parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<ParameterContainer>(parametersContent);
-            settings = Newtonsoft.Json.JsonConvert.DeserializeObject<BlockSettings>(settingsContent);
+            ui = Parsers.TypeInheritance.Load<Panel>(folder, "ui.json");
+            parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
+            settings = Parsers.TypeInheritance.Load<BlockSettings>(folder, "settings.json");
 
             //components
             if (settings.components != null && settings.components.Length > 0) {
-                var compDir = Path.Combine(folder, "components");
-                var componentFiles = new string[settings.components.Length];
-                for (int i = 0; i < componentFiles.Length; i++) {
-                    var compPath = Path.Combine(compDir, settings.components[i].name + ".json");
-                    //if (!File.Exists(compPath)) compPath = Path.Combine(commonFolder, settings.components[i].name + ".json"); //TODO (maybe)
-                    componentFiles[i] = compPath;
-                }
-                components = new BlockComponent[componentFiles.Length];
-                for (int i = 0; i < componentFiles.Length; i++) {
-                    var compContent = File.ReadAllText(componentFiles[i]);
-                    components[i] = Newtonsoft.Json.JsonConvert.DeserializeObject<BlockComponent>(compContent);
+                components = new BlockComponent[settings.components.Length];
+                for (int i = 0; i < components.Length; i++) {
+                    components[i] = Parsers.TypeInheritance.LoadComponent<BlockComponent>(folder, settings.components[i].name, null);
                 }
             } else {
                 components = new BlockComponent[0];
@@ -142,15 +116,9 @@ namespace CityElements.Types.Buildings {
         //public Dictionary<string, BlockType> blockTypes;
 
         public BuildingSideType(string folder) {
-            var uiFile = Path.Combine(folder, "side_ui.json");
-            var uiContent = File.ReadAllText(uiFile);
-            var parametersFile = Path.Combine(folder, "side_parameters.json");
-            var parametersContent = File.ReadAllText(parametersFile);
-            var settingsFile = Path.Combine(folder, "side_settings.json");
-            var settingsContent = File.ReadAllText(settingsFile);
-            ui = Newtonsoft.Json.JsonConvert.DeserializeObject<Panel>(uiContent);
-            parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<ParameterContainer>(parametersContent);
-            settings = Newtonsoft.Json.JsonConvert.DeserializeObject<BuildingSideSettings>(settingsContent);
+            ui = Parsers.TypeInheritance.Load<Panel>(folder, "side_ui.json");
+            parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "side_parameters.json");
+            settings = Parsers.TypeInheritance.Load<BuildingSideSettings>(folder, "side_settings.json");
             /*blockTypes = new Dictionary<string, BlockType>();
             var blockDirs = Directory.GetDirectories(Path.Combine(folder, "blocks"));
             foreach (var dir in blockDirs) {

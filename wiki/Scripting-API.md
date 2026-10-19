@@ -252,7 +252,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
-| `types.list` | `kind: string` | object | The types of an element kind of the current core, with their parameters and built-in properties |
+| `types.list` | `kind: string` | object | The types of an element kind of the current core, with their parameters, built-in properties and ancestry (the type, then the types it extends) |
 
 ### `presets.*`
 

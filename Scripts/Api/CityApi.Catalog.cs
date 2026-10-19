@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using Parameter = CityElements.Types.Parameter;
 using SM = StringManager;
+using TI = CityElements.Types.Parsers.TypeInheritance;
 using TP = CityElements.Types.Parsers.TypeParser;
 
 namespace Api {
@@ -37,8 +38,30 @@ namespace Api {
             if (!CoreManager.GetCores().folders.Contains(core)) throw new ApiException("core_not_found", "core '" + core + "' not installed");
         }
 
-        static object TypeInfo<T>(string name, string label, Parameter[] parameters, List<Operations.Builtins.Property> builtins) {
-            return new { name, label = label != null ? SM.GetOrKey(label) : name, parameters = SchemaOf(parameters), builtins = SchemaOf(builtins) };
+        //the folder of the types of a kind in the elements folder of the core (null for the kinds with a single type)
+        static string CategoryOf(string kind) {
+            switch (kind) {
+                case "road": return TI.Roads;
+                case "intersection": return TI.Intersections;
+                case "terrainPatch": return TI.TerrainPatches;
+                case "borderMesh": return TI.BorderMeshes;
+                case "buildingLine": case "building": case "buildingSide": return TI.Buildings;
+                case "buildingBlock": return TI.BuildingBlocks;
+                case "propContainer": return TI.PropsContainers;
+                case "propElement": return TI.PropsElements;
+                case "parametricObject": return TI.ParametricObjects;
+                default: return null;
+            }
+        }
+
+        //the type followed by the types it extends, nearest first
+        static string[] AncestryOf(string kind, string name) {
+            var category = CategoryOf(kind);
+            return category != null ? TP.GetAncestry(category, name) : new[] { name };
+        }
+
+        static object TypeInfo<T>(string kind, string name, string label, Parameter[] parameters, List<Operations.Builtins.Property> builtins) {
+            return new { name, label = label != null ? SM.GetOrKey(label) : name, ancestry = AncestryOf(kind, name), parameters = SchemaOf(parameters), builtins = SchemaOf(builtins) };
         }
 
         static List<object> TypesOf<T>(string kind, Dictionary<string, T> types, System.Func<T, string> label, System.Func<T, Parameter[]> parameters,
@@ -46,12 +69,12 @@ namespace Api {
             var res = new List<object>();
             if (types == null) return res;
             foreach (var t in types) {
-                res.Add(TypeInfo<T>(t.Key, label(t.Value), parameters(t.Value), Operations.Builtins.GetProperties(kind, roadType?.Invoke(t.Value))));
+                res.Add(TypeInfo<T>(kind, t.Key, label(t.Value), parameters(t.Value), Operations.Builtins.GetProperties(kind, roadType?.Invoke(t.Value))));
             }
             return res;
         }
 
-        [ApiMethod("types.list", "The types of an element kind of the current core, with their parameters and built-in properties")]
+        [ApiMethod("types.list", "The types of an element kind of the current core, with their parameters, built-in properties and ancestry (the type, then the types it extends)")]
         public object ListTypes(string kind) {
             RequireCity();
             switch (kind) {
@@ -76,24 +99,24 @@ namespace Api {
                     foreach (var t in TP.GetPropsContainersTypes()) {
                         var lists = new List<object>();
                         foreach (var p in t.Value.parameters) lists.Add(new { name = p.name, allowedTypes = p.allowedTypes, maxNumber = p.maxNumber });
-                        containers.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.label), lists });
+                        containers.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.label), ancestry = AncestryOf(kind, t.Key), lists });
                     }
                     return containers;
                 case "propElement":
                     var elems = new List<object>();
                     foreach (var t in TP.GetPropsElementTypes()) {
-                        elems.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.typeData.label), maxMeshes = t.Value.typeData.maxMeshes, parameters = SchemaOf(Params(t.Value.typeData.parametersInfo)) });
+                        elems.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.typeData.label), ancestry = AncestryOf(kind, t.Key), maxMeshes = t.Value.typeData.maxMeshes, parameters = SchemaOf(Params(t.Value.typeData.parametersInfo)) });
                     }
                     return elems;
                 case "cityProperties":
                     return TypesOf(kind, TP.GetCitySettings(), t => null, t => Params(t.parameterContainer));
                 case "meshInstance":
                     var settings = TP.GetMeshInstanceSettings();
-                    return new List<object> { new { name = "", label = (string)null, parameters = SchemaOf(Params(settings?.typeData.parametersInfo)) } };
+                    return new List<object> { new { name = "", label = (string)null, ancestry = new[] { "" }, parameters = SchemaOf(Params(settings?.typeData.parametersInfo)) } };
                 case "parametricObject":
                     var res = new List<object>();
                     foreach (var t in TP.GetParametricMeshInstanceSettings() ?? new Dictionary<string, CityElements.Types.Runtime.MeshInstanceSettings>()) {
-                        res.Add(new { name = t.Key, label = (string)null, parameters = SchemaOf(Params(t.Value.typeData.parametersInfo)) });
+                        res.Add(new { name = t.Key, label = (string)null, ancestry = AncestryOf(kind, t.Key), parameters = SchemaOf(Params(t.Value.typeData.parametersInfo)) });
                     }
                     return res;
                 default:
