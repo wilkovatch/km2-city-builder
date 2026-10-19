@@ -9,9 +9,11 @@ public abstract class EditorPanelElement {
     protected GameObject titleLabel;
     protected GameObject fieldControl;
     protected float width;
+    float rootHeight; //of the element, the row it is in can be taller
     protected Vector2 pos;
     protected string tag;
     public EditorPanel parentPanel;
+    public EditorPanelPage page; //the page laying it out, once added to it
     public bool actionEnabled = true;
 
     protected abstract string TemplateName();
@@ -34,11 +36,11 @@ public abstract class EditorPanelElement {
         var template = TemplateName();
         var size = TemplateSize(template);
         width = size.X * widthFactor;
-        float height = size.Y * heightFactor;
+        rootHeight = size.Y * heightFactor;
 
         // anchor top-right of the panel, anchoredPosition = (-pos.x - w/2 - 10, -pos.y - h/2 - 10), pivot centre.
         obj = new Control { Name = template, MouseFilter = Control.MouseFilterEnum.Pass };
-        UILayout.SetRect(obj, 1, 1, 1, 1, -pos.X - width / 2 - 10, -pos.Y - height / 2 - 10, width, height);
+        UILayout.SetRect(obj, 1, 1, 1, 1, -pos.X - width / 2 - 10, -pos.Y - rootHeight / 2 - 10, width, rootHeight);
         parent.AddChild(obj);
         body = obj;
 
@@ -257,8 +259,22 @@ public abstract class EditorPanelElement {
         return width + pos.X;
     }
 
+    //a row of the page whose elements are all hidden takes no space (see EditorPanelPage.Relayout)
     public void SetActive(bool active) {
-        if (obj != null) obj.Visible = active;
+        if (obj == null || obj.Visible == active) return;
+        obj.Visible = active;
+        page?.Relayout();
+    }
+
+    public bool IsActive() {
+        return obj != null && obj.Visible;
+    }
+
+    //moves the element to another vertical position in its page (its row moved)
+    public void SetY(float y) {
+        if (obj == null || !GodotObject.IsInstanceValid(obj) || pos.Y == y) return;
+        pos = new Vector2(pos.X, y);
+        UILayout.SetRect(obj, 1, 1, 1, 1, -pos.X - width / 2 - 10, -pos.Y - rootHeight / 2 - 10, width, rootHeight);
     }
 
     protected T GetControl<T>(string childName = null) where T : GodotObject {

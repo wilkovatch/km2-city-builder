@@ -148,12 +148,25 @@ public class EditorPanelPage {
         parentPanel.OffsetLeft = -size.X;
     }
 
+    //the height of the rows before the given one: a row whose elements are all hidden takes no space (a row without
+    //elements keeps its height, as a spacer)
     float GetRowHeight(int row) {
         float res = 0;
         for (int i = 0; i < row; i++) {
-            res += rowsHeights[i];
+            if (elements[i].Count == 0 || elements[i].Exists(e => e.IsActive())) res += rowsHeights[i];
         }
         return res;
+    }
+
+    //moves the rows after an element was shown or hidden, and fits the panel to them
+    public void Relayout() {
+        if (panel == null || !GodotObject.IsInstanceValid(panel)) return; //destroyed
+        for (int row = 0; row < elements.Count; row++) {
+            if (elements[row].Count == 0) continue;
+            var y = GetRowHeight(row);
+            foreach (var element in elements[row]) element.SetY(y);
+        }
+        UpdatePanelHeight(elements[curRow].Count > 0 ? curRow : curRow - 1);
     }
 
     private Vector2 GetPosition(int row) {
@@ -165,6 +178,7 @@ public class EditorPanelPage {
     private EditorPanelElement AddElement(EditorPanelElement element, int row = 0) {
         elements[row].Add(element);
         element.parentPanel = container;
+        element.page = this;
         UpdatePanelHeight(row);
         //tooltipObj.transform.SetAsLastSibling();
         return element;
