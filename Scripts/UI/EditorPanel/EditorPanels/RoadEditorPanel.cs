@@ -44,7 +44,7 @@ namespace EditorPanels {
                 System.Func<ObjectState, ObjectState> setter = x => { GetCurRoad().SetState((ObjectState)x.Clone()); return GetCurRoad().GetState(); };
                 pS.AddPresetLoadAndSaveDropdown(p, SM.Get("ROAD_PRESET"), true, "road", setter, getter, false, null, null, null, w);
 
-                var placementModes = new List<string> { SM.Get("RD_PM_NONE"), SM.Get("RD_PM_ADD"), SM.Get("RD_PM_INSERT") };
+                var placementModes = new List<string> { SM.Get("RD_PM_NONE"), SM.Get("RD_PM_ADD"), SM.Get("RD_PM_INSERT"), SM.Get("RD_PM_SPLIT") };
                 pointPlacementModeDropdown = p.AddDropdown(SM.Get("RD_POINT_PLACEMENT_MODE"), placementModes, LoadPointPlacementMode, w);
                 if (pS.EditingPreset()) pointPlacementModeDropdown.SetInteractable(false);
                 p.IncreaseRow();

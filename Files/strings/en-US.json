@@ -301,6 +301,7 @@
 	"RD_PM_NONE": "None",
 	"RD_PM_ADD": "Add new",
 	"RD_PM_INSERT": "Insert after selected",
+	"RD_PM_SPLIT": "Split road",
 	"SETTINGS_MENU": "Settings",
 	"SETTINGS": "Preferences",
 	"PROJECT_SETTINGS": "Project settings",

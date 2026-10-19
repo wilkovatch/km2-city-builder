@@ -14,7 +14,8 @@ namespace ElementPlacer {
         public enum PlacementMode {
             None,
             Add,
-            Insert
+            Insert,
+            Split
         }
 
         public PlacementMode placementMode = PlacementMode.Add;
@@ -39,20 +40,22 @@ namespace ElementPlacer {
         }
 
         //the point on the line along another road under the cursor, to connect the road to the middle of that one
+        //(in split mode, the point on the line along the edited road, to split it there)
         (Road road, Vector3 point)? GetSplitTarget(List<RaycastHit?> hits) {
             if (hits.Count < 4 || !hits[3].HasValue) return null;
             var line = hits[3].Value.collider as RoadSplitLine;
             if (GO.IsNull(line)) return null;
             var road = line.GetRoad();
-            if (GO.IsNull(road) || road.deleted || road == drawing.CurrentRoad) return null;
+            if (GO.IsNull(road) || road.deleted || (road == drawing.CurrentRoad) != (placementMode == PlacementMode.Split)) return null;
             var res = line.Resolve(hits[3].Value.point);
             if (!res.HasValue) return null;
             return (road, res.Value.point);
         }
 
-        //-1: nothing, 0: point on the terrain, 1: road end or intersection, 2: middle of another road
+        //-1: nothing, 0: point on the terrain, 1: road end or intersection, 2: middle of another road (of the edited one in split mode)
         int GetPlaceIntersection(List<RaycastHit?> hits) {
             if (placementMode == PlacementMode.Insert) return 0;
+            if (placementMode == PlacementMode.Split) return GetSplitTarget(hits).HasValue ? 2 : -1;
             var placeIntersection = false;
             if (!hits[1].HasValue) {
                 if (!hits[0].HasValue) return GetSplitTarget(hits).HasValue ? 2 : -1;
@@ -66,6 +69,10 @@ namespace ElementPlacer {
 
         public override void Apply(List<RaycastHit?> hits) {
             if (placementMode == PlacementMode.None) return;
+            if (placementMode == PlacementMode.Split) {
+                ApplySplit(hits);
+                return;
+            }
             var target = GameEngine.Gizmo.GetMainTargetRoot() as StaticBody3D;
             if (placementMode == PlacementMode.Insert && (target == null || Input.GetInputPressed(KeyCommand.Modifier2))) return;
             //clicks on a road point or on the gizmo select or move a point instead
@@ -93,6 +100,28 @@ namespace ElementPlacer {
                     drawing.AddPoint(hits[1].Value.point, target != null ? (road.points.IndexOf(target) + 1) : -1);
                 }
             }
+        }
+
+        //split mode: clicking the line along the edited road splits it there, the road keeps the first part
+        void ApplySplit(List<RaycastHit?> hits) {
+            var road = GetRoad(false);
+            if (road == null || road.points.Count < 2) return;
+            //the line along the edited road is otherwise hidden (see Road.SetActive)
+            road.splitLine.SetActive(true);
+            //clicks on a road point or on the gizmo select or move a point instead
+            if (hits[2].HasValue || GameEngine.Gizmo.IsNearAxis()) return;
+            ShowOnMap(hits);
+            if (!Input.GetInputStart(KeyCommand.Select)) return;
+            var splitTarget = GetSplitTarget(hits);
+            if (!splitTarget.HasValue) return;
+            //as when connecting, the new intersection point would be picked up by the gizmo
+            GameEngine.Gizmo.ConsumeClick();
+            var (intersection, _) = Operations.Roads.Split(manager, road, splitTarget.Value.point);
+            if (intersection == null) return;
+            //a selected point may now be on the new road, whose points are hidden like the ones of the other roads
+            GameEngine.Gizmo.ClearTargets();
+            manager.ShowIntersections(false);
+            road.SetActive(true);
         }
 
         public override void ShowOnMap(List<RaycastHit?> hits) {

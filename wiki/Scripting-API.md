@@ -322,6 +322,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `roads.delete` | `road: ref` | - | Deletes a road (and the intersections left with no road) |
 | `roads.extend` | `road: ref`<br>`point: point` | - | Adds a point at the end of a road, as with the road tool in add mode (a road end, an intersection or the middle of a road connect the road there) |
 | `roads.insertPoint` | `road: ref`<br>`index: int`<br>`position: vec3`<br>`onGround: bool = false` | - | Inserts a control point at the index, as with the road tool in insert mode |
+| `roads.split` | `road: ref`<br>`near: vec3` | object | Splits a road at the point of its free part (outside the intersections at its ends) closest to near, as with the road tool in split mode: the road keeps the first part, a new road with the same properties gets the second one, and a new intersection connects them. Returns {newRoad, intersection} |
 | `roads.movePoint` | `road: ref`<br>`index: int`<br>`position: vec3`<br>`onGround: bool = false` | - | Moves a control point of a road |
 | `roads.props.applyRulePreset` | `road: ref`<br>`preset: string` | - | Gives the prop rule of a road the values of a prop rule preset (of its road type) |
 | `roads.props.enable` | `road: ref`<br>`container: string`<br>`enabled: bool` | - | Enables or disables a props container of the prop rule of a road |

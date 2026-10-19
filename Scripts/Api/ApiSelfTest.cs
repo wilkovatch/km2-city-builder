@@ -521,6 +521,23 @@ namespace Api {
             Check("merge: the end gets the properties of the far end of the other road (" + st.SelectToken("state.endCrosswalkSize") + ", " + st.SelectToken("instanceState.endIntersectionEnd") + ")",
                 st.SelectToken("state.endCrosswalkSize")?.Value<float>() == 3.5f && st.SelectToken("instanceState.endIntersectionEnd")?.Value<bool>() != true);
 
+            //the merged road split again without a connected road, then merged back
+            JToken splitResult = null;
+            await CheckUndo("road split", async () => splitResult = await Call("roads.split", new { road = main, near = near.ToObject<float[]>() }));
+            var splitJoint = splitResult["intersection"].Value<int>();
+            var splitSecond = splitResult["newRoad"].Value<int>();
+            Check("split: the road is split in two connected by an intersection of two roads", await CountOf("road") == roadsBefore + 2
+                && await CountOf("intersection") == intersectionsBefore + 1 && Len((await Derived(splitJoint))["roadsClockwise"]) == 2
+                && (await Derived(main))["endIntersection"].Value<int>() == splitJoint && (await Derived(splitSecond))["startIntersection"].Value<int>() == splitJoint);
+            await Expect("splitting an element that is not a road", "wrong_kind", "roads.split", new { road = splitJoint, near = V(0, 0, 0) });
+            await Expect("splitting without a road", "invalid_param", "roads.split", new { near = V(0, 0, 0) });
+            var remerged = (await Call("intersections.mergeRoads", new { intersection = splitJoint, keep = main })).Value<int>();
+            var rm = await Derived(remerged);
+            var backAgain = remerged == main && Len(rm["points"]) == Len(originalPoints);
+            for (int i = 0; backAgain && i < Len(originalPoints); i++) backAgain = Horizontal(rm["points"][i], originalPoints[i]) < 0.05f;
+            Check("split: merging the parts back gives the control points of the Bézier curve again", backAgain
+                && await CountOf("road") == roadsBefore + 1 && await CountOf("intersection") == intersectionsBefore);
+
             //two roads going opposite ways: the other one is reversed (its roll negated, its start properties at the end)
             var r1 = (await Call("roads.create", new { points = new[] { Pos(-800, 1000), Pos(-700, 1050), Pos(-600, 1000) } })).Value<int>();
             var r2 = (await Call("roads.create", new { points = new object[] { Pos(-400, 1000), Pos(-500, 950), new { roadEnd = new { road = r1, end = "end" } } } })).Value<int>();

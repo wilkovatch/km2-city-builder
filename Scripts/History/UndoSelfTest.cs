@@ -1207,6 +1207,32 @@ namespace History {
                     }
                     Check("merge: no middle control points of the merged " + typeName + " road look like road ends", pointsAsEnds == 0);
                 }));
+                //the whole road split again without connecting a road to it (as in the split mode of the road editor)
+                List<Vector3> beforeSplit = null;
+                Intersection splitIntersection = null;
+                Road splitRoad = null;
+                steps.Add(("split: split the " + typeName + " road without connecting a road", () => {
+                    beforeSplit = DenseCurve(road);
+                    (splitIntersection, splitRoad) = Operations.Roads.Split(M, road, MiddlePoint(road.curvePoints.Count / 2));
+                }, () => {
+                    var parts = Parts();
+                    var deviation = SplitDeviation(beforeSplit, parts);
+                    var tolerance = curveType == GeometryHelper.CurveType.Hermite ? 1.5f : 0.02f;
+                    Log("  split " + typeName + " without a connected road: " + parts.Count + " parts, deviation " + deviation);
+                    Check("split: the " + typeName + " road is split in two connected by a new intersection", splitIntersection != null && parts.Count == 2
+                        && parts[1] == splitRoad && road.endIntersection == splitIntersection && splitRoad.startIntersection == splitIntersection
+                        && splitIntersection.roads.Count == 2 && road.startIntersection == null && splitRoad.endIntersection == null
+                        && GO.GetPosition(splitRoad.points[splitRoad.points.Count - 1]).DistanceTo(originalEnd) < 0.01f);
+                    Check("split: the new part of the " + typeName + " road has its properties", splitRoad != null
+                        && splitRoad.GetCurveType() == road.GetCurveType() && splitRoad.state.Str("type") == road.state.Str("type"));
+                    Check("split: the parts of the " + typeName + " road split without a connected road follow its curve", deviation <= tolerance);
+                    if (kind == 4) Check("split: the parts of the straight road split without a connected road have two points", parts.TrueForAll(p => p.points.Count == 2));
+                    var pointsInside = 0;
+                    foreach (var part in parts) {
+                        if (curveType != GeometryHelper.CurveType.Bezier) pointsInside += ControlPointsInsideIntersection(part, splitIntersection);
+                    }
+                    Check("split: no control points of the " + typeName + " road parts inside the intersection of the split without a connected road", pointsInside == 0);
+                }));
             }
 
             var snaps = new List<Dictionary<int, string>> { Snapshot() };
@@ -1283,12 +1309,85 @@ namespace History {
             GetViewport().GetTexture().GetImage().SavePng(Path.Combine(folder, "..", "split_lines.png"));
         }
 
+        //the split mode of the road editor: the line along the edited road (only) is shown, and clicking it splits the road
+        async Task SplitModeTest() {
+            InvokeBuilder("DeselectAndCloseCurrentPanel");
+            await Frames(6);
+            Road road = null;
+            foreach (var r in M.roads) {
+                if (ElementSnapshot.IsAlive(r) && r.GetCurveType() == GeometryHelper.CurveType.Bezier && (road == null || r.curvePoints.Count > road.curvePoints.Count)) road = r;
+            }
+            Check("split mode: a Bézier road to split", road != null);
+            if (road == null) return;
+            var roadPanel = Panel<EditorPanels.RoadEditorPanel>("roadEditorPanel");
+            ElementPlacer.RoadPlacer Placer() => builder.terrainClick.modifier as ElementPlacer.RoadPlacer;
+            builder.SelectObject(road, true, null);
+            roadPanel.SetPointPlacementMode((int)ElementPlacer.RoadPlacer.PlacementMode.Split);
+            await Frames(6);
+            var otherLines = 0;
+            foreach (var r in M.roads) {
+                if (r != road && ElementSnapshot.IsAlive(r) && GO.GetEnabled(r.splitLine)) otherLines++;
+            }
+            Check("split mode: the line along the edited road is shown, not the ones of the other roads", GO.GetEnabled(road.splitLine) && otherLines == 0);
+
+            //a click on the line, away from the control points, through the real click handling
+            var point = road.splitLine.Resolve(road.curvePoints[road.curvePoints.Count / 3]).Value.point;
+            var cam = GetViewport().GetCamera3D();
+            GO.SetPosition(cam, point + new Vector3(0, 250, -250));
+            GO.LookAt(cam, point);
+            await Frames(6);
+            GetViewport().WarpMouse(cam.UnprojectPosition(GameEngine.Vector3.DecodePosition(point)));
+            await Frames(6);
+            //what the click handling sees under the cursor
+            var ray = GameEngine.Raycast.GetRayFromScreen(cam, GetViewport().GetMousePosition());
+            var underCursor = "";
+            foreach (var mask in Placer().GetLayerMasks()) {
+                var found = GameEngine.Raycast.DoRaycast(builder.helper, ray.origin, ray.direction, out var hit, 100000f, mask);
+                underCursor += (found ? hit.collider?.Name.ToString() : "-") + " ";
+            }
+            var onUI = (bool)typeof(TerrainClick).GetMethod("OnUI", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(builder.terrainClick, null);
+            Log("  split mode: under the cursor " + underCursor + "(mouse " + GetViewport().GetMousePosition() + ", on UI " + onUI + ", near axis " + GameEngine.Gizmo.IsNearAxis() + ")");
+            var oldEnd = road.endIntersection;
+            var roadsBefore = AliveRoads();
+            var before = Snapshot();
+            //a real mouse button event, handled at the start of the next frame like a click (an action pressed from here would no
+            //longer be "just pressed" when the click handling runs, and a press not seen by the GUI counts as a click on it)
+            InputEventMouseButton Click(bool pressed) => new InputEventMouseButton {
+                ButtonIndex = MouseButton.Left, Pressed = pressed, Position = GetViewport().GetMousePosition(), GlobalPosition = GetViewport().GetMousePosition()
+            };
+            Godot.Input.ParseInputEvent(Click(true));
+            await Frames(2);
+            Godot.Input.ParseInputEvent(Click(false));
+            await Frames(6);
+            var after = Snapshot();
+            Check("split mode: clicking the line splits the edited road", AliveRoads() == roadsBefore + 1 && road.endIntersection != null
+                && road.endIntersection != oldEnd && road.endIntersection.roads.Count == 2);
+            Check("split mode: the editor stays on the first part", roadPanel.ActiveSelf() && Placer()?.GetRoad(false) == road
+                && Placer()?.placementMode == ElementPlacer.RoadPlacer.PlacementMode.Split);
+
+            InvokeBuilder("Undo");
+            await Frames(6);
+            Log((Compare("undo split mode click", before, Snapshot()) ? "OK   " : "FAIL ") + "undo split mode click");
+            Check("split mode: the editor is reopened in split mode after undo", roadPanel.ActiveSelf() && Placer()?.placementMode == ElementPlacer.RoadPlacer.PlacementMode.Split);
+            InvokeBuilder("Redo");
+            await Frames(6);
+            Log((Compare("redo split mode click", after, Snapshot()) ? "OK   " : "FAIL ") + "redo split mode click");
+
+            var edited = Placer()?.GetRoad(false);
+            roadPanel.SetPointPlacementMode((int)ElementPlacer.RoadPlacer.PlacementMode.None);
+            await Frames(3);
+            Check("split mode: the line is hidden in the other modes", edited != null && !GO.GetEnabled(edited.splitLine));
+            InvokeBuilder("DeselectAndCloseCurrentPanel");
+            await Frames(6);
+        }
+
         async void RunSplit() {
             var lastCity = SettingsManager.Get("LastCity", "");
             try {
                 await LoadNewCity(2048); //room for roads much longer than the size of their intersections (the default road type is 40 m wide)
                 await SplitTests();
                 await SplitLinesScreenshot();
+                await SplitModeTest();
             } catch (System.Exception e) {
                 Log("exception: " + e);
                 failures++;

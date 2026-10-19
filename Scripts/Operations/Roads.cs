@@ -28,6 +28,16 @@ namespace Operations {
             road.Delete();
         }
 
+        //splits the road at the point of its free part (outside the intersections at its ends) closest to the given one:
+        //the road keeps the first part, a new road with the same properties gets the second one, a new intersection connects them
+        public static (Intersection intersection, Road newRoad) Split(ElementManager manager, Road road, Vector3 near) {
+            if (road == null || IsIncomplete(road)) return (null, null);
+            road.UpdateLine();
+            var res = road.splitLine.Resolve(near);
+            if (!res.HasValue) return (null, null);
+            return RoadSplitter.Split(manager, road, res.Value.segment, res.Value.fraction);
+        }
+
         public static ObjectState GetPropRule(Road road, bool createIfNull) {
             var res = road.state.State("propRule");
             if (res == null && createIfNull) {

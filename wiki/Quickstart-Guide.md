@@ -119,7 +119,7 @@ Objects made of points (roads, terrain patches and building lines) have a *Point
 
 - *None*: no points are added, you can click on the existing points to select and move them
 - *Add*: clicking on the ground adds a point at the end
-- other modes depend on the object type (e.g. *Insert after selected* for roads, *Internal* for terrain patches, *Dividing point* for building lines)
+- other modes depend on the object type (e.g. *Insert after selected* and *Split road* for roads, *Internal* for terrain patches, *Dividing point* for building lines)
 
 New objects start in *Add* mode; when an existing object is selected again the mode is *None*.
 
@@ -226,6 +226,8 @@ The road properties are divided in several tabs (*Main*, *Inters.*, *Traffic*, *
 To create an intersection, connect two or more roads: place the first or the last control point of a road on the end of another road (the available ones are highlighted in cyan).
 
 A road can also be connected to the middle of another road: while placing points, the other roads are highlighted with a cyan line along them. Placing the first or the last control point on that line creates an intersection there, and splits the other road in two roads with the same properties (if it is the first point, this happens when the second point is placed). Note that the two roads created by the splitting might have improperly placed control points causing malformed shapes (especially when splitting a Hermite spline road), if this happens simply remove the offending control points (usually the ones close to the intersection or close to the ends).
+
+To split a road without connecting another road to it, select *Split road* in the placement mode dropdown of the road: the road is highlighted with a cyan line along it, and clicking on the line splits it there in two roads with the same properties, connected by a new intersection (the same as connecting a road to the middle, without the connected road). The editor stays on the first part. The control points can still be selected and moved in this mode.
 
 To edit an intersection, click on it (or select it in the object list).
 

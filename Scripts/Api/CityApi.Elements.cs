@@ -109,6 +109,19 @@ namespace Api {
             });
         }
 
+        [ApiMethod("roads.split", "Splits a road at the point of its free part (outside the intersections at its ends) closest to near, as with the road tool in split mode: the road keeps the first part, a new road with the same properties gets the second one, and a new intersection connects them. Returns {newRoad, intersection}")]
+        public object SplitRoad(ElementRef road, Vector3 near) {
+            return ApplyChange<object>("split road", () => {
+                var r = Resolve<Road>(road, "road");
+                if (Operations.Roads.IsIncomplete(r)) throw ApiException.InvalidOperation("the road has less than two points");
+                var (intersection, newRoad) = Operations.Roads.Split(M, r, near);
+                if (intersection == null) throw ApiException.InvalidOperation("the road has no free part to split at near the point");
+                M.worldChanged = true;
+                M.ProcessUpdate();
+                return new { newRoad = IdOf(newRoad), intersection = IdOf(intersection) };
+            });
+        }
+
         [ApiMethod("roads.movePoint", "Moves a control point of a road")]
         public void MoveRoadPoint(ElementRef road, int index, Vector3 position, bool onGround = false) {
             ApplyChange("move road point", () => {
