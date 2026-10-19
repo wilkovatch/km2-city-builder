@@ -14,14 +14,34 @@ namespace Api {
     //  {"id": 2, "method": "batch", "params": {"commands": [{"method": ..., "params": ...}, ...], "atomic": true}}
     //  the result is the list of their results; with atomic, if one fails the ones before it are undone
     public class CommandDispatcher {
-        class Method {
+        public class Method {
             public string name;
             public string description;
             public MethodInfo info;
         }
 
+        //the methods marked with ApiMethod, by name (also read by the command line before the API exists)
+        static Dictionary<string, Method> methods;
+
+        public static IReadOnlyDictionary<string, Method> Methods {
+            get {
+                if (methods == null) {
+                    var res = new Dictionary<string, Method>();
+                    foreach (var m in typeof(CityApi).GetMethods(BindingFlags.Public | BindingFlags.Instance)) {
+                        var attr = m.GetCustomAttribute<ApiMethodAttribute>();
+                        if (attr == null) continue;
+                        res[attr.name] = new Method { name = attr.name, description = attr.description, info = m };
+                    }
+                    methods = res;
+                }
+                return methods;
+            }
+        }
+
+        //the methods handled by the dispatcher itself
+        public static readonly string[] BuiltinMethods = { "api.methods", "batch" };
+
         readonly CityApi api;
-        readonly Dictionary<string, Method> methods = new Dictionary<string, Method>();
         readonly ConcurrentQueue<(string json, System.Action<string> reply, bool remote)> queue = new ConcurrentQueue<(string, System.Action<string>, bool)>();
         //released once for every queued command
         readonly System.Threading.SemaphoreSlim available = new System.Threading.SemaphoreSlim(0);
@@ -33,11 +53,6 @@ namespace Api {
 
         public CommandDispatcher(CityApi api) {
             this.api = api;
-            foreach (var m in typeof(CityApi).GetMethods(BindingFlags.Public | BindingFlags.Instance)) {
-                var attr = m.GetCustomAttribute<ApiMethodAttribute>();
-                if (attr == null) continue;
-                methods[attr.name] = new Method { name = attr.name, description = attr.description, info = m };
-            }
         }
 
         public bool IsIdle => !running && queue.IsEmpty;
@@ -163,12 +178,12 @@ namespace Api {
             return await api.RunBatch(list, atomic);
         }
 
-        object ListMethods() {
+        public static List<object> ListMethods() {
             var res = new List<object>();
-            var names = new List<string>(methods.Keys);
+            var names = new List<string>(Methods.Keys);
             names.Sort(System.StringComparer.Ordinal);
             foreach (var n in names) {
-                var m = methods[n];
+                var m = Methods[n];
                 var ps = new List<object>();
                 foreach (var p in m.info.GetParameters()) {
                     ps.Add(new { name = p.Name, type = TypeName(p.ParameterType), optional = p.HasDefaultValue, defaultValue = p.HasDefaultValue ? p.DefaultValue : null });
@@ -178,7 +193,7 @@ namespace Api {
             return res;
         }
 
-        static string TypeName(System.Type t) {
+        public static string TypeName(System.Type t) {
             if (t == typeof(void) || t == typeof(Task)) return "null";
             if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Task<>)) return TypeName(t.GetGenericArguments()[0]);
             var nullable = System.Nullable.GetUnderlyingType(t);
@@ -199,7 +214,7 @@ namespace Api {
         }
 
         async Task<object> Invoke(string name, JObject parameters) {
-            if (!methods.TryGetValue(name, out var method)) throw new ApiException("unknown_method", "unknown method '" + name + "'");
+            if (!Methods.TryGetValue(name, out var method)) throw new ApiException("unknown_method", "unknown method '" + name + "'");
             var infos = method.info.GetParameters();
             var args = new object[infos.Length];
             var known = new HashSet<string>();

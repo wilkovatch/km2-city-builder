@@ -23,7 +23,7 @@ import sys
 __all__ = ["ApiError", "api", "call", "batch", "transaction", "inputs", "selection", "progress", "log", "alert"]
 
 if os.environ.get("KM2CB_SCRIPT") != "1":
-    raise RuntimeError("this script must be run by the city builder (from its Scripts menu, or with --api-script)")
+    raise RuntimeError("this script must be run by the city builder (from its Scripts menu, or with the script command of the command line)")
 
 _requests = sys.stdout
 _responses = sys.stdin

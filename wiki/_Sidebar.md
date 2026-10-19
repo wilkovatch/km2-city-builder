@@ -3,6 +3,7 @@
 **Using the editor**
 - [Quickstart Guide](Quickstart-Guide)
 - [Python Scripts](Python-Scripts)
+- [Command Line](Command-Line)
 
 **Program internals**
 - [Architecture Overview](Architecture-Overview)

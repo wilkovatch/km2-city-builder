@@ -19,6 +19,7 @@ The scripting API loads, reads, edits and exports cities without the mouse tools
 |---|---|---|
 | Operations | `Scripts/Operations` | The editing logic of the editor panels and placers (`RoadDrawing`, `Roads`, `Intersections`, `TerrainPatches`, `TerrainPoints`, `BuildingLines`, `Anchors`, `Meshes`, `Props`, `States`, `Presets`, `Builtins`, `Terrain`, `City`, `CityFiles`). The panels and placers call it too, so the API can't behave differently from the editor. The operations return results instead of showing alerts. |
 | API | `Scripts/Api` | `CityApi` (one method per command), `CommandDispatcher` (the JSON protocol), `ApiHost` (the node running the queued commands every frame), `ScriptRunner` (the transport of the Python scripts), `ApiSelfTest`. |
+| Command line | `Scripts/Cli` | The commands of the command line (see [Command Line](Command-Line)), on top of `CommandDispatcher`. |
 
 The long operations (loading, saving, exporting, whole city generation, rotation, heightmap import) are awaitable: they return a `Task` and report their progress through an `IProgress<(float, string)>`. The decisions they need from the user (migrating a city, installing Python modules) go through `Operations.IInteraction`: `UiInteraction` asks with the editor popups, `FixedInteraction` answers from the options of the call, so a script is never blocked by a popup.
 
@@ -26,14 +27,14 @@ The long operations (loading, saving, exporting, whole city generation, rotation
 
 `ApiHost` is created at startup (`CityBuilderMenuBar.ManualStart`) in every session. A transport sends a command with `ApiHost.Instance.Dispatcher.Enqueue(json, reply)`, which can be called from any thread: the commands run one at a time on the main thread, and `reply` is called with the response (and with the events of the command before it). Every frame the queued commands run for up to 8 ms (`frameBudgetMs`); after a command sent from another thread, the next one is waited for within that time, so a script waiting for each reply runs many commands per frame while the program stays responsive. The program can run without a window (`--headless`): the editor UI still exists, but it is not drawn.
 
-When the command line contains an argument starting with `--api-`, the program is driven by a script: the last city is not loaded at startup and Python is not checked until the script loads a city.
+When a command is given on the command line, the program is driven by it: the last city is not loaded at startup and Python is not checked until the command loads a city. The [Command Line](Command-Line) runs single commands (`call`), files of commands (`run`), or reads them from its standard input and writes the responses to its standard output (`serve`), so any program can drive the city builder with this protocol.
 
-The Python scripts of the Scripts menu (and the one given with `--api-script`) are run by `ScriptRunner`, which sends the lines written by the script to the dispatcher and writes the responses back to it: see [Python Scripts](Python-Scripts).
+The Python scripts of the Scripts menu (and the one given with the `script` command) are run by `ScriptRunner`, which sends the lines written by the script to the dispatcher and writes the responses back to it: see [Python Scripts](Python-Scripts).
 
 ### Self-test
 
 ```
-Godot_v4.7.1-stable_mono_win64_console.exe --path . [--headless] -- --api-selftest=<new folder>
+Godot_v4.7.1-stable_mono_win64_console.exe --path . [--headless] -- selftest api <new folder>
 ```
 
 Creates a city in the folder (from the SF template of the Midtown Madness 2 core) and drives it only with JSON commands: every kind of element, anchors, terrain points and heights, parameters, arrays, presets, props, undo and redo of each change, batches, transactions, errors, a script changing an element open in the editor, parity with the elements made with the editor tools, whole city generation, save and load, export JSON, geometry and the core exporter. It also contains the whole city terrain and building generation written with the commands only (`ScriptTerrain`, `ScriptBuildings`), checked against `city.generateTerrain` and `city.generateBuildings`: they are the reference for scripts generating cities. The same generators written in Python (the `cityTerrain` and `cityBuildings` examples of `wiki/examples/scripts`, see [Python Scripts](Python-Scripts#examples)) are run through `ScriptRunner` and checked in the same way, along with the runner itself (inputs, selection, single undo step, failures, cancelling, settings restored) and the input panel of the scripts. It writes `api_selftest.log` next to the folder and exits with code 1 if anything failed.

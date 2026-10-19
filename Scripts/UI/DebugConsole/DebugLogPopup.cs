@@ -188,7 +188,8 @@ namespace IngameDebugConsole {
 
             float canvasWidth = canvasSize.X;
             float canvasHeight = canvasSize.Y;
-            if (canvasWidth <= 0f || canvasHeight <= 0f) return;
+            //the popup doesn't fit (e.g. the tiny viewport of a headless session)
+            if (canvasWidth < popupSize.X || canvasHeight < popupSize.Y) return;
 
             // normalizedPosition allows us to glue the popup to a specific edge of the screen. It becomes useful when
             // the popup is at the right edge and we switch from portrait screen orientation to landscape screen orientation.

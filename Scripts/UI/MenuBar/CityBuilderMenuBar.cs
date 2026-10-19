@@ -274,10 +274,7 @@ public partial class CityBuilderMenuBar : Control {
 
         Reload();
         Api.ApiHost.Create(this);
-        History.UndoSelfTest.StartIfRequested(this); //only with the --undo-selftest command line argument
-        Api.ApiSelfTest.StartIfRequested(this); //only with the --api-selftest command line argument
-        Api.ScriptRunner.StartIfRequested(this); //only with the --api-script command line argument
-        GuideScreenshots.StartIfRequested(this); //only with the --guide-screenshots command line argument
+        Cli.CliRunner.Start(this); //only when started with a command on the command line
     }
 
     //the menu actions can change the city (e.g. closing an editor deletes the element left incomplete), so they are undo steps

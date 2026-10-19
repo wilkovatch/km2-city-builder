@@ -64,7 +64,7 @@ public partial class CityGroundHelper: ThisScriptable {
         curProgressBar = new ProgressBar(menuBar, SM.Get("GENERATING_TERRAIN"));
         curProgressBar.SetActive(false);
         menuBar.ManualStart();
-        if (Api.ApiHost.IsScriptSession()) return; //Python is checked when the script loads a city
+        if (Cli.CommandLine.IsCliSession) return; //Python is checked when the command loads a city
         var pyRes = PythonManager.CheckPython(menuBar);
         if (pyRes) {
             var lastCity = SettingsManager.Get("LastCity", "");

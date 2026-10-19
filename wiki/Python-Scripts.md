@@ -127,10 +127,10 @@ The two generators make the same elements as the built-in ones: the API self-tes
 ## Command line
 
 ```
-Godot_v4.7.1-stable_mono_win64_console.exe --path . [--headless] -- --api-script=<script .py or folder> [--api-inputs=<JSON file>]
+km2-city-builder.console.exe --headless --quiet -- script <script .py or folder> [--inputs <JSON file>] [--city <folder>]
 ```
 
-The program starts without a city, runs the script, then quits with the exit code of the script. The inputs are the default values of the parameters, overwritten by the values in the JSON file. The script loads or creates a city itself (`city.load`, `city.new`), so no transaction is opened for the run.
+The program starts without a city, runs the script, then quits with the exit code of the script (see [Command Line](Command-Line)). The inputs are the default values of the parameters, overwritten by the values in the JSON file. Without `--city` the script loads or creates a city itself (`city.load`, `city.new`), and no transaction is opened for the run; with `--city` the city is loaded first and the run is a transaction as from the menu.
 
 ## Internals
 

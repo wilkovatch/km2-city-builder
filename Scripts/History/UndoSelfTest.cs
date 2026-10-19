@@ -6,7 +6,7 @@ using Godot;
 using GO = GameEngine.GameObject;
 
 namespace History {
-    //Development self-test of undo/redo, run with "-- --undo-selftest=<new folder>" on the command line. Creates a city in the
+    //Development self-test of undo/redo, run with "-- selftest undo <new folder>" on the command line. Creates a city in the
     //folder, edits it through the element and editor code, then undoes and redoes every step checking the whole city against
     //the states recorded after each step. Writes undo_selftest.log next to the folder and quits (exit code 1 on failures).
     //Nothing is saved, the last opened city setting is restored at the end.
@@ -19,28 +19,17 @@ namespace History {
 
         bool loadExisting = false;
 
-        public static void StartIfRequested(CityBuilderMenuBar builder) {
-            foreach (var arg in OS.GetCmdlineUserArgs()) {
-                if (arg.StartsWith("--undo-selftest=")) {
-                    var test = new UndoSelfTest { builder = builder, folder = arg.Substring("--undo-selftest=".Length), Name = "UndoSelfTest" };
-                    builder.AddChild(test);
-                } else if (arg.StartsWith("--undo-selftest-props=")) {
-                    var test = new UndoSelfTest { builder = builder, folder = arg.Substring("--undo-selftest-props=".Length), Name = "UndoSelfTest", propsSelection = true };
-                    builder.AddChild(test);
-                } else if (arg.StartsWith("--undo-selftest-ui=")) {
-                    //a copy of an existing city: the editors open before undo/redo must be reopened after it
-                    var test = new UndoSelfTest { builder = builder, folder = arg.Substring("--undo-selftest-ui=".Length), Name = "UndoSelfTest", uiRestore = true };
-                    builder.AddChild(test);
-                } else if (arg.StartsWith("--undo-selftest-split=")) {
-                    //only the tests of the roads connected to the middle of other roads, on a new city
-                    var test = new UndoSelfTest { builder = builder, folder = arg.Substring("--undo-selftest-split=".Length), Name = "UndoSelfTest", splitOnly = true };
-                    builder.AddChild(test);
-                } else if (arg.StartsWith("--undo-selftest-load=")) {
-                    //a copy of an existing city: the terrain under its intersections is edited, undone and redone
-                    var test = new UndoSelfTest { builder = builder, folder = arg.Substring("--undo-selftest-load=".Length), Name = "UndoSelfTest", loadExisting = true };
-                    builder.AddChild(test);
-                }
-            }
+        //new: a new city in the folder; props: a copy of an existing city, its road props selected again; ui: a copy of an
+        //existing city, the editors open before undo/redo must be reopened after it; split: only the tests of the roads
+        //connected to the middle of other roads, on a new city; load: a copy of an existing city, the terrain under its
+        //intersections is edited, undone and redone
+        public static readonly string[] Modes = { "new", "props", "ui", "split", "load" };
+
+        public static void Start(CityBuilderMenuBar builder, string folder, string mode) {
+            builder.AddChild(new UndoSelfTest {
+                builder = builder, folder = folder, Name = "UndoSelfTest",
+                propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", loadExisting = mode == "load"
+            });
         }
 
         bool propsSelection = false;

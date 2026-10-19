@@ -7,7 +7,7 @@ using Newtonsoft.Json.Linq;
 using GO = GameEngine.GameObject;
 
 namespace Api {
-    //Development self-test of the scripting API, run with "-- --api-selftest=<new folder>" on the command line. Creates a city
+    //Development self-test of the scripting API, run with "-- selftest api <new folder>" on the command line. Creates a city
     //in the folder and drives it only with JSON commands sent to the dispatcher (as a script would): creation and editing
     //of every kind of element, undo and redo, batches, errors, parity with the editor, save and load, export.
     //Writes api_selftest.log next to the folder and quits (exit code 1 on failures).
@@ -24,13 +24,8 @@ namespace Api {
             public Abort(string message) : base(message) { }
         }
 
-        public static void StartIfRequested(CityBuilderMenuBar builder) {
-            foreach (var arg in OS.GetCmdlineUserArgs()) {
-                if (arg.StartsWith("--api-selftest=")) {
-                    var test = new ApiSelfTest { builder = builder, folder = arg.Substring("--api-selftest=".Length), Name = "ApiSelfTest" };
-                    builder.AddChild(test);
-                }
-            }
+        public static void Start(CityBuilderMenuBar builder, string folder) {
+            builder.AddChild(new ApiSelfTest { builder = builder, folder = folder, Name = "ApiSelfTest" });
         }
 
         public override void _Ready() {

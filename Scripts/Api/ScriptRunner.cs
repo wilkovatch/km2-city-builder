@@ -10,7 +10,7 @@ using Newtonsoft.Json.Linq;
 using SM = StringManager;
 
 namespace Api {
-    //Runs a Python script (of the Scripts menu, or given on the command line with --api-script). The script talks to the
+    //Runs a Python script (of the Scripts menu, or given with the script command of the command line). The script talks to the
     //API on its standard input and output, a JSON command per line as in CommandDispatcher: its requests are read on a
     //thread and queued to the dispatcher, the responses and events are written back on another one; its standard error
     //goes to the log. While it runs the editor can't be used (except the camera and the Cancel button of the progress
@@ -260,33 +260,6 @@ namespace Api {
                 foreach (var m in res.messages) texts.Add(m.text);
                 builder.CreateAlert(title, string.Join("\n", texts), SM.Get("OK"), null, 220);
             }
-        }
-
-        // Command line
-
-        //--api-script=<.py file or script folder> [--api-inputs=<JSON file>]: runs the script, then quits with its exit code
-        public static void StartIfRequested(CityBuilderMenuBar builder) {
-            string path = null, inputsFile = null;
-            foreach (var arg in OS.GetCmdlineUserArgs()) {
-                if (arg.StartsWith("--api-script=")) path = arg.Substring("--api-script=".Length);
-                else if (arg.StartsWith("--api-inputs=")) inputsFile = arg.Substring("--api-inputs=".Length);
-            }
-            if (path != null) RunFromCommandLine(builder, path, inputsFile);
-        }
-
-        static async void RunFromCommandLine(CityBuilderMenuBar builder, string path, string inputsFile) {
-            for (int i = 0; i < 10; i++) await builder.ToSignal(builder.GetTree(), "process_frame");
-            var code = 1;
-            try {
-                var script = ScriptCatalog.FromPath(path);
-                var inputs = ScriptCatalog.ToInputs(ScriptCatalog.DefaultValues(script));
-                if (inputsFile != null) inputs.Merge(JObject.Parse(File.ReadAllText(inputsFile)), new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Replace });
-                var res = await Run(builder, script, inputs, null, false);
-                code = res.success ? 0 : (res.exitCode != 0 ? res.exitCode : 1);
-            } catch (System.Exception e) {
-                GameEngine.LogError("Script " + path + ": " + e.Message);
-            }
-            builder.GetTree().Quit(code);
         }
     }
 }

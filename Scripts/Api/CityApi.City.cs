@@ -101,6 +101,7 @@ namespace Api {
             if (string.IsNullOrEmpty(path)) throw ApiException.InvalidParam("missing path");
             return RunLong(async () => {
                 Flush();
+                CreateParentFolder(path);
                 var error = await Operations.CityFiles.ExportJson(M, path, progress);
                 if (error != null) throw new ApiException("export_failed", error);
                 return (object)new { path };
@@ -126,10 +127,21 @@ namespace Api {
             if (!path.EndsWith("." + exp.settings.format)) path += "." + exp.settings.format;
             return RunLong(async () => {
                 Flush();
+                CreateParentFolder(path);
                 var res = await CityExporter.ExportWithExporterAsync(exp, values, M, path, showConsole, progress);
                 if (!res.success) throw new ApiException("export_failed", res.error, new { exitCode = res.exitCode, output = res.output });
                 return (object)new { path, exitCode = res.exitCode, output = res.output };
             });
+        }
+
+        //the folder of an exported file is created if missing
+        static void CreateParentFolder(string path) {
+            try {
+                var folder = Path.GetDirectoryName(Path.GetFullPath(path));
+                if (!string.IsNullOrEmpty(folder)) Directory.CreateDirectory(folder);
+            } catch (System.Exception e) when (e is IOException || e is System.UnauthorizedAccessException || e is System.ArgumentException || e is System.NotSupportedException) {
+                throw new ApiException("io_error", "could not create the folder of " + path + ": " + e.Message);
+            }
         }
 
         // Terrain

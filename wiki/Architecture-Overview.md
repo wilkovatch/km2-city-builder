@@ -57,7 +57,7 @@ Startup sequence:
 3. `PythonManager.CheckPython` verifies that a usable Python interpreter is available and offers to install it otherwise.
 4. If the setting `LastCity` points to an existing city, it is loaded with `CityImporter.LoadCity`.
 
-Steps 3 and 4 are skipped when a script drives the program (a command line argument starting with `--api-`).
+Steps 3 and 4 are skipped in a command line session (a command given after `--`, see [Command Line](Command-Line)); `ManualStart` then adds the `CliRunner` node, which runs the command and quits.
 
 ## Loading a city
 

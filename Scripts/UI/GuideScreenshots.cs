@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Godot;
 using GO = GameEngine.GameObject;
 
-//Development tool that takes the screenshots of the quickstart guide, run with "-- --guide-screenshots=<city folder>" on the
+//Development tool that takes the screenshots of the quickstart guide, run with "-- screenshots <city folder>" on the
 //command line (use a copy of a city, it is closed at the end without saving). Opens the editor panels on the city and saves
 //the images in wiki/images, then quits. The last opened city setting is restored at the end.
 public partial class GuideScreenshots : Node {
@@ -13,12 +13,8 @@ public partial class GuideScreenshots : Node {
     string outFolder;
     ElementManager M => builder.helper.elementManager;
 
-    public static void StartIfRequested(CityBuilderMenuBar builder) {
-        foreach (var arg in OS.GetCmdlineUserArgs()) {
-            if (arg.StartsWith("--guide-screenshots=")) {
-                builder.AddChild(new GuideScreenshots { builder = builder, folder = arg.Substring("--guide-screenshots=".Length), Name = "GuideScreenshots" });
-            }
-        }
+    public static void Start(CityBuilderMenuBar builder, string folder) {
+        builder.AddChild(new GuideScreenshots { builder = builder, folder = folder, Name = "GuideScreenshots" });
     }
 
     public override void _Ready() {

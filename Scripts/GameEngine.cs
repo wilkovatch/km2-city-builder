@@ -9,7 +9,9 @@ using GDExtension.Wrappers;
 
 public static partial class GameEngine {
     public static void Print(string message) {
-        GD.Print(message);
+        //the standard output of a command line session only has the output of its command
+        if (Cli.CommandLine.IsCliSession) Cli.CliOutput.Error.WriteLine(message);
+        else GD.Print(message);
     }
 
     public static void LogWarning(string message) {
