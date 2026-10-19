@@ -334,6 +334,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
 | `intersections.delete` | `intersection: ref` | - | Deletes an intersection (the roads are detached from it) |
+| `intersections.mergeRoads` | `intersection: ref`<br>`keep: ref = null` | int | Merges the two roads of an intersection into one road, deleting the intersection (keep: the road whose settings are kept, by default the first one; the end on the intersection gets the properties of the far end of the other road). The other road is reversed if needed, only its geometry: its left and right properties are not swapped. The merged road keeps the curve type of the kept road: the merge is exact for roads with the same curve (two Bézier roads only if they are the two parts of a curve, as after a split), otherwise its curve follows both roads as closely as its type allows. Returns the id of the merged road |
 | `intersections.move` | `intersection: ref`<br>`position: vec3`<br>`onGround: bool = false` | - | Moves an intersection (the roads follow it) |
 
 ### `patches.*`

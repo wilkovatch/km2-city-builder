@@ -64,6 +64,11 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
         if (setDirty) SetDirty();
     }
 
+    //the property gets its default value again
+    public void RemoveProperty(string name) {
+        if (properties.Remove(name)) SetDirty();
+    }
+
     object GetAdjusted(object obj) {
         if (obj is double valD) return (float)valD;
         else if (obj is long valI) return (int)valI;

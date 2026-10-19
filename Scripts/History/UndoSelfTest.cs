@@ -969,8 +969,9 @@ namespace History {
 
         //the largest distance between the parts of a split road and the original curve, both ways, outside the
         //intersections at the ends of the parts (where the road is not shown)
-        static float SplitDeviation(List<Vector3> original, List<Road> parts, bool bothWays = true) {
+        static float SplitDeviation(List<Vector3> original, List<Road> parts, bool bothWays = true, List<(Vector3 center, float radius)> extraHidden = null) {
             var hidden = new List<(Vector3 center, float radius)>();
+            if (extraHidden != null) hidden.AddRange(extraHidden);
             foreach (var part in parts) {
                 foreach (var intersection in new[] { part.startIntersection, part.endIntersection }) {
                     var idx = intersection == null ? -1 : intersection.roads.IndexOf(part);
@@ -1024,6 +1025,7 @@ namespace History {
                 TerrainPoint anchoredPoint = null;
                 var anchoredPosition = Vector3.Zero;
                 Vector3 originalEnd = Vector3.Zero;
+                var jointAreas = new List<(Vector3 center, float radius)>();
                 Vector3 MiddlePoint(int curveIndex) => road.splitLine.Resolve(road.curvePoints[curveIndex]).Value.point;
                 List<Road> Parts() {
                     var res = new List<Road> { road };
@@ -1156,6 +1158,13 @@ namespace History {
                             if (GO.GetLayer(part.points[i]) == 9) pointsAsEnds++;
                         }
                     }
+                    //where the road is not shown, the split removed its control points (for the merge test)
+                    jointAreas.Clear();
+                    foreach (var part in parts) {
+                        var intersection = part.endIntersection;
+                        var idx = intersection == null ? -1 : intersection.roads.IndexOf(part);
+                        if (idx >= 0 && idx < intersection.sizes.Count) jointAreas.Add((GO.GetPosition(intersection.point), intersection.sizes[idx]));
+                    }
                     Check("split: no control points of the " + typeName + " road parts inside the intersections", pointsInside == 0);
                     Check("split: no middle control points of the " + typeName + " road parts look like road ends", pointsAsEnds == 0);
                     if (anchoredPoint != null) {
@@ -1163,6 +1172,40 @@ namespace History {
                             && anchoredPoint.GetPoint().DistanceTo(anchoredPosition) < 0.01f);
                         anchoredPoint = null;
                     }
+                }));
+                //the road connected to the middle deleted, the parts merged back into the road
+                steps.Add(("merge: delete the road connected to the " + typeName + " road", () => {
+                    other.Delete();
+                }, () => {
+                    Check("merge: the intersections between the parts of the " + typeName + " road have two roads",
+                        road.endIntersection != null && road.endIntersection.roads.Count == 2);
+                }));
+                steps.Add(("merge: merge the parts of the " + typeName + " road", () => {
+                    var merges = 0;
+                    while (road.endIntersection != null && road.endIntersection.roads.Count == 2 && merges++ < 5) {
+                        var error = Operations.Intersections.GetMergeError(road.endIntersection, road);
+                        if (error != null) {
+                            Log("  merge " + typeName + ": " + error);
+                            break;
+                        }
+                        Operations.Intersections.Merge(M, road.endIntersection, road);
+                    }
+                }, () => {
+                    //the Bézier, low-poly and straight curves are merged exactly, a Hermite curve gets the points of its parts,
+                    //so it is as close to the original as they are, except where the split removed its points
+                    var hermite = curveType == GeometryHelper.CurveType.Hermite && kind != 4;
+                    var outside = SplitDeviation(original, new List<Road> { road }, true, jointAreas);
+                    var deviation = SplitDeviation(original, new List<Road> { road });
+                    Log("  merge " + typeName + ": " + road.points.Count + " points, deviation " + deviation + " (" + outside + " outside the former intersections)");
+                    Check("merge: the " + typeName + " road is whole again", Parts().Count == 1 && road.endIntersection == null && road.startIntersection == null
+                        && GO.GetPosition(road.points[road.points.Count - 1]).DistanceTo(originalEnd) < 0.01f);
+                    Check("merge: the merged " + typeName + " road follows the original curve", hermite ? outside <= 1.5f && deviation <= 5.0f : deviation <= 0.02f);
+                    if (kind == 4) Check("merge: the straight road has two points again", road.points.Count == 2);
+                    var pointsAsEnds = 0;
+                    for (int i = 1; i < road.points.Count - 1; i++) {
+                        if (GO.GetLayer(road.points[i]) == 9) pointsAsEnds++;
+                    }
+                    Check("merge: no middle control points of the merged " + typeName + " road look like road ends", pointsAsEnds == 0);
                 }));
             }
 

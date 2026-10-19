@@ -231,6 +231,10 @@ To edit an intersection, click on it (or select it in the object list).
 
 ![The intersection editor](images/intersection-editor.jpg)
 
+An intersection connecting exactly two roads can be removed by merging the two roads into one, for example to undo a split: click *Merge into* followed by the name of the road whose properties are kept. The end of the merged road takes the end properties of the other road (crosswalk size, connection height, roads through the intersection...). If the two roads go opposite ways, the other road is reversed, but only its shape: its left and right properties (sidewalks, lanes...) are not swapped. The merged road keeps the curve type of the kept road. Roads with the same curve are joined exactly: Hermite and low-poly roads by joining their control points (the shape near the old intersection may change slightly, since the control points a split removed there are lost), two Bézier roads that are the two parts of the same curve (as after a split) get its control points back, and two straight roads in line become a straight road again. Otherwise the merge is a best effort: two other Bézier roads become a single Bézier curve as close as possible to both (two straight roads at a corner become a curve rounding the corner), and a road with another curve is followed by new control points of a Hermite or low-poly road (within half a meter, or a quarter of a meter for low-poly).
+
+Terrain points anchored to the merged roads stay in place but are no longer anchored, as after a split.
+
 ## Terrain patches
 
 To create a terrain patch, select *Create→Terrain patch* (or press Ctrl+T), then place the perimeter points on the ground.

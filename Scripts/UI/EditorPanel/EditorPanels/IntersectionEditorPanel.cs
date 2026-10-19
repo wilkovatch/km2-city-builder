@@ -6,6 +6,7 @@ using SM = StringManager;
 namespace EditorPanels {
     public class IntersectionEditorPanel : EditorPanel {
         public Intersection intersection = null;
+        readonly List<EditorPanelElements.Button> mergeButtons = new List<EditorPanelElements.Button>();
 
         public IntersectionEditorPanel() {
             AddComplexElement(new PresetSelector(this));
@@ -26,9 +27,16 @@ namespace EditorPanels {
 
             var w = elem.width;
             if (elem.name == "mainGroup") {
+                mergeButtons.Clear();
                 if (!pS.EditingPreset()) {
                     p.AddButton(SM.Get("END_EDITING"), Terminate, w * 0.5f);
                     p.AddButton(SM.Get("DELETE"), Delete, w * 0.5f);
+                    p.IncreaseRow();
+                    //one for each road (the titles are set when the intersection is shown)
+                    for (int i = 0; i < 2; i++) {
+                        var index = i;
+                        mergeButtons.Add(p.AddButton(SM.Get("IS_MERGE"), () => Merge(index), w * 0.5f, SM.Get("IS_MERGE_TOOLTIP")));
+                    }
                 } else {
                     p.AddButton(SM.Get("END_EDITING"), Terminate, w);
                 }
@@ -101,6 +109,31 @@ namespace EditorPanels {
             Operations.Intersections.Delete(GetCurIntersection());
             builder.NotifyChange();
             Terminate();
+        }
+
+        //the road of the intersection kept by the merge button, null if the button can't merge
+        Road GetMergeRoad(int index) {
+            var intersection = GetCurIntersection();
+            if (GetComplexElement<PresetSelector>().EditingPreset() || intersection == null || intersection.roads.Count != 2) return null;
+            return intersection.roads[index];
+        }
+
+        //merges the two roads into the one of the button, deleting the intersection
+        void Merge(int index) {
+            var road = GetMergeRoad(index);
+            if (road == null || !Operations.Intersections.CanMerge(GetCurIntersection(), road)) return;
+            Operations.Intersections.Merge(builder.helper.elementManager, GetCurIntersection(), road);
+            builder.NotifyChange();
+            Terminate();
+        }
+
+        protected override void ReadCurValues() {
+            base.ReadCurValues();
+            for (int i = 0; i < mergeButtons.Count; i++) {
+                var road = GetMergeRoad(i);
+                mergeButtons[i].SetTitle(road != null ? SM.Get("IS_MERGE_INTO").Replace("$ROAD", GameEngine.GameObject.GetName(road)) : SM.Get("IS_MERGE"));
+                mergeButtons[i].SetInteractable(road != null && Operations.Intersections.CanMerge(GetCurIntersection(), road));
+            }
         }
 
         public override void Terminate() {

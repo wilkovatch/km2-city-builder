@@ -219,6 +219,17 @@ namespace Api {
             });
         }
 
+        [ApiMethod("intersections.mergeRoads", "Merges the two roads of an intersection into one road, deleting the intersection (keep: the road whose settings are kept, by default the first one; the end on the intersection gets the properties of the far end of the other road). The other road is reversed if needed, only its geometry: its left and right properties are not swapped. The merged road keeps the curve type of the kept road: the merge is exact for roads with the same curve (two Bézier roads only if they are the two parts of a curve, as after a split), otherwise its curve follows both roads as closely as its type allows. Returns the id of the merged road")]
+        public int MergeIntersectionRoads(ElementRef intersection, ElementRef keep = null) {
+            return ApplyChange("merge roads", () => {
+                var i = Resolve<Intersection>(intersection, "intersection");
+                var k = keep != null ? Resolve<Road>(keep, "road") : (i.roads.Count > 0 ? i.roads[0] : null);
+                var error = Operations.Intersections.GetMergeError(i, k);
+                if (error != null) throw ApiException.InvalidOperation(error);
+                return IdOf(Operations.Intersections.Merge(M, i, k));
+            });
+        }
+
         // Terrain patches
 
         //the element edited by a command, recorded for undo like the element of an editor panel

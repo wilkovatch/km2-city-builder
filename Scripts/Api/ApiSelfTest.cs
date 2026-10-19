@@ -456,9 +456,129 @@ namespace Api {
             var removed = await Call("roads.removePoint", new { road = roadE });
             Check("removing the last point keeps the road", !removed["deleted"].Value<bool>());
             await CheckUndo("road deleted", () => Call("roads.delete", new { road = roadE }));
+            await MergeRoads();
             await Call("elements.rename", new { @ref = roadA, name = "Main street" });
             Check("elements.list by name", ((JArray)await Call("elements.list", new { name = "Main street" })).Count == 1);
             Check("reference by name", (await Call("elements.get", new { @ref = "Main street" }))["id"].Value<int>() == roadA);
+        }
+
+        //merging the two roads of an intersection into one (the reverse of a split), on roads of their own deleted at the end
+        async Task MergeRoads() {
+            async Task<int> CountOf(string kind) => ((JArray)await Call("elements.list", new { kind })).Count;
+            float Horizontal(JToken a, JToken b) => new Vector2(a[0].Value<float>() - b[0].Value<float>(), a[2].Value<float>() - b[2].Value<float>()).Length();
+            //the largest horizontal distance of the points of a curve from another one
+            float Deviation(JToken curve, JToken original) {
+                var res = 0.0f;
+                foreach (var p in curve) {
+                    var point = new Vector3(p[0].Value<float>(), 0, p[2].Value<float>());
+                    var min = float.MaxValue;
+                    for (int i = 0; i < original.Count() - 1; i++) {
+                        var a = new Vector3(original[i][0].Value<float>(), 0, original[i][2].Value<float>());
+                        var b = new Vector3(original[i + 1][0].Value<float>(), 0, original[i + 1][2].Value<float>());
+                        min = Mathf.Min(min, point.DistanceTo(GeometryHelper.ClosestPoint(point, a, b)));
+                    }
+                    res = Mathf.Max(res, min);
+                }
+                return res;
+            }
+
+            //a road split by a road connected to its middle, which is then deleted: two roads on an intersection
+            var roadsBefore = await CountOf("road");
+            var intersectionsBefore = await CountOf("intersection");
+            var main = (await Call("roads.create", new { points = new[] { Pos(-800, 700), Pos(-650, 780), Pos(-500, 700), Pos(-350, 640) } })).Value<int>();
+            var original = (await Derived(main))["curve"];
+            var originalPoints = (await Derived(main))["points"];
+            var near = original[original.Count() / 2];
+            var cross = (await Call("roads.create", new { points = new object[] { Pos(-560, 900), new { roadMiddle = new { road = main, near = near.ToObject<float[]>() } } } })).Value<int>();
+            var joint = (await Derived(main))["endIntersection"].Value<int>();
+            var second = -1; //the part after the split, starting on the new intersection
+            foreach (var e in (JArray)await Call("elements.list", new { kind = "road" })) {
+                var id = e["id"].Value<int>();
+                var start = (await Derived(id))["startIntersection"];
+                if (id != main && id != cross && start?.Type == JTokenType.Integer && start.Value<int>() == joint) second = id;
+            }
+            Check("merge: the road is split in two", second > 0);
+            await Expect("merging an intersection of three roads", "invalid_operation", "intersections.mergeRoads", new { intersection = joint });
+            await Call("roads.delete", new { road = cross });
+            await Expect("merging into a road not on the intersection", "invalid_operation", "intersections.mergeRoads", new { intersection = joint, keep = roadA });
+            await Expect("merging into an element that is not a road", "wrong_kind", "intersections.mergeRoads", new { intersection = joint, keep = joint });
+            await Expect("merging without an intersection", "invalid_param", "intersections.mergeRoads");
+            //the far end of the second part gives its properties to the merged road
+            await Call("state.setBuiltin", new { @ref = second, name = "endCrosswalkSize", value = 3.5f });
+            await Call("state.setBuiltin", new { @ref = main, name = "endCrosswalkSize", value = 7.0f });
+            await Call("state.setBuiltin", new { @ref = main, name = "endIntersectionEnd", value = true });
+            int merged = -1;
+            await CheckUndo("roads merged", async () => merged = (await Call("intersections.mergeRoads", new { intersection = joint })).Value<int>());
+            var m = await Derived(merged);
+            var st = (JObject)(await Call("elements.get", new { @ref = merged }))["data"];
+            //the points of the original curve on the merged one (which has the segments of both parts, more than the original)
+            var deviation = Deviation(original, m["curve"]);
+            var pointsBack = Len(m["points"]) == Len(originalPoints);
+            for (int i = 0; pointsBack && i < Len(originalPoints); i++) pointsBack = Horizontal(m["points"][i], originalPoints[i]) < 0.05f;
+            Check("merge: the first road is kept, the two parts of the Bézier curve give its control points again", merged == main && pointsBack);
+            Check("merge: the other road and the intersection are deleted", await CountOf("road") == roadsBefore + 1 && await CountOf("intersection") == intersectionsBefore);
+            Check("merge: the merged road follows the original curve (" + deviation.ToString("0.00") + " m)", deviation < 0.5f);
+            Check("merge: the end gets the properties of the far end of the other road (" + st.SelectToken("state.endCrosswalkSize") + ", " + st.SelectToken("instanceState.endIntersectionEnd") + ")",
+                st.SelectToken("state.endCrosswalkSize")?.Value<float>() == 3.5f && st.SelectToken("instanceState.endIntersectionEnd")?.Value<bool>() != true);
+
+            //two roads going opposite ways: the other one is reversed (its roll negated, its start properties at the end)
+            var r1 = (await Call("roads.create", new { points = new[] { Pos(-800, 1000), Pos(-700, 1050), Pos(-600, 1000) } })).Value<int>();
+            var r2 = (await Call("roads.create", new { points = new object[] { Pos(-400, 1000), Pos(-500, 950), new { roadEnd = new { road = r1, end = "end" } } } })).Value<int>();
+            var j2 = (await Derived(r1))["endIntersection"].Value<int>();
+            var r2Start = (await Derived(r2))["points"][0];
+            await Call("state.setBuiltin", new { @ref = r1, name = "curveType", value = "hermite" });
+            await Call("state.setBuiltin", new { @ref = r2, name = "curveType", value = "hermite" });
+            await Call("roads.setPointRotation", new { road = r2, index = 1, yaw = 5, roll = 10 });
+            await Call("state.setBuiltin", new { @ref = r2, name = "startCrosswalkSize", value = 2.5f });
+            await Call("intersections.mergeRoads", new { intersection = j2, keep = r1 });
+            var m2 = await Derived(r1);
+            var st2 = (JObject)(await Call("elements.get", new { @ref = r1 }))["data"];
+            Check("merge reversed: the points go on from the end of the kept road to the start of the other one",
+                Len(m2["points"]) == 5 && Horizontal(m2["points"][4], r2Start) < 0.01f && m2["endIntersection"].Type == JTokenType.Null);
+            Check("merge reversed: the roll is negated, the yaw kept (" + m2["pointRotations"][3].ToString(Newtonsoft.Json.Formatting.None) + ")",
+                m2["pointRotations"][3][0].Value<float>() == 5 && m2["pointRotations"][3][1].Value<float>() == -10);
+            Check("merge reversed: the start properties of the other road are at the end", st2.SelectToken("state.endCrosswalkSize")?.Value<float>() == 2.5f);
+
+            //roads of different curves: the merged road keeps the curve type of the kept one, following both roads
+            const float cornerZ = -800;
+            async Task<int> Corner(float x, string keepType, bool curvedOther) {
+                var first = (await Call("roads.create", new { points = new[] { Pos(x, cornerZ), Pos(x + 200, cornerZ) } })).Value<int>();
+                var secondPoints = curvedOther
+                    ? new object[] { new { roadEnd = new { road = first, end = "end" } }, Pos(x + 350, cornerZ + 50), Pos(x + 300, cornerZ + 200) }
+                    : new object[] { new { roadEnd = new { road = first, end = "end" } }, Pos(x + 200, cornerZ + 200) };
+                await Call("roads.create", new { points = secondPoints });
+                if (keepType != null) await Call("state.setBuiltin", new { @ref = first, name = "curveType", value = keepType });
+                return first;
+            }
+            async Task<(JToken merged, JToken followed)> MergeCorner(int first) {
+                var j = (await Derived(first))["endIntersection"].Value<int>();
+                var other = (await Derived(j))["roadsClockwise"].ToObject<List<int>>().Find(x => x != first);
+                var followed = (await Derived(other))["curve"];
+                var id = (await Call("intersections.mergeRoads", new { intersection = j, keep = first })).Value<int>();
+                return (await Derived(id), followed);
+            }
+            string TypeOf(int road) => History.ElementRegistry.Get<Road>(road).GetCurveType().ToString();
+
+            //two straight Bézier roads at a right angle: a single Bézier curve rounding the corner
+            var corner = await Corner(-800, null, false);
+            var (cornerMerged, _) = await MergeCorner(corner);
+            var cornerDistance = float.MaxValue;
+            foreach (var p in cornerMerged["curve"]) cornerDistance = Mathf.Min(cornerDistance, new Vector2(p[0].Value<float>() + 600, p[2].Value<float>() - cornerZ).Length());
+            //joining the control points would give a curve 70.7 m from the corner
+            Check("merge best effort: two Bézier roads at a corner give a quadratic Bézier curve close to the corner (" + cornerDistance.ToString("0.0") + " m, " + Len(cornerMerged["points"]) + " points)",
+                TypeOf(corner) == "Bezier" && Len(cornerMerged["points"]) == 3 && cornerDistance < 60.0f
+                && Horizontal(cornerMerged["points"][2], JToken.FromObject(V(-600, 0, cornerZ + 200))) < 0.01f);
+            //a curved Bézier road merged into a Hermite road and into a low-poly road
+            foreach (var type in new[] { "hermite", "lowPoly" }) {
+                var road = await Corner(type == "hermite" ? -300 : 200, type, true);
+                var (mergedCurve, followed) = await MergeCorner(road);
+                var followedDeviation = Deviation(followed, mergedCurve["curve"]);
+                Check("merge best effort: a curved Bézier road merged into a " + type + " road (" + TypeOf(road) + ", " + Len(mergedCurve["points"]) + " points) follows it ("
+                    + followedDeviation.ToString("0.00") + " m)", TypeOf(road).ToLowerInvariant() == type.ToLowerInvariant() && followedDeviation < 1.0f);
+                await Call("roads.delete", new { road });
+            }
+            foreach (var r in new[] { main, r1, corner }) await Call("roads.delete", new { road = r });
+            Check("merge: the test roads are deleted", await CountOf("road") == roadsBefore && await CountOf("intersection") == intersectionsBefore);
         }
 
         async Task TerrainAndBuildings() {

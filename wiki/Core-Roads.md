@@ -103,6 +103,10 @@ A getter that is missing, or points to a missing definition, logs a warning once
 
 Besides the core's parameters, every road has these built-in state properties (edited in `mainGroup` and `intersectionGroup`): `type`, `segments`, `segmentsPer100m`, `project`, `projectAll`, `lpf` (smoothing), `makeCoplanar`, `pointPlaneTreshold`, `adjustLowPolyWidth`, `curveType` (0 Bézier, 1 Hermite, 2 low-poly), `subdivideEqually`, `hermiteTension`, `startCrosswalkSize`, `endCrosswalkSize`, `startIntersectionAdd`, `endIntersectionAdd`, `startIntersectionTexture`, `endIntersectionTexture`, `propRule`; and in the instance state `startIntersectionStart`, `startIntersectionEnd`, `endIntersectionStart`, `endIntersectionEnd`, `intersectionMove`, `startConnectionHeight`, `endConnectionHeight`, `startConnectionHeightAuto`, `endConnectionHeightAuto`. Preset values for them should be provided by the templates.
 
+### Per-end parameters
+
+When two roads are merged into one (removing the intersection between them), the merged road keeps the parameters of one of them, except those of its end on the old intersection: these come from the far end of the other road. A parameter belongs to an end if the first word of its name that is `start` or `end` (in any case; words are separated by underscores or capital letters) says so, and the same name with that word swapped is the parameter of the other end. For example `endCrosswalkSize`, `startTrafficLight`, `rail_continueLeftOnEndIntersection` and `offL_end` are per-end parameters, `startIntersectionEnd` belongs to the start. Name the parameters of the ends this way so that they follow the merge. Nested states (the prop rule) are never per-end. If the other road is reversed by the merge, its `start` parameters go to the `end` of the merged road and vice versa, but left and right are not swapped.
+
 ## Built-in variables
 
 Available in every expression of a road type, in addition to its parameters and definitions:

@@ -39,7 +39,7 @@ What the panels and the mouse tools do to the city is implemented in the operati
 | Panel | Purpose |
 |---|---|
 | `RoadEditorPanel` | Road editing: core parameters plus the built-in groups `mainGroup` (type, preset, point placement mode, projection, segments, smoothing, coplanarity, curve type), `intersectionGroup` (crosswalk sizes, intersection size increase and textures, roads through the intersection, connection heights) and `propsGroup` (prop rule preset and props containers). |
-| `IntersectionEditorPanel` | Intersection type, preset, sidewalk segments and size increase (`mainGroup`), plus core parameters. |
+| `IntersectionEditorPanel` | Intersection type, preset, sidewalk segments and size increase (`mainGroup`), plus core parameters. With two roads, a *Merge into* button for each road merges them into that road (`Operations.Intersections.Merge`, see `RoadMerger`), enabled when the merge is possible (the intersection has exactly two roads, not both ends of the same road). |
 | `TerrainPatchEditorPanel` | Terrain patch type, point placement mode (perimeter, internal, border mesh), smoothing, projection, auto-close, texture (`mainGroup`), and the border mesh list (`borderMeshGroup`). |
 | `TerrainPatchBorderMeshEditorPanel` | The parameters of one border mesh. |
 | `Buildings/LineEditorPanel` | Building line: type, preset, building list (`mainGroup`), built-in line properties (`propertiesGroup`) and automatic closing with presets (`loopGroup`). |
