@@ -8,6 +8,7 @@ using RC = RuntimeCalculator;
 using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
 using V3 = GameEngine.Vector3;
+using LineRenderer = GameEngine.LineRenderer;
 
 //non-generic access to the parametric objects of a container, to find one again after they are regenerated
 public interface IParametricObjectContainer {
@@ -21,6 +22,9 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
     public bool repositionObjects = false;
     public bool resetObjectsPositions = false;
     public Dictionary<string, List<ArrayObject>> arrayObjects = new Dictionary<string, List<ArrayObject>>();
+    //the lines through the parametric objects of the arrays with drawLine
+    Dictionary<string, LineRenderer> arrayLines = new Dictionary<string, LineRenderer>();
+    const float MinArrayLineWidth = 0.1f;
 
     public abstract RC.VariableContainer GetParametricObjectVariableContainer();
 
@@ -248,6 +252,7 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
             for (int i = 0; i < arr.Length; i++) {
                 aL[i].SetState(arr[i]);
             }
+            SyncArrayLine(param.Key, param.Value.drawLine);
         }
         var customElemParams = runtimeType.customElemParams;
         foreach (var param in customElemParams) {
@@ -263,6 +268,56 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
             }
             var aL = arrayObjects[param.Key];
             aL[0].SetState(objState);
+        }
+    }
+
+    void SyncArrayLine(string key, bool drawLine) {
+        arrayLines.TryGetValue(key, out var lr);
+        if (!drawLine) {
+            if (lr != null) {
+                GO.Destroy(lr);
+                arrayLines.Remove(key);
+            }
+            return;
+        }
+        if (lr == null) {
+            //a child, so it is hidden with the container (e.g. by the exclusive editing of a custom element)
+            lr = GO.CreateLineRenderer(GO.GetObject(this), "Line (" + key + ")");
+            lr.material = MaterialManager.GetHandleMaterial(GameEngine.Color.yellow);
+            lr.startWidth = MinArrayLineWidth;
+            lr.endWidth = MinArrayLineWidth;
+            lr.frameUpdate = () => UpdateArrayLine(key);
+            arrayLines[key] = lr;
+        }
+    }
+
+    //follows the objects (moved with the gizmo without regenerating the container), with a width growing with the camera distance
+    void UpdateArrayLine(string key) {
+        if (!arrayLines.TryGetValue(key, out var lr) || !lr.IsVisibleInTree()) return;
+        var points = new List<Vector3>();
+        if (arrayObjects.TryGetValue(key, out var list)) {
+            foreach (var elem in list) {
+                if (elem == null || !IsInstanceValid(elem)) continue;
+                foreach (var holder in elem.objectInstances.Values) {
+                    if (holder == null || !IsInstanceValid(holder)) continue;
+                    var inst = GS.FindRecursive<MeshInstance>(holder);
+                    points.Add(GO.GetPosition(inst != null ? inst : holder));
+                    break;
+                }
+            }
+        }
+        var changed = points.Count != lr.positionCount;
+        for (int i = 0; i < points.Count && !changed; i++) {
+            changed = points[i] != lr.GetPosition(i);
+        }
+        if (changed) lr.SetPositions(points.ToArray());
+        var cam = GameEngine.Camera.Get(this);
+        if (cam != null && points.Count >= 2) {
+            var camPos = GO.GetPosition(cam);
+            var dist = V3.Distance(GeometryHelper.ClosestPointToCurve(camPos, points, out _), camPos);
+            var width = Mathf.Max(MinArrayLineWidth * (dist / 20.0f), MinArrayLineWidth);
+            lr.startWidth = width;
+            lr.endWidth = width;
         }
     }
 

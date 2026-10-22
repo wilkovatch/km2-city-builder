@@ -203,6 +203,7 @@ namespace Api {
                 await Anchors();
                 await Heights();
                 await States();
+                await ArrayPoints();
                 await Props();
                 await Meshes();
                 await Batches();
@@ -889,6 +890,52 @@ namespace Api {
                 await Call("state.get", new { @ref = new { parent = cityId, param = customParam } });
                 Check("custom element reference", true);
             }
+        }
+
+        //the line through the parametric objects of an array with drawLine, and their click placement (the train lines of the MM2 core)
+        async Task ArrayPoints() {
+            var cityId = 0;
+            var citySchema = await Call("state.schema", new { @ref = cityId });
+            if (!citySchema["parameters"].Any(p => p["name"].Value<string>() == "trainLines")) {
+                Log("     no trainLines parameter in the core, array points skipped");
+                return;
+            }
+            var li = (await Call("state.array.add", new { @ref = cityId, param = "trainLines" })).Value<int>();
+            var lineRef = new { parent = cityId, param = "trainLines", index = li };
+            object PointRef(int pi) => new { owner = cityId, @object = "point", path = new[] { "trainLines." + li, "points." + pi } };
+            var positions = new[] { new Vector3(10, 0, 10), new Vector3(60, 0, 10) };
+            foreach (var pos in positions) {
+                var pi = (await Call("state.array.add", new { @ref = lineRef, param = "points" })).Value<int>();
+                await Call("objects.setTransform", new { @object = PointRef(pi), localPosition = new[] { pos.X, pos.Y, pos.Z } });
+            }
+            await Call("city.flush");
+            await Frames(3);
+            var cityProperties = M.GetDummy<CityProperties>();
+            var lineObject = cityProperties.arrayObjects["trainLines"][li];
+            var lr = GO.GetObject(lineObject).GetChildren().OfType<GameEngine.LineRenderer>().FirstOrDefault();
+            Check("drawLine: a line through the points of the array", lr != null && lr.positionCount == 2
+                && GeometryHelper.AreVectorsEqual(lr.GetPosition(1), positions[1]));
+            await Call("objects.setTransform", new { @object = PointRef(1), localPosition = new[] { 60f, 0f, 40f } });
+            await Frames(3);
+            Check("drawLine: the line follows the points", lr != null && GeometryHelper.AreVectorsEqual(lr.GetPosition(1), new Vector3(60, 0, 40)));
+
+            //click placement: what the placer does on a click (recorded like the terrain click actions)
+            var lineState = cityProperties.GetState().Array<ObjectState>("trainLines")[li];
+            var pointsParam = CityElements.Types.Parsers.TypeParser.GetCustomTypes()["trainLine"].parameters.First(p => p.name == "points");
+            Check("click placement offered for the points", Operations.States.GetSingleObjectInstanceSubparam(pointsParam) != null);
+            var placed = new Vector3(100, 0, 30);
+            var placer = builder.arrayPointPlacer;
+            placer.Start(this, () => lineState, pointsParam, () => cityProperties);
+            var started = builder.terrainClick.modifier == placer && placer.IsPlacing(this, pointsParam);
+            await CheckUndo("array object placed by clicking", async () => {
+                History.UndoManager.Record(nameof(ElementPlacer.ArrayPointPlacer), () => placer.PlaceAt(placed));
+                await Call("city.flush");
+            });
+            placer.Stop();
+            Check("click placement mode on and off", started && builder.terrainClick.modifier != placer);
+            var obj = await Call("objects.get", new { @object = PointRef(2) });
+            Check("the clicked point is placed there", GeometryHelper.AreVectorsEqual(Vec(obj["localPosition"]), placed));
+            await Call("state.array.remove", new { @ref = cityId, param = "trainLines", index = li });
         }
 
         async Task Props() {

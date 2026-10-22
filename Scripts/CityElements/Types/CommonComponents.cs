@@ -31,6 +31,7 @@ namespace CityElements.Types {
         public string elementLabel;
         public Parameter[] elementProperties;
         public string customElementType;
+        public bool drawLine; //draw a line through the parametric objects of the elements, in order (e.g. the points of a path)
     }
 
     public class CustomElement {

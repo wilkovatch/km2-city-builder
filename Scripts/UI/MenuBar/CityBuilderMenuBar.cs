@@ -41,6 +41,7 @@ public partial class CityBuilderMenuBar : Control {
     ElementPlacer.TerrainPlacer terrainPlacer;
     ElementPlacer.BuildingPlacer buildingPlacer;
     public ElementPlacer.MeshPlacer meshPlacer;
+    public ElementPlacer.ArrayPointPlacer arrayPointPlacer;
 
     public TerrainClick terrainClick;
     public FileBrowserHelper fileBrowser;
@@ -103,6 +104,7 @@ public partial class CityBuilderMenuBar : Control {
         terrainPlacer = new ElementPlacer.TerrainPlacer(helper.elementManager);
         buildingPlacer = new ElementPlacer.BuildingPlacer(helper.elementManager);
         meshPlacer = new ElementPlacer.MeshPlacer(helper.elementManager);
+        arrayPointPlacer = new ElementPlacer.ArrayPointPlacer(this);
 
         /*fileBrowser = gameObject.AddComponent<FileBrowserHelper>();
         fileBrowser.builder = this;
@@ -715,6 +717,7 @@ public partial class CityBuilderMenuBar : Control {
         terrainPlacer.placementMode = ElementPlacer.TerrainPlacer.PlacementMode.None;
         buildingPlacer.placementMode = ElementPlacer.BuildingPlacer.PlacementMode.None;
         meshPlacer.placeEnabled = false;
+        arrayPointPlacer.Stop();
         meshListEditorPanel.ResetEntries(); //otherwise when opened for the first time it would have broken paths due to prefs not being loaded at first load
         SetCameraRenderingMode(PreferencesManager.Get("renderingMode", 0), false);
         SetShadows(PreferencesManager.Get("shadowsEnabled", true), false);

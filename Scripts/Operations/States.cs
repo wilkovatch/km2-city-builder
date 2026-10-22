@@ -64,6 +64,26 @@ namespace Operations {
             return arr.Count - 1;
         }
 
+        //the parametric object parameter of the elements of an array whose elements are only that (e.g. the points of a path), null otherwise
+        public static Parameter GetSingleObjectInstanceSubparam(Parameter param) {
+            if (param?.type != "array") return null;
+            var subparams = GetSubparams(param);
+            return subparams != null && subparams.Length == 1 && subparams[0].type == "objectInstance" ? subparams[0] : null;
+        }
+
+        //adds an element to an array of single parametric objects (see GetSingleObjectInstanceSubparam), with the object at
+        //the position relative to its base (which is the origin for the objects of custom elements), returns its index (-1 if not added)
+        public static int AddArrayObjectAt(ObjectState owner, Parameter param, Godot.Vector3 localPosition) {
+            var objParam = GetSingleObjectInstanceSubparam(param);
+            if (objParam == null || IsArrayFull(owner, param)) return -1;
+            var index = AddArrayElement(owner, param);
+            var elem = GetArray(owner, param)[index];
+            var objState = elem.State(objParam.fullName()) ?? new ObjectState();
+            objState.SetVector3("localPosition", localPosition);
+            elem.SetState(objParam.fullName(), objState);
+            return index;
+        }
+
         //adds a copy of the element at the end of the array
         public static bool CloneArrayElement(ObjectState owner, Parameter param, int i) {
             var arr = GetArray(owner, param);

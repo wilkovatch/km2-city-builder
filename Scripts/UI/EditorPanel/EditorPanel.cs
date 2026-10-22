@@ -189,17 +189,17 @@ public abstract partial class EditorPanel {
                         System.Action<string> AddArrayElementD = x => { AddArrayElement(param); };
                         System.Action<string, int> SelectArrayElementD = (x, y) => { SelectArrayElement(param, y); };
                         System.Action<string, int> DeleteArrayElementD = (x, y) => { DeleteArrayElement(param, y); };
-                        System.Action<string, int> SwitchArrayClickAddModeD = delegate { SwitchArrayClickAddMode(); };
+                        System.Action<string, int> SwitchArrayClickAddModeD = delegate { SwitchArrayClickAddMode(param); };
                         System.Func<List<string>> GetArrayD = delegate { return GetArray(param); };
                         var extraButtons = new List<(string, System.Action<string, int>, IOListButtonMode)>() {
                             (SM.Get("ARRAY_CLONE"), CloneArrayElementD, IOListButtonMode.ElementSelectedAndNotFull),
                             (SM.Get("ARRAY_MOVE_UP"), MoveUpArrayElementD, IOListButtonMode.ElementSelected),
                             (SM.Get("ARRAY_MOVE_DOWN"), MoveDownArrayElementD, IOListButtonMode.ElementSelected),
                         };
-                        if (GetSubparams(param).Length == 1) { //todo: the placement itself
-                            /*extraButtons.Add(
+                        if (Operations.States.GetSingleObjectInstanceSubparam(param) != null) {
+                            extraButtons.Add(
                                 (SM.Get("ARRAY_CLICK_TO_ADD"), SwitchArrayClickAddModeD, IOListButtonMode.AlwaysEnabled)
-                            );*/
+                            );
                         }
                         var l = GetComplexElement<IOList>();
                         l.AddFullEditableList(p, param.fullName(), GetString(param.label),
@@ -366,6 +366,7 @@ public abstract partial class EditorPanel {
 
     public virtual void SetActive(bool active) {
         var disabled = ActiveSelf() && !active;
+        if (!active && builder?.arrayPointPlacer != null && builder.arrayPointPlacer.IsPlacingFrom(this)) builder.arrayPointPlacer.Stop();
         foreach (var elem in complexElements.Values) {
             elem.SetActive(active);
         }
@@ -689,8 +690,21 @@ public abstract partial class EditorPanel {
         }
     }
 
-    void SwitchArrayClickAddMode() {
-        GameEngine.Print("test"); //todo
+    //the click placement of the elements of an array of single parametric objects (on until clicked again, Escape or
+    //the panel is closed); only for the objects of the city properties and of custom elements, positioned from the origin
+    void SwitchArrayClickAddMode(CityElements.Types.Parameter param) {
+        var placer = builder?.arrayPointPlacer;
+        if (placer == null) return;
+        if (placer.IsPlacing(this, param)) {
+            placer.Stop();
+            return;
+        }
+        var obj = getObject?.Invoke();
+        if (obj == null || !(obj is CityProperties || obj is ObjectState)) {
+            GameEngine.LogWarning("Click placement is not supported for this array");
+            return;
+        }
+        placer.Start(this, getObject, param, GetUndoTarget);
     }
 
     CityElements.Types.Parameter[] GetArrayProperties(CityElements.Types.ArrayProperties type) {
