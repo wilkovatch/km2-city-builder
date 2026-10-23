@@ -1,7 +1,7 @@
 # Builds the Windows and Linux versions and publishes them as a GitHub release
 # whenever a push to main changes the files used by the program (wiki and documentation changes are ignored).
 # The release is tagged v<Version>-<short commit hash>, with <Version> taken from the csproj,
-# and its description lists the commits since the previous release.
+# and its description lists the commits since the previous release (version number increases excluded).
 name: Build and release
 
 on:
@@ -26,6 +26,8 @@ env:
   GODOT_VERSION: 4.7.1
   PANDOC_VERSION: 3.12.1
   TYPST_VERSION: 0.15.1
+  # must match the version in ExpressionParser/compile.bat
+  ANTLR_VERSION: 4.11.1
 
 jobs:
   release:
@@ -99,6 +101,17 @@ jobs:
           unzip -q ~/godot-download/templates.tpz -d ~/godot/templates-extract
           mv ~/godot/templates-extract/templates/* "$templatesDir"
 
+      # the generated parser is not tracked by git, same command as ExpressionParser/compile.bat
+      # (Java is preinstalled on the runner)
+      - name: Generate the expression parser
+        if: steps.version.outputs.exists == 'false'
+        working-directory: ExpressionParser
+        run: |
+          curl -fsSL -o antlr.jar "https://repo1.maven.org/maven2/org/antlr/antlr4/$ANTLR_VERSION/antlr4-$ANTLR_VERSION-complete.jar"
+          java -jar antlr.jar -visitor -no-listener -Dlanguage=CSharp ExpressionLexer.g4 ExpressionParser.g4
+          mv *.cs ../CustomPackages/expressions-antlr4/
+          rm antlr.jar *.interp *.tokens
+
       # the C# assembly must exist before the editor starts, otherwise the export plugin
       # that adds the runtime data, the licenses and the quickstart guide to the builds is not loaded
       - name: Build the C# project
@@ -138,13 +151,23 @@ jobs:
           check "dist/km2-city-builder-$VERSION-$HASH-linux.zip" km2-city-builder
           exit $failed
 
+      # commits that only change the version number in the csproj are left out
       - name: Write the changelog
         if: steps.version.outputs.exists == 'false'
         run: |
           PREV=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
           RANGE=${PREV:+$PREV..}HEAD
-          changes=$(git log $RANGE --no-merges --format='- %s (%h)' -- . \
-            ':(exclude)wiki' ':(exclude)*.md' ':(exclude).vscode' ':(exclude).github/workflows/wiki.yml')
+          paths=(. ':(exclude)wiki' ':(exclude)*.md' ':(exclude).vscode' ':(exclude).github/workflows/wiki.yml')
+          csproj="km2 City Builder.csproj"
+          is_version_bump() {
+            [ "$(git show --format= --name-only "$1" -- "${paths[@]}")" = "$csproj" ] || return 1
+            local lines
+            lines=$(git show --format= --unified=0 "$1" -- "$csproj" | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---) ') || return 1
+            ! grep -Evq '^[+-][[:space:]]*<Version>[^<]*</Version>[[:space:]]*$' <<< "$lines"
+          }
+          changes=$(git log $RANGE --no-merges --format='%h' -- "${paths[@]}" | while read -r commit; do
+            is_version_bump "$commit" || git log -1 --format='- %s (%h)' "$commit"
+          done)
           {
             echo "## Changes"
             echo "${changes:-- No changes to the program}"
