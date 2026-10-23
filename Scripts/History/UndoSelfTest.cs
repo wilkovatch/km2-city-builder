@@ -491,6 +491,51 @@ namespace History {
                     Close();
                 }
 
+                //the points of a train line opened one after the other (the point panel is rebuilt each time, it used to keep
+                //the buttons of the destroyed pages and fail on them once freed)
+                var cityProps = M.GetDummy<CityProperties>();
+                var cityPropsPanel = Panel<EditorPanel>("cityPropertiesEditorPanel");
+                CallBuilder<object>("ToggleCityProperties");
+                CityElements.Types.Parameter trainLinesParam = null;
+                foreach (CityElements.Types.Parameter param in ((System.Collections.IDictionary)typeof(EditorPanel).GetField("parameterMap", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(cityPropsPanel)).Values) {
+                    if (param.fullName() == "trainLines") trainLinesParam = param;
+                }
+                if (trainLinesParam != null) {
+                    var trainLineParams = CityElements.Types.Parsers.TypeParser.GetCustomTypes()["trainLine"].parameters;
+                    var pointsParam = System.Array.Find(trainLineParams, p => p.name == "points");
+                    var li = -1;
+                    UndoManager.Record("add train line", () => {
+                        UndoManager.Touch(cityProps);
+                        li = Operations.States.AddArrayElement(cityProps.GetState(), trainLinesParam);
+                        var lineState = cityProps.GetState().Array<ObjectState>("trainLines")[li];
+                        Operations.States.AddArrayObjectAt(lineState, pointsParam, new Vector3(10, 0, 10));
+                        Operations.States.AddArrayObjectAt(lineState, pointsParam, new Vector3(60, 0, 10));
+                        cityProps.GetState().FlagAsChanged();
+                    });
+                    M.FlagAsChanged();
+                    await Frames(6);
+                    var linePanel = cityPropsPanel.OpenArrayElement("trainLines", li);
+                    string error = null;
+                    EditorPanel pointPanel = null;
+                    foreach (var pi in new[] { 0, 1, 0, 1 }) {
+                        try {
+                            pointPanel = linePanel?.OpenArrayElement("points", pi);
+                        } catch (System.Exception e) {
+                            error ??= "point " + pi + ": " + e.GetType().Name + " " + e.Message;
+                        }
+                        await Frames(6);
+                    }
+                    Check("train line points opened one after the other" + (error != null ? " (" + error + ")" : ""), linePanel != null && pointPanel != null && error == null);
+                    var buttons = pointPanel != null ? ((System.Collections.ICollection)Field(pointPanel, "objectInstanceParameters")).Count : -1;
+                    Check("the point panel keeps only its own object buttons (" + buttons + ")", buttons == 1);
+                    Close();
+                    InvokeBuilder("Undo");
+                    await Frames(6);
+                } else {
+                    Log("     no trainLines parameter in the core");
+                    Close();
+                }
+
                 //props container of the road (enabled if needed) and one of its elements
                 builder.SelectObject(road, true, null);
                 string container = null;

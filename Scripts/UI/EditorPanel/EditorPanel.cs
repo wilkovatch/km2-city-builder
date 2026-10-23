@@ -305,6 +305,7 @@ public abstract partial class EditorPanel {
         }
         childPanels.Clear();
         titleFields.Clear();
+        objectInstanceParameters.Clear(); //their buttons were in the destroyed pages
         foreach (var elem in complexElements.Values) {
             elem.Destroy();
         }
