@@ -30,6 +30,18 @@ public partial class ArrayObject : ParametricObjectContainer<CityElements.Types.
         return vc;
     }
 
+    //the parameters of the element
+    protected override VariableContainer GetLineVariableContainer() {
+        var res = runtimeProperties.variableContainer;
+        runtimeProperties.FillInitialVariables(res, state);
+        return res;
+    }
+
+    //the arrays may have new elements, hidden if the element is
+    protected override void OnArraysSynced() {
+        UpdateVisibility();
+    }
+
     public override CityElements.Types.Runtime.RuntimeType<CityElements.Types.ArrayProperties> GetRuntimeType() {
         return runtimeProperties;
     }
@@ -56,12 +68,16 @@ public partial class ArrayObject : ParametricObjectContainer<CityElements.Types.
             }
             var activeElement = activeElements[i.category];
             var obj = GO.GetObject(this);
-            if (i.optional) {
-                var active = activeElement == null || activeElement == state;
-                if (obj != null) GO.SetEnabled(obj, active);
-            }
-            else {
-                if (obj != null) GO.SetEnabled(obj, activeElement == state);
+            var active = i.optional ? activeElement == null || activeElement == state : activeElement == state;
+            if (obj == null) return;
+            if (i.keepLinesVisible) {
+                //only the objects (the lines are children too)
+                GO.SetEnabled(obj, true);
+                foreach (var child in obj.GetChildren()) {
+                    if (child is Node3D node && child is not GameEngine.LineRenderer) GO.SetEnabled(node, active);
+                }
+            } else {
+                GO.SetEnabled(obj, active);
             }
         }
     }

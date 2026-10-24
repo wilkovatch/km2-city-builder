@@ -15,6 +15,7 @@ namespace ElementPlacer {
         CityElements.Types.Parameter param;
         object panel;
         int layerMask = -1;
+        bool snapToSurface = false;
         Vector3? curPoint = null;
 
         public ArrayPointPlacer(CityBuilderMenuBar builder) {
@@ -35,7 +36,7 @@ namespace ElementPlacer {
             this.getOwner = getOwner;
             this.getUndoTarget = getUndoTarget;
             this.param = param;
-            layerMask = GetLayerMask(Operations.States.GetSingleObjectInstanceSubparam(param));
+            layerMask = GetLayerMask(Operations.States.GetSingleObjectInstanceSubparam(param), out snapToSurface);
             builder.terrainClick.modifier = this;
         }
 
@@ -49,14 +50,17 @@ namespace ElementPlacer {
             if (wasActive && builder.terrainClick.modifier == this) builder.SetSelectObjectMode();
         }
 
-        //the layers the parametric objects of the type can be placed on (the placement rules of the type)
-        static int GetLayerMask(CityElements.Types.Parameter objParam) {
+        //the layers the parametric objects of the type can be placed on, and whether they are put on the surface under
+        //the clicked point (the placement rules of the type)
+        static int GetLayerMask(CityElements.Types.Parameter objParam, out bool snapToSurface) {
+            snapToSurface = false;
             var type = objParam?.objectInstanceSettings?.type;
             var types = CityElements.Types.Parsers.TypeParser.GetParametricMeshInstanceSettings();
             if (type == null || !types.ContainsKey(type)) return -1;
             var meshSettings = types[type];
             if (meshSettings.rules?.placerLayerMask == null) return -1;
             meshSettings.FillInitialVariables(meshSettings.variableContainer, new ObjectState());
+            snapToSurface = meshSettings.rules.snapToSurface?.GetValue(meshSettings.variableContainer) ?? false;
             return (int)meshSettings.rules.placerLayerMask.GetValue(meshSettings.variableContainer);
         }
 
@@ -75,6 +79,8 @@ namespace ElementPlacer {
             var owner = getOwner?.Invoke();
             if (param == null || owner == null || Operations.States.IsArrayFull(owner.GetState(), param)) return false;
             History.UndoManager.Touch(getUndoTarget?.Invoke());
+            //e.g. on a road a little under the terrain covering it, rather than on the terrain
+            if (snapToSurface) position = GeometryHelper.ProjectOnSurface(position, layerMask);
             if (Operations.States.AddArrayObjectAt(owner.GetState(), param, position) < 0) return false;
             builder.NotifyChange();
             return true;

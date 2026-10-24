@@ -69,7 +69,7 @@ A custom type (`customTypes/<type>.json`) is a reusable group of parameters, use
 |---|---|
 | `label` | Name of the parameter whose value is shown in lists of elements of this type (`null` for "Element N"). |
 | `parameters` | The parameters of the type. Custom types can contain arrays and other custom elements, at any depth. |
-| `exclusiveEditing` | Optional. When `enabled`, the parametric objects of only one element of the `category` are visible at a time: the one being edited. With `optional: true`, all elements are visible when none is being edited, and the element panel gets a button to hide the others. |
+| `exclusiveEditing` | Optional. When `enabled`, the parametric objects of only one element of the `category` are visible at a time: the one being edited. With `optional: true`, all elements are visible when none is being edited, and the element panel gets a button to hide the others. With `keepLinesVisible: true`, the elements not being edited hide only their objects, and the lines through them (`drawLine` arrays) stay visible (e.g. the decals of the MM2 core, whose points only show while editing them). |
 
 `exclusiveEditing` keeps the scene readable when many elements contain objects in the same place, for example the checkpoints of different races (MM2 shows the checkpoints of one race at a time) or the paths of the opponents of a race.
 

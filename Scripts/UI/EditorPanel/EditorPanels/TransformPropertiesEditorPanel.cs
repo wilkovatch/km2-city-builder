@@ -324,6 +324,7 @@ namespace EditorPanels {
             builder.gizmo.allowDeselect = true;
             builder.gizmo.ClearTargets();
             builder.gizmo.AddTarget(instance);
+            SetAllowedAxes();
             builder.gizmo.allowDeselect = false;
             ReadCurValues();
             if (onParametricObject) builder.NotifyChange();
@@ -341,6 +342,16 @@ namespace EditorPanels {
             builder.gizmo.transformPanel = null;
         }
 
+        //the axes the object can be moved, rotated and scaled along (the gizmo allows all of them again when its targets
+        //are cleared, so this follows each selection of the object)
+        void SetAllowedAxes() {
+            if (!notOnHandle || !onParametricObject) return;
+            var objSettings = GetParametricObjectSettings();
+            builder.gizmo.posAxesAllowed = objSettings.allowPosition;
+            builder.gizmo.rotAxesAllowed = objSettings.allowRotation;
+            builder.gizmo.scaleAxesAllowed = objSettings.allowScale;
+        }
+
         void EnableGizmo() {
             bool move = true, rotate = true, scale = true, toggleSpace = true;
             if (onParametricObject) {
@@ -348,15 +359,8 @@ namespace EditorPanels {
                 scale = objSettings.allowScale[0] || objSettings.allowScale[1] || objSettings.allowScale[2];
                 rotate = objSettings.allowRotation[0] || objSettings.allowRotation[1] || objSettings.allowRotation[2];
                 move = objSettings.allowPosition[0] || objSettings.allowPosition[1] || objSettings.allowPosition[2];
-                builder.gizmo.posAxesAllowed = objSettings.allowPosition;
-                builder.gizmo.rotAxesAllowed = objSettings.allowRotation;
-                builder.gizmo.scaleAxesAllowed = objSettings.allowScale;
-            } else {
-                var allAxes = new bool[] { true, true, true };
-                builder.gizmo.posAxesAllowed = allAxes;
-                builder.gizmo.rotAxesAllowed = allAxes;
-                builder.gizmo.scaleAxesAllowed = allAxes;
             }
+            SetAllowedAxes();
             if (move) builder.gizmo.SetMoveType = Key.W;
             if (rotate) builder.gizmo.SetRotateType = Key.E;
             if (scale) builder.gizmo.SetScaleType = Key.R;

@@ -771,10 +771,11 @@ namespace Api {
             });
         }
 
-        [ApiMethod("objects.projectToGround", "Puts a parametric object on the ground under it")]
+        [ApiMethod("objects.projectToGround", "Puts a parametric object on the ground under it (on the layers it is placed on, if its type snaps to them)")]
         public void ProjectObjectToGround(ElementRef @object) {
             ApplyChange("project to ground", () => {
                 var m = ResolveObject(@object);
+                if (m.SnapToSurface()) return;
                 Operations.Meshes.ProjectToGround(m);
                 m.SyncParametricObjectState();
             });

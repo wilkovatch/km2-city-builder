@@ -1594,6 +1594,53 @@ public static partial class GameEngine {
             }
         }
 
+        // The texture coordinates of the line: u goes from 0 on its left side (looking along it) to uScale on the right
+        // one, and v grows by 1 every vLength along it (with vLength 0, from 0 to 1 along all of it); with
+        // vRoundPerSegment, each segment gets the whole number of units of v (at least 1) closest to its length.
+        public struct UVs {
+            public float uScale;
+            public float vLength;
+            public bool vRoundPerSegment;
+        }
+
+        // null: no texture coordinates.
+        public UVs? uvs {
+            get => _uvs;
+            set {
+                if (!System.Nullable.Equals(_uvs, value)) {
+                    _uvs = value;
+                    rebuilt = false;
+                }
+            }
+        }
+
+        // Whether the sides keep the width at the corners (otherwise the line gets narrower there).
+        public bool miterCorners {
+            get => _miterCorners;
+            set {
+                if (_miterCorners != value) {
+                    _miterCorners = value;
+                    rebuilt = false;
+                }
+            }
+        }
+
+        // Height of the line above its points.
+        public float heightOffset {
+            get => _heightOffset;
+            set {
+                if (_heightOffset != value) {
+                    _heightOffset = value;
+                    rebuilt = false;
+                }
+            }
+        }
+
+        private UVs? _uvs = null;
+        private bool _miterCorners = false;
+        private float _heightOffset = 0;
+        const float MaxMiter = 2.0f;
+
         // Called every frame while the line is enabled, before rebuilding it (e.g. to scale the width with the camera distance).
         public System.Action frameUpdate {
             get => _frameUpdate;
@@ -1673,20 +1720,65 @@ public static partial class GameEngine {
             // good approximation for the (mostly horizontal) lines drawn on roads and terrain.
             var count = positions.Count;
             var points = new Godot.Vector3[count];
-            for (int i = 0; i < count; i++) points[i] = Vector3.DecodePosition(positions[i]);
+            for (int i = 0; i < count; i++) points[i] = Vector3.DecodePosition(positions[i]) + Godot.Vector3.Up * _heightOffset;
+            var a = new Godot.Vector3[count]; // left side (u = 0)
+            var b = new Godot.Vector3[count];
+            for (int i = 0; i < count; i++) {
+                var side = _miterCorners ? MiteredSide(points, i) : AverageSide(points, i);
+                side *= Mathf.Lerp(_startWidth, _endWidth, i / (count - 1.0f)) * 0.5f;
+                a[i] = points[i] - side;
+                b[i] = points[i] + side;
+            }
+            var totalLength = 0.0f;
+            for (int i = 1; i < count; i++) totalLength += points[i - 1].DistanceTo(points[i]);
+            var v = 0.0f;
             immediateMesh.SurfaceBegin(Godot.Mesh.PrimitiveType.TriangleStrip);
             for (int i = 0; i < count; i++) {
-                var dir = points[System.Math.Min(i + 1, count - 1)] - points[System.Math.Max(i - 1, 0)];
-                var side = new Godot.Vector3(dir.X, 0, dir.Z).Cross(Godot.Vector3.Up);
-                side = side.LengthSquared() > 1e-12f ? side.Normalized() : Godot.Vector3.Right;
-                var halfWidth = Mathf.Lerp(_startWidth, _endWidth, i / (count - 1.0f)) * 0.5f;
+                if (i > 0 && _uvs.HasValue) v += SegmentV(points[i - 1].DistanceTo(points[i]), totalLength);
+                // b first, so that the faces point up (front faces are clockwise)
                 immediateMesh.SurfaceSetNormal(Godot.Vector3.Up);
-                immediateMesh.SurfaceAddVertex(points[i] - side * halfWidth);
+                if (_uvs.HasValue) immediateMesh.SurfaceSetUV(new Godot.Vector2(_uvs.Value.uScale, v));
+                immediateMesh.SurfaceAddVertex(b[i]);
                 immediateMesh.SurfaceSetNormal(Godot.Vector3.Up);
-                immediateMesh.SurfaceAddVertex(points[i] + side * halfWidth);
+                if (_uvs.HasValue) immediateMesh.SurfaceSetUV(new Godot.Vector2(0, v));
+                immediateMesh.SurfaceAddVertex(a[i]);
             }
             immediateMesh.SurfaceEnd();
             rebuilt = true;
+        }
+
+        // How much v grows along a segment.
+        private float SegmentV(float length, float totalLength) {
+            var uvs = _uvs.Value;
+            if (uvs.vLength <= 0) return totalLength > 1e-6f ? length / totalLength : 0;
+            if (!uvs.vRoundPerSegment) return length / uvs.vLength;
+            return length > 1e-4f ? Mathf.Max(1, Mathf.Round(length / uvs.vLength)) : 0;
+        }
+
+        static Godot.Vector3 Horizontal(Godot.Vector3 v) {
+            v.Y = 0;
+            return v.LengthSquared() > 1e-12f ? v.Normalized() : Godot.Vector3.Zero;
+        }
+
+        // The side direction at a point, perpendicular to the direction from the previous point to the next one.
+        static Godot.Vector3 AverageSide(Godot.Vector3[] points, int i) {
+            var count = points.Length;
+            var dir = points[System.Math.Min(i + 1, count - 1)] - points[System.Math.Max(i - 1, 0)];
+            var side = new Godot.Vector3(dir.X, 0, dir.Z).Cross(Godot.Vector3.Up);
+            return side.LengthSquared() > 1e-12f ? side.Normalized() : Godot.Vector3.Right;
+        }
+
+        // The side direction at a point, scaled so that the sides of the adjacent segments keep their width (mitered).
+        static Godot.Vector3 MiteredSide(Godot.Vector3[] points, int i) {
+            var count = points.Length;
+            var prev = i > 0 ? Horizontal(points[i] - points[i - 1]) : Godot.Vector3.Zero;
+            var next = i < count - 1 ? Horizontal(points[i + 1] - points[i]) : Godot.Vector3.Zero;
+            var dir = Horizontal(prev + next);
+            if (dir == Godot.Vector3.Zero) dir = next != Godot.Vector3.Zero ? next : prev;
+            if (dir == Godot.Vector3.Zero) return Godot.Vector3.Right;
+            var seg = next != Godot.Vector3.Zero ? next : prev;
+            var cos = dir.Dot(seg);
+            return dir.Cross(Godot.Vector3.Up).Normalized() * Mathf.Min(1.0f / Mathf.Max(cos, 1e-3f), MaxMiter);
         }
 
         public override void _Process(double delta) {

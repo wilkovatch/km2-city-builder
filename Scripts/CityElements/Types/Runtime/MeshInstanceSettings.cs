@@ -5,19 +5,21 @@ using RC = RuntimeCalculator;
 namespace CityElements.Types.Runtime {
     public class MeshInstanceSettings : RuntimeType<Types.MeshInstanceSettings> {
         public class PlacementRules {
-            public RC.Booleans.Boolean autoYOffset;
+            public RC.Booleans.Boolean autoYOffset, snapToSurface;
             public RC.Numbers.Number layer, placerLayerMask;
 
             public PlacementRules(Types.MeshInstancePlacementRules type) {
                 autoYOffset = RC.Parsers.BooleanParser.ParseExpression(type.autoYOffset);
                 layer = RC.Parsers.FloatParser.ParseExpression(type.layer);
                 placerLayerMask = RC.Parsers.FloatParser.ParseExpression(type.placerLayerMask);
+                if (type.snapToSurface != null) snapToSurface = RC.Parsers.BooleanParser.ParseExpression(type.snapToSurface);
             }
 
             public void SetIndices(RC.VariableContainer vc) {
                 autoYOffset?.SetIndices(vc);
                 layer?.SetIndices(vc);
                 placerLayerMask?.SetIndices(vc);
+                snapToSurface?.SetIndices(vc);
             }
         }
 

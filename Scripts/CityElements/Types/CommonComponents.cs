@@ -32,6 +32,23 @@ namespace CityElements.Types {
         public Parameter[] elementProperties;
         public string customElementType;
         public bool drawLine; //draw a line through the parametric objects of the elements, in order (e.g. the points of a path)
+        public LineSettings lineSettings; //optional, how the line is drawn (by default a handle line)
+    }
+
+    //the look of the line through the parametric objects of an array (e.g. a strip textured as it is exported); the
+    //expressions can use the variables of the element owning the array
+    public class LineSettings {
+        public string width; //float expression, the width in metres (if not set, a thin line growing with the camera distance)
+        public string texture; //the texture parameter of the element (if not set or empty, the color of the handles)
+        public string heightOffset; //float expression, the height of the line above the points
+        public bool miterCorners; //the sides keep the width at the corners
+        public LineUVSettings uvs; //the texture coordinates (if not set, the line has none)
+    }
+
+    public class LineUVSettings {
+        public string uScale; //float expression, u goes from 0 to this across the line (1 if not set)
+        public string vLength; //float expression, the length of the line for each unit of v (if not set or 0, v goes from 0 to 1 along all of it)
+        public bool vRoundPerSegment; //with vLength, each segment between two points gets a whole number of units of v (at least 1)
     }
 
     public class CustomElement {
@@ -44,6 +61,7 @@ namespace CityElements.Types {
         public bool enabled;
         public bool optional;
         public string category;
+        public bool keepLinesVisible; //the elements not being edited hide only their objects, not the lines through them (drawLine)
     }
 
     public class ObjectInstanceSettings {

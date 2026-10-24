@@ -35,6 +35,7 @@ namespace CityElements.Types {
         public string autoYOffset;
         public string layer;
         public string placerLayerMask;
+        public string snapToSurface; //put back on the placer layers after being moved with the gizmo (optional)
     }
 
     public class MeshInstanceSettings {

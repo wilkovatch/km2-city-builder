@@ -44,7 +44,7 @@ A type can extend another type of its category (see [Core Type Inheritance](Core
 | Class | Purpose |
 |---|---|
 | `Parameter` | One user-editable parameter: `name`, `label`, `placeholder`, `tooltip`, `type`, `container`, `enumLabels`, `instanceSpecific`, and the extra settings of complex types (`arrayProperties`, `customElementType`, `objectInstanceSettings`). `fullName()` is `container_name`, or `name` without a container. |
-| `ArrayProperties` | Settings of an `array` parameter: `maxElements`, `elementLabel`, and either `elementProperties` or `customElementType`. |
+| `ArrayProperties` | Settings of an `array` parameter: `maxElements`, `elementLabel`, either `elementProperties` or `customElementType`, and the line through its parametric objects (`drawLine`, `lineSettings`: `LineSettings` and `LineUVSettings`). |
 | `CustomElement`, `CustomElementExclusiveEditing` | A reusable group of parameters (`customTypes/*.json`), optionally shown one at a time per category. |
 | `ObjectInstanceSettings`, `ObjectInstanceDefaultModel`, `ObjectInstaceRoadChoice` | Settings of an `objectInstance` parameter: object type, default model, which definitions give its condition, position, rotation and scale, and which transform axes the user may change. |
 | `Definition`, `LateDefinition` | A named, typed expression (`name`, `type`, `value`), and a named group of them. |

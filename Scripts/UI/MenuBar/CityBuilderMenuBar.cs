@@ -92,6 +92,7 @@ public partial class CityBuilderMenuBar : Control {
         }
         gizmo.onAnyChange += NotifyChange;
         gizmo.onAnyChange += transformPropertiesEditorPanel.Refresh;
+        gizmo.onTransformFinished += SnapTransformedObjects;
         staticGizmo = gizmo;
         nullModifier = new TerrainModifier.Null(helper, hit => {
             if (HasActivePanels()) return; //otherwise clicks on the transform gizmo reselect the object behind it
@@ -794,6 +795,19 @@ public partial class CityBuilderMenuBar : Control {
             if (inst != null) {
                 inst.SyncParametricObjectState();
             }
+        }
+    }
+
+    //the objects moved with the gizmo whose placement rules ask for it go back on the surface (e.g. the points of a decal)
+    void SnapTransformedObjects(IReadOnlyList<Node3D> targets) {
+        var snapped = false;
+        foreach (var target in targets) {
+            var inst = GS.Cast<MeshInstance>(target);
+            if (inst != null && GodotObject.IsInstanceValid(inst)) snapped |= inst.SnapToSurface();
+        }
+        if (snapped) {
+            NotifyChange();
+            transformPropertiesEditorPanel.Refresh();
         }
     }
 

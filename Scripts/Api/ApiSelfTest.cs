@@ -204,6 +204,7 @@ namespace Api {
                 await Heights();
                 await States();
                 await ArrayPoints();
+                await Decals();
                 await Props();
                 await Meshes();
                 await Batches();
@@ -936,6 +937,143 @@ namespace Api {
             var obj = await Call("objects.get", new { @object = PointRef(2) });
             Check("the clicked point is placed there", GeometryHelper.AreVectorsEqual(Vec(obj["localPosition"]), placed));
             await Call("state.array.remove", new { @ref = cityId, param = "trainLines", index = li });
+        }
+
+        //a line drawn with the width and texture of its element, and objects put back on the surface after a move (the decals
+        //of the MM2 core); the decal is kept for the export (see ExportDecals)
+        async Task Decals() {
+            var cityId = 0;
+            var citySchema = await Call("state.schema", new { @ref = cityId });
+            if (!citySchema["parameters"].Any(p => p["name"].Value<string>() == "decals")) {
+                Log("     no decals parameter in the core, decals skipped");
+                return;
+            }
+            var di = (await Call("state.array.add", new { @ref = cityId, param = "decals" })).Value<int>();
+            var decalRef = new { parent = cityId, param = "decals", index = di };
+            object PointRef(int pi) => new { owner = cityId, @object = "point", path = new[] { "decals." + di, "points." + pi } };
+            const string texture = "texture/decal_zigzag_l.tex";
+            await Call("state.setParam", new { @ref = decalRef, name = "texture", value = texture });
+            await Call("state.setParam", new { @ref = decalRef, name = "width", value = 3.0f });
+            //along road A, which is above the terrain
+            var positions = new[] { new Vector3(-560, 0, 0), new Vector3(-500, 0, 2), new Vector3(-450, 0, -3) };
+            foreach (var pos in positions) {
+                var pi = (await Call("state.array.add", new { @ref = decalRef, param = "points" })).Value<int>();
+                await Call("objects.setTransform", new { @object = PointRef(pi), localPosition = new[] { pos.X, pos.Y, pos.Z } });
+                await Call("objects.projectToGround", new { @object = PointRef(pi) });
+            }
+            await Call("city.flush");
+            await Frames(3);
+            var roadY = GeometryHelper.ProjectPoint(positions[0], 1 << 7).Y;
+            var obj = await Call("objects.get", new { @object = PointRef(0) });
+            Check("objects.projectToGround puts a decal point on the road", Mathf.Abs(Vec(obj["localPosition"]).Y - roadY) < 1e-3f);
+
+            var cityProperties = M.GetDummy<CityProperties>();
+            var decalObject = cityProperties.arrayObjects["decals"][di];
+            var lr = GO.GetObject(decalObject).GetChildren().OfType<GameEngine.LineRenderer>().FirstOrDefault();
+            //the line settings of the core: the width and the texture tiles from the width parameter
+            Check("a decal is drawn textured with its width", lr != null && lr.uvs.HasValue && lr.positionCount == 3
+                && Mathf.IsEqualApprox(lr.startWidth, 3) && Mathf.IsEqualApprox(lr.uvs.Value.vLength, 3)
+                && lr.material == MaterialManager.GetMaterial(texture) && lr.heightOffset > 0);
+            await Call("state.setParam", new { @ref = decalRef, name = "width", value = 4.0f });
+            await Call("city.flush");
+            await Frames(3);
+            Check("the decal line follows the width", lr != null && Mathf.IsEqualApprox(lr.startWidth, 4) && Mathf.IsEqualApprox(lr.endWidth, 4)
+                && Mathf.IsEqualApprox(lr.uvs.Value.vLength, 4));
+
+            //exclusive editing keeping the lines: the points only show while the decal is edited
+            var category = CityElements.Types.Parsers.TypeParser.GetCustomTypes()["decal"].exclusiveEditing?.category;
+            var keepsLines = CityElements.Types.Parsers.TypeParser.GetCustomTypes()["decal"].exclusiveEditing?.keepLinesVisible ?? false;
+            if (category != null && keepsLines) {
+                var pointHolder = GO.GetObject(decalObject.arrayObjects["points"][0]);
+                ArrayObject.activeElements[category] = null;
+                builder.NotifyVisibilityChange();
+                await Frames(3);
+                var hidden = !GO.GetEnabled(pointHolder) && GO.GetEnabled(lr) && lr.IsVisibleInTree();
+                ArrayObject.activeElements[category] = decalObject.state;
+                builder.NotifyVisibilityChange();
+                await Frames(3);
+                Check("the points of a decal show only while it is edited, its line always", hidden && GO.GetEnabled(pointHolder));
+                ArrayObject.activeElements[category] = null;
+                builder.NotifyVisibilityChange();
+            }
+            if (DisplayServer.GetName() != "headless") {
+                //from above the decal, to see it (windowed runs only)
+                var cam = builder.GetViewport().GetCamera3D();
+                var camTransform = cam.GlobalTransform;
+                var target = GameEngine.Vector3.DecodePosition(positions[1]);
+                cam.GlobalPosition = target + new Vector3(0, 25, 25);
+                cam.LookAt(target);
+                await Frames(10);
+                Screenshot("decal_preview.png");
+                cam.GlobalTransform = camTransform;
+            }
+
+            //the gizmo with the axes of a decal point (no height): its horizontal plane moves it, and the next targets get
+            //all the axes again
+            var gizmo = builder.gizmo;
+            gizmo.posAxesAllowed = new[] { true, false, true };
+            var nearAxisAllowed = typeof(RuntimeGizmos.TransformGizmo).GetMethod("GetNearAxisAllowed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            bool Allowed(RuntimeGizmos.Axis axis, RuntimeGizmos.Axis plane) {
+                gizmo.SetTranslatingAxis(RuntimeGizmos.TransformType.Move, axis, plane);
+                return (bool)nearAxisAllowed.Invoke(gizmo, new object[] { gizmo.posAxesAllowed });
+            }
+            var planes = Allowed(RuntimeGizmos.Axis.Y, RuntimeGizmos.Axis.Y) && !Allowed(RuntimeGizmos.Axis.X, RuntimeGizmos.Axis.X)
+                && !Allowed(RuntimeGizmos.Axis.Y, RuntimeGizmos.Axis.None) && Allowed(RuntimeGizmos.Axis.X, RuntimeGizmos.Axis.None);
+            gizmo.SetTranslatingAxis(RuntimeGizmos.TransformType.Move, RuntimeGizmos.Axis.None);
+            gizmo.ClearTargets();
+            Check("the gizmo moves along the allowed axes and planes, and allows all of them after", planes && gizmo.posAxesAllowed[1]);
+
+            //a point moved off the road with the gizmo goes back on it at the end of the move
+            var point = (MeshInstance)Operations.Meshes.FindParametricObject(cityProperties, "point", new[] { "decals." + di, "points.1" });
+            var moved = GO.GetPosition(point) + Vector3.Up * 20;
+            GO.SetPosition(point, moved);
+            builder.gizmo.onTransformFinished?.Invoke(new List<Node3D> { point });
+            obj = await Call("objects.get", new { @object = PointRef(1) });
+            Check("a decal point moved with the gizmo snaps back on the road",
+                Mathf.Abs(Vec(obj["localPosition"]).Y - GeometryHelper.ProjectPoint(moved, 1 << 7).Y) < 1e-3f);
+
+        }
+
+        //the decals exported alone (the PATHSET only), with the cable car rail decals of the roads between two intersections
+        //(as cable car lines, undone after the export): the names of the paths of decals.pathset, and whether there are rails
+        async Task<(List<string> names, bool rails)> ExportDecals(string format) {
+            await Call("history.begin", new { label = "cable car rail decals" });
+            var rails = false;
+            await Call("state.setParam", new { @ref = 0, name = "cableCarRailDecals", value = true });
+            foreach (var e in (JArray)await Call("elements.list", new { kind = "road" })) {
+                var derived = await Derived(e["id"].Value<int>());
+                if (derived["startIntersection"].Type == JTokenType.Null || derived["endIntersection"].Type == JTokenType.Null) continue;
+                await Call("state.setParam", new { @ref = e["id"].Value<int>(), name = "cableCarLine", value = true });
+                rails = true;
+            }
+            await Call("history.commit");
+            try {
+                return (await ExportDecalNames(format), rails);
+            } finally {
+                await Call("history.undo");
+            }
+        }
+
+        async Task<List<string>> ExportDecalNames(string format) {
+            var flags = new Dictionary<string, bool> { ["propRules"] = false, ["psdl"] = false, ["inst"] = false, ["bai"] = false,
+                ["pathset"] = true, ["cinfo_aimap"] = false, ["pkgs"] = false };
+            var export = await Send("city.export", new { path = Path.Combine(folder, "..", "api_export_decals"), exporter = format, flags });
+            if (export["error"] != null) return null;
+            var path = export["result"]["path"].Value<string>();
+            var decals = Path.Combine(Path.ChangeExtension(path, null), "decals.pathset");
+            if (File.Exists(Path.ChangeExtension(path, ".bin")) || !File.Exists(decals)) return null;
+            var names = new List<string>();
+            using (var r = new BinaryReader(File.OpenRead(decals))) {
+                if (new string(r.ReadChars(4)) != "PTH1") return null;
+                var n = r.ReadUInt32();
+                r.ReadUInt32();
+                for (int i = 0; i < n; i++) {
+                    names.Add(System.Text.Encoding.ASCII.GetString(r.ReadBytes(32)).TrimEnd('\0'));
+                    var points = r.ReadUInt32();
+                    r.ReadBytes(4 + 16 * (int)points + 4);
+                }
+            }
+            return names;
         }
 
         async Task Props() {
@@ -2016,6 +2154,11 @@ road(-750)
                     var path = export["result"]["path"].Value<string>();
                     Check("city.export runs the exporter (exit code " + export["result"]["exitCode"] + ")", export["result"]["exitCode"].Value<int>() == 0 && File.Exists(path));
                     Check("the export JSON is deleted after the export", !File.Exists(Path.ChangeExtension(path, ".json")));
+                    if (M.GetDummy<CityProperties>().GetState().Array<ObjectState>("decals")?.Length > 0) {
+                        var (decalNames, rails) = await ExportDecals(format);
+                        Check("the decals are exported", decalNames != null && decalNames.Contains("decal_zigzag_l"));
+                        if (rails) Check("the cable car rail decals are exported", decalNames != null && decalNames.Contains("r4i_rails_f"));
+                    }
                 }
             }
         }

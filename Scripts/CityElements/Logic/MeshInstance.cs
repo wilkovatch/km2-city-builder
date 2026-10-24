@@ -131,6 +131,22 @@ public partial class MeshInstance : PhysicsScriptable
         return yOffset;
     }
 
+    //puts the object on the layers it is placed on, if its placement rules ask for it (snapToSurface),
+    //e.g. after being moved with the gizmo; returns whether it was projected
+    public bool SnapToSurface() {
+        var meshSettings = GetMeshInstanceSettings();
+        var rules = meshSettings.rules;
+        if (rules.snapToSurface == null) return false;
+        meshSettings.FillInitialVariables(meshSettings.variableContainer, settings);
+        if (!rules.snapToSurface.GetValue(meshSettings.variableContainer)) return false;
+        var mask = rules.placerLayerMask != null ? (int)rules.placerLayerMask.GetValue(meshSettings.variableContainer) : 1 << 3;
+        //not on itself (on its layer, or on the moveable one while it is moved)
+        mask &= ~((1 << 8) | (1 << GetLayer()));
+        GO.SetPosition(this, GeometryHelper.ProjectOnSurface(GO.GetPosition(this), mask));
+        SyncParametricObjectState();
+        return true;
+    }
+
     public static void SetNewMesh(string newMesh, MeshInstance instance, ElementManager manager) {
         if (instance == null) return;
         if (instance.meshPath == newMesh) return;

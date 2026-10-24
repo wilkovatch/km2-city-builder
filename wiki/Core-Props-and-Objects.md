@@ -137,8 +137,9 @@ Settings shared by all hand-placed mesh instances:
 | `placementRules.layer` | Float expression: the [layer](Architecture-Overview#layers-collision-and-render) of the instance. |
 | `placementRules.placerLayerMask` | Float expression: the collision mask (bit *n* = layer *n*) used when placing the instance with the mouse. `-1-2^13` means "everything except layer 13". |
 | `placementRules.autoYOffset` | Boolean expression: if true, the mesh is raised so that its lowest point sits on the placement point. |
+| `placementRules.snapToSurface` | Optional boolean expression, for parametric objects (`props/parametric/`): if true, the object goes back on the surface under it (the layers of `placerLayerMask`) after being moved with the gizmo, after `objects.projectToGround`, and when placed by clicking (array points). A road or another surface less than 0.5 m under the terrain wins over the terrain, so that a point on an MM2 road (15 cm under the sidewalks) isn't put on a terrain covering it. Used with `allowPosition` `[true, false, true]` it keeps the objects on the ground (for example the points of the MM2 decals). |
 
-All three rules are required. They can use the parameters and static definitions.
+The first three rules are required. They can use the parameters and static definitions.
 
 ## Parametric objects
 

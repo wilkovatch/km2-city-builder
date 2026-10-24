@@ -473,6 +473,18 @@ public static class GeometryHelper {
         return GameEngine.Raycast.ProjectPoint(pos, layerMask);
     }
 
+    //as ProjectPoint, but a surface other than the terrain a little under the terrain wins (e.g. a road surface lower
+    //than the sidewalks, with the terrain at the sidewalk height covering it)
+    public static Vector3 ProjectOnSurface(Vector3 pos, int layerMask) {
+        const int terrainMask = 1 << 3;
+        const float maxDepthUnderTerrain = 0.5f;
+        var res = ProjectPoint(pos, layerMask);
+        if ((layerMask & terrainMask) == 0) return res;
+        var other = ProjectPoint(pos, layerMask & ~terrainMask);
+        if (other != pos && other.Y > res.Y - maxDepthUnderTerrain) res = other;
+        return res;
+    }
+
     //Sort vertices in clockwise order and return the indices
     public static List<int> SortClockwise(List<Vector3> inputList, Vector3 center) {
         var todo = new List<int>();

@@ -24,6 +24,10 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
     public Dictionary<string, List<ArrayObject>> arrayObjects = new Dictionary<string, List<ArrayObject>>();
     //the lines through the parametric objects of the arrays with drawLine
     Dictionary<string, LineRenderer> arrayLines = new Dictionary<string, LineRenderer>();
+    HashSet<string> fixedWidthArrayLines = new HashSet<string>(); //the ones with a width set by their settings
+    //the expressions of the line settings, compiled for the variables of the container
+    Dictionary<string, (RC.Numbers.Number width, RC.Numbers.Number heightOffset, RC.Numbers.Number uScale, RC.Numbers.Number vLength)> arrayLineExpressions =
+        new Dictionary<string, (RC.Numbers.Number, RC.Numbers.Number, RC.Numbers.Number, RC.Numbers.Number)>();
     const float MinArrayLineWidth = 0.1f;
 
     public abstract RC.VariableContainer GetParametricObjectVariableContainer();
@@ -252,7 +256,7 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
             for (int i = 0; i < arr.Length; i++) {
                 aL[i].SetState(arr[i]);
             }
-            SyncArrayLine(param.Key, param.Value.drawLine);
+            SyncArrayLine(param.Key, param.Value, state);
         }
         var customElemParams = runtimeType.customElemParams;
         foreach (var param in customElemParams) {
@@ -269,11 +273,14 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
             var aL = arrayObjects[param.Key];
             aL[0].SetState(objState);
         }
+        OnArraysSynced();
     }
 
-    void SyncArrayLine(string key, bool drawLine) {
+    protected virtual void OnArraysSynced() { }
+
+    void SyncArrayLine(string key, CityElements.Types.ArrayProperties props, ObjectState state) {
         arrayLines.TryGetValue(key, out var lr);
-        if (!drawLine) {
+        if (!props.drawLine) {
             if (lr != null) {
                 GO.Destroy(lr);
                 arrayLines.Remove(key);
@@ -283,15 +290,56 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
         if (lr == null) {
             //a child, so it is hidden with the container (e.g. by the exclusive editing of a custom element)
             lr = GO.CreateLineRenderer(GO.GetObject(this), "Line (" + key + ")");
-            lr.material = MaterialManager.GetHandleMaterial(GameEngine.Color.yellow);
             lr.startWidth = MinArrayLineWidth;
             lr.endWidth = MinArrayLineWidth;
             lr.frameUpdate = () => UpdateArrayLine(key);
             arrayLines[key] = lr;
         }
+        //the look given by the settings (e.g. a textured strip), otherwise a handle line
+        var settings = props.lineSettings;
+        var vc = GetLineVariableContainer();
+        if (!arrayLineExpressions.TryGetValue(key, out var exprs)) {
+            exprs = (CompileLineExpression(settings?.width, vc), CompileLineExpression(settings?.heightOffset, vc),
+                CompileLineExpression(settings?.uvs?.uScale, vc), CompileLineExpression(settings?.uvs?.vLength, vc));
+            arrayLineExpressions[key] = exprs;
+        }
+        var texture = settings?.texture != null ? state?.Str(settings.texture) : null;
+        lr.material = !string.IsNullOrEmpty(texture) ? MaterialManager.GetMaterial(texture) : MaterialManager.GetHandleMaterial(GameEngine.Color.yellow);
+        lr.heightOffset = exprs.heightOffset?.GetValue(vc) ?? 0;
+        lr.miterCorners = settings?.miterCorners ?? false;
+        if (settings?.uvs != null) {
+            lr.uvs = new LineRenderer.UVs {
+                uScale = exprs.uScale?.GetValue(vc) ?? 1,
+                vLength = exprs.vLength?.GetValue(vc) ?? 0,
+                vRoundPerSegment = settings.uvs.vRoundPerSegment
+            };
+        } else {
+            lr.uvs = null;
+        }
+        if (exprs.width != null) {
+            var width = exprs.width.GetValue(vc);
+            fixedWidthArrayLines.Add(key);
+            lr.startWidth = width;
+            lr.endWidth = width;
+        } else {
+            fixedWidthArrayLines.Remove(key);
+        }
+    }
+
+    static RC.Numbers.Number CompileLineExpression(string expr, RC.VariableContainer vc) {
+        if (string.IsNullOrEmpty(expr)) return null;
+        var res = RC.Parsers.FloatParser.ParseExpression(expr);
+        if (vc != null) res.SetIndices(vc);
+        return res;
+    }
+
+    //the variables the line settings can use (the ones of the container, up to date)
+    protected virtual RC.VariableContainer GetLineVariableContainer() {
+        return GetParametricObjectVariableContainer();
     }
 
     //follows the objects (moved with the gizmo without regenerating the container), with a width growing with the camera distance
+    //(unless it is the width of the element)
     void UpdateArrayLine(string key) {
         if (!arrayLines.TryGetValue(key, out var lr) || !lr.IsVisibleInTree()) return;
         var points = new List<Vector3>();
@@ -311,6 +359,7 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
             changed = points[i] != lr.GetPosition(i);
         }
         if (changed) lr.SetPositions(points.ToArray());
+        if (fixedWidthArrayLines.Contains(key)) return;
         var cam = GameEngine.Camera.Get(this);
         if (cam != null && points.Count >= 2) {
             var camPos = GO.GetPosition(cam);

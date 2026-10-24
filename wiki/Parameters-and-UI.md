@@ -84,6 +84,31 @@ Values not set yet read as 0, false, an empty string or a zero vector. Default v
 | `elementProperties` | Parameters of each element (any type, including nested arrays, custom elements and object instances). |
 | `customElementType` | Alternative to `elementProperties`: use the parameters of a custom type. |
 | `elementLabel` | Name of the element parameter whose value is shown in the list (with `customElementType`, the custom type's `label` is used instead). Elements without a label are shown as "Element N". |
+| `drawLine` | Draws a line through the parametric objects of the elements, in order (for example the points of a path). By default it is a thin yellow line whose width grows with the camera distance. |
+| `lineSettings` | With `drawLine`, optional: how the line is drawn, see below. |
+
+`lineSettings` turns the line into a strip lying on the points, facing up (e.g. something exported as a textured strip). The expressions can use the parameters of the element owning the array:
+
+| Field | Description |
+|---|---|
+| `width` | Float expression: the width in metres. If not set, the line is thin and its width grows with the camera distance. |
+| `texture` | The parameter (of type `texture`) of the element holding the texture of the line. If not set or empty, the line has the color of the handles. |
+| `heightOffset` | Float expression: the height of the line above the points (0 if not set). |
+| `miterCorners` | If true, the sides keep the width at the corners (otherwise the line gets narrower there). |
+| `uvs` | The texture coordinates (none if not set): `uScale` (float expression, u goes from 0 on the left side to this on the right one, 1 if not set), `vLength` (float expression, the length of the line for each unit of v; if not set or 0, v goes from 0 to 1 along the whole line) and `vRoundPerSegment` (with `vLength`, each segment between two points gets the whole number of units of v closest to its length, at least 1). |
+
+For example, the decals of the MM2 core tile the texture in squares as wide as the decal, as the game does:
+
+```json
+"drawLine": true,
+"lineSettings": {
+    "width": "if(width > 0, width, 1)",
+    "texture": "texture",
+    "heightOffset": "0.02",
+    "miterCorners": true,
+    "uvs": { "uScale": "1", "vLength": "if(width > 0, width, 1)", "vRoundPerSegment": true }
+}
+```
 
 The editor shows the list with Add, Edit, Delete, Clone, Move up and Move down buttons. Each element is edited in its own panel, with all its parameters stacked vertically (there is no `ui.json` for array elements). When an element has a single parameter of type `objectInstance` (for example a checkpoint), editing it selects the placed object directly.
 
