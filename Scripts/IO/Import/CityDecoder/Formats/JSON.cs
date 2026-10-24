@@ -195,6 +195,7 @@ namespace CityDecoder {
             else {
                 await manager.builder.helper.SetDefaultHeightsAsync(loadedCity.maxHeight, progressBar);
             }
+            progressBar.SetText(SM.Get("LOADING_CITY"));
             await caller.ToSignal(caller.GetTree(), "process_frame");
             await Post(caller);
             return LoadResult.Ok();

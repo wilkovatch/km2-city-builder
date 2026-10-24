@@ -56,6 +56,8 @@ namespace RuntimeGizmos {
         public int selectOnlyLayer = 10;
 
         public Action onAnyChange;
+        //at the end of a transform, with its targets, before its undo step is committed (so changes made by it are part of it)
+        public Action<IReadOnlyList<Node3D>> onTransformFinished;
 
         public EditorPanels.TransformPropertiesEditorPanel transformPanel = null;
         public bool[] posAxesAllowed = new bool[3] { true, true, true };
@@ -296,6 +298,7 @@ namespace RuntimeGizmos {
             isTransforming = false;
             SetTranslatingAxis(transformType, Axis.None);
 
+            if (undoTransactionOpen) onTransformFinished?.Invoke(targetRootsOrdered);
             SetPivotPoint();
             CommitUndoTransaction();
         }
@@ -491,6 +494,12 @@ namespace RuntimeGizmos {
         }
 
         bool GetNearAxisAllowed(bool[] axesAllowed) {
+            //a plane (planeAxis is its normal) moves along the two other axes
+            switch (planeAxis) {
+                case Axis.X: return axesAllowed[1] && axesAllowed[2];
+                case Axis.Y: return axesAllowed[0] && axesAllowed[2];
+                case Axis.Z: return axesAllowed[0] && axesAllowed[1];
+            }
             switch (nearAxis) {
                 case Axis.X: return axesAllowed[0];
                 case Axis.Y: return axesAllowed[1];
@@ -563,9 +572,11 @@ namespace RuntimeGizmos {
             SetPivotPoint();
         }
 
+        //also allows all the axes again (the ones of an object don't apply to the next targets)
         public void ClearTargets() {
             ClearAllHighlightedRenderers();
             targetRootsOrdered.Clear();
+            posAxesAllowed = rotAxesAllowed = scaleAxesAllowed = new bool[3] { true, true, true };
         }
 
         void ClearAndAddTarget(Node3D target) {

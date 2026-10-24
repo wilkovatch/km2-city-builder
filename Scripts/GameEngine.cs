@@ -2010,6 +2010,10 @@ public static partial class GameEngine {
             // Terrain3D initializes its data resource when it enters the scene tree.
             var data = terrain.Data;
             if (data == null) throw new InvalidOperationException("Terrain3D did not initialize its data resource when entering the scene tree.");
+            // The heightmap is imported at -TerrainSize / 2, which Terrain3D snaps down to its region grid: half the
+            // resolution must be a whole number of regions, or the terrain ends up shifted (e.g. -16384..0 for a
+            // 128 px heightmap with the default 256 px regions).
+            terrain.RegionSize = Variant.From((long)System.Math.Min(256, heightmapResolution / 2));
             // Collision settings must be applied after entering the tree: Terrain3D ignores them before
             // initializing, leaving the terrain on layer 1 with dynamic collision. The collision
             // must cover the whole terrain, while dynamic mode only builds collision around the camera.

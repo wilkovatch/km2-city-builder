@@ -132,7 +132,7 @@ public partial class CityGroundHelper: ThisScriptable {
         terrainObj = GameEngine.Terrain.CreateHeightmap(terrainSize, heightmapResolution, maxHeight, heights, this, GetGridMaterial());
         GameEngine.Materials.SetShaderParameter(mat2, "_Size", new Vector4(terrainSize, -terrainSize * 0.5f, terrainSize, -terrainSize * 0.5f));
         RefreshOverlay();
-        progressBar.SetActive(false);
+        //the progress bar stays visible: the caller goes on loading the city
     }
 
     public void ApplyHeightmap(string filename, float scale) {
