@@ -29,7 +29,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   └── customTypes/<type>.json
 ├── templates/                   city templates (at least one)
 │   ├── _common/                 copied into every new city
-│   └── <TemplateName>/          one folder per template
+│   └── <TemplateName>/          one folder per template (presets.json, cityProperties.json...)
 ├── baseCommon/                  initial content of Files/common/<CoreName>/
 ├── server/                      Python modules for custom mesh/texture formats
 │   ├── mesh_formats.py
@@ -105,7 +105,7 @@ A missing key is shown as the key itself and logged, which makes missing strings
 
 ## `templates/`
 
-A new city is created by copying `templates/_common/` and then the chosen template folder into the city folder, and writing an empty `city.json.gz`. Users can add their own templates in `Files/custom/templates/<CoreName>/<name>/`. See [Core Templates and Presets](Core-Templates-and-Presets).
+A new city is created by copying `templates/_common/` and then the chosen template folder into the city folder, and writing an empty `city.json.gz` (with the initial city properties of the template's `cityProperties.json`, if any). Users can add their own templates in `Files/custom/templates/<CoreName>/<name>/`. See [Core Templates and Presets](Core-Templates-and-Presets).
 
 ## `baseCommon/`
 

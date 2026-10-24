@@ -36,34 +36,66 @@ public static class CityExporter {
         }
     }
 
-    //the exporter of the core for the file extension, null if none
+    static bool SameFormat(string a, string b) {
+        return !string.IsNullOrEmpty(a) && string.Equals(a, b, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    //the exporter of the core for the file extension (its format or the format of one of its flags), null if none
     public static FileBrowserHelper.CustomExporter FindExporter(string format) {
         var expList = FileBrowserHelper.GetCustomExporters();
         if (expList == null) return null;
         foreach (var elem in expList) {
-            if (elem.settings.format == format) return elem;
+            if (SameFormat(elem.settings.format, format)) return elem;
+            foreach (var flag in elem.settings.flags ?? new FileBrowserHelper.CustomExporterFlags[0]) {
+                if (SameFormat(flag.format, format)) return elem;
+            }
         }
         return null;
     }
 
-    //the flags of the exporter with their default values, changed by the given ones (by flag id)
-    public static List<bool> GetExporterFlags(FileBrowserHelper.CustomExporter exporter, Dictionary<string, bool> values) {
+    //the formats of the exporter: its own and the ones of its flags
+    public static List<string> GetFormats(FileBrowserHelper.CustomExporter exporter) {
+        var res = new List<string> { exporter.settings.format };
+        foreach (var flag in exporter.settings.flags ?? new FileBrowserHelper.CustomExporterFlags[0]) {
+            if (!string.IsNullOrEmpty(flag.format)) res.Add(flag.format);
+        }
+        return res;
+    }
+
+    //the values of the flags set by the file extension (by flag id): a flag with a format is set only for its format
+    public static Dictionary<string, bool> GetFormatFlags(FileBrowserHelper.CustomExporter exporter, string format) {
+        var res = new Dictionary<string, bool>();
+        foreach (var flag in exporter.settings.flags ?? new FileBrowserHelper.CustomExporterFlags[0]) {
+            if (!string.IsNullOrEmpty(flag.format) && flag.id != null) res[flag.id] = SameFormat(flag.format, format);
+        }
+        return res;
+    }
+
+    //the flags of the exporter with their default values, changed by the given ones (by flag id),
+    //and the ones set by the file extension if given
+    public static List<bool> GetExporterFlags(FileBrowserHelper.CustomExporter exporter, Dictionary<string, bool> values, string format = null) {
         var flags = exporter.settings.flags ?? new FileBrowserHelper.CustomExporterFlags[0];
+        var forced = format != null ? GetFormatFlags(exporter, format) : new Dictionary<string, bool>();
         var res = new List<bool>();
         foreach (var flag in flags) {
-            res.Add(values != null && flag.id != null && values.TryGetValue(flag.id, out var v) ? v : flag.defaultValue);
+            if (flag.id != null && forced.TryGetValue(flag.id, out var f)) {
+                res.Add(f);
+            } else {
+                res.Add(values != null && flag.id != null && values.TryGetValue(flag.id, out var v) ? v : flag.defaultValue);
+            }
         }
         return res;
     }
 
     //the ids of the flags that can't be changed with the given values of the others (like the checkboxes of the
-    //export dialog: a flag enables or disables others)
+    //export dialog: a flag enables or disables others), and the ones set by the file extension
     public static HashSet<string> GetLockedFlags(FileBrowserHelper.CustomExporter exporter, List<bool> values) {
         var flags = exporter.settings.flags ?? new FileBrowserHelper.CustomExporterFlags[0];
         var res = new HashSet<string>();
         for (int i = 0; i < flags.Length && i < values.Count; i++) {
             if (!values[i] && flags[i].enables != null) res.UnionWith(flags[i].enables);
             if (values[i] && flags[i].disables != null) res.UnionWith(flags[i].disables);
+            if (!string.IsNullOrEmpty(flags[i].format) && flags[i].id != null) res.Add(flags[i].id);
         }
         return res;
     }
@@ -77,7 +109,8 @@ public static class CityExporter {
         bool showConsole, System.IProgress<(float, string)> progress = null) {
 
         var enc = new CityEncoder.JSON_Export();
-        var jsonFile = name.Replace("." + exporter.settings.format, ".json");
+        //not replacing the format: the file may have the format of a flag
+        var jsonFile = Path.ChangeExtension(name, ".json");
         var script = exporter.folder + "/export.py";
         var args = new List<string>();
         args.Add(Path.Combine(PathHelper.FilesPath(true), "python"));

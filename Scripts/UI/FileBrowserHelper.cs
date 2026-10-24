@@ -93,6 +93,12 @@ public partial class FileBrowserHelper : Control {
                     filters.Add("*." + elem.settings.format + ";" + SM.Get(elem.settings.label));
                     extensions.Add("." + elem.settings.format);
                 }
+                //the formats of the flags set by the chosen file type (e.g. a packed version of the main format)
+                foreach (var flag in elem.settings.flags ?? new CustomExporterFlags[0]) {
+                    if (string.IsNullOrEmpty(flag.format)) continue;
+                    filters.Add("*." + flag.format + ";" + SM.Get(flag.formatLabel ?? elem.settings.label));
+                    extensions.Add("." + flag.format);
+                }
             }
         } catch (Exception e) { GameEngine.LogWarning("Could not read custom exporters: " + e.Message); }
         filters.Add("*.json;JSON");
@@ -129,6 +135,9 @@ public partial class FileBrowserHelper : Control {
         public string[] disables;
         public string[] enables;
         public bool defaultValue;
+        //optional: the flag is set when the file has this extension (listed as another file type of the exporter), unset otherwise
+        public string format;
+        public string formatLabel;
     }
 
     [Serializable]

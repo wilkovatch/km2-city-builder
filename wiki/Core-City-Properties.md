@@ -1,6 +1,6 @@
 # Core City Properties
 
-The city properties are the parameters of the city as a whole: name, traffic settings, races, opponents and so on in MM2. They are edited from *Edit → City properties*, saved with the city and exported in the `cityProperties` field of the export JSON, where the core's exporter uses them.
+The city properties are the parameters of the city as a whole: name, traffic settings, races, opponents and so on in MM2. They are edited from *Edit → City properties*, saved with the city and exported in the `cityProperties` field of the export JSON, where the core's exporter uses them. A template can give their initial values with a `cityProperties.json` (see [Core Templates and Presets](Core-Templates-and-Presets#citypropertiesjson)).
 
 ```
 elements/cityProperties/

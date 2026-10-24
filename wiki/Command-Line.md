@@ -142,6 +142,12 @@ Export a city with the PSDL exporter of the Midtown Madness 2 core, without the 
 km2-city-builder.console.exe --headless --quiet -- export C:/cities/test --exporter psdl --out C:/out/test --flag bai=false --progress
 ```
 
+The same, packed in a single `C:/out/test.ar` (the `ar` format of the exporter sets its `packAr` flag):
+
+```
+km2-city-builder.console.exe --headless --quiet -- export C:/cities/test --exporter ar --out C:/out/test --flag bai=false --progress
+```
+
 Create a city, generate its terrain and buildings, and save it:
 
 ```

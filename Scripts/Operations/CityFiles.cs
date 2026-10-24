@@ -40,7 +40,10 @@ namespace Operations {
             return (shownNames, directories);
         }
 
+        public const string TemplateCityPropertiesFile = "cityProperties.json";
+
         //copies the template into the folder and writes an empty city with the given terrain settings
+        //(and the city properties of the template, if it has them)
         public static void CreateCityFolder(string folder, string core, string templateFolder, int terrainSize, int heightmapResolution, float maxHeight) {
             var templatesPath = Path.Combine(PathHelper.BasePath(), "Files", "cores", core, "templates");
             Directory.CreateDirectory(folder);
@@ -51,6 +54,11 @@ namespace Operations {
             savedCity.terrainSize = terrainSize;
             savedCity.heightMap = "";
             savedCity.maxHeight = maxHeight;
+            var cityPropertiesPath = Path.Combine(folder, TemplateCityPropertiesFile);
+            if (File.Exists(cityPropertiesPath)) {
+                savedCity.cityProperties = Newtonsoft.Json.JsonConvert.DeserializeObject<ObjectState>(File.ReadAllText(cityPropertiesPath));
+                File.Delete(cityPropertiesPath); //from now on they are in the city
+            }
             var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.Indented);
             var bytes = System.Text.Encoding.ASCII.GetBytes(json);
             using (var compressedFileStream = File.Create(Path.Combine(folder, "city.json.gz"))) {

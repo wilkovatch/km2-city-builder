@@ -374,6 +374,9 @@ namespace Api {
             Check("city.new loads the city", info["loaded"].Value<bool>() && info["terrainSize"].Value<int>() == 2048);
             Check("progress events while loading (" + progressEvents + ")", progressEvents > 0);
             Check("the history is empty after loading", !(await Call("history.state"))["canUndo"].Value<bool>());
+            Check("city.new gives the city the city properties of the template",
+                (await Call("state.getParam", new { @ref = 0, name = "speedLimit" }))?.Value<float>() == 15
+                && !File.Exists(Path.Combine(folder, Operations.CityFiles.TemplateCityPropertiesFile)));
             await Expect("city.new on an existing city", "already_exists", "city.new", new { folder, core = "MidtownMadness2", template = "SF" });
         }
 
@@ -869,9 +872,11 @@ namespace Api {
                 if (param["type"].Value<string>() == "customElement" && customParam == null) customParam = param["name"].Value<string>();
             }
             if (arrayParam != null) {
+                //the template can give the array some elements already
+                var initialCount = (await Call("state.getParam", new { @ref = cityId, name = arrayParam }) as JArray)?.Count ?? 0;
                 await CheckUndo("array element added", () => Call("state.array.add", new { @ref = cityId, param = arrayParam }));
                 var clone = (await Call("state.array.clone", new { @ref = cityId, param = arrayParam, index = 0 })).Value<int>();
-                Check("state.array.clone adds at the end", clone == 1);
+                Check("state.array.clone adds at the end", clone == initialCount + 1);
                 var elemSchema = await Call("state.schema", new { @ref = new { parent = cityId, param = arrayParam, index = 0 } });
                 foreach (var param in elemSchema["parameters"]) {
                     var type = param["type"].Value<string>();
@@ -884,7 +889,7 @@ namespace Api {
                     }
                 }
                 await Call("state.array.remove", new { @ref = cityId, param = arrayParam, index = 1 });
-                await Expect("an array element out of range", "not_found", "state.array.remove", new { @ref = cityId, param = arrayParam, index = 5 });
+                await Expect("an array element out of range", "not_found", "state.array.remove", new { @ref = cityId, param = arrayParam, index = initialCount + 5 });
             }
             if (customParam != null) {
                 await Call("state.customElement.ensure", new { @ref = cityId, param = customParam });
@@ -2160,6 +2165,58 @@ road(-750)
                         if (rails) Check("the cable car rail decals are exported", decalNames != null && decalNames.Contains("r4i_rails_f"));
                     }
                 }
+                foreach (var flag in exporters[0]["flags"]) {
+                    if (flag["format"]?.Type != JTokenType.String) continue;
+                    Check("a flag with a format is not set by the main format", !File.Exists(Path.Combine(folder, "..", "api_export." + flag["format"])));
+                    await ExportPacked(exporters[0], flag);
+                }
+            }
+        }
+
+        //the export with the format of a flag (MM2: the .ar archive, a zip file): the PATHSET only, with a custom texture
+        //of the city, which must be packed with it and leave no loose file or temporary folder
+        async Task ExportPacked(JToken exporter, JToken flag) {
+            var format = flag["format"].Value<string>();
+            var id = flag["id"].Value<string>();
+            var outPath = Path.Combine(folder, "..", "api_export_packed");
+            Check("exporters.list lists the format of the flag " + id, exporter["formats"].Any(f => f.Value<string>() == format));
+            await Expect("a flag set by the format", "invalid_value", "city.export",
+                new { path = outPath, exporter = exporter["format"].Value<string>(), flags = new Dictionary<string, bool> { [id] = true } });
+
+            var known = exporter["flags"].Select(f => f["id"].Value<string>()).ToHashSet();
+            var flags = new Dictionary<string, bool> { ["propRules"] = false, ["psdl"] = false, ["inst"] = false, ["bai"] = false,
+                ["pathset"] = true, ["cinfo_aimap"] = false, ["hudmap"] = false, ["pkgs"] = false }
+                .Where(x => known.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            var textureFolder = Path.Combine(folder, "texture");
+            var createdFolder = !Directory.Exists(textureFolder);
+            Directory.CreateDirectory(textureFolder);
+            var texture = Path.Combine(textureFolder, "selftest_user.tex");
+            File.WriteAllBytes(texture, new byte[] { 1, 2, 3, 4 });
+            var tempDirs = Directory.GetDirectories(Path.GetTempPath(), "km2_ar_*").Length;
+            try {
+                var export = await Send("city.export", new { path = outPath, exporter = format, flags });
+                if (export["error"] != null) {
+                    Log("FAIL city.export (" + format + "): " + export["error"]);
+                    failures++;
+                    return;
+                }
+                var path = export["result"]["path"].Value<string>();
+                var entries = new List<string>();
+                if (File.Exists(path)) {
+                    using (var zip = System.IO.Compression.ZipFile.OpenRead(path)) entries = zip.Entries.Select(e => e.FullName).ToList();
+                }
+                var name = Path.GetFileNameWithoutExtension(path);
+                var dir = Path.GetDirectoryName(Path.GetFullPath(path));
+                Check("city.export with the format " + format + " writes the archive (exit code " + export["result"]["exitCode"] + ")",
+                    export["result"]["exitCode"].Value<int>() == 0 && path.EndsWith("." + format) && entries.Contains("city/" + name + "/props.pathset"));
+                Check("the archive has the custom textures of the city", entries.Contains("texture/selftest_user.tex"));
+                Check("the archive has no placeholder files", !entries.Any(e => Path.GetFileName(e).StartsWith("_put ")));
+                Check("the packed export leaves no loose files", !File.Exists(Path.Combine(dir, "city", name + ".psdl")) && !Directory.Exists(Path.Combine(dir, "city", name))
+                    && !File.Exists(Path.ChangeExtension(path, ".json")) && !File.Exists(path + ".tmp"));
+                Check("the temporary folder of the packed export is deleted", Directory.GetDirectories(Path.GetTempPath(), "km2_ar_*").Length <= tempDirs);
+            } finally {
+                File.Delete(texture);
+                if (createdFolder) Directory.Delete(textureFolder);
             }
         }
     }

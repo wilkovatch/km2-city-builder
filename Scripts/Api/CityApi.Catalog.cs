@@ -203,9 +203,10 @@ namespace Api {
             foreach (var e in FileBrowserHelper.GetCustomExporters() ?? new List<FileBrowserHelper.CustomExporter>()) {
                 var flags = new List<object>();
                 foreach (var f in e.settings.flags ?? new FileBrowserHelper.CustomExporterFlags[0]) {
-                    flags.Add(new { id = f.id, label = SM.GetOrKey(f.label), defaultValue = f.defaultValue, enables = f.enables, disables = f.disables });
+                    flags.Add(new { id = f.id, label = SM.GetOrKey(f.label), defaultValue = f.defaultValue, enables = f.enables, disables = f.disables,
+                        format = f.format, formatLabel = f.formatLabel != null ? SM.GetOrKey(f.formatLabel) : null });
                 }
-                res.Add(new { format = e.settings.format, label = SM.GetOrKey(e.settings.label), flags });
+                res.Add(new { format = e.settings.format, formats = CityExporter.GetFormats(e), label = SM.GetOrKey(e.settings.label), flags });
             }
             return res;
         }

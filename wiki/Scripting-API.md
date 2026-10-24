@@ -218,7 +218,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `city.close` | - | - | Closes the city (the unsaved changes are lost) |
 | `city.eraseBuildings` | - | - | Deletes every building line |
 | `city.eraseTerrain` | - | - | Deletes every terrain patch |
-| `city.export` | `path: string`<br>`exporter: string`<br>`flags: {id: bool} = null`<br>`showConsole: bool = false` | object | Exports the city with an exporter of the core (by its format, see exporters.list), with the given flags (the others keep their default) |
+| `city.export` | `path: string`<br>`exporter: string`<br>`flags: {id: bool} = null`<br>`showConsole: bool = false` | object | Exports the city with an exporter of the core (by one of its formats, see exporters.list), with the given flags (the others keep their default, the ones with a format are set by it) |
 | `city.exportJson` | `path: string` | object | Writes the export JSON of the city (with the generated geometry, as read by the exporters of the cores) |
 | `city.flush` | - | - | Rebuilds the changed elements now (needed only with autoFlush off) |
 | `city.generateBuildings` | `linePreset: string`<br>`buildingPresets: string[]`<br>`minLength: number = 15`<br>`maxLength: number = 15`<br>`subdivide: bool = true`<br>`nullOnly: bool = false` | object | Creates building lines around the blocks between the roads (like Create > Whole city buildings), split into buildings with the presets |

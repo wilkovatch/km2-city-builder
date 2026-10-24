@@ -108,7 +108,7 @@ namespace Api {
             });
         }
 
-        [ApiMethod("city.export", "Exports the city with an exporter of the core (by its format, see exporters.list), with the given flags (the others keep their default)")]
+        [ApiMethod("city.export", "Exports the city with an exporter of the core (by one of its formats, see exporters.list), with the given flags (the others keep their default, the ones with a format are set by it)")]
         public Task<object> Export(string path, string exporter, Dictionary<string, bool> flags = null, bool showConsole = false) {
             RequireCity();
             if (string.IsNullOrEmpty(path)) throw ApiException.InvalidParam("missing path");
@@ -119,12 +119,17 @@ namespace Api {
             if (flags != null) {
                 foreach (var key in flags.Keys) if (!known.Contains(key)) throw ApiException.InvalidValue("unknown flag '" + key + "' (" + string.Join(", ", known) + ")");
             }
-            var values = CityExporter.GetExporterFlags(exp, flags);
+            var format = CityExporter.GetFormats(exp).Find(f => string.Equals(f, exporter, System.StringComparison.OrdinalIgnoreCase));
+            var forced = CityExporter.GetFormatFlags(exp, format);
+            var values = CityExporter.GetExporterFlags(exp, flags, format);
             var locked = CityExporter.GetLockedFlags(exp, values);
             if (flags != null) {
-                foreach (var key in flags.Keys) if (locked.Contains(key)) throw ApiException.InvalidValue("the flag '" + key + "' can't be set with the values of the others");
+                foreach (var key in flags.Keys) {
+                    if (forced.ContainsKey(key)) throw ApiException.InvalidValue("the flag '" + key + "' is set by the format (" + string.Join(", ", CityExporter.GetFormats(exp)) + ")");
+                    if (locked.Contains(key)) throw ApiException.InvalidValue("the flag '" + key + "' can't be set with the values of the others");
+                }
             }
-            if (!path.EndsWith("." + exp.settings.format)) path += "." + exp.settings.format;
+            if (!path.EndsWith("." + format, System.StringComparison.OrdinalIgnoreCase)) path += "." + format;
             return RunLong(async () => {
                 Flush();
                 CreateParentFolder(path);

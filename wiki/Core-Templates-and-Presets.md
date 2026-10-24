@@ -1,6 +1,6 @@
 # Core Templates and Presets
 
-A new city is created from a **template**: a folder whose content is copied into the new city's folder. Templates provide the city's initial `preferences.json`, its `presets.json` (the default values of every element), and possibly assets.
+A new city is created from a **template**: a folder whose content is copied into the new city's folder. Templates provide the city's initial `preferences.json`, its `presets.json` (the default values of every element), possibly its initial city properties (`cityProperties.json`) and assets.
 
 ```
 templates/
@@ -8,12 +8,13 @@ templates/
 │   ├── preferences.json
 │   └── ...                   shared assets (optional)
 ├── <Template1>/              copied after _common
-│   └── presets.json
+│   ├── presets.json
+│   └── cityProperties.json   initial city properties (optional)
 └── <Template2>/
     └── presets.json
 ```
 
-When creating a city, the user picks the core and one of its templates (displayed with the string `TEMPLATE_NAME_<folder>`, or the folder name). Users can add their own templates in `Files/custom/templates/<CoreName>/<name>/`; the core's `_common` folder is copied for them too. After copying, the program writes an empty `city.json.gz` (with the terrain settings chosen by the user) and loads the city.
+When creating a city, the user picks the core and one of its templates (displayed with the string `TEMPLATE_NAME_<folder>`, or the folder name). Users can add their own templates in `Files/custom/templates/<CoreName>/<name>/`; the core's `_common` folder is copied for them too. After copying, the program writes an empty `city.json.gz` (with the terrain settings chosen by the user and the city properties of `cityProperties.json`, see below) and loads the city.
 
 ## `preferences.json`
 
@@ -71,8 +72,25 @@ A preset contains the values of the core's parameters and of the program's built
 | `buildingBlock` | Blocks of the block dictionary | `type` (a block type) and its parameters. |
 | `terrainPatchBorderMesh` | Terrain patch border meshes | `type` must be a border mesh type. |
 
-Terrain patches, mesh instances and city properties have no presets.
+Terrain patches, mesh instances and city properties have no presets (the template can give the initial city properties, see below).
 
 If a category is missing, the program creates it with an empty default state, which has no `type`: creating an element of that kind then fails. **Every template must provide at least a default preset with a valid `type` for each category the core uses** (`road`, `intersection`, `buildingLine`, `building`, `buildingSide`, `buildingBlock`, `terrainPatchBorderMesh` and the container categories of its road types).
 
 The easiest way to make the presets of a new core is to create a city with a minimal `presets.json`, create and save presets from the editor, and copy the city's `presets.json` back into the template.
+
+## `cityProperties.json`
+
+Optional: the initial value of the city properties (see [Core City Properties](Core-City-Properties)) of the cities made from the template, for example the traffic settings of the game's city that the template represents. It is the state of the city properties as saved in `city.json.gz` (the parameter names and their values; arrays and custom elements as nested objects):
+
+```json
+{
+    "speedLimit": 15.0,
+    "driveOnLeft": false,
+    "trafficCars": [
+        { "carModel": "geometry/va_taxi_f.pkg", "frequency": 10.0 }
+    ],
+    "trafficLight1": "geometry/sp_traflitsingle_f.pkg"
+}
+```
+
+When the city is created the file is read into its `city.json.gz` and removed from the city folder. It can also be put in `_common` (a template's own file replaces it).

@@ -147,9 +147,15 @@ exporters/<name>/
 | `format` | File extension. The core's formats are listed before the built-in JSON one, and choosing a file with this extension opens the exporter's dialog. |
 | `flags` | Checkboxes of the export dialog: `id`, `label`, `tooltip` (string keys), `defaultValue`. When a flag is checked, the flags listed in its `enables` become editable and those in `disables` read-only; when unchecked, the opposite. |
 
+A flag can also have a `format` (a file extension) and a `formatLabel` (string key, the exporter's `label` if missing). The format is listed in the save dialog as another file type of the exporter, after its own format. The flag is set when the chosen file has that extension and unset otherwise: its checkbox shows the value but can't be changed, and `city.export` rejects it in `flags` (pass the format as `exporter` instead). Its `enables` and `disables` apply as usual. MM2 uses it to pack the export in an archive:
+
+```json
+{ "id": "packAr", "label": "EXPORT_PACK_AR", "format": "ar", "formatLabel": "EXPORTER_AR", "disables": ["bin"], "defaultValue": false }
+```
+
 When the user exports, the program:
 
-1. writes the export JSON (see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)) next to the chosen file, with the extension replaced by `.json`;
+1. writes the export JSON (see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)) next to the chosen file, with its extension (the exporter's format or a flag's) replaced by `.json`;
 2. runs `export.py` in its own console window, with these arguments:
 
 | Argument | Value |

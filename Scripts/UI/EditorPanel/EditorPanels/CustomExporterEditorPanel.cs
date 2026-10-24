@@ -17,11 +17,24 @@ namespace EditorPanels {
             flags.Clear();
             var p0 = GetPage(0);
             if (exporter != null) {
+                //the flags with a format are set by the extension of the chosen file, not by the user
+                var forced = CityExporter.GetFormatFlags(exporter, PathHelper.GetExtension(name ?? ""));
                 foreach (var flag in exporter.settings.flags) {
-                    var cb = p0.AddCheckbox(SM.Get(flag.label), flag.defaultValue, x => { EnableOthers(flag.enables, x); EnableOthers(flag.disables, !x); }, 1.5f, SM.Get(flag.tooltip));
+                    var isForced = flag.id != null && forced.ContainsKey(flag.id);
+                    var value = isForced ? forced[flag.id] : flag.defaultValue;
+                    var cb = p0.AddCheckbox(SM.Get(flag.label), value, x => { EnableOthers(flag.enables, x); EnableOthers(flag.disables, !x); }, 1.5f, SM.Get(flag.tooltip));
                     checkboxes.Add(cb);
                     flags.Add(flag);
                     p0.IncreaseRow();
+                }
+                for (int i = 0; i < flags.Count; i++) {
+                    var flag = flags[i];
+                    if (flag.id == null || !forced.TryGetValue(flag.id, out var value)) continue;
+                    EnableOthers(flag.enables, value);
+                    EnableOthers(flag.disables, !value);
+                }
+                for (int i = 0; i < flags.Count; i++) {
+                    if (flags[i].id != null && forced.ContainsKey(flags[i].id)) checkboxes[i].SetInteractable(false);
                 }
             }
             p0.AddButton(SM.Get("CANCEL"), Terminate, 0.75f);

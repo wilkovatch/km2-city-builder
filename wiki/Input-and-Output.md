@@ -75,6 +75,7 @@ Top-level structure (`ExportedCity`):
 | `meshInstances` | `id`, `name`, `settings`, `reference` (`meshId` into `meshDict`, position, scale, rotation). |
 | `cityProperties` | State of the city properties. |
 | `typeAncestry` | For every type of the core: `category` (its folder in `elements`), `name` and `ancestry` (the type, then the types it extends, nearest first; see [Core Type Inheritance](Core-Type-Inheritance#exporters)). |
+| `cityFolder` | The folder of the city project, with its own `geometry` and `texture` folders (MM2 packs them in the `.ar` archive). |
 
 `BaseData` (the `data` field of most elements):
 

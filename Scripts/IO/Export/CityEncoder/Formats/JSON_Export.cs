@@ -145,6 +145,8 @@ namespace CityEncoder {
                 }
                 savedCity.typeAncestry = ancestries.ToArray();
 
+                savedCity.cityFolder = PreferencesManager.workingDirectory;
+
                 geometry.Dispose();
 
                 var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.None);

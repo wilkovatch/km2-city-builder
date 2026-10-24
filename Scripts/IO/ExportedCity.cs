@@ -147,5 +147,6 @@ namespace IO.ExportedCity {
         public MeshInstance[] meshInstances;
         public ObjectState cityProperties;
         public TypeAncestry[] typeAncestry;
+        public string cityFolder; //the folder of the city project (with its own geometry and texture folders)
     }
 }
