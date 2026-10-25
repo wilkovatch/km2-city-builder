@@ -27,7 +27,7 @@ env:
   PANDOC_VERSION: 3.12.1
   TYPST_VERSION: 0.15.1
   # must match the version in ExpressionParser/compile.bat
-  ANTLR_VERSION: 4.11.1
+  ANTLR_VERSION: 4.13.2
 
 jobs:
   release:

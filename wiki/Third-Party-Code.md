@@ -34,7 +34,7 @@ The program bundles or depends on the following code. The license texts are in t
 
 | Addon | Notes |
 |---|---|
-| `terrain_3d` | [Terrain3D](https://github.com/TokisanGames/Terrain3D) 1.0.1 (MIT), the heightmap terrain. `setupDependencies.ps1` (or `setupDependencies.sh` on Linux) downloads the release and extracts it into `addons` (for example to restore or update it). |
+| `terrain_3d` | [Terrain3D](https://github.com/TokisanGames/Terrain3D) 1.0.2 (MIT), the heightmap terrain. `setupDependencies.ps1` (or `setupDependencies.sh` on Linux) downloads the release and extracts it into `addons` (for example to restore or update it). |
 | `km2_postprocess_build` | The project's own editor plugin that registers `PostprocessBuild`. |
 
 ## Python

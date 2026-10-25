@@ -1,5 +1,5 @@
 $pluginUrls = @(
-    "https://github.com/TokisanGames/Terrain3D/releases/download/v1.0.1/Terrain3D_v1.0.1.zip"
+    "https://github.com/TokisanGames/Terrain3D/releases/download/v1.0.2-stable/Terrain3D_v1.0.2-stable.zip"
 )
 
 $addonsDir = "addons"

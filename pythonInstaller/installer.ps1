@@ -1,4 +1,4 @@
-$pythonUrl = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip"
+$pythonUrl = "https://www.python.org/ftp/python/3.15.1/python-3.15.1-embed-amd64.zip"
 $pipUrl = "https://bootstrap.pypa.io/get-pip.py"
 
 $webclient = New-Object System.Net.WebClient

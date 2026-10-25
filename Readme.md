@@ -77,7 +77,7 @@ See the [Architecture Overview](https://github.com/wilkovatch/km2-city-builder/w
 
 ## Building from source
 
-1. Generate the expression parser: it is not tracked by git. Put `antlr-4.11.1-complete.jar` (from the [ANTLR download page](https://www.antlr.org/download/)) in the `ExpressionParser` folder and run `compile.bat` there (Java 11 or later required); on other systems, run the `java` command from the script and copy the generated `.cs` files to `CustomPackages/expressions-antlr4` by hand. Repeat after every grammar change.
+1. Generate the expression parser: it is not tracked by git. Put `antlr-4.13.2-complete.jar` (from the [ANTLR download page](https://www.antlr.org/download/)) in the `ExpressionParser` folder and run `compile.bat` there (Java 11 or later required); on other systems, run the `java` command from the script and copy the generated `.cs` files to `CustomPackages/expressions-antlr4` by hand. Repeat after every grammar change.
 2. Open the project in Godot 4.7 (.NET version), or build it with `dotnet build`.
 3. To export, use the Windows or Linux (x86_64) export preset, with the Godot .NET export templates for that platform installed. Exporting also generates `Quickstart guide.pdf` from the wiki, which requires [pandoc](https://pandoc.org) (3.1.2 or later) and [Typst](https://typst.app) in the `PATH`; without them the export still completes, but without the guide.
 

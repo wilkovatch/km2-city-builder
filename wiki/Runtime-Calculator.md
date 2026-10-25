@@ -6,7 +6,7 @@ The runtime calculator (`Scripts/RuntimeCalculator`, namespace `RuntimeCalculato
 
 The grammar is written for ANTLR 4 (`ExpressionLexer.g4` and `ExpressionParser.g4` in the `ExpressionParser` folder at the repository root). The generated C# lexer, parser and visitor base classes go in `CustomPackages/expressions-antlr4` and use the `Antlr4.Runtime.Standard` NuGet package.
 
-The generated files are not tracked by git, so they must be generated after cloning the repository, and again after every grammar change: put `antlr-4.11.1-complete.jar` (from the [ANTLR download page](https://www.antlr.org/download/)) in the `ExpressionParser` folder and run `compile.bat` there (Java 11 or later required). The script generates the four files and copies them to `CustomPackages/expressions-antlr4`. On other systems, run the `java` command from the script and copy the generated `.cs` files by hand.
+The generated files are not tracked by git, so they must be generated after cloning the repository, and again after every grammar change: put `antlr-4.13.2-complete.jar` (from the [ANTLR download page](https://www.antlr.org/download/)) in the `ExpressionParser` folder and run `compile.bat` there (Java 11 or later required). The script generates the four files and copies them to `CustomPackages/expressions-antlr4`. On other systems, run the `java` command from the script and copy the generated `.cs` files by hand.
 
 There are four entry rules (`mainFloatExpr`, `mainBoolExpr`, `mainVec3Expr`, `mainVec2Expr`), one per result type, and one visitor per type in `Scripts/RuntimeCalculator/Parsers`:
 

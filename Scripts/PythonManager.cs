@@ -13,8 +13,8 @@ class PythonManager {
     static Process serverProcess;
     static bool halt = false;
     const int timeout = 1000;
-    //portable build used where there is no installer script (Linux), same Python minor version (3.10) as the Windows installer
-    const string portablePythonUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.10.22%2B20261003-x86_64-unknown-linux-gnu-install_only.tar.gz";
+    //portable build used where there is no installer script (Linux), same Python minor version (3.15) as the Windows installer
+    const string portablePythonUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.15.1%2B20261021-x86_64-unknown-linux-gnu-install_only.tar.gz";
 
     enum InstallationStatus {
         Valid,
