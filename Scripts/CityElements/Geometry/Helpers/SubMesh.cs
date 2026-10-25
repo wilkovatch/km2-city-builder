@@ -107,7 +107,10 @@ namespace GeometryHelpers {
         }
 
         static void AssignDataToMesh(SubMeshData submesh, Mesh mesh, Material[] materials, List<int[]> indices) {
-            GameEngine.Mesh.AssignData(mesh, materials, indices, new List<Vector3>(submesh.vertices), new List<Vector2>(submesh.uvs), null);
+            //an element that generated no geometry (e.g. a building side with invalid floors) has null arrays
+            var vertices = submesh.vertices != null ? new List<Vector3>(submesh.vertices) : new List<Vector3>();
+            var uvs = submesh.uvs != null ? new List<Vector2>(submesh.uvs) : new List<Vector2>();
+            GameEngine.Mesh.AssignData(mesh, materials, indices, vertices, uvs, null);
         }
 
         static (Material[] materials, List<int[]> indices) GetMaterials(SubMeshData submesh, Mesh mesh) {

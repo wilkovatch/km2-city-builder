@@ -636,6 +636,7 @@ public class BuildingSideGenerator : IObjectWithState {
         if (deleted) return;
         GameEngine.Mesh.Clear(colliderMesh);
         GameEngine.Mesh.RefreshCollider(colliderMesh, mc, false);
+        m = new SubMeshData();
         meshDict.Clear();
         facades.Clear();
         alwaysDraws.Clear();
