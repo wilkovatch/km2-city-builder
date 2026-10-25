@@ -46,52 +46,24 @@ public partial class GuideScreenshots : Node {
         return (CameraController)GetViewport().GetCamera3D();
     }
 
-    //looks at the point from the given distance, with the given pitch (degrees below the horizon) and yaw
     void LookAt(Vector3 target, float distance, float pitch = 50, float yaw = 30) {
-        var cam = Camera();
-        var p = Mathf.DegToRad(pitch);
-        var y = Mathf.DegToRad(yaw);
-        var dir = new Vector3(Mathf.Cos(p) * Mathf.Sin(y), Mathf.Sin(p), Mathf.Cos(p) * Mathf.Cos(y));
-        cam.Position = target + dir * distance;
-        cam.LookAt(target, Vector3.Up);
+        Rendering.CameraFraming.LookAt(Camera(), target, distance, pitch, yaw);
     }
 
     //frames an area of the given size, centered in the part of the screen not covered by the editor panel on the right
     void Frame((Vector3 center, float size) bounds, float pitch = 50, float yaw = 20, float margin = 1.2f, bool panel = true) {
         var cam = Camera();
         var viewSize = GetViewport().GetVisibleRect().Size;
-        var halfHeight = Mathf.Tan(Mathf.DegToRad(cam.Fov) * 0.5f);
-        var halfWidth = halfHeight * viewSize.X / viewSize.Y;
+        var halfWidth = Mathf.Tan(Mathf.DegToRad(cam.Fov) * 0.5f) * viewSize.X / viewSize.Y;
         var visibleWidth = panel ? (viewSize.X - 260) / viewSize.X : 1.0f;
-        var distance = bounds.size * margin * 0.5f / Mathf.Min(halfHeight, halfWidth * visibleWidth);
+        var distance = Rendering.CameraFraming.FitDistance(cam, viewSize, bounds.size, margin, visibleWidth);
         LookAt(bounds.center, distance, pitch, yaw);
         if (panel) cam.Position += cam.GlobalBasis.X * (distance * halfWidth * (1 - visibleWidth));
     }
 
-    //the bounds of the visible meshes of an element
-    static (Vector3 center, float size) NodeBounds(Node node) {
-        var points = new List<Vector3>();
-        var nodes = new List<Node>(node.FindChildren("*", nameof(MeshInstance3D), true, false));
-        if (node is MeshInstance3D) nodes.Add(node);
-        foreach (var child in nodes) {
-            var mi = (MeshInstance3D)child;
-            if (!mi.IsVisibleInTree() || mi.Mesh == null) continue;
-            var aabb = mi.GlobalTransform * mi.GetAabb();
-            points.Add(aabb.Position);
-            points.Add(aabb.End);
-        }
-        return Bounds(points);
-    }
+    static (Vector3 center, float size) NodeBounds(Node node) => Rendering.CameraFraming.NodeBounds(node);
 
-    static (Vector3 center, float size) Bounds(IEnumerable<Vector3> points) {
-        var first = true;
-        var aabb = new Aabb();
-        foreach (var point in points) {
-            if (first) aabb = new Aabb(point, Vector3.Zero); else aabb = aabb.Expand(point);
-            first = false;
-        }
-        return (aabb.GetCenter(), Mathf.Max(aabb.Size.X, aabb.Size.Z));
-    }
+    static (Vector3 center, float size) Bounds(IEnumerable<Vector3> points) => Rendering.CameraFraming.Bounds(points);
 
     //the rectangle of the editor panel shown, including its tab buttons
     Rect2 PanelRect(EditorPanel panel) {

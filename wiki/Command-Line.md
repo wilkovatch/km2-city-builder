@@ -29,6 +29,9 @@ When a command is given, the last city is not loaded at startup and nothing is a
 | `info <city>` | The city (`city.info`) and the exporters of its core with their flags (`exporters.list`) |
 | `export <city> --exporter <format> --out <path>` | Exports the city with an exporter of its core (`city.export`) |
 | `export-json <city> --out <file>` | Writes the export JSON of the city (`city.exportJson`) |
+| `validate <city> [--exporter <format>]` | Validates the city with the exporters of its core, a dry export (`city.validate`, see [Validation](Validation)); exit code 1 if there are errors |
+| `render <city> --out <file>` | Renders an image of the city (`view.render`: its parameters are the options, e.g. `--camera top --labels roads,intersections --grid 100`); needs a window, see below |
+| `mcp [--city <folder>]` | Runs an MCP server on the standard input and output, for AI agents (see [MCP Server](MCP-Server)); needs a window, see below |
 | `generate terrain <city>` | Creates terrain patches between the roads (`city.generateTerrain`) |
 | `generate buildings <city> --line-preset <preset> --building-presets <a,b,...>` | Creates building lines around the blocks (`city.generateBuildings`) |
 | `script <.py file or script folder>` | Runs a Python script (see [Python Scripts](Python-Scripts#command-line)) and exits with its exit code |
@@ -37,6 +40,8 @@ When a command is given, the last city is not loaded at startup and nothing is a
 | `screenshots <city folder>` | Takes the screenshots of the quickstart guide on a copy of a city (development, needs the window) |
 
 `<city>` is the folder of a city (the one containing `city.json.gz`).
+
+`render` and `mcp` render images, and with `--headless` the program has no renderer (`view.render` then fails with `no_renderer`). Run them without `--headless` (keep `--quiet`): the window is made small, borderless and without focus, and moved outside of the screens (`CliRunner.HideWindow`). The images are rendered offscreen, at the size asked, whatever the size of the window.
 
 ### Parameters as options
 
@@ -148,6 +153,18 @@ The same, packed in a single `C:/out/test.ar` (the `ar` format of the exporter s
 km2-city-builder.console.exe --headless --quiet -- export C:/cities/test --exporter ar --out C:/out/test --flag bai=false --progress
 ```
 
+Check a city before exporting it (the warnings and errors of the exporter as JSON, exit code 1 with errors):
+
+```
+km2-city-builder.console.exe --headless --quiet -- validate C:/cities/test --pretty
+```
+
+A top view of a city with the names of its roads and intersections and a grid every 100 m (no `--headless`):
+
+```
+km2-city-builder.console.exe --quiet -- render C:/cities/test --out C:/out/test.png --labels roads,intersections --grid 100 --scale-bar
+```
+
 Create a city, generate its terrain and buildings, and save it:
 
 ```
@@ -168,4 +185,6 @@ The classes are in `Scripts/Cli`:
 | `CliRunner` | The node added by `CityBuilderMenuBar.ManualStart` in a command line session: it waits for the program to start, runs the command and quits with its exit code (the self-tests and the screenshots quit by themselves). `CliContext` runs the API methods through `CommandDispatcher.Execute`, loads the city (`--city`, `--migrate`...) and saves it (`--save`). |
 | `CliOutput` | Writes the results to the standard output (or to `--output`) and the errors and progress to the standard error, directly to the streams of the process, so that `--quiet` doesn't hide them. |
 
-`serve` reads the standard input on a thread and queues each line to `CommandDispatcher` with `Enqueue`, like `ScriptRunner` does with the output of the Python scripts.
+`serve` reads the standard input on a thread and queues each line to `CommandDispatcher` with `Enqueue`, like `ScriptRunner` does with the output of the Python scripts. `mcp` reads it on a thread too, and passes each message to `Mcp.McpServer` one at a time, in order (the commands of a tool still run on the main thread).
+
+A command with `needsWindow` (`render`, `mcp`) keeps the window, out of the way (`CliRunner.HideWindow`).

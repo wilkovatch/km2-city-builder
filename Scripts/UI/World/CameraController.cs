@@ -42,6 +42,7 @@ public partial class CameraController : Camera3D {
         cam = this;
         curRotation = RotationDegrees;
         SetPropsCullingDistance(PreferencesManager.Get("propsCullingDistance", 300.0f));
+        cam.CullMask &= ~GameEngine.Camera.RenderOnlyLayer;
         defaultCullingMask = cam.CullMask;
         LoadControls();
     }
@@ -218,6 +219,15 @@ public partial class CameraController : Camera3D {
 
     public async void ZoomIn(Vector3 point, float distance) {
         await ZoomInCoroutine(point, true, distance);
+    }
+
+    //places the camera at once, looking at the target (Godot coordinates)
+    public void SetView(Vector3 position, Vector3 target) {
+        Position = position;
+        var dir = target - position;
+        if (dir.LengthSquared() > 1e-6f) LookAt(target, Mathf.Abs(dir.Normalized().Y) > 0.999f ? Vector3.Forward : Vector3.Up);
+        curRotation = RotationDegrees;
+        lastPivotDistance = Mathf.Max(dir.Length(), minPivotDistance);
     }
 
     float EaseOutQuad(float t) {

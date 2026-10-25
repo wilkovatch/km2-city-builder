@@ -6,6 +6,9 @@ using GO = GameEngine.GameObject;
 
 namespace CityEncoder {
     public class JSON_Export : CityEncoder {
+        //where the exporter reading the JSON writes its warnings and errors (null: not written for an exporter)
+        public IO.ExportedCity.ExportReportInfo report;
+
         public void EncodeCity(ElementManager manager, string filename, System.Action post = null) {
             Run(manager, filename, post);
         }
@@ -146,6 +149,7 @@ namespace CityEncoder {
                 savedCity.typeAncestry = ancestries.ToArray();
 
                 savedCity.cityFolder = PreferencesManager.workingDirectory;
+                savedCity.report = report;
 
                 geometry.Dispose();
 

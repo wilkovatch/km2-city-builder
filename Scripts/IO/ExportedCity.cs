@@ -137,6 +137,12 @@ namespace IO.ExportedCity {
     }
 
     [System.Serializable]
+    public class ExportReportInfo {
+        public string file; //where the exporter writes its warnings and errors, one JSON object per line (see Files/python/ExportReport.py)
+        public bool validation; //a dry export validating the city, to a temporary folder deleted afterwards
+    }
+
+    [System.Serializable]
     public class ExportedCity {
         public DictMesh[] meshDict;
         public Material[] materialDict;
@@ -148,5 +154,6 @@ namespace IO.ExportedCity {
         public ObjectState cityProperties;
         public TypeAncestry[] typeAncestry;
         public string cityFolder; //the folder of the city project (with its own geometry and texture folders)
+        public ExportReportInfo report; //null when the JSON isn't written for an exporter
     }
 }

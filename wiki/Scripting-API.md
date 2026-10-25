@@ -31,13 +31,15 @@ When a command is given on the command line, the program is driven by it: the la
 
 The Python scripts of the Scripts menu (and the one given with the `script` command) are run by `ScriptRunner`, which sends the lines written by the script to the dispatcher and writes the responses back to it: see [Python Scripts](Python-Scripts).
 
+AI agents use the API through the [MCP Server](MCP-Server) (`Scripts/Mcp`), over HTTP in the editor or with the `mcp` command. `ApiHost.RunOnMainThread` runs work from other threads on the main thread outside of the dispatcher (the MCP `script_run` tool: a script sends its own commands to the dispatcher meanwhile).
+
 ### Self-test
 
 ```
 Godot_v4.7.1-stable_mono_win64_console.exe --path . [--headless] -- selftest api <new folder>
 ```
 
-Creates a city in the folder (from the SF template of the Midtown Madness 2 core) and drives it only with JSON commands: every kind of element, anchors, terrain points and heights, parameters, arrays, presets, props, undo and redo of each change, batches, transactions, errors, a script changing an element open in the editor, parity with the elements made with the editor tools, whole city generation, save and load, export JSON, geometry and the core exporter. It also contains the whole city terrain and building generation written with the commands only (`ScriptTerrain`, `ScriptBuildings`), checked against `city.generateTerrain` and `city.generateBuildings`: they are the reference for scripts generating cities. The same generators written in Python (the `cityTerrain` and `cityBuildings` examples of `wiki/examples/scripts`, see [Python Scripts](Python-Scripts#examples)) are run through `ScriptRunner` and checked in the same way, along with the runner itself (inputs, selection, single undo step, failures, cancelling, settings restored) and the input panel of the scripts. It writes `api_selftest.log` next to the folder and exits with code 1 if anything failed.
+Creates a city in the folder (from the SF template of the Midtown Madness 2 core) and drives it only with JSON commands: every kind of element, anchors, terrain points and heights, parameters, arrays, presets, props, undo and redo of each change, batches, transactions, errors, a script changing an element open in the editor, parity with the elements made with the editor tools, whole city generation, save and load, export JSON, geometry, the core exporter, the validation, the renders (with a window; headless, only the `no_renderer` error) and the MCP server (its messages, and over HTTP on a test port). It also contains the whole city terrain and building generation written with the commands only (`ScriptTerrain`, `ScriptBuildings`), checked against `city.generateTerrain` and `city.generateBuildings`: they are the reference for scripts generating cities. The same generators written in Python (the `cityTerrain` and `cityBuildings` examples of `wiki/examples/scripts`, see [Python Scripts](Python-Scripts#examples)) are run through `ScriptRunner` and checked in the same way, along with the runner itself (inputs, selection, single undo step, failures, cancelling, settings restored) and the input panel of the scripts. It writes `api_selftest.log` next to the folder and exits with code 1 if anything failed.
 
 ## Protocol
 
@@ -136,6 +138,19 @@ Vectors are `[x, y, z]` (or `{"x": ..., "y": ..., "z": ...}`), quaternions `[x, 
 
 States (the values of an element) are plain JSON objects, as in the saved city. The values of the parameters of the core are set with `state.setParam`, by the type of the parameter: `bool`, `int`, `float`, `string`, `texture` and `mesh` (relative paths), `enum` (the index, or the name of the value). The arrays and custom elements are edited with `state.array.*`, `state.customElement.ensure` and their references, the parametric objects with `objects.*`. The properties the editor panels have for every type (the curve type of a road, the height of a building, the floors of a building side...) are set with `state.setBuiltin`; `state.schema` lists both for an element.
 
+### Images
+
+`view.render` renders the city offscreen, with a camera of its own (`Rendering.CityRenderer`): the view of the editor doesn't change. It needs a renderer: with `--headless` it fails with `no_renderer`. The image is in the result as base64 (`image`), or saved to `path`.
+
+- `camera`: `top` (orthogonal, looking down, x to the right and z up in the image), `orbit` (perspective, `pitch` degrees below the horizon, `yaw` around the vertical axis, `distance` or the one fitting the area), `custom` (`position`, `target`, `fov`) or `editor` (the camera of the editor).
+- The area shown: `elements` (fitted with `margin`), `bounds` `[minX, minZ, maxX, maxZ]`, `center` and `size`, or the whole city.
+- `layers`: `buildings`, `terrain`, `geometry` (roads, intersections, terrain patches), `meshes`, `props`, `helpers` (control points, terrain points, links); by default everything but `helpers`. Every LOD is at its most detailed level and nothing is culled by distance (`bestLod: false`: as the camera of the render sees them).
+- Over the 3D: `labels` (`roads`, `intersections`, `patches`, `lines`, `meshes` or `all`: name and id of each element, moved apart when they overlap), `highlight` (elements tinted with `highlightColor`, over everything), `grid` (lines every `grid` meters with their coordinates), `scaleBar`, and `overlays`: `{"type": "label" | "marker" | "polyline", "text", "position" | "points" | "element", "color", "size", "closed"}`.
+
+The result also has `mapping`, from the pixels to the city: for the top view `metersPerPixel` and `origin` (the x, z of the top left corner: `x = origin[0] + px * metersPerPixel`, `z = origin[1] - py * metersPerPixel`); for the others the position, forward and up directions and fov of the camera. `labels` and `overlays` give the pixel of each label and overlay (`inView`: inside the image).
+
+`view.screenshot` is the window as the user sees it, and `view.camera.get`, `view.camera.set` and `view.focus` move the camera of the editor (e.g. to show the user an element).
+
 ### Changes and undo
 
 Each command changing the city is an undo step, like an action in the editor: `history.undo` and Edit > Undo undo it. If a command fails halfway, its partial change is undone. With `api.configure` and `history: false` the changes are not recorded (faster for large scripts), but then a failed command can't be undone.
@@ -158,7 +173,7 @@ An element left with less points than it needs (a road with one point, a terrain
 
 ### Long operations
 
-`city.new`, `city.load`, `city.reload`, `city.save`, `city.exportJson`, `city.export`, `city.generateTerrain`, `city.generateBuildings`, `city.rotate` and `terrain.importHeightmap` last several frames and report their progress with events. No other command can run meanwhile (`busy`).
+`city.new`, `city.load`, `city.reload`, `city.save`, `city.exportJson`, `city.export`, `city.validate`, `city.generateTerrain`, `city.generateBuildings`, `city.rotate` and `terrain.importHeightmap` last several frames and report their progress with events. No other command can run meanwhile (`busy`). `view.render` and `view.screenshot` last a few frames too.
 
 `city.load` never asks anything: a city made with another version of its core is migrated only with `migrate: "always"` (which changes the city files), otherwise it fails with `migration_required`; the Python modules missing for the core are installed only with `installPythonModules`. A city loaded by a script is not loaded again when the program starts, unless `remember` is set.
 
@@ -180,7 +195,9 @@ An element left with less points than it needs (a road with one point, a terrain
 | `already_exists` | `city.new` on a folder with a city |
 | `core_not_found`, `city_for_newer_core`, `migration_required`, `migration_failed` | the city can't be loaded with the installed cores |
 | `python_missing` | Python or the Python modules of the core are not available |
-| `io_error`, `export_failed`, `batch_failed` | the operation failed (see the message) |
+| `no_renderer` | `view.render` or `view.screenshot` without a renderer (`--headless`) |
+| `no_camera` | the camera of the editor isn't available |
+| `io_error`, `export_failed`, `batch_failed` | the operation failed (see the message; for `export_failed`, `details.items` has the warnings and errors reported by the exporter) |
 | `internal_error` | an unexpected error (logged with its stack trace) |
 
 ## Example
@@ -229,6 +246,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `city.reload` | - | object | Loads the current city again from its saved file (the unsaved changes are lost) |
 | `city.rotate` | `angle: string` | object | Rotates the whole city (elements and terrain): 90ccw, 90cw or 180 |
 | `city.save` | - | object | Saves the city in its folder |
+| `city.validate` | `exporter: string = null` | object | Validates the city with the exporters of the core that can (or the one of the format): a dry export to a temporary folder, returning the warnings and errors the exporters reported (level, message, element {name, kind}, code, position, details, exporter); ok: no errors. See [Validation](Validation) |
 
 ### `history.*`
 
@@ -274,7 +292,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
-| `exporters.list` | - | object | The exporters of the current core, with their flags |
+| `exporters.list` | - | object | The exporters of the current core, with their flags; validates: the exporter can validate a city (city.validate) |
 
 ### `elements.*`
 
@@ -454,6 +472,18 @@ Only while a Python script is running (see [Python Scripts](Python-Scripts)); ot
 | `script.log` | `text: string`<br>`level: string = 'info'` | - | Writes a line in the log of the program; level: info, warning or error |
 | `script.progress` | `value: number`<br>`text: string = null` | - | Shows the progress of the running script (value from 0 to 1), with a text (null: keeps the last one) |
 | `script.selection` | - | int[] | The ids of the elements selected or being edited when the running script was started |
+
+### `view.*`
+
+See [Images](#images).
+
+| Method | Parameters | Result | Description |
+|---|---|---|---|
+| `view.camera.get` | - | object | The camera of the editor: position, forward direction, fov (vertical, degrees) |
+| `view.camera.set` | `position: vec3`<br>`target: vec3` | object | Moves the camera of the editor to the position, looking at the target |
+| `view.focus` | `ref: ref` | - | Moves the camera of the editor to show an element (as the zoom of the object list) |
+| `view.render` | `camera: string = 'top'`<br>`elements: ref[] = null`<br>`bounds: number[] = null`<br>`center: vec3 = null`<br>`size: number = null`<br>`margin: number = 1.1`<br>`pitch: number = 50`<br>`yaw: number = 30`<br>`distance: number = null`<br>`position: vec3 = null`<br>`target: vec3 = null`<br>`fov: number = 50`<br>`width: int = 1024`<br>`height: int = 1024`<br>`layers: string[] = null`<br>`labels: string[] = null`<br>`labelSize: number = 14`<br>`highlight: ref[] = null`<br>`highlightColor: string = null`<br>`overlays: object[] = null`<br>`grid: number = 0`<br>`scaleBar: bool = false`<br>`background: string = null`<br>`transparent: bool = false`<br>`bestLod: bool = true`<br>`format: string = 'png'`<br>`quality: number = 0.9`<br>`path: string = null` | object | Renders the city offscreen and returns the image with the mapping between its pixels and the city coordinates, and the pixel positions of the labels and overlays |
+| `view.screenshot` | `format: string = 'png'`<br>`quality: number = 0.9`<br>`path: string = null` | object | The view of the editor as the user sees it (with its panels) |
 
 ### Dispatcher
 

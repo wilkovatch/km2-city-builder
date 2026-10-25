@@ -23,6 +23,7 @@ namespace Api {
             public int exitCode;
             public string error;
             public bool undone; //the changes made before failing were undone
+            public string output; //what the script printed (its standard error)
             public List<(string title, string text)> messages = new List<(string, string)>();
         }
 
@@ -161,6 +162,7 @@ namespace Api {
                 if (api.HasCity) builder.EndExternalChange();
                 builder.SetScriptRunning(false);
                 PythonManager.LogProcessOutput(null, stderr.ToString());
+                res.output = stderr.ToString();
                 res.messages.AddRange(messages);
                 process?.Dispose();
             }

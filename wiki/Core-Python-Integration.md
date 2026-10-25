@@ -146,6 +146,7 @@ exporters/<name>/
 | `label` | String key shown as the file type in the save dialog. |
 | `format` | File extension. The core's formats are listed before the built-in JSON one, and choosing a file with this extension opens the exporter's dialog. |
 | `flags` | Checkboxes of the export dialog: `id`, `label`, `tooltip` (string keys), `defaultValue`. When a flag is checked, the flags listed in its `enables` become editable and those in `disables` read-only; when unchecked, the opposite. |
+| `validation` | Optional: the exporter can validate a city, with a dry export using these flags (`{"flags": {id: bool}}`, the others keep their default). See [Validation](Validation#for-core-authors). |
 
 A flag can also have a `format` (a file extension) and a `formatLabel` (string key, the exporter's `label` if missing). The format is listed in the save dialog as another file type of the exporter, after its own format. The flag is set when the chosen file has that extension and unset otherwise: its checkbox shows the value but can't be changed, and `city.export` rejects it in `flags` (pass the format as `exporter` instead). Its `enables` and `disables` apply as usual. MM2 uses it to pack the export in an archive:
 
@@ -165,7 +166,8 @@ When the user exports, the program:
 | `sys.argv[3]` | Path of the output file chosen by the user |
 | `sys.argv[4...]` | One `1` or `0` per flag, in the order of `flags` |
 
-3. deletes the JSON when the script ends (whatever its exit code).
+3. deletes the JSON when the script ends (whatever its exit code);
+4. reads the warnings and errors the script reported (see [Warnings and errors](#warnings-and-errors)) and lists them in the *Export report* panel, if any.
 
 Because the script runs in its own console, it can print progress and should wait for a key press at the end (MM2: `input("Press any key to continue...")`), especially on errors, so that the user can read the output.
 
@@ -188,6 +190,36 @@ for road in data['roads']:
 `DecodeExportedJson` decodes the Base64 fields and removes their prefixes (`b64v3a_vertices` becomes `vertices`, ...). The structure is described in [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export). Everything is in the program's coordinate system (left-handed, Y up); convert it as the game requires.
 
 The core's own exporter code can be organized freely in the exporter folder (MM2 uses a git submodule for code shared with its Blender plugin).
+
+### Warnings and errors
+
+The exporter reports what the user should know with `Files/python/ExportReport.py` (on the path with `sys.argv[1]`), instead of printing it: the program reads the report back and shows it (after an export, and for a [validation](Validation)).
+
+```python
+import ExportReport as report
+
+data = DecodeExportedJson.DecodeExportedJson().decode_json(sys.argv[2])
+report.init(data)       # the report file is in the export JSON: "report": {"file": ..., "validation": bool}
+report.warning("the road has more than 6 lanes on a side", element="Road 3", kind="road")
+try:
+    write_block(block)
+except Exception:
+    report.exception("block 14 not exported", element="Intersection 1", kind="intersection")
+...
+sys.exit(1 if report.has_errors() else 0)
+```
+
+| Function | Description |
+|---|---|
+| `init(data)` | Reads the report file from the export JSON (and empties it). Without it (the script run by hand) the messages are only printed. |
+| `warning`, `error`, `info` `(message, element=None, kind=None, code=None, position=None, details=None)` | A line of the report (also printed, as `Warning: ...` and `Error: ...`). `element` and `kind` name the element as the scripting API does (`road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`), so that the user can select it; `position` is `[x, y, z]` in the program coordinates; `code` an identifier of the problem; `details` any text (e.g. a traceback). |
+| `exception(message=None, **kwargs)` | The exception being handled, as an error with its traceback in `details`. |
+| `is_validation()` | The export only validates the city: its files go to a temporary folder deleted afterwards. |
+| `has_errors()`, `counts()` | What was reported so far. |
+
+An export with errors fails, even with exit code 0: `city.export` fails with `export_failed`, with the items in `details.items`. To report every problem at once, an exporter can go on after an error (skipping the element that failed) and fail at the end. The MM2 exporter does so for each element of the JSON, each block of the PSDL and each file it writes.
+
+A core whose exporter doesn't use `ExportReport` still works: the program takes the lines of its output starting with `Warning:` and `Error:`, and its last error message if it fails.
 
 ## Migrations
 

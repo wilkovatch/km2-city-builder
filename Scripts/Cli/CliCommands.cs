@@ -32,6 +32,8 @@ namespace Cli {
             public string[] flags = new string[0];
             //the command quits the program itself when done (the self-tests)
             public bool quitsItself = false;
+            //the command renders images: the window is hidden instead of closed (see CliRunner.HideWindow)
+            public bool needsWindow = false;
             public System.Action<Invocation> validate;
             public System.Func<CliContext, Task<int>> run;
 
@@ -203,6 +205,11 @@ namespace Cli {
                     run = Serve
                 },
                 new Command {
+                    name = "mcp", summary = "Runs an MCP server (Model Context Protocol) on the standard input and output, for AI agents (renders need a window: don't use --headless; use --quiet)",
+                    values = new[] { "city" }, flags = LoadFlags, needsWindow = true,
+                    run = Mcp
+                },
+                new Command {
                     name = "cores", summary = "Lists the installed cores",
                     values = Output, flags = OutputFlags,
                     run = async ctx => {
@@ -271,6 +278,33 @@ namespace Cli {
                         prms["path"] = Path.GetFullPath(prms["path"].Value<string>());
                         await ctx.Prepare(ctx.inv.positionals[0]);
                         ctx.output.Result(await ctx.Call("city.exportJson", prms));
+                        return 0;
+                    }
+                },
+                new Command {
+                    name = "validate", usage = "<city>", summary = "Validates a city with the exporters of its core (a dry export), prints the warnings and errors, exit code 1 with errors",
+                    positionals = new[] { "city" }, method = "city.validate",
+                    values = Output, flags = Join(LoadFlags, OutputFlags),
+                    run = async ctx => {
+                        var prms = ctx.inv.command.MethodParams(ctx.inv);
+                        await ctx.Prepare(ctx.inv.positionals[0]);
+                        var res = await ctx.Call("city.validate", prms);
+                        ctx.output.Result(res);
+                        return res["ok"]?.Value<bool>() == true ? 0 : 1;
+                    }
+                },
+                new Command {
+                    name = "render", usage = "<city> --out <file>", summary = "Renders an image of a city (view.render: the options are its parameters; needs a window, don't use --headless)",
+                    positionals = new[] { "city" }, method = "view.render", renamed = new Dictionary<string, string> { ["out"] = "path" },
+                    values = Output, flags = Join(LoadFlags, OutputFlags), needsWindow = true,
+                    validate = inv => {
+                        if (!inv.Has("out")) throw new UsageException("render needs --out");
+                    },
+                    run = async ctx => {
+                        var prms = ctx.inv.command.MethodParams(ctx.inv);
+                        prms["path"] = Path.GetFullPath(prms["path"].Value<string>());
+                        await ctx.Prepare(ctx.inv.positionals[0]);
+                        ctx.output.Result(await ctx.Call("view.render", prms));
                         return 0;
                     }
                 },
@@ -436,6 +470,37 @@ namespace Cli {
             return 0;
         }
 
+        // mcp
+
+        //each line of the input is a JSON-RPC message, the responses and notifications are lines of the output; the
+        //messages are handled one at a time, in order (on the input thread: the commands run on the main thread)
+        static async Task<int> Mcp(CliContext ctx) {
+            await ctx.Prepare(ctx.inv.Get("city"));
+            var server = new global::Mcp.McpServer(ctx.dispatcher);
+            void Send(string line) => ctx.output.Line(line);
+            var ended = new System.Threading.ManualResetEventSlim(false);
+            var reader = new System.Threading.Thread(() => {
+                try {
+                    using (var input = new StreamReader(System.Console.OpenStandardInput(), new UTF8Encoding(false))) {
+                        string line;
+                        while ((line = input.ReadLine()) != null) {
+                            line = line.Trim();
+                            if (line.Length == 0) continue;
+                            var response = server.Handle(line, n => Send(n.ToString(Formatting.None))).GetAwaiter().GetResult();
+                            if (response != null) Send(response);
+                        }
+                    }
+                } catch (System.Exception e) when (e is IOException || e is System.ObjectDisposedException) {
+                    //the input was closed
+                }
+                ended.Set();
+            }) { IsBackground = true, Name = "MCP input" };
+            reader.Start();
+            //the request running when the input ends is completed before quitting
+            while (!ended.IsSet || !ctx.dispatcher.IsIdle) await ctx.builder.ToSignal(ctx.builder.GetTree(), "process_frame");
+            return 0;
+        }
+
         // script
 
         static async Task<int> Script(CliContext ctx) {
@@ -537,7 +602,7 @@ namespace Cli {
             return System.Convert.ToString(value, CultureInfo.InvariantCulture);
         }
 
-        static string MethodList(string prefix) {
+        public static string MethodList(string prefix) {
             var names = new List<string>(Api.CommandDispatcher.Methods.Keys);
             names.Sort(System.StringComparer.Ordinal);
             var sb = new StringBuilder();

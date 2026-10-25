@@ -88,6 +88,8 @@ Create `exporters/<format>/settings.json` and `export.py`. The script receives t
 
 Tip: save a test city as plain JSON (*File → Export* and choose the JSON format) to get the export JSON without running the exporter, and develop the exporter against that file.
 
+Report the problems with `ExportReport` (see [Core Python Integration](Core-Python-Integration#warnings-and-errors)) and add a `validation` section to the settings of the exporter: *File → Validate city*, `city.validate` and the `validate` command then check cities with the exporter itself (see [Validation](Validation)).
+
 ## Step 11: publish and maintain
 
 * Push the core to a git repository. Users can install it by cloning it into `Files/cores/<CoreName>/`; to make it installable from the program's core manager, it must be listed in the program's `coreRepos.json`.

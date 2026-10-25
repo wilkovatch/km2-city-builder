@@ -134,8 +134,22 @@ namespace Api {
                 Flush();
                 CreateParentFolder(path);
                 var res = await CityExporter.ExportWithExporterAsync(exp, values, M, path, showConsole, progress);
-                if (!res.success) throw new ApiException("export_failed", res.error, new { exitCode = res.exitCode, output = res.output });
-                return (object)new { path, exitCode = res.exitCode, output = res.output };
+                if (!res.success) throw new ApiException("export_failed", res.error, new { exitCode = res.exitCode, output = res.output, items = res.items });
+                return (object)new { path, exitCode = res.exitCode, output = res.output, items = res.items };
+            });
+        }
+
+        [ApiMethod("city.validate", "Validates the city with the exporters of the core that can (or the one of the format): a dry export to a temporary folder, " +
+            "returning the warnings and errors the exporters reported (level, message, element {name, kind}, code, position, details, exporter); ok: no errors")]
+        public Task<object> Validate(string exporter = null) {
+            RequireCity();
+            var validators = CityValidator.GetValidators(exporter);
+            if (validators.Count == 0) {
+                throw ApiException.NotFound(exporter == null ? "exporter of the core that can validate a city" : "exporter '" + exporter + "' that can validate a city");
+            }
+            return RunLong(async () => {
+                Flush();
+                return (object)await CityValidator.ValidateAsync(M, validators, progress);
             });
         }
 

@@ -54,7 +54,7 @@ What the panels and the mouse tools do to the city is implemented in the operati
 | `ArrayElemEditorPanel` | One element of an `array` or `customElement` parameter. |
 | `CityPropertiesEditorPanel` | The core's city properties. |
 | `NewCityEditorPanel` | New city: terrain size, heightmap resolution, maximum height, core and template. Copies the template into the chosen folder and creates an empty `city.json.gz`. |
-| `SettingsEditorPanel` | Global settings: core management (install, update, uninstall, open folder, add repository) and Python settings. |
+| `SettingsEditorPanel` | Global settings: core management (install, update, uninstall, open folder, add repository), Python settings, camera controls and the [MCP server](MCP-Server) (enabled, port, token, status, the command adding it to Claude Code). |
 | `ProjectSettingsEditorPanel` | City settings: graphics options, global and local extra asset folders, ground overlay. |
 | `PresetEditorPanel` | Entry point for editing road, intersection and building presets. |
 | `TerrainEditorPanel` | Heightmap tools (raise, lower, level) with range, intensity and continuous mode. |
@@ -65,6 +65,7 @@ What the panels and the mouse tools do to the city is implemented in the operati
 | `ObjectListEditorPanel` | Searchable list of the city's objects, with select and zoom. |
 | `TextureListEditorPanel`, `MeshListEditorPanel` | Texture and mesh selectors (with thumbnails and regex search over the city folder and extra folders). |
 | `CustomExporterEditorPanel` | Export dialog of a core exporter: one checkbox per flag. |
+| `ValidationEditorPanel` | The warnings and errors of *File → Validate city* and of an export (see [Validation](Validation)): selecting one highlights its element, with zoom, edit and validate again. |
 | `Helpers/RandomBuildingPresetsManager` | Shared list of building presets used for random generation. |
 
 ## Mouse tools

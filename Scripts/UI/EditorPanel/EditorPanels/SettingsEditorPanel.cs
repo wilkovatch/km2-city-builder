@@ -13,16 +13,20 @@ namespace EditorPanels {
         EditorPanelElements.Dropdown cameraControls;
         EditorPanelElements.Label cameraControlsDescription;
         EditorPanelElements.Button installBtn, uninstallBtn, checkUpdatesBtn, showInfoBtn, openCoreFolderBtn;
+        EditorPanelElements.Checkbox mcpEnabled;
+        EditorPanelElements.InputField mcpPort, mcpToken, mcpCommand;
+        EditorPanelElements.Label mcpStatus;
         List<CM.CoreInfo> curList;
         int curCoreI = -1;
         int curScriptFolderI = -1;
 
         public override void Initialize(GameObject canvas) {
-            pageButtonNames.AddRange(new string[] { SM.Get("PREF_TAB_CORES"), SM.Get("PREF_TAB_PYTHON"), SM.Get("PREF_TAB_CONTROLS") });
-            Initialize(canvas, 3);
+            pageButtonNames.AddRange(new string[] { SM.Get("PREF_TAB_CORES"), SM.Get("PREF_TAB_PYTHON"), SM.Get("PREF_TAB_CONTROLS"), SM.Get("PREF_TAB_MCP") });
+            Initialize(canvas, 4);
             var p0 = GetPage(0);
             var p1 = GetPage(1);
             var p2 = GetPage(2);
+            var p3 = GetPage(3);
             var w = 1.5f;
 
             //Cores
@@ -71,7 +75,54 @@ namespace EditorPanels {
             p2.IncreaseRow();
             p2.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, w);
 
+            //MCP server (Mcp.McpHttp)
+            //(the values are also set when the panel opens: the server is restarted only by a change)
+            mcpEnabled = p3.AddCheckbox(SM.Get("PREF_MCP_ENABLED"), false, x => {
+                if (x == SettingsManager.Get("mcpServerEnabled", false)) return;
+                SettingsManager.Set("mcpServerEnabled", x);
+                Mcp.McpHttp.ApplySettings();
+                ShowMcpStatus();
+            }, w, SM.Get("PREF_MCP_ENABLED_TOOLTIP"));
+            p3.IncreaseRow();
+            mcpPort = p3.AddInputField(SM.Get("PREF_MCP_PORT"), SM.Get("NUMBER_PH"), "", GameEngine.InputContentType.Integer, x => {
+                if (!int.TryParse(x, out var port) || port <= 0 || port > 65535 || port == SettingsManager.Get("mcpServerPort", Mcp.McpHttp.DefaultPort)) return;
+                SettingsManager.Set("mcpServerPort", port);
+                Mcp.McpHttp.ApplySettings();
+                ShowMcpStatus();
+            }, w);
+            p3.IncreaseRow();
+            mcpToken = p3.AddInputField(SM.Get("PREF_MCP_TOKEN"), "", "", GameEngine.InputContentType.Standard, x => {
+                if (string.IsNullOrWhiteSpace(x) || x.Trim() == Mcp.McpHttp.GetToken()) return;
+                SettingsManager.Set("mcpServerToken", x.Trim());
+                Mcp.McpHttp.ApplySettings();
+                ShowMcpStatus();
+            }, w, SM.Get("PREF_MCP_TOKEN_TOOLTIP"));
+            p3.IncreaseRow();
+            p3.AddButton(SM.Get("PREF_MCP_NEW_TOKEN"), delegate {
+                Mcp.McpHttp.NewToken();
+                Mcp.McpHttp.ApplySettings();
+                ShowMcpStatus();
+            }, w);
+            p3.IncreaseRow();
+            mcpStatus = p3.AddLabel("", w);
+            p3.IncreaseRow();
+            mcpCommand = p3.AddInputField(SM.Get("PREF_MCP_COMMAND"), "", "", GameEngine.InputContentType.Standard, x => { }, w, SM.Get("PREF_MCP_COMMAND_TOOLTIP"));
+            p3.IncreaseRow();
+            p3.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, w);
+
             ReloadCoreList(cores, true);
+        }
+
+        void ShowMcpStatus() {
+            var port = SettingsManager.Get("mcpServerPort", Mcp.McpHttp.DefaultPort);
+            var token = Mcp.McpHttp.GetToken();
+            mcpPort.SetValue("" + port);
+            mcpToken.SetValue(token);
+            var current = Mcp.McpHttp.Current;
+            if (current != null) mcpStatus.SetValue(SM.Get("PREF_MCP_STATUS_RUNNING").Replace("$URL", current.Url));
+            else if (Mcp.McpHttp.LastError != null) mcpStatus.SetValue(SM.Get("PREF_MCP_STATUS_ERROR").Replace("$ERROR", Mcp.McpHttp.LastError));
+            else mcpStatus.SetValue(SM.Get("PREF_MCP_STATUS_STOPPED"));
+            mcpCommand.SetValue("claude mcp add --transport http km2-city-builder http://127.0.0.1:" + port + "/mcp --header \"Authorization: Bearer " + token + "\"");
         }
 
         bool OpenCityCheck() {
@@ -289,6 +340,8 @@ namespace EditorPanels {
                 cameraControls.SetValue(scheme);
                 ShowCameraControlsDescription(scheme);
                 emulateMiddle.SetValue(SettingsManager.Get("emulateMiddleButton", false));
+                mcpEnabled.SetValue(SettingsManager.Get("mcpServerEnabled", false));
+                ShowMcpStatus();
             }
             base.SetActive(active);
         }

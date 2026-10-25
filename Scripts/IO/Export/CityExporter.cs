@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 public static class CityExporter {
     public class ExportResult {
@@ -9,6 +10,11 @@ public static class CityExporter {
         public string error; //null on success
         public int exitCode;
         public string output;
+        //the warnings and errors reported by the exporter: level (error, warning, info), message, and optionally element
+        //({name, kind}), code, position, details (see Files/python/ExportReport.py)
+        public List<JObject> items = new List<JObject>();
+
+        public int Count(string level) => items.FindAll(i => i["level"]?.Value<string>() == level).Count;
     }
 
     public static void SaveCity(ElementManager manager, string name, bool gzipped = false) {
@@ -116,14 +122,22 @@ public static class CityExporter {
     }
 
     public static void SaveCityWithExporter(FileBrowserHelper.CustomExporter exporter, List<bool> flags, ElementManager manager, string name) {
-        _ = ExportWithExporterAsync(exporter, flags, manager, name, true);
+        _ = ExportAndShowReport(exporter, flags, manager, name);
     }
 
-    //writes the export JSON next to the output file and runs the exporter on it (in its own console if showConsole)
-    public static async Task<ExportResult> ExportWithExporterAsync(FileBrowserHelper.CustomExporter exporter, List<bool> flags, ElementManager manager, string name,
-        bool showConsole, System.IProgress<(float, string)> progress = null) {
+    //the export of the GUI: the warnings and errors reported are listed afterwards
+    static async Task ExportAndShowReport(FileBrowserHelper.CustomExporter exporter, List<bool> flags, ElementManager manager, string name) {
+        var res = await ExportWithExporterAsync(exporter, flags, manager, name, true);
+        if (res.items.Count > 0) manager.builder.ShowExportReport(res.items);
+    }
 
-        var enc = new CityEncoder.JSON_Export();
+    //writes the export JSON next to the output file and runs the exporter on it (in its own console if showConsole);
+    //validation: a dry export (to a temporary folder) only collecting the warnings and errors
+    public static async Task<ExportResult> ExportWithExporterAsync(FileBrowserHelper.CustomExporter exporter, List<bool> flags, ElementManager manager, string name,
+        bool showConsole, System.IProgress<(float, string)> progress = null, bool validation = false) {
+
+        var reportFile = Path.Combine(Path.GetTempPath(), "km2cb_report_" + System.Guid.NewGuid().ToString("N") + ".jsonl");
+        var enc = new CityEncoder.JSON_Export { report = new IO.ExportedCity.ExportReportInfo { file = reportFile, validation = validation } };
         //not replacing the format: the file may have the format of a flag
         var jsonFile = Path.ChangeExtension(name, ".json");
         var script = exporter.folder + "/export.py";
@@ -145,11 +159,52 @@ public static class CityExporter {
         progressBar.SetProgress(0);
         try {
             var res = await PythonManager.RunScriptTask(script, true, args, showConsole);
-            return new ExportResult { success = res.code == 0, error = res.code == 0 ? null : (res.data ?? "exit code " + res.code), exitCode = res.code, output = res.data };
+            var result = new ExportResult { success = res.code == 0, error = res.code == 0 ? null : (res.data ?? "exit code " + res.code), exitCode = res.code, output = res.data };
+            if (File.Exists(reportFile)) {
+                result.items = ReadReport(reportFile);
+            } else if (res.code == 0 && res.data != null) {
+                //an exporter not writing a report: its printed warnings
+                foreach (var line in res.data.Split('\n')) {
+                    var l = line.Trim();
+                    if (l.StartsWith("Warning:")) result.items.Add(Item("warning", l.Substring(8).Trim()));
+                    else if (l.StartsWith("Error:")) result.items.Add(Item("error", l.Substring(6).Trim()));
+                }
+            }
+            if (res.code != 0 && result.Count("error") == 0) result.items.Add(Item("error", result.error));
+            //the errors reported fail the export, even with exit code 0 (the first one is the message)
+            if (result.Count("error") > 0) {
+                var errors = result.Count("error");
+                result.success = false;
+                result.error = result.items.Find(i => i["level"]?.Value<string>() == "error")["message"]?.Value<string>()
+                    + (errors > 1 ? " (and " + (errors - 1) + " more errors)" : "");
+            }
+            return result;
         } finally {
             if (File.Exists(jsonFile)) File.Delete(jsonFile);
+            if (File.Exists(reportFile)) File.Delete(reportFile);
             progressBar.SetActive(false);
         }
+    }
+
+    static JObject Item(string level, string message) {
+        return new JObject { ["level"] = level, ["message"] = message };
+    }
+
+    //one JSON object per line, the invalid ones as they are (as errors)
+    static List<JObject> ReadReport(string file) {
+        var res = new List<JObject>();
+        foreach (var line in File.ReadAllLines(file)) {
+            if (line.Trim().Length == 0) continue;
+            try {
+                if (JToken.Parse(line) is JObject o && o["level"] != null && o["message"] != null) {
+                    res.Add(o);
+                    continue;
+                }
+            } catch (Newtonsoft.Json.JsonReaderException) {
+            }
+            res.Add(Item("error", "invalid line in the report of the exporter: " + line));
+        }
+        return res;
     }
 
     static void WriteCity(CityEncoder.CityEncoder encoder, ElementManager manager, string filename, System.Action post = null) {

@@ -4,6 +4,8 @@
 - [Quickstart Guide](Quickstart-Guide)
 - [Python Scripts](Python-Scripts)
 - [Command Line](Command-Line)
+- [Validation](Validation)
+- [MCP Server](MCP-Server)
 
 **Program internals**
 - [Architecture Overview](Architecture-Overview)

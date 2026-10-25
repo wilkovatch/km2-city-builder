@@ -145,11 +145,19 @@ public partial class FileBrowserHelper : Control {
         public string formatLabel;
     }
 
+    //the dry export validating a city: the flags by id (the others keep their default)
+    [Serializable]
+    public class CustomExporterValidation {
+        public Dictionary<string, bool> flags;
+    }
+
     [Serializable]
     public struct CustomExporterSettings {
         public string label;
         public string format;
         public CustomExporterFlags[] flags;
+        //optional: the exporter can validate the city (see CityValidator)
+        public CustomExporterValidation validation;
     }
 
     public class CustomExporter {

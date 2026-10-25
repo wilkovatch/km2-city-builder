@@ -528,7 +528,7 @@ public static partial class GameEngine {
                 if (group.ToString().StartsWith(Camera.LayerGroupPrefix)) obj.RemoveFromGroup(group);
             }
             obj.AddToGroup(Camera.LayerGroupPrefix + layer);
-            obj.VisibilityRangeEnd = Camera.GetLayerCullDistance(layer);
+            obj.VisibilityRangeEnd = Camera.GetEffectiveLayerCullDistance(layer);
         }
 
         public static int GetChildCount(Node3D obj) {
@@ -829,7 +829,11 @@ public static partial class GameEngine {
         // are drawn outside the culling mask, so that they stay visible with any camera cull mask.
         // The sun is on it too, since lights outside the camera cull mask are culled as well.
         public const uint OverlayLayer = 1u << 18;
+        // Render layer 18, seen only by the offscreen renders (Rendering.CityRenderer): the highlights of the
+        // elements, and the sun (so that the renders can leave out the overlay layer and still be lit).
+        public const uint RenderOnlyLayer = 1u << 17;
         static readonly float[] layerCullDistances = new float[32];
+        static bool cullDistancesSuspended = false;
 
         public static float GetLayerCullDistance(int layer) {
             return layer >= 0 && layer < layerCullDistances.Length ? layerCullDistances[layer] : 0;
@@ -842,12 +846,29 @@ public static partial class GameEngine {
                 var d = i < distances.Length ? distances[i] : 0;
                 layerCullDistances[i] = d > 0 && d < cam.Far ? d : 0;
             }
-            if (!cam.IsInsideTree()) return;
+            if (!cam.IsInsideTree() || cullDistancesSuspended) return;
+            ApplyLayerCullDistances(cam.GetTree());
+        }
+
+        static void ApplyLayerCullDistances(SceneTree tree) {
             for (int i = 0; i < layerCullDistances.Length; i++) {
-                foreach (var node in cam.GetTree().GetNodesInGroup(LayerGroupPrefix + i)) {
-                    if (node is GeometryInstance3D g) g.VisibilityRangeEnd = layerCullDistances[i];
+                var d = cullDistancesSuspended ? 0 : layerCullDistances[i];
+                foreach (var node in tree.GetNodesInGroup(LayerGroupPrefix + i)) {
+                    if (node is GeometryInstance3D g) g.VisibilityRangeEnd = d;
                 }
             }
+        }
+
+        // Shows the geometry of every layer at any distance (for the offscreen renders, whose camera can be far away),
+        // until resumed.
+        public static void SuspendLayerCullDistances(SceneTree tree, bool suspended) {
+            if (cullDistancesSuspended == suspended) return;
+            cullDistancesSuspended = suspended;
+            ApplyLayerCullDistances(tree);
+        }
+
+        public static float GetEffectiveLayerCullDistance(int layer) {
+            return cullDistancesSuspended ? 0 : GetLayerCullDistance(layer);
         }
     }
 
@@ -873,6 +894,12 @@ public static partial class GameEngine {
         public static void SetSunShadows(Node obj, bool enabled) {
             var light = GetSun(obj);
             if (light != null) light.ShadowEnabled = enabled;
+        }
+
+        // Adds render layers to the sun (lights are culled by the camera cull mask like the geometry)
+        public static void AddSunLayers(Node obj, uint layers) {
+            var light = GetSun(obj);
+            if (light != null) light.Layers |= layers;
         }
     }
 
@@ -2127,6 +2154,11 @@ public static partial class GameEngine {
             ApplyMaterial(terrain, state, material);
             ApplyHeightmap(terrain, state, heights, maxHeight);
             return terrain;
+        }
+
+        // The camera the detail of the terrain follows (Terrain3D centers its mesh on it); null: the camera of the viewport
+        public static void SetCamera(Node3D terrainObj, Camera3D camera) {
+            if (terrainObj is Terrain3D terrain && GodotObject.IsInstanceValid(terrain)) terrain.SetCamera(camera);
         }
 
         public static void SetMaterial(Node3D terrainObj, ShaderMaterial material) {

@@ -54,7 +54,21 @@ namespace Cli {
 
         public static void Start(CityBuilderMenuBar builder) {
             if (!CommandLine.IsCliSession) return;
+            if (CommandLine.Current.command?.needsWindow == true) HideWindow();
             builder.AddChild(new CliRunner { builder = builder, Name = "CliRunner" });
+        }
+
+        //the commands rendering images need a window (there is no renderer with --headless), which is kept out of
+        //the way: small, borderless, without focus and outside of the screens (a minimized window isn't drawn)
+        static void HideWindow() {
+            if (DisplayServer.GetName() == "headless") return;
+            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+            DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.Borderless, true);
+            DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.NoFocus, true);
+            DisplayServer.WindowSetSize(new Vector2I(320, 240));
+            var origin = Vector2I.Zero;
+            for (int i = 0; i < DisplayServer.GetScreenCount(); i++) origin = new Vector2I(System.Math.Min(origin.X, DisplayServer.ScreenGetPosition(i).X), origin.Y);
+            DisplayServer.WindowSetPosition(new Vector2I(origin.X - 20000, 0));
         }
 
         public override void _Ready() {

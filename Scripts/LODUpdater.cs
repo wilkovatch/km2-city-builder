@@ -16,6 +16,12 @@ public partial class LODUpdater : Node {
 
     Camera3D lastCam = null;
     CameraData lastCamData;
+    //the camera the LODs are chosen for instead of the one of the viewport (the offscreen renders), if any
+    static CameraData? overrideData = null;
+
+    public static void SetOverride(CameraData? data) {
+        overrideData = data;
+    }
 
     public static void Register(LODGroup group) {
         if (group.UpdaterIndex >= 0) return;
@@ -58,7 +64,7 @@ public partial class LODUpdater : Node {
     public override void _Process(double delta) {
         var cam = GetViewport().GetCamera3D();
         if (cam == null) return;
-        var camData = GetCameraData(cam);
+        var camData = overrideData ?? GetCameraData(cam);
         var camChanged = cam != lastCam || !camData.Equals(lastCamData);
         lastCam = cam;
         lastCamData = camData;

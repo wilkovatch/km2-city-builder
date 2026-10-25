@@ -196,7 +196,7 @@ namespace Api {
 
         // Exporters
 
-        [ApiMethod("exporters.list", "The exporters of the current core, with their flags")]
+        [ApiMethod("exporters.list", "The exporters of the current core, with their flags; validates: the exporter can validate a city (city.validate)")]
         public object ListExporters() {
             RequireCity();
             var res = new List<object>();
@@ -206,7 +206,8 @@ namespace Api {
                     flags.Add(new { id = f.id, label = SM.GetOrKey(f.label), defaultValue = f.defaultValue, enables = f.enables, disables = f.disables,
                         format = f.format, formatLabel = f.formatLabel != null ? SM.GetOrKey(f.formatLabel) : null });
                 }
-                res.Add(new { format = e.settings.format, formats = CityExporter.GetFormats(e), label = SM.GetOrKey(e.settings.label), flags });
+                res.Add(new { format = e.settings.format, formats = CityExporter.GetFormats(e), label = SM.GetOrKey(e.settings.label), flags,
+                    validates = e.settings.validation != null });
             }
             return res;
         }

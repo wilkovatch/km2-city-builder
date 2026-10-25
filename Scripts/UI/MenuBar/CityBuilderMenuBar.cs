@@ -36,6 +36,7 @@ public partial class CityBuilderMenuBar : Control {
     WholeCityRotationEditorPanel rotateCityPanel = new WholeCityRotationEditorPanel();
     CustomExporterEditorPanel customExporterPanel = new CustomExporterEditorPanel();
     ScriptInputEditorPanel scriptInputEditorPanel = new ScriptInputEditorPanel();
+    internal ValidationEditorPanel validationEditorPanel = new ValidationEditorPanel();
 
     ElementPlacer.RoadPlacer roadPlacer;
     ElementPlacer.TerrainPlacer terrainPlacer;
@@ -122,6 +123,7 @@ public partial class CityBuilderMenuBar : Control {
             SM.Get("RELOAD_CITY"),
             SM.Get("SAVE_CITY"),
             SM.Get("EXPORT_CITY"),
+            SM.Get("VALIDATE_CITY"),
             SM.Get("CLOSE_CITY"),
             SM.Get("EXIT")
         };
@@ -131,6 +133,7 @@ public partial class CityBuilderMenuBar : Control {
             ReloadCity,
             SaveCity,
             ExportCity,
+            ValidateCity,
             CloseCity,
             Quit
         };
@@ -263,7 +266,8 @@ public partial class CityBuilderMenuBar : Control {
             rotateCityPanel,
             customExporterPanel,
             cityPropertiesEditorPanel,
-            scriptInputEditorPanel
+            scriptInputEditorPanel,
+            validationEditorPanel
         };
 
         foreach (var panel in panels) {
@@ -278,6 +282,7 @@ public partial class CityBuilderMenuBar : Control {
         Reload();
         Api.ApiHost.Create(this);
         Cli.CliRunner.Start(this); //only when started with a command on the command line
+        if (!Cli.CommandLine.IsCliSession) Mcp.McpHttp.ApplySettings(); //if enabled in the settings
     }
 
     //the menu actions can change the city (e.g. closing an editor deletes the element left incomplete), so they are undo steps
@@ -981,6 +986,30 @@ public partial class CityBuilderMenuBar : Control {
         DeselectAndCloseCurrentPanel();
         helper.elementManager.CloseCity();
         Reload();
+    }
+
+    //a dry export with the exporters of the core, listing the warnings and errors they report
+    public async void ValidateCity() {
+        if (noCity) {
+            NoCityAlert();
+            return;
+        }
+        DeselectAndCloseCurrentPanel();
+        CityValidator.Result res;
+        try {
+            res = (CityValidator.Result)await Api.ApiHost.Instance.Api.Validate();
+        } catch (Api.ApiException e) {
+            CreateAlert(SM.Get("ERROR"), e.code == "not_found" ? SM.Get("VALIDATION_NOT_AVAILABLE") : e.Message, SM.Get("OK"));
+            return;
+        }
+        DisableAllPanels(validationEditorPanel);
+        validationEditorPanel.Show(res.items, SM.Get("VALIDATION_TITLE"));
+    }
+
+    //the warnings and errors reported by an export
+    public void ShowExportReport(List<Newtonsoft.Json.Linq.JObject> items) {
+        DisableAllPanels(validationEditorPanel);
+        validationEditorPanel.Show(items, SM.Get("EXPORT_REPORT_TITLE"));
     }
 
     void ExportCityToFile(string filename) {
