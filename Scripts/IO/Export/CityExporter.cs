@@ -62,6 +62,21 @@ public static class CityExporter {
         return res;
     }
 
+    //the path with the extension of the format: the extension of another of the given formats is replaced
+    //(e.g. city.psdl or city.psdl.ar to city.ar), any other one is kept as part of the name
+    public static string WithFormat(string path, string format, IEnumerable<string> formats) {
+        var ext = "." + format;
+        var stem = path.EndsWith(ext, System.StringComparison.OrdinalIgnoreCase) ? path.Substring(0, path.Length - ext.Length) : path;
+        var current = Path.GetExtension(stem).TrimStart('.');
+        foreach (var f in formats) {
+            if (SameFormat(f.TrimStart('.'), current)) {
+                stem = stem.Substring(0, stem.Length - current.Length - 1);
+                break;
+            }
+        }
+        return stem + ext;
+    }
+
     //the values of the flags set by the file extension (by flag id): a flag with a format is set only for its format
     public static Dictionary<string, bool> GetFormatFlags(FileBrowserHelper.CustomExporter exporter, string format) {
         var res = new Dictionary<string, bool>();

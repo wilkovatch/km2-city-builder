@@ -129,7 +129,7 @@ namespace Api {
                     if (locked.Contains(key)) throw ApiException.InvalidValue("the flag '" + key + "' can't be set with the values of the others");
                 }
             }
-            if (!path.EndsWith("." + format, System.StringComparison.OrdinalIgnoreCase)) path += "." + format;
+            path = CityExporter.WithFormat(path, format, CityExporter.GetFormats(exp));
             return RunLong(async () => {
                 Flush();
                 CreateParentFolder(path);

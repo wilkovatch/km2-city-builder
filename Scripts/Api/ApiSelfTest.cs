@@ -2194,7 +2194,8 @@ road(-750)
             File.WriteAllBytes(texture, new byte[] { 1, 2, 3, 4 });
             var tempDirs = Directory.GetDirectories(Path.GetTempPath(), "km2_ar_*").Length;
             try {
-                var export = await Send("city.export", new { path = outPath, exporter = format, flags });
+                //named with the main format: the packed archive must not be city.psdl.ar
+                var export = await Send("city.export", new { path = outPath + "." + exporter["format"].Value<string>(), exporter = format, flags });
                 if (export["error"] != null) {
                     Log("FAIL city.export (" + format + "): " + export["error"]);
                     failures++;
@@ -2209,6 +2210,7 @@ road(-750)
                 var dir = Path.GetDirectoryName(Path.GetFullPath(path));
                 Check("city.export with the format " + format + " writes the archive (exit code " + export["result"]["exitCode"] + ")",
                     export["result"]["exitCode"].Value<int>() == 0 && path.EndsWith("." + format) && entries.Contains("city/" + name + "/props.pathset"));
+                Check("the extension of the main format is replaced by the packed one (" + Path.GetFileName(path) + ")", name == "api_export_packed");
                 Check("the archive has the custom textures of the city", entries.Contains("texture/selftest_user.tex"));
                 Check("the archive has no placeholder files", !entries.Any(e => Path.GetFileName(e).StartsWith("_put ")));
                 Check("the packed export leaves no loose files", !File.Exists(Path.Combine(dir, "city", name + ".psdl")) && !Directory.Exists(Path.Combine(dir, "city", name))

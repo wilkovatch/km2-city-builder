@@ -114,15 +114,20 @@ public partial class FileBrowserHelper : Control {
                     string path = null;
                     if (ok && paths != null && paths.Length > 0) {
                         path = paths[0];
-                        if (filterIndex >= 0 && filterIndex < extensions.Count
-                            && !path.EndsWith(extensions[filterIndex], StringComparison.OrdinalIgnoreCase)) {
-                            path += extensions[filterIndex];
+                        if (filterIndex >= 0 && filterIndex < extensions.Count) {
+                            path = CityExporter.WithFormat(path, extensions[filterIndex].TrimStart('.'), extensions);
                         }
                     }
                     Callable.From(() => Finish(path)).CallDeferred();
                 }));
             return;
         }
+        //Godot's dialog appends the extension of the chosen file type to a name with another one (city.psdl.ar)
+        this.post = path => {
+            var ext = Path.GetExtension(path);
+            post?.Invoke(extensions.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                ? CityExporter.WithFormat(path, ext.TrimStart('.'), extensions) : path);
+        };
         ShowDialog(FileDialog.FileModeEnum.SaveFile, SM.Get("SELECT_FILE"), filters);
         dialog.CurrentFile = defaultFile;
     }
