@@ -177,16 +177,16 @@ public partial class CityBuilderMenuBar : Control {
             SM.Get("CHANGE_OVERLAY_TRANSPARENCY"),
             SM.Get("SHOW_ALL_TRAFFIC_LANES"),
             SM.Get("TOGGLE_GROUND_ONLY"),
+            SM.Get("TOGGLE_WIREFRAME"),
             SM.Get("RESET_WINDOW")
-            /*, SM.Get("TOGGLE_WIREFRAME")*/ //TODO: fix wireframe in build
         };
         actions = new List<System.Action> {
             SwitchGrid,
             ChangeOverlayTransparency,
             ShowAllTrafficLanes,
             ToggleGroundOnly,
+            ToggleWireframe,
             ResetWindow
-            /*, ToggleWireframe*/
         };
         menuBar.AddElement(SM.Get("VIEW"), entries, Recorded(entries, actions), GameEngine.Color.black);
 
@@ -855,10 +855,10 @@ public partial class CityBuilderMenuBar : Control {
         }
     }
 
-    /*void ToggleWireframe() {
+    void ToggleWireframe() {
         var cam = GetCameraController();
         if (cam != null) cam.ToggleWireframe();
-    }*/
+    }
 
     void ShowAllTrafficLanes() {
         helper.elementManager.ShowAllTrafficLanes();

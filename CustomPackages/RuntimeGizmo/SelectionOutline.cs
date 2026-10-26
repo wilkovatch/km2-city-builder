@@ -52,7 +52,8 @@ namespace RuntimeGizmos {
         // Called every frame by the gizmo with the renderers of the selected objects
         public void UpdateOutline(List<GeometryInstance3D> renderers) {
             var mainCamera = GetViewport()?.GetCamera3D();
-            SetActive(renderers.Count > 0 && mainCamera != null);
+            //in the wireframe view the fullscreen quad would be drawn as its edges
+            SetActive(renderers.Count > 0 && mainCamera != null && GetViewport().DebugDraw != Viewport.DebugDrawEnum.Wireframe);
             if (!active) return;
 
             //GO.SetLayer overwrites the layers, so the mask layer is reapplied every frame

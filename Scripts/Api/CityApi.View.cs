@@ -139,12 +139,13 @@ namespace Api {
             "The area shown: the elements, bounds [minX, minZ, maxX, maxZ], center and size, or the whole city. " +
             "layers: buildings, terrain, geometry (roads, intersections, patches), meshes, props, helpers (default: all but helpers). " +
             "labels: roads, intersections, patches, lines, meshes or all, labeled with name and id. highlight: elements tinted with highlightColor. " +
-            "overlays: {type: label|marker|polyline, text, position or points or element, color, size, closed}. grid: line spacing in meters. Needs a window (not --headless)")]
+            "overlays: {type: label|marker|polyline, text, position or points or element, color, size, closed}. grid: line spacing in meters. " +
+            "wireframe: the meshes as wireframe, on a plain background unless background or transparent. Needs a window (not --headless)")]
         public async Task<object> Render(string camera = "top", List<ElementRef> elements = null, List<float> bounds = null, Vector3? center = null, float? size = null,
             float margin = 1.1f, float pitch = 50, float yaw = 30, float? distance = null, Vector3? position = null, Vector3? target = null, float fov = 50,
             int width = 1024, int height = 1024, List<string> layers = null, List<string> labels = null, float labelSize = 14,
             List<ElementRef> highlight = null, string highlightColor = null, List<ViewOverlay> overlays = null, float grid = 0, bool scaleBar = false,
-            string background = null, bool transparent = false, bool bestLod = true, string format = "png", float quality = 0.9f, string path = null) {
+            string background = null, bool transparent = false, bool bestLod = true, bool wireframe = false, string format = "png", float quality = 0.9f, string path = null) {
             RequireCity();
             RequireRenderer();
             CheckFormat(format);
@@ -153,7 +154,8 @@ namespace Api {
             }
             var req = new RenderRequest {
                 width = width, height = height, mode = ParseCamera(camera), margin = margin, pitch = pitch, yaw = yaw, distance = distance, fov = fov,
-                labelSize = labelSize, gridSpacing = grid, scaleBar = scaleBar, transparent = transparent, bestLod = bestLod
+                labelSize = labelSize, gridSpacing = grid, scaleBar = scaleBar, transparent = transparent, bestLod = bestLod,
+                wireframe = wireframe
             };
             req.cullMask = RenderLayers.MaskOf(layers, out var unknownLayer);
             if (unknownLayer != null) throw ApiException.InvalidValue("unknown layer '" + unknownLayer + "' (" + string.Join(", ", RenderLayers.Groups.Keys) + ")");

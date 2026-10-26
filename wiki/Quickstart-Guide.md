@@ -186,6 +186,7 @@ You can display an image on the ground as a guide for placing roads (e.g. a map 
 
 - *View→Show all traffic lanes* shows the traffic lanes of all the roads.
 - *View→Toggle ground only view mode* hides everything except the ground, which is useful while editing it.
+- *View→Toggle wireframe* shows the meshes as wireframe, on a plain background.
 - *View→Reset window* restores the default window size.
 - The rendering mode, the shadows and the props culling distance are in *Edit→Project settings→Graphics*.
 

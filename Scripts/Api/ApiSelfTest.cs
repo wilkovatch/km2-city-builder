@@ -2207,6 +2207,47 @@ road(-750)
             for (int y = 0; loaded && y < 600; y += 37) for (int x = 0; x < 800; x += 41) colors.Add(image.GetPixel(x, y));
             Check("the render isn't uniform (" + colors.Count + " colors sampled)", colors.Count > 10);
             image.SavePng(Path.Combine(folder, "..", "view_top.png"));
+            //the roads only (most of the image is background), as wireframe and solid on the same background
+            var bg = GameEngine.Camera.WireframeBackground;
+            var wireImage = new Image();
+            var solidImage = new Image();
+            var wire = await Call("view.render", new { width = 400, height = 300, layers = new[] { "geometry" }, wireframe = true });
+            var solid = await Call("view.render", new { width = 400, height = 300, layers = new[] { "geometry" }, background = "#" + bg.ToHtml(false) });
+            var wireLoaded = wireImage.LoadPngFromBuffer(System.Convert.FromBase64String(wire["image"].Value<string>())) == Error.Ok
+                && solidImage.LoadPngFromBuffer(System.Convert.FromBase64String(solid["image"].Value<string>())) == Error.Ok;
+            //compared with the solid render, since the background goes through the tonemapping of the environment too
+            var corner = wireLoaded ? wireImage.GetPixel(0, 0) : Colors.Transparent;
+            var solidCorner = wireLoaded ? solidImage.GetPixel(0, 0) : Colors.Black;
+            Check("the wireframe render has the plain background (" + corner.ToHtml(false) + ", " + solidCorner.ToHtml(false) + ")", wireLoaded
+                && Mathf.Abs(corner.R - solidCorner.R) < 0.02f && Mathf.Abs(corner.G - solidCorner.G) < 0.02f && Mathf.Abs(corner.B - solidCorner.B) < 0.02f);
+            int differing = 0;
+            for (int y = 0; wireLoaded && y < 300; y++) for (int x = 0; x < 400; x++) {
+                if (!solidImage.GetPixel(x, y).IsEqualApprox(wireImage.GetPixel(x, y))) differing++;
+            }
+            Check("the wireframe render differs from the solid one (" + differing + " pixels)", differing > 200);
+            if (wireLoaded) wireImage.SavePng(Path.Combine(folder, "..", "view_wireframe.png"));
+
+            //the wireframe view of the editor (View menu), with the ambient light of the rendering mode kept on its environment
+            var editorCam = builder.GetViewport().GetCamera3D() as CameraController;
+            if (editorCam != null) {
+                await Call("view.focus", new { @ref = "Intersection 1" });
+                var before = await Call("view.screenshot");
+                var on = editorCam.ToggleWireframe();
+                var during = await Call("view.screenshot");
+                var renderingMode = PreferencesManager.Get("renderingMode", 0);
+                builder.SetCameraRenderingMode(1);
+                var ambientSynced = editorCam.Environment?.AmbientLightColor.IsEqualApprox(Colors.White) == true;
+                builder.SetCameraRenderingMode(renderingMode);
+                var off = editorCam.ToggleWireframe();
+                Check("the editor wireframe view toggles on and off", on && !off && editorCam.Environment == null
+                    && builder.GetViewport().DebugDraw == Viewport.DebugDrawEnum.Disabled);
+                Check("the editor wireframe view changes the view", before["image"].Value<string>() != during["image"].Value<string>());
+                Check("the wireframe view keeps the ambient light of the rendering mode", ambientSynced);
+                var duringImage = new Image();
+                if (duringImage.LoadPngFromBuffer(System.Convert.FromBase64String(during["image"].Value<string>())) == Error.Ok) {
+                    duringImage.SavePng(Path.Combine(folder, "..", "view_editor_wireframe.png"));
+                }
+            }
             var label = ((JArray)res["labels"]).FirstOrDefault(l => l["name"].Value<string>() == "Intersection 1");
             Check("the labels have the intersections, in the image", label != null && label["inView"].Value<bool>());
             if (label != null) {

@@ -832,6 +832,8 @@ public static partial class GameEngine {
         // Render layer 18, seen only by the offscreen renders (Rendering.CityRenderer): the highlights of the
         // elements, and the sun (so that the renders can leave out the overlay layer and still be lit).
         public const uint RenderOnlyLayer = 1u << 17;
+        // Background of the wireframe view (the editor's and the offscreen renders'), instead of the sky
+        public static readonly Godot.Color WireframeBackground = new Godot.Color(0.12f, 0.12f, 0.13f);
         static readonly float[] layerCullDistances = new float[32];
         static bool cullDistancesSuspended = false;
 
@@ -884,6 +886,12 @@ public static partial class GameEngine {
             if (env == null) return;
             env.AmbientLightSource = Godot.Environment.AmbientSource.Color;
             env.AmbientLightColor = color;
+            //the copy of the camera (the wireframe view) is kept the same
+            var camEnv = obj.GetViewport().GetCamera3D()?.Environment;
+            if (camEnv != null && camEnv != env) {
+                camEnv.AmbientLightSource = Godot.Environment.AmbientSource.Color;
+                camEnv.AmbientLightColor = color;
+            }
         }
 
         public static void SetSunEnabled(Node obj, bool enabled) {

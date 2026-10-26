@@ -76,10 +76,20 @@ public partial class CameraController : Camera3D {
 
     bool wireframe = false;
 
-    /*public void ToggleWireframe() { //TODO: fix in build
+    public bool ToggleWireframe() {
         wireframe = !wireframe;
-        cam.clearFlags = wireframe ? CameraClearFlags.SolidColor : CameraClearFlags.Skybox;
-    }*/
+        GetViewport().DebugDraw = wireframe ? Viewport.DebugDrawEnum.Wireframe : Viewport.DebugDrawEnum.Disabled;
+        if (wireframe) {
+            //a copy of the world environment (same ambient light) with a plain background instead of the sky
+            var env = GetWorld3D()?.Environment?.Duplicate() as Godot.Environment ?? new Godot.Environment();
+            env.BackgroundMode = Godot.Environment.BGMode.Color;
+            env.BackgroundColor = GameEngine.Camera.WireframeBackground;
+            cam.Environment = env;
+        } else {
+            cam.Environment = null;
+        }
+        return wireframe;
+    }
 
     public bool ToggleGroundOnly() {
         //render layers mirror the layers (see GameEngine.GameObject.SetLayer), the overlay one is for the gizmo
@@ -92,13 +102,6 @@ public partial class CameraController : Camera3D {
             return false;
         }
     }
-
-    /*void OnPreRender() {
-        GL.wireframe = wireframe;
-    }
-    void OnPostRender() {
-        GL.wireframe = false;
-    }*/
 
     void Rotate() {
         var mousePoint = GetMousePoint();

@@ -45,6 +45,8 @@ namespace Rendering {
         public bool transparent = false;
         //every LOD group at its most detailed level, and no culling distances (otherwise: as seen by the render camera)
         public bool bestLod = true;
+        //the meshes drawn as wireframe, on GameEngine.Camera.WireframeBackground unless background or transparent
+        public bool wireframe = false;
 
         //the meshes of these nodes are tinted with the color, over everything
         public List<Node> highlights = new List<Node>();

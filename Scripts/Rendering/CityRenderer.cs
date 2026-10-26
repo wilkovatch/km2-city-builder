@@ -43,6 +43,7 @@ namespace Rendering {
                 Size = new Vector2I(w, h),
                 Msaa3D = Viewport.Msaa.Msaa4X,
                 TransparentBg = req.transparent,
+                DebugDraw = req.wireframe ? Viewport.DebugDrawEnum.Wireframe : Viewport.DebugDrawEnum.Disabled,
                 RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
                 GuiDisableInput = true
             };
@@ -65,10 +66,10 @@ namespace Rendering {
             } else {
                 GameEngine.Lighting.AddSunLayers(this, GameEngine.Camera.RenderOnlyLayer);
             }
-            if (req.background != null || req.transparent) {
+            if (req.background != null || req.transparent || req.wireframe) {
                 var env = (cam.Environment ?? sv.World3D?.Environment ?? sv.World3D?.FallbackEnvironment)?.Duplicate() as Godot.Environment ?? new Godot.Environment();
                 env.BackgroundMode = req.transparent ? Godot.Environment.BGMode.ClearColor : Godot.Environment.BGMode.Color;
-                env.BackgroundColor = req.background ?? new Color(0, 0, 0, 0);
+                env.BackgroundColor = req.background ?? (req.transparent ? new Color(0, 0, 0, 0) : GameEngine.Camera.WireframeBackground);
                 cam.Environment = env;
             }
             var res = new RenderResult { mode = req.mode };
