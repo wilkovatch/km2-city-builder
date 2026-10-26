@@ -4,8 +4,9 @@ using GS = GameEngine.Scriptable;
 using GO = GameEngine.GameObject;
 
 namespace Operations {
-    //Drawing a road point by point: the points added at its end, and its connections to road ends, intersections and the
-    //middle of other roads (which are split). Used by the road placer for the clicks and by the API for the same actions.
+    //Drawing a road point by point: the points added at its end (or before its start), and its connections to road ends,
+    //intersections and the middle of other roads (which are split). Used by the road placer for the clicks and by the API for
+    //the same actions.
     public class RoadDrawing {
         readonly ElementManager manager;
         Road curRoad = null;
@@ -42,7 +43,8 @@ namespace Operations {
             if (!pendingStartSplit.HasValue) return false;
             var pending = pendingStartSplit.Value;
             var road = GetRoad(false);
-            return road != null && road.points.Count > 0 && road.points[0] == pending.firstPoint
+            //the first point placed is the end of the road if the second one was added before it
+            return road != null && road.points.Count > 0 && (road.points[0] == pending.firstPoint || road.points[road.points.Count - 1] == pending.firstPoint)
                 && !GO.IsNull(pending.road) && !pending.road.deleted;
         }
 
@@ -86,28 +88,37 @@ namespace Operations {
             if (intersection != null) startIntersectionPoint = intersection.point;
         }
 
-        //connects the road to a road end or an intersection
-        void ConnectTo(Node3D otherRoadHandle) {
+        //connects the end (or the start) of the road to a road end or an intersection
+        void ConnectTo(Node3D otherRoadHandle, bool atStart) {
             if (GetRoad().points.Count == 0) {
                 GetRoad().AddPoint(GO.GetPosition(otherRoadHandle));
                 GS.Cast<Handle>(GetRoad().points[0]).SetScale(GameEngine.Vector3.one * 5);
                 startIntersectionPoint = otherRoadHandle;
             } else {
                 if (startIntersectionPoint == null) {
-                    PlaceIntersection(otherRoadHandle);
+                    PlaceIntersection(otherRoadHandle, true, atStart);
                 } else {
                     if (GetRoad().points.Count == 1 && startIntersectionPoint == otherRoadHandle) return;
-                    GetRoad().AddPoint(GO.GetPosition(otherRoadHandle));
-                    PlaceIntersection(startIntersectionPoint, false);
-                    startIntersectionPoint = null;
-                    GetRoad().RemovePoint(true);
-                    PlaceIntersection(otherRoadHandle);
+                    //the first point is connected as the other end of the road
+                    if (!atStart) {
+                        GetRoad().AddPoint(GO.GetPosition(otherRoadHandle));
+                        PlaceIntersection(startIntersectionPoint, false);
+                        startIntersectionPoint = null;
+                        GetRoad().RemovePoint(true);
+                        PlaceIntersection(otherRoadHandle);
+                    } else {
+                        GetRoad().AddPoint(GO.GetPosition(otherRoadHandle), 0, GameEngine.Vector2.zero);
+                        PlaceIntersection(startIntersectionPoint, false, false);
+                        startIntersectionPoint = null;
+                        GetRoad().RemoveFirstPoint(true);
+                        PlaceIntersection(otherRoadHandle, true, true);
+                    }
                 }
             }
         }
 
-        //connects the road to the middle of another road, splitting it
-        public void ConnectToMiddle(Road otherRoad, Vector3 point) {
+        //connects the end (or the start) of the road to the middle of another road, splitting it
+        public void ConnectToMiddle(Road otherRoad, Vector3 point, bool atStart = false) {
             var road = GetRoad();
             if (road.points.Count == 0) {
                 road.AddPoint(point);
@@ -124,23 +135,26 @@ namespace Operations {
             Node3D otherRoadHandle = null;
             ExecutePendingStartSplit(ref otherRoadHandle, splitParts);
             var intersection = SplitRoad(otherRoad, point, ref otherRoadHandle, splitParts);
-            if (intersection != null) ConnectTo(intersection.point);
+            if (intersection != null) ConnectTo(intersection.point, atStart);
         }
 
-        //connects the road to a road end or an intersection, after splitting the road its start is on
-        public void ConnectToHandle(Node3D otherRoadHandle) {
+        //connects the end (or the start) of the road to a road end or an intersection, after splitting the road its first point is on
+        public void ConnectToHandle(Node3D otherRoadHandle, bool atStart = false) {
             ExecutePendingStartSplit(ref otherRoadHandle, new Dictionary<Road, Road>());
-            ConnectTo(otherRoadHandle);
+            ConnectTo(otherRoadHandle, atStart);
         }
 
-        //adds a point (at the given index, at the end if -1), connecting the start of the road if it was placed on a road end, an intersection or the middle of a road
+        //adds a point (at the given index, at the end if -1), connecting the first point placed if it was on a road end, an
+        //intersection or the middle of a road (as the start of the road, as its end if the new point is added before it)
         public void AddPoint(Vector3 point, int index = -1) {
             var road = GetRoad();
-            road.AddPoint(point, index);
+            //a new first point, without the rotation of the curve (as a new last point)
+            var prepend = index == 0 && road.points.Count > 0;
+            road.AddPoint(point, index, prepend ? GameEngine.Vector2.zero : null);
             Node3D noHandle = null;
             ExecutePendingStartSplit(ref noHandle, new Dictionary<Road, Road>());
             if (startIntersectionPoint != null) {
-                PlaceIntersection(startIntersectionPoint, false);
+                PlaceIntersection(startIntersectionPoint, false, !prepend);
                 startIntersectionPoint = null;
             }
         }
@@ -155,13 +169,16 @@ namespace Operations {
             return GS.FindRecursive<Intersection.IntersectionComponent>(handle) != null;
         }
 
-        //connects the current road to the road end or intersection of the handle (at its start if addPoint is false)
-        public void PlaceIntersection(Node3D otherRoadHandle, bool addPoint = true) {
+        //connects the current road to the road end or intersection of the handle, with a new point there if addPoint is true
+        //(at its end, at its start if atStart is true; by default the start if no point is added, the end otherwise)
+        public void PlaceIntersection(Node3D otherRoadHandle, bool addPoint = true, bool? atStart = null) {
+            var start = atStart ?? !addPoint;
             var otherRoad = GS.FindInParent<Road>(otherRoadHandle);
             var intersectionComponent = GS.FindRecursive<Intersection.IntersectionComponent>(otherRoadHandle);
             if (otherRoad != null || intersectionComponent != null) {
                 var proj = GO.GetPosition(otherRoadHandle);
                 var road = GetRoad();
+                if ((start ? road.startIntersection : road.endIntersection) != null) return;
                 //the links are set directly on both roads and on the intersection
                 History.UndoManager.Touch(road);
                 History.UndoManager.Touch(otherRoad);
@@ -170,7 +187,10 @@ namespace Operations {
                     History.UndoManager.Touch(otherRoad.startIntersection);
                     History.UndoManager.Touch(otherRoad.endIntersection);
                 }
-                if (addPoint) road.AddPoint(proj);
+                if (addPoint) {
+                    if (start) road.AddPoint(proj, 0, GameEngine.Vector2.zero);
+                    else road.AddPoint(proj);
+                }
                 Intersection intersection;
                 if (intersectionComponent == null) {
                     var isStart = otherRoadHandle == otherRoad.points[0];
@@ -190,7 +210,7 @@ namespace Operations {
                     intersection = intersectionComponent.intersection;
                 }
                 intersection.roads.Add(road);
-                if (!addPoint) {
+                if (start) {
                     road.startIntersection = intersection;
                 } else {
                     road.endIntersection = intersection;

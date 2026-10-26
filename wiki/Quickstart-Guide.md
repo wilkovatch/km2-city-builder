@@ -119,7 +119,7 @@ Objects made of points (roads, terrain patches and building lines) have a *Point
 
 - *None*: no points are added, you can click on the existing points to select and move them
 - *Add*: clicking on the ground adds a point at the end
-- other modes depend on the object type (e.g. *Insert after selected* and *Split road* for roads, *Internal* for terrain patches, *Dividing point* for building lines)
+- other modes depend on the object type (e.g. *Add before first*, *Insert after selected*, *Add before selected* and *Split road* for roads, *Internal* for terrain patches, *Dividing point* for building lines)
 
 New objects start in *Add* mode; when an existing object is selected again the mode is *None*.
 
@@ -216,7 +216,7 @@ The control points describe a curve: a Bézier curve by default, it can be chang
 
 To keep the control points away from the ground, uncheck *Project CPs to ground*.
 
-To add more control points to an existing road, select *Add* in the placement mode dropdown (or *Insert after selected* to insert new points after the selected one). To move the control points, set the placement mode to *None* and drag them.
+To add more control points to an existing road, select *Add after last* in the placement mode dropdown, or *Add before first* to extend the road backwards from its start (clicking a road end, an intersection or the middle of a road connects the start of the road there, and *Remove point* removes the first point). *Insert after selected* and *Add before selected* insert new points after or before the selected one. To move the control points, set the placement mode to *None* and drag them.
 
 The road properties are divided in several tabs (*Main*, *Inters.*, *Traffic*, *Divider*, *Props*, ..., depending on the core).
 

@@ -21,28 +21,29 @@ namespace Api {
             return drawing;
         }
 
-        //a click of the road tool in add mode, then an update of the city as between two clicks
-        void AddRoadPoint(Operations.RoadDrawing drawing, PointTarget t) {
+        //a click of the road tool in add mode (add before first if atStart), then an update of the city as between two clicks
+        void AddRoadPoint(Operations.RoadDrawing drawing, PointTarget t, bool atStart = false) {
             if (t == null) throw ApiException.InvalidParam("missing point");
             var road = drawing.GetRoad();
-            if (road.endIntersection != null) throw ApiException.InvalidOperation("the road already ends at an intersection");
+            if (!atStart && road.endIntersection != null) throw ApiException.InvalidOperation("the road already ends at an intersection");
+            if (atStart && road.startIntersection != null) throw ApiException.InvalidOperation("the road already starts at an intersection");
             if (t.FormCount() != 1) throw ApiException.InvalidParam("a road point needs exactly one of position, roadEnd, intersection, roadMiddle");
             if (t.roadEnd != null) {
                 var other = Resolve<Road>(t.roadEnd.road, "road");
                 if (other == road) throw ApiException.InvalidOperation("a road can't be connected to itself");
                 if (t.roadEnd.end != "start" && t.roadEnd.end != "end") throw ApiException.InvalidValue("end must be 'start' or 'end'");
-                drawing.ConnectToHandle(t.roadEnd.end == "start" ? other.points[0] : other.points[other.points.Count - 1]);
+                drawing.ConnectToHandle(t.roadEnd.end == "start" ? other.points[0] : other.points[other.points.Count - 1], atStart);
             } else if (t.intersection != null) {
                 var intersection = Resolve<Intersection>(t.intersection, "intersection");
-                drawing.ConnectToHandle(intersection.point);
+                drawing.ConnectToHandle(intersection.point, atStart);
             } else if (t.roadMiddle != null) {
                 var other = Resolve<Road>(t.roadMiddle.road, "road");
                 if (other == road) throw ApiException.InvalidOperation("a road can't be connected to its own middle");
                 var res = other.splitLine.Resolve(t.roadMiddle.near);
                 if (!res.HasValue) throw ApiException.InvalidOperation("the road has no free part to connect to");
-                drawing.ConnectToMiddle(other, res.Value.point);
+                drawing.ConnectToMiddle(other, res.Value.point, atStart);
             } else if (t.position.HasValue) {
-                drawing.AddPoint(t.onGround ? GeometryHelper.ProjectPoint(t.position.Value) : t.position.Value);
+                drawing.AddPoint(t.onGround ? GeometryHelper.ProjectPoint(t.position.Value) : t.position.Value, atStart ? 0 : -1);
             } else {
                 throw ApiException.InvalidParam("terrain points, anchors and links can't be road points");
             }
@@ -90,12 +91,12 @@ namespace Api {
             });
         }
 
-        [ApiMethod("roads.extend", "Adds a point at the end of a road, as with the road tool in add mode (a road end, an intersection or the middle of a road connect the road there)")]
-        public void ExtendRoad(ElementRef road, PointTarget point) {
+        [ApiMethod("roads.extend", "Adds a point at the end of a road (before its start if atStart), as with the road tool in add after last (add before first) mode (a road end, an intersection or the middle of a road connect the road there)")]
+        public void ExtendRoad(ElementRef road, PointTarget point, bool atStart = false) {
             ApplyChange("add road point", () => {
                 var r = Resolve<Road>(road, "road");
                 History.UndoManager.Touch(r);
-                AddRoadPoint(GetDrawing(r), point);
+                AddRoadPoint(GetDrawing(r), point, atStart);
             });
         }
 
@@ -104,6 +105,9 @@ namespace Api {
             ApplyChange("insert road point", () => {
                 var r = Resolve<Road>(road, "road");
                 if (index < 0 || index > r.points.Count) throw ApiException.InvalidValue("index out of range (0-" + r.points.Count + ")");
+                if (r.points.Count > 0 && ((index == 0 && r.startIntersection != null) || (index == r.points.Count && r.endIntersection != null))) {
+                    throw ApiException.InvalidOperation("a point can't be inserted beyond an end on an intersection");
+                }
                 History.UndoManager.Touch(r);
                 GetDrawing(r).AddPoint(onGround ? GeometryHelper.ProjectPoint(position) : position, index);
             });

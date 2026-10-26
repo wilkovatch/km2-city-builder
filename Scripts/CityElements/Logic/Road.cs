@@ -85,10 +85,13 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         GS.Cast<Handle>(point).SetColor(GameEngine.Color.cyan);
     }
 
-    void MarkLastPoint() {
+    //the end the new points are added to (the first point while the road is extended backwards)
+    public bool markFirstPoint = false;
+
+    void MarkEditedEnd() {
         ResetColors();
         if (points.Count > 0) {
-            GS.Cast<Handle>(points[points.Count - 1]).SetColor(GameEngine.Color.yellow);
+            GS.Cast<Handle>(points[markFirstPoint ? 0 : points.Count - 1]).SetColor(GameEngine.Color.yellow);
         }
     }
 
@@ -115,7 +118,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         }
         //the other roads can be connected to the middle of this one while their points are placed
         splitLine.SetActive(!active && activeIntersection && points.Count >= 2);
-        if (active) MarkLastPoint();
+        if (active) MarkEditedEnd();
 
         //while the road is edited, its ends on the intersections are selected and moved instead of the intersections
         //(which follow them): the handles of the intersections are hidden, the ones of the ends are as big
@@ -149,7 +152,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             startIntersection = null;
             if (points.Count > 0) GS.Cast<Handle>(points[0]).SetScale(GameEngine.Vector3.one); //the end is a plain point again
         }
-        else if (endIntersection != null) {
+        else if (!start && endIntersection != null) {
             endIntersection.RemoveRoad(this);
             endIntersection = null;
             if (points.Count > 0) GS.Cast<Handle>(points[points.Count - 1]).SetScale(GameEngine.Vector3.one);
@@ -164,7 +167,9 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
 
     //a point inserted in the middle without a rotation gets the one the curve has there, so that the road keeps its shape
     public void AddPoint(Vector3 point, int position = -1, Vector2? rotation = null) {
-        if (endIntersection != null && position == -1) return;
+        //never past the ends on intersections
+        if (endIntersection != null && (position == -1 || position >= points.Count)) return;
+        if (startIntersection != null && position == 0 && points.Count > 0) return;
         History.UndoManager.Touch(this);
         var inserted = position >= 0 && position < points.Count;
         var newRotation = rotation ?? (inserted ? GetRotationNear(point) : GameEngine.Vector2.zero);
@@ -180,7 +185,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         else {
             points.Insert(position, newObj);
         }
-        MarkLastPoint();
+        MarkEditedEnd();
     }
 
     // Rotation of the control points (yaw and roll of the sections, relative to the direction of the curve)
@@ -394,8 +399,18 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             points.RemoveAt(points.Count - 1);
             GO.Destroy(obj);
             DetachFromIntersection(false);
-            MarkLastPoint();
+            MarkEditedEnd();
         }
+    }
+
+    public void RemoveFirstPoint(bool force = false) {
+        if (points.Count < 3 && !force) return;
+        History.UndoManager.Touch(this);
+        var obj = points[0];
+        points.RemoveAt(0);
+        GO.Destroy(obj);
+        DetachFromIntersection(true);
+        MarkEditedEnd();
     }
 
     //sets the control points to the given positions and rotations (none: no rotation), used by undo/redo and when
@@ -424,7 +439,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             GetHandle(points[i]).curveRotation = ClampRotation(rotation);
         }
         generator.lr.enabled = activeSelf && points.Count > 0;
-        MarkLastPoint();
+        MarkEditedEnd();
     }
 
     public void RemoveControlPoints(List<PhysicsGameObject> toRemove) {
@@ -433,7 +448,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             if (points.Count <= 2 || !points.Remove(point)) continue;
             GO.Destroy(point);
         }
-        MarkLastPoint();
+        MarkEditedEnd();
     }
 
     void UpdateCurve() { //TODO: detect actual point/terrain update, instead of every frame

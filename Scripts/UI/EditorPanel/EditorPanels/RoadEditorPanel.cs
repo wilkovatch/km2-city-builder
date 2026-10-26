@@ -45,7 +45,8 @@ namespace EditorPanels {
                 System.Func<ObjectState, ObjectState> setter = x => { GetCurRoad().SetState((ObjectState)x.Clone()); return GetCurRoad().GetState(); };
                 pS.AddPresetLoadAndSaveDropdown(p, SM.Get("ROAD_PRESET"), true, "road", setter, getter, false, null, null, null, w);
 
-                var placementModes = new List<string> { SM.Get("RD_PM_NONE"), SM.Get("RD_PM_ADD"), SM.Get("RD_PM_INSERT"), SM.Get("RD_PM_SPLIT") };
+                var placementModes = new List<string> { SM.Get("RD_PM_NONE"), SM.Get("RD_PM_ADD"), SM.Get("RD_PM_ADD_BEFORE_FIRST"),
+                    SM.Get("RD_PM_INSERT"), SM.Get("RD_PM_INSERT_BEFORE"), SM.Get("RD_PM_SPLIT") };
                 pointPlacementModeDropdown = p.AddDropdown(SM.Get("RD_POINT_PLACEMENT_MODE"), placementModes, LoadPointPlacementMode, w);
                 if (pS.EditingPreset()) pointPlacementModeDropdown.SetInteractable(false);
                 p.IncreaseRow();
@@ -274,10 +275,13 @@ namespace EditorPanels {
 
         void LoadPointPlacementMode(int mode) {
             if (GetPlacer() != null && GetCurRoad(false) != null) {
-                GetPlacer().placementMode = (ElementPlacer.RoadPlacer.PlacementMode)mode;
+                var placementMode = (ElementPlacer.RoadPlacer.PlacementMode)mode;
+                GetPlacer().placementMode = placementMode;
                 pointPlacementModeDropdown.SetValue(mode);
                 //the intersection points (other roads' free ends and existing intersections) must be visible and clickable while placing points
-                builder.helper.elementManager.ShowIntersections(mode == (int)ElementPlacer.RoadPlacer.PlacementMode.Add);
+                builder.helper.elementManager.ShowIntersections(placementMode == ElementPlacer.RoadPlacer.PlacementMode.Add
+                    || placementMode == ElementPlacer.RoadPlacer.PlacementMode.AddBeforeFirst);
+                GetCurRoad().markFirstPoint = placementMode == ElementPlacer.RoadPlacer.PlacementMode.AddBeforeFirst;
                 GetCurRoad().SetActive(true);
             }
         }
@@ -309,8 +313,13 @@ namespace EditorPanels {
             return true;
         }
 
+        //from the end the points are added to
         void RemovePoint() {
-            Operations.Roads.RemoveLastPoint(GetCurRoad());
+            if (GetPlacer()?.placementMode == ElementPlacer.RoadPlacer.PlacementMode.AddBeforeFirst) {
+                Operations.Roads.RemoveFirstPoint(GetCurRoad());
+            } else {
+                Operations.Roads.RemoveLastPoint(GetCurRoad());
+            }
             builder.NotifyChange();
         }
 
@@ -342,6 +351,8 @@ namespace EditorPanels {
 
         public void Terminate(bool auto) {
             if (GetPlacer() != null) GetPlacer().placementMode = ElementPlacer.RoadPlacer.PlacementMode.None;
+            var road = GetCurRoad(false);
+            if (road != null) road.markFirstPoint = false;
             SetPlacePoint(false);
             ClearEmptyRoad();
             GetCurRoad()?.SetActive(false);

@@ -24,6 +24,11 @@ namespace Operations {
             road?.RemovePoint();
         }
 
+        //removes the first control point (detaching the road from its start intersection)
+        public static void RemoveFirstPoint(Road road) {
+            road?.RemoveFirstPoint();
+        }
+
         public static void Delete(Road road) {
             road.Delete();
         }

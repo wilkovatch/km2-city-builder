@@ -1337,7 +1337,11 @@ namespace History {
                     Check("split: no control points of the " + typeName + " road parts inside the intersection of the split without a connected road", pointsInside == 0);
                 }));
             }
+            await RunSteps(steps);
+        }
 
+        //runs and checks the steps, then undoes and redoes all of them comparing the snapshots
+        async Task RunSteps(List<(string name, System.Action action, System.Action check)> steps) {
             var snaps = new List<Dictionary<int, string>> { Snapshot() };
             foreach (var step in steps) {
                 try {
@@ -1484,6 +1488,200 @@ namespace History {
             await Frames(6);
         }
 
+        static float DistanceXZ(Vector3 a, Vector3 b) => new Vector2(a.X - b.X, a.Z - b.Z).Length();
+
+        //the roads extended backwards: points added before the first one, connections made at the start
+        async Task BackwardsTests() {
+            UndoManager.Clear();
+            await Frames(6);
+            //away from the roads of the split tests
+            Road a = null, b = null, c = null, f = null, d = null, e = null, g = null;
+            ElementPlacer.RoadPlacer placerA = null;
+            Vector3 P(Road r, int i) => GO.GetPosition(r.points[i < 0 ? r.points.Count + i : i]);
+            bool Joins(Intersection i, params Road[] roads) => i != null && !i.IsDeleted() && i.roads.Count == roads.Length && System.Array.TrueForAll(roads, i.roads.Contains);
+            Road NewRoad(params Vector3[] points) {
+                var road = new ElementPlacer.RoadPlacer(M).GetRoad();
+                foreach (var p in points) road.AddPoint(p);
+                return road;
+            }
+            var steps = new List<(string name, System.Action action, System.Action check)>();
+
+            steps.Add(("backwards: create roads", () => {
+                a = NewRoad(new Vector3(-200, 0, 800), new Vector3(0, 0, 820), new Vector3(200, 0, 800));
+                b = NewRoad(new Vector3(-900, 0, 600), new Vector3(-500, 0, 700));
+                c = NewRoad(new Vector3(300, 0, 900), new Vector3(500, 0, 910), new Vector3(800, 0, 900));
+                f = NewRoad(new Vector3(-900, 0, 980), new Vector3(-600, 0, 960), new Vector3(-300, 0, 980));
+                placerA = new ElementPlacer.RoadPlacer(M);
+                placerA.SetRoad(a);
+            }, () => {
+                Check("backwards: the roads are created", a.points.Count == 3 && b.points.Count == 2 && c.points.Count == 3 && f.points.Count == 3);
+            }));
+
+            steps.Add(("backwards: add a point before the first one", () => {
+                placerA.Drawing.AddPoint(new Vector3(-350, 0, 780), 0);
+            }, () => {
+                Check("backwards: the new point is the first one, the old first one follows", a.points.Count == 4
+                    && DistanceXZ(P(a, 0), new Vector3(-350, 0, 780)) < 0.01f && DistanceXZ(P(a, 1), new Vector3(-200, 0, 800)) < 0.01f
+                    && a.startIntersection == null && a.endIntersection == null);
+                Check("backwards: the new first point has no rotation", a.GetPointRotations()[0] == Vector2.Zero);
+                var placer = new ElementPlacer.RoadPlacer(M);
+                placer.SetRoad(a);
+                var results = new List<int>();
+                foreach (var (mode, target) in new (ElementPlacer.RoadPlacer.PlacementMode, StaticBody3D)[] {
+                    (ElementPlacer.RoadPlacer.PlacementMode.Add, null), (ElementPlacer.RoadPlacer.PlacementMode.AddBeforeFirst, null),
+                    (ElementPlacer.RoadPlacer.PlacementMode.Insert, a.points[2]), (ElementPlacer.RoadPlacer.PlacementMode.InsertBefore, a.points[2]),
+                    (ElementPlacer.RoadPlacer.PlacementMode.InsertBefore, a.points[0]) }) {
+                    placer.placementMode = mode;
+                    results.Add(placer.GetNewPointIndex(target));
+                }
+                Log("  backwards: placer indices " + string.Join(" ", results));
+                Check("backwards: add after last, add before first, insert after and before the selected point", string.Join(" ", results) == "-1 0 3 2 0");
+            }));
+
+            steps.Add(("backwards: insert a point before the selected one", () => {
+                placerA.Drawing.AddPoint(new Vector3(-100, 0, 815), 2);
+            }, () => {
+                Check("backwards: the point is inserted before the selected one", a.points.Count == 5 && DistanceXZ(P(a, 2), new Vector3(-100, 0, 815)) < 0.01f
+                    && DistanceXZ(P(a, 3), new Vector3(0, 0, 820)) < 0.01f);
+            }));
+
+            steps.Add(("backwards: connect the start to a road end", () => {
+                placerA.Drawing.ConnectToHandle(b.points[b.points.Count - 1], true);
+            }, () => {
+                Check("backwards: the start of the road is on the intersection with the road end", a.points.Count == 6 && Joins(a.startIntersection, a, b)
+                    && b.endIntersection == a.startIntersection && a.endIntersection == null && DistanceXZ(P(a, 0), new Vector3(-500, 0, 700)) < 0.01f);
+                //refused, nothing changes
+                placerA.Drawing.AddPoint(new Vector3(-600, 0, 760), 0);
+                Check("backwards: no point is added before a start on an intersection", a.points.Count == 6);
+                var placer = new ElementPlacer.RoadPlacer(M) { placementMode = ElementPlacer.RoadPlacer.PlacementMode.InsertBefore };
+                placer.SetRoad(a);
+                var canBeforeFirst = placer.CanInsertNextTo(a.points[0]);
+                var canBeforeSecond = placer.CanInsertNextTo(a.points[1]);
+                placer.placementMode = ElementPlacer.RoadPlacer.PlacementMode.Insert;
+                var canAfterLast = placer.CanInsertNextTo(a.points[a.points.Count - 1]);
+                Check("backwards: points are inserted before the selected one only inside the road", !canBeforeFirst && canBeforeSecond && canAfterLast);
+            }));
+
+            steps.Add(("backwards: remove the first point", () => {
+                Operations.Roads.RemoveFirstPoint(a);
+            }, () => {
+                Check("backwards: the first point is removed, the start detached", a.points.Count == 5 && a.startIntersection == null
+                    && DistanceXZ(P(a, 0), new Vector3(-350, 0, 780)) < 0.01f && (b.endIntersection == null || !b.endIntersection.roads.Contains(a)));
+            }));
+
+            var middle = Vector3.Zero;
+            steps.Add(("backwards: connect the start to the middle of a road", () => {
+                M.ShowIntersections(true);
+                middle = f.splitLine.Resolve(new Vector3(-600, 0, 960)).Value.point;
+                placerA.Drawing.ConnectToMiddle(f, middle, true);
+            }, () => {
+                Log("  backwards: " + a.points.Count + " points, start on " + (a.startIntersection?.roads.Count ?? 0) + " roads, first point "
+                    + DistanceXZ(P(a, 0), middle) + " m from the split point");
+                Check("backwards: the start of the road is on the middle of the other one", a.points.Count == 6 && Joins(a.startIntersection, a, f, LastRoad())
+                    && f.endIntersection == a.startIntersection && a.endIntersection == null && DistanceXZ(P(a, 0), middle) < 0.5f);
+            }));
+
+            steps.Add(("backwards: start a road on a road end, then add a point before it", () => {
+                var placer = new ElementPlacer.RoadPlacer(M);
+                d = placer.GetRoad();
+                placer.Drawing.ConnectToHandle(c.points[0], true);
+                placer.Drawing.AddPoint(new Vector3(150, 0, 850), 0);
+            }, () => {
+                Check("backwards: the road ends on the road end it was started on", d.points.Count == 2 && Joins(d.endIntersection, d, c)
+                    && c.startIntersection == d.endIntersection && d.startIntersection == null && DistanceXZ(P(d, -1), new Vector3(300, 0, 900)) < 0.01f
+                    && DistanceXZ(P(d, 0), new Vector3(150, 0, 850)) < 0.01f);
+                var placer = new ElementPlacer.RoadPlacer(M) { placementMode = ElementPlacer.RoadPlacer.PlacementMode.Insert };
+                placer.SetRoad(d);
+                Check("backwards: no point is inserted after an end on an intersection", !placer.CanInsertNextTo(d.points[1]));
+            }));
+
+            steps.Add(("backwards: start a road on the middle of a road, then add a point before it", () => {
+                var placer = new ElementPlacer.RoadPlacer(M);
+                e = placer.GetRoad();
+                placer.Drawing.ConnectToMiddle(c, c.splitLine.Resolve(new Vector3(600, 0, 905)).Value.point, true);
+                placer.Drawing.AddPoint(new Vector3(600, 0, 700), 0);
+            }, () => {
+                Check("backwards: the road ends on the middle of the road it was started on", e.points.Count == 2 && e.endIntersection != null
+                    && e.endIntersection.roads.Count == 3 && c.endIntersection == e.endIntersection && e.startIntersection == null
+                    && DistanceXZ(P(e, 0), new Vector3(600, 0, 700)) < 0.01f);
+            }));
+
+            steps.Add(("backwards: start a road on a road end, then connect a point before it", () => {
+                var placer = new ElementPlacer.RoadPlacer(M);
+                g = placer.GetRoad();
+                placer.Drawing.ConnectToHandle(b.points[0], true);
+                placer.Drawing.ConnectToHandle(f.points[0], true);
+            }, () => {
+                Check("backwards: the road starts on the second road end and ends on the first one", g.points.Count == 2 && Joins(g.startIntersection, g, f)
+                    && Joins(g.endIntersection, g, b) && f.startIntersection == g.startIntersection && b.startIntersection == g.endIntersection
+                    && DistanceXZ(P(g, 0), new Vector3(-900, 0, 980)) < 0.01f && DistanceXZ(P(g, -1), new Vector3(-900, 0, 600)) < 0.01f);
+            }));
+
+            await RunSteps(steps);
+        }
+
+        //the add before first mode of the road editor, with a real click on the terrain
+        async Task BackwardsModeTest() {
+            InvokeBuilder("DeselectAndCloseCurrentPanel");
+            await Frames(6);
+            //the free road of the backwards tests
+            Road road = null;
+            foreach (var r in M.roads) {
+                if (ElementSnapshot.IsAlive(r) && r.points.Count == 2 && r.startIntersection == null && r.endIntersection != null
+                    && DistanceXZ(GO.GetPosition(r.points[0]), new Vector3(150, 0, 850)) < 0.01f) road = r;
+            }
+            Check("backwards mode: a road with a free start", road != null);
+            if (road == null) return;
+            var roadPanel = Panel<EditorPanels.RoadEditorPanel>("roadEditorPanel");
+            ElementPlacer.RoadPlacer Placer() => builder.terrainClick.modifier as ElementPlacer.RoadPlacer;
+            builder.SelectObject(road, true, null);
+            roadPanel.SetPointPlacementMode((int)ElementPlacer.RoadPlacer.PlacementMode.AddBeforeFirst);
+            await Frames(6);
+            Check("backwards mode: the editor is in add before first mode, the first point marked", Placer()?.placementMode == ElementPlacer.RoadPlacer.PlacementMode.AddBeforeFirst
+                && road.markFirstPoint);
+
+            var point = new Vector3(0, 0, 700);
+            var cam = GetViewport().GetCamera3D();
+            GO.SetPosition(cam, point + new Vector3(0, 250, -250));
+            GO.LookAt(cam, point);
+            await Frames(6);
+            GetViewport().WarpMouse(cam.UnprojectPosition(GameEngine.Vector3.DecodePosition(point)));
+            await Frames(6);
+            var count = road.points.Count;
+            var before = Snapshot();
+            InputEventMouseButton Click(bool pressed) => new InputEventMouseButton {
+                ButtonIndex = MouseButton.Left, Pressed = pressed, Position = GetViewport().GetMousePosition(), GlobalPosition = GetViewport().GetMousePosition()
+            };
+            Godot.Input.ParseInputEvent(Click(true));
+            await Frames(2);
+            Godot.Input.ParseInputEvent(Click(false));
+            await Frames(6);
+            var after = Snapshot();
+            Check("backwards mode: clicking the terrain adds a point before the first one", road.points.Count == count + 1
+                && DistanceXZ(GO.GetPosition(road.points[0]), point) < 1.0f && road.endIntersection != null);
+
+            InvokeBuilder("Undo");
+            await Frames(6);
+            Log((Compare("undo backwards mode click", before, Snapshot()) ? "OK   " : "FAIL ") + "undo backwards mode click");
+            Check("backwards mode: the editor is reopened in add before first mode after undo", roadPanel.ActiveSelf()
+                && Placer()?.placementMode == ElementPlacer.RoadPlacer.PlacementMode.AddBeforeFirst);
+            InvokeBuilder("Redo");
+            await Frames(6);
+            Log((Compare("redo backwards mode click", after, Snapshot()) ? "OK   " : "FAIL ") + "redo backwards mode click");
+
+            //remove point removes the first point in this mode
+            var edited = Placer()?.GetRoad(false);
+            var first = edited == null ? Vector3.Zero : GO.GetPosition(edited.points[1]);
+            count = edited?.points.Count ?? 0;
+            typeof(EditorPanels.RoadEditorPanel).GetMethod("RemovePoint", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(roadPanel, null);
+            await Frames(6);
+            Check("backwards mode: remove point removes the first point", edited != null && edited.points.Count == count - 1
+                && DistanceXZ(GO.GetPosition(edited.points[0]), first) < 0.01f && edited.endIntersection != null);
+            InvokeBuilder("DeselectAndCloseCurrentPanel");
+            await Frames(6);
+            Check("backwards mode: the first point is no longer marked after closing the editor", edited != null && !edited.markFirstPoint);
+        }
+
         async void RunSplit() {
             var lastCity = SettingsManager.Get("LastCity", "");
             try {
@@ -1491,6 +1689,8 @@ namespace History {
                 await SplitTests();
                 await SplitLinesScreenshot();
                 await SplitModeTest();
+                await BackwardsTests();
+                await BackwardsModeTest();
             } catch (System.Exception e) {
                 Log("exception: " + e);
                 failures++;

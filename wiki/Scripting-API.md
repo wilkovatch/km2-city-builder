@@ -338,7 +338,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 |---|---|---|---|
 | `roads.create` | `points: point[]`<br>`preset: string = null`<br>`type: string = null` | int | Creates a road through the points (in order, as clicked with the road tool). The first point can be a road end, an intersection or the middle of a road, and so can the last one |
 | `roads.delete` | `road: ref` | - | Deletes a road (and the intersections left with no road) |
-| `roads.extend` | `road: ref`<br>`point: point` | - | Adds a point at the end of a road, as with the road tool in add mode (a road end, an intersection or the middle of a road connect the road there) |
+| `roads.extend` | `road: ref`<br>`point: point`<br>`atStart: bool = false` | - | Adds a point at the end of a road (before its start if atStart), as with the road tool in add after last (add before first) mode (a road end, an intersection or the middle of a road connect the road there) |
 | `roads.insertPoint` | `road: ref`<br>`index: int`<br>`position: vec3`<br>`onGround: bool = false` | - | Inserts a control point at the index, as with the road tool in insert mode |
 | `roads.split` | `road: ref`<br>`near: vec3` | object | Splits a road at the point of its free part (outside the intersections at its ends) closest to near, as with the road tool in split mode: the road keeps the first part, a new road with the same properties gets the second one, and a new seamless intersection connects them (see intersections.setSeamless). Returns {newRoad, intersection} |
 | `roads.movePoint` | `road: ref`<br>`index: int`<br>`position: vec3`<br>`onGround: bool = false` | - | Moves a control point of a road |

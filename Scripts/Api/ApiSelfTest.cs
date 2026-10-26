@@ -461,6 +461,20 @@ namespace Api {
             var roadE = e.Value<int>();
             await Call("roads.extend", new { road = roadE, point = Pos(-500, 450) });
             Check("roads.extend adds a point", Len((await Derived(roadE))["points"]) == 4);
+            //extended backwards, undone after
+            await Call("roads.extend", new { road = roadE, point = Pos(-900, 380), atStart = true });
+            var ePoints = (await Derived(roadE))["points"];
+            Check("roads.extend atStart adds a point before the first one", Len(ePoints) == 5 && System.Math.Abs(ePoints[0][0].Value<float>() + 900) < 0.01f
+                && System.Math.Abs(ePoints[1][0].Value<float>() + 800) < 0.01f);
+            var roadF = (await Call("roads.create", new { points = new[] { Pos(-950, 700), Pos(-950, 500) } })).Value<int>();
+            await Call("roads.extend", new { road = roadE, point = new { roadEnd = new { road = roadF, end = "end" } }, atStart = true });
+            var eDerived = await Derived(roadE);
+            Check("roads.extend atStart connects the start of the road", eDerived["startIntersection"].Type != JTokenType.Null
+                && eDerived["startIntersection"].Value<int>() == (await Derived(roadF))["endIntersection"].Value<int>() && eDerived["endIntersection"].Type == JTokenType.Null);
+            await Expect("a road can't continue before its start intersection", "invalid_operation", "roads.extend", new { road = roadE, point = Pos(-950, 300), atStart = true });
+            await Expect("no point inserted before a start on an intersection", "invalid_operation", "roads.insertPoint", new { road = roadE, index = 0, position = V(-950, 0, 300) });
+            for (int u = 0; u < 3; u++) await Call("history.undo");
+            Check("undo removes the points added before the start", Len((await Derived(roadE))["points"]) == 4);
             var removed = await Call("roads.removePoint", new { road = roadE });
             Check("removing the last point keeps the road", !removed["deleted"].Value<bool>());
             await CheckUndo("road deleted", () => Call("roads.delete", new { road = roadE }));
