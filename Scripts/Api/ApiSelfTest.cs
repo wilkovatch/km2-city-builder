@@ -2299,9 +2299,9 @@ road(-750)
                 && items.Any(i => i["level"].Value<string>() == "error" && i["element"]?["name"]?.Value<string>() == "Intersection 1" && i["exporter"] != null));
             Check("city.validate leaves no temporary files", Leftovers() == before);
 
-            //File > Validate city: the panel lists the items
+            //File > Validate city: the panel lists the items (the menu entries run in an undo step)
             if (DisplayServer.GetName() != "headless") {
-                builder.ValidateCity();
+                History.UndoManager.Record("Validate city", builder.ValidateCity);
                 var waited = 0;
                 while (!builder.validationEditorPanel.ActiveSelf() && waited++ < 1200) await Frames(1);
                 await Frames(5);

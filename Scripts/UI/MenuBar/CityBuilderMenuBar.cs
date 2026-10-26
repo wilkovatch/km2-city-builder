@@ -995,6 +995,10 @@ public partial class CityBuilderMenuBar : Control {
             return;
         }
         DeselectAndCloseCurrentPanel();
+        //the menu entry and the panel buttons run in an undo step, which keeps the history busy: the validation
+        //(a long operation of the API) starts once it is closed
+        await ToSignal(GetTree(), "process_frame");
+        if (noCity) return;
         CityValidator.Result res;
         try {
             res = (CityValidator.Result)await Api.ApiHost.Instance.Api.Validate();
