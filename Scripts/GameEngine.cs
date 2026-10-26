@@ -783,6 +783,7 @@ public static partial class GameEngine {
 
         public static bool GetInputStart(KeyCommand command) {
             if (command == KeyCommand.Select && emulatedMiddleDown) return false;
+            if (NumericFieldDrag.BlocksInput) return false;
             if (mouseMapping.ContainsKey(command)) {
                 return Godot.Input.IsActionJustPressed(command.ToString());
             }
@@ -799,6 +800,7 @@ public static partial class GameEngine {
 
         public static bool GetInputPressed(KeyCommand command) {
             if (command == KeyCommand.Select && emulatedMiddleDown) return false;
+            if (NumericFieldDrag.BlocksInput) return false;
             if (mouseMapping.ContainsKey(command)) {
                 return Godot.Input.IsActionPressed(command.ToString());
             }

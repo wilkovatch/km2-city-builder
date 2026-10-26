@@ -9,6 +9,10 @@ using Godot;
 /// </summary>
 public partial class TextInputFocus : Node {
     public override void _Input(InputEvent @event) {
+        if (NumericFieldDrag.HandleInput(@event)) {
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         if (@event is not InputEventMouseButton { Pressed: true } mouseButton) return;
         if (mouseButton.ButtonIndex != MouseButton.Left && mouseButton.ButtonIndex != MouseButton.Right
             && mouseButton.ButtonIndex != MouseButton.Middle) return;

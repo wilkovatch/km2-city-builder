@@ -38,6 +38,10 @@ namespace EditorPanelElements {
                 InputFieldChanged();
                 parentPanel.CheckFieldsInteractabilityDelayed();
             });
+            NumericFieldDrag.Attach(inputField, false, delegate {
+                InputFieldChanged();
+                parentPanel.CheckFieldsInteractabilityDelayed();
+            });
         }
 
         public override void SetInteractable(bool interactable) {

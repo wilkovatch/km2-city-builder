@@ -37,6 +37,10 @@ namespace EditorPanelElements {
                     ChangeValue();
                     parentPanel.CheckFieldsInteractabilityDelayed();
                 });
+                NumericFieldDrag.Attach(field, false, delegate {
+                    ChangeValue();
+                    parentPanel.CheckFieldsInteractabilityDelayed();
+                });
             }
         }
 

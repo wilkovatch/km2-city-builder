@@ -108,6 +108,7 @@ Runs every frame before the gizmo. When a tool (`modifier`, a `TerrainAction`) i
 | `StringManager` | Translated strings, see [Settings, Paths and Python](Settings-Paths-and-Python#stringmanager). |
 | `UIDetection`, `UIInputTracker` | Decide whether a mouse press was consumed by the UI, so that clicks on panels and dropdowns do not reach the world. `UIInputTracker` is an autoload. |
 | `TextInputFocus` | Autoload with the input field focus rules (losing focus on any click elsewhere, end-of-edit events), so that editor shortcuts are not blocked by a focused field. |
+| `NumericFieldDrag` | Middle button drag on the numeric input fields: right/up increases the value, left/down decreases it, by 1% of the value per pixel (at least 0.01 for decimals, 0.2 for integers; Ctrl x0.1, Shift snaps to the nearest integer as with the gizmo). Applied at most once per frame; a whole drag is one undo step (`CurrentKey`, used as coalesce key by `EditorPanelPage`), Escape or another button restores the starting value. While dragging the mouse is captured, and the editor shortcuts and the camera ignore the input (`BlocksInput`). |
 | `TextFit` | Text wrapping and best-fit sizing on Godot labels and buttons. |
 | `UILayout` | Helpers to place controls with rect values (anchors, pivot, size delta) and to create the default flat styles. |
 | `RuntimeTheme.tres` | The Godot theme used by the whole UI. |

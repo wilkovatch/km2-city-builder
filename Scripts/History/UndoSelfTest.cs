@@ -22,18 +22,20 @@ namespace History {
         //new: a new city in the folder; props: a copy of an existing city, its road props selected again; ui: a copy of an
         //existing city, the editors open before undo/redo must be reopened after it; split: only the tests of the roads
         //connected to the middle of other roads, on a new city; load: a copy of an existing city, the terrain under its
-        //intersections is edited, undone and redone
-        public static readonly string[] Modes = { "new", "props", "ui", "split", "load" };
+        //intersections is edited, undone and redone; drag: the middle mouse drag of the numeric fields, on a new city
+        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag" };
 
         public static void Start(CityBuilderMenuBar builder, string folder, string mode) {
             builder.AddChild(new UndoSelfTest {
                 builder = builder, folder = folder, Name = "UndoSelfTest",
-                propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", loadExisting = mode == "load"
+                propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", loadExisting = mode == "load",
+                dragOnly = mode == "drag"
             });
         }
 
         bool propsSelection = false;
         bool splitOnly = false;
+        bool dragOnly = false;
 
         static object Invoke(object obj, string name, params object[] args) {
             for (var type = obj.GetType(); type != null; type = type.BaseType) {
@@ -690,6 +692,7 @@ namespace History {
             else if (propsSelection) RunPropsSelection();
             else if (loadExisting) RunOnExistingCity();
             else if (splitOnly) RunSplit();
+            else if (dragOnly) RunDrag();
             else Run();
         }
 
@@ -1699,6 +1702,152 @@ namespace History {
             Log("finished with " + failures + " failures");
             File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
             GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        async void RunDrag() {
+            var lastCity = SettingsManager.Get("LastCity", "");
+            try {
+                await LoadNewCity();
+                await DragTests();
+            } catch (System.Exception e) {
+                Log("exception: " + e);
+                failures++;
+            }
+            SettingsManager.Set("LastCity", lastCity);
+            Log("finished with " + failures + " failures");
+            File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
+            GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        //the middle mouse drag on the numeric fields of the road editor, with real mouse events through the viewport
+        async Task DragTests() {
+            var road = new ElementPlacer.RoadPlacer(M).GetRoad();
+            road.AddPoint(new Vector3(0, 0, 0));
+            road.AddPoint(new Vector3(60, 0, 0));
+            road.AddPoint(new Vector3(120, 0, 10));
+            await Frames(6);
+            builder.SelectObject(road, true, null);
+            await Frames(6);
+            UndoManager.FinalizePending();
+            UndoManager.Clear();
+            var roadPanel = Panel<EditorPanels.RoadEditorPanel>("roadEditorPanel");
+
+            LineEdit FindField(string fieldName) {
+                var pages = (List<EditorPanelPage>)typeof(EditorPanel).GetField("pages", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(roadPanel);
+                for (int i = 0; i < pages.Count; i++) {
+                    var elements = (Dictionary<EditorPanelElement, FieldStatus>)Field(pages[i], "fieldElements");
+                    foreach (var pair in elements) {
+                        if (pair.Value.fieldName != fieldName) continue;
+                        roadPanel.ShowPage(i);
+                        return (LineEdit)Field(pair.Key, "inputField");
+                    }
+                }
+                return null;
+            }
+            object Value(string fieldName) => FieldStatus.GetValue(road, fieldName);
+            void Send(InputEvent @event) => Input.ParseInputEvent(@event);
+            async Task Drag(LineEdit field, Vector2 motion, int count, bool shift = false, bool cancel = false, bool ctrl = false) {
+                var pos = field.GetGlobalRect().GetCenter();
+                Input.WarpMouse(pos);
+                await Frames(2);
+                Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, Position = pos, GlobalPosition = pos, ButtonMask = MouseButtonMask.Middle });
+                await Frames(2);
+                for (int i = 0; i < count; i++) {
+                    Send(new InputEventMouseMotion { Relative = motion, Position = pos, GlobalPosition = pos, ButtonMask = MouseButtonMask.Middle, ShiftPressed = shift, CtrlPressed = ctrl });
+                    await Frames(1);
+                }
+                await Frames(2);
+                if (cancel) {
+                    Send(new InputEventKey { Keycode = Key.Escape, PhysicalKeycode = Key.Escape, Pressed = true });
+                    await Frames(2);
+                    Send(new InputEventKey { Keycode = Key.Escape, PhysicalKeycode = Key.Escape, Pressed = false });
+                }
+                Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false, Position = pos, GlobalPosition = pos });
+                await Frames(6);
+                UndoManager.FinalizePending();
+            }
+
+            //integer field, dragged right: one undo step for the whole drag
+            var segments = FindField("state.properties.segments");
+            Check("the road editor has the segments field", segments != null);
+            if (segments == null) return;
+            await Frames(3);
+            var segments0 = System.Convert.ToInt32(Value("state.properties.segments"));
+            var camera = GetViewport().GetCamera3D();
+            var cameraTransform = camera.GlobalTransform;
+            var before = Snapshot();
+            var count = UndoCount();
+            var pressed = false;
+            var pos0 = segments.GetGlobalRect().GetCenter();
+            Input.WarpMouse(pos0);
+            await Frames(2);
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, Position = pos0, GlobalPosition = pos0, ButtonMask = MouseButtonMask.Middle });
+            await Frames(2);
+            pressed = NumericFieldDrag.IsDragging;
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false, Position = pos0, GlobalPosition = pos0 });
+            await Frames(3);
+            Check("a middle press on a numeric field starts a drag, the release ends it", pressed && !NumericFieldDrag.IsDragging);
+            Check("a drag without motion records nothing (" + (UndoCount() - count) + " new entries)", UndoCount() == count);
+            await Drag(segments, new Vector2(10, 0), 10);
+            var segments1 = System.Convert.ToInt32(Value("state.properties.segments"));
+            Log("segments: " + segments0 + " -> " + segments1 + " (field '" + segments.Text + "')");
+            Check("dragging right increases an integer field and its value", segments1 > segments0 && segments.Text == segments1.ToString());
+            Check("the drag is a single undo step (" + (UndoCount() - count) + " new entries)", UndoCount() == count + 1);
+            Check("the mouse is visible again after the drag", Input.MouseMode == Input.MouseModeEnum.Visible);
+            var after = Snapshot();
+            UndoManager.Undo();
+            await Frames(6);
+            Compare("undo of the drag", before, Snapshot());
+            Check("undo of the drag restores the value", System.Convert.ToInt32(Value("state.properties.segments")) == segments0);
+            UndoManager.Redo();
+            await Frames(6);
+            Compare("redo of the drag", after, Snapshot());
+
+            //two drags are two steps
+            count = UndoCount();
+            await Drag(segments, new Vector2(0, -10), 5); //up: positive too
+            var segments2 = System.Convert.ToInt32(Value("state.properties.segments"));
+            await Drag(segments, new Vector2(-10, 0), 5);
+            var segments3 = System.Convert.ToInt32(Value("state.properties.segments"));
+            Log("segments: " + segments1 + " -> " + segments2 + " -> " + segments3);
+            Check("dragging up increases, dragging left decreases", segments2 > segments1 && segments3 < segments2);
+            Check("two drags are two undo steps (" + (UndoCount() - count) + " new entries)", UndoCount() == count + 2);
+
+            //escape restores the starting value and records nothing
+            count = UndoCount();
+            before = Snapshot();
+            await Drag(segments, new Vector2(10, 0), 5, cancel: true);
+            Log("segments after the canceled drag: " + Value("state.properties.segments") + " (field '" + segments.Text + "')");
+            Check("escape restores the value of the field", System.Convert.ToInt32(Value("state.properties.segments")) == segments3 && segments.Text == segments3.ToString());
+            Check("a canceled drag records nothing (" + (UndoCount() - count) + " new entries)", UndoCount() == count);
+            Compare("canceled drag", before, Snapshot());
+            Check("escape during a drag leaves the road editor open", roadPanel.IsOpen());
+            Check("the drags do not move the camera", camera.GlobalTransform.IsEqualApprox(cameraTransform));
+
+            //decimal field: the step is proportional to the value, Shift makes it 10 times smaller
+            var size = FindField("state.properties.endCrosswalkSize");
+            Check("the road editor has the end crosswalk size field", size != null);
+            if (size == null) return;
+            await Frames(3);
+            float Size() => System.Convert.ToSingle(Value("state.properties.endCrosswalkSize"));
+            var size0 = Size();
+            await Drag(size, new Vector2(10, 0), 5);
+            var size1 = Size();
+            await Drag(size, new Vector2(10, 0), 5, ctrl: true);
+            var size2 = Size();
+            Log("end crosswalk size: " + size0 + " -> " + size1 + " -> " + size2 + " (field '" + size.Text + "')");
+            Check("dragging right increases a decimal field", size1 > size0);
+            Check("with Ctrl the change is about 10 times smaller", size2 > size1 && Mathf.Abs((size1 - size0) / (size2 - size1) - 10) < 3);
+            await Drag(size, new Vector2(10, 0), 3, shift: true);
+            var size3 = Size();
+            await Drag(size, new Vector2(10, 0), 12, shift: true);
+            var size4 = Size();
+            Log("end crosswalk size with Shift: " + size2 + " -> " + size3 + " -> " + size4 + " (field '" + size.Text + "')");
+            Check("with Shift the value snaps to the nearest integer", size3 == Mathf.Round(size3) && size4 == Mathf.Round(size4) && size.Text == size4.ToString());
+            Check("with Shift the snapped value moves on from one integer to the next", size4 > size3);
+            await Drag(size, new Vector2(-10, 0), 100);
+            Log("end crosswalk size after dragging left: " + Size() + " (field '" + size.Text + "')");
+            Check("dragging left goes below zero", Size() < 0);
         }
 
         async void Run() {

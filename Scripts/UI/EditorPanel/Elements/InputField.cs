@@ -24,6 +24,12 @@ namespace EditorPanelElements {
                 ChangeValue();
                 parentPanel.CheckFieldsInteractabilityDelayed();
             });
+            if (contentType != GameEngine.InputContentType.Standard) {
+                NumericFieldDrag.Attach(inputField, contentType == GameEngine.InputContentType.Integer, delegate {
+                    ChangeValue();
+                    parentPanel.CheckFieldsInteractabilityDelayed();
+                });
+            }
         }
 
         void ChangeValue() {

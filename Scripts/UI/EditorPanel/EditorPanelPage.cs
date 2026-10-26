@@ -420,8 +420,10 @@ public class EditorPanelPage {
     }
 
     //every change made from the panel is an undo step, recording the element edited by the panel before it
-    //(continuous controls like sliders pass a coalesce key, so that a drag is a single step)
+    //(continuous controls like sliders pass a coalesce key, so that a drag is a single step,
+    //the middle mouse drag of the numeric fields has a key of its own for each drag)
     void Recorded(string label, System.Action action, object coalesceKey = null) {
+        coalesceKey = NumericFieldDrag.CurrentKey ?? coalesceKey;
         object target = null;
         try {
             target = container?.GetUndoTarget();

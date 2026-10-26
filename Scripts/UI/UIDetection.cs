@@ -19,7 +19,7 @@ public class UIDetection {
     public static bool OnUI() {
         var loop = Engine.GetMainLoop() as SceneTree;
         if (loop?.CurrentScene == null) return false;
-        if (PressConsumedByUI()) return true;
+        if (PressConsumedByUI() || NumericFieldDrag.BlocksInput) return true; //the captured mouse of the drag can be anywhere
         var viewport = loop.Root.GetViewport();
         var hovered = viewport.GuiGetHoveredControl();
         while (hovered != null) {
