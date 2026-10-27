@@ -19,6 +19,9 @@ The classes in `Scripts/IO` save and load cities, export them for the core expor
 | `terrainPoints` | Every terrain point, with what it is anchored to: `linkType` (`None`, `Point`: an anchor of a road or intersection, `Line`: a point on a link between two terrain points), `elementType` + `elementId` + `anchorIndex` to find the anchor, `percent` for line links, and the `dividing` flag. |
 | `terrainPatches` | `id`, `name`, `state`, perimeter and internal point ids, `borderMeshes` (state, instance state, segment point ids). |
 | `buildingLines` | `id`, `name`, `state`, `instanceState`, line point ids, `buildings` (states) and `sides` (states). |
+| `lowLevelElements` | `id`, `name`, `state` (type and parameters; reference parameters as `{kind, id}` with the indices of the save), `points` (the structure of the control points of the type, with terrain point ids), `meshVertices` (terrain point ids), `triangles`, `uvs`, `containerId` (-1 if none), `source` (`{kind, id}` of the ghost it replaces). |
+
+Roads and intersections have `ghost` when they were replaced by low-level elements, the terrain points `rotation` when they are rotatable points of low-level elements (both left out otherwise).
 
 Vectors and quaternions use the serializable structs from `States.Utils` and are in program coordinates. Element states are `ObjectState`s, so they appear as plain JSON objects with the parameter names as keys.
 
@@ -73,6 +76,7 @@ Top-level structure (`ExportedCity`):
 | `terrainPatches` | `data`, perimeter and internal points, `borderMeshes` (`fields` + `segment`). |
 | `buildingLines` | `data`, `linePoints`, `sides`, `roof`, `buildings` (each with `front`, `left`, `right`, `back` sides, `roof` and splines). Each side has its merged `data.mesh`, plus `meshDict`, `facades` and `paramMeshes` with the block instancing data. |
 | `meshInstances` | `id`, `name`, `settings`, `reference` (`meshId` into `meshDict`, position, scale, rotation). |
+| `lowLevelElements` | The low-level elements, see [Core Low-Level Elements](Core-Low-Level-Elements#export). The roads and intersections have `ghost` (replaced by low-level elements: their geometry is not to be exported). |
 | `cityProperties` | State of the city properties. |
 | `typeAncestry` | For every type of the core: `category` (its folder in `elements`), `name` and `ancestry` (the type, then the types it extends, nearest first; see [Core Type Inheritance](Core-Type-Inheritance#exporters)). |
 | `cityFolder` | The folder of the city project, with its own `geometry` and `texture` folders (MM2 packs them in the `.ar` archive). |

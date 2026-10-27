@@ -54,6 +54,13 @@ public class MenuBarElement {
         if (entry >= 0 && entry < dropdown.ItemCount) dropdown.SetItemDisabled(entry, !interactable);
     }
 
+    //shows the entry with a check box (after SetEntries, which clears it)
+    public void SetEntryChecked(int entry, bool isChecked) {
+        if (entry < 0 || entry >= dropdown.ItemCount) return;
+        dropdown.SetItemAsCheckable(entry, true);
+        dropdown.SetItemChecked(entry, isChecked);
+    }
+
     //called before the dropdown opens, to update the state of its entries
     public void SetOnOpen(System.Action action) {
         dropdown.AboutToPopup += action;

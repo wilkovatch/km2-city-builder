@@ -237,6 +237,17 @@ namespace CityElements.Types.Parsers {
             return LoadFileTypes(elementsDir, TI.CustomTypes, ancestries, (file, key) => TI.LoadSingle<CustomElement>(file));
         }
 
+        //Low-level elements (the folder is optional, cores without it have no low-level types)
+        static Dictionary<string, Runtime.LowLevelType> lowLevelTypes;
+        public static Dictionary<string, Runtime.LowLevelType> GetLowLevelTypes(bool reload = false) {
+            return GetTypes(ref lowLevelTypes, TI.LowLevel, LoadLowLevelTypes, reload);
+        }
+
+        public static Dictionary<string, Runtime.LowLevelType> LoadLowLevelTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            if (!Directory.Exists(CategoryDir(elementsDir, TI.LowLevel))) return new Dictionary<string, Runtime.LowLevelType>();
+            return LoadFolderTypes(elementsDir, TI.LowLevel, ancestries, (dir, key) => new Runtime.LowLevelType(new LowLevelType(dir), key));
+        }
+
         //the ancestries of the types of every category of the current core
         public static List<(string category, string name, string[] ancestry)> GetAllAncestries() {
             GetRoadTypes();
@@ -249,6 +260,7 @@ namespace CityElements.Types.Parsers {
             GetPropsContainersTypes();
             GetParametricMeshInstanceSettings();
             GetCustomTypes();
+            GetLowLevelTypes();
             return TI.GetAllAncestries();
         }
     }

@@ -10,7 +10,7 @@ namespace Api {
     public partial class CityApi {
         public static readonly string[] TypeKinds = {
             "road", "intersection", "terrainPatch", "borderMesh", "buildingLine", "building", "buildingSide", "buildingBlock",
-            "propContainer", "propElement", "cityProperties", "meshInstance", "parametricObject"
+            "propContainer", "propElement", "cityProperties", "meshInstance", "parametricObject", "lowLevel"
         };
 
         [ApiMethod("cores.list", "The installed cores")]
@@ -50,6 +50,7 @@ namespace Api {
                 case "propContainer": return TI.PropsContainers;
                 case "propElement": return TI.PropsElements;
                 case "parametricObject": return TI.ParametricObjects;
+                case "lowLevel": return TI.LowLevel;
                 default: return null;
             }
         }
@@ -113,6 +114,17 @@ namespace Api {
                 case "meshInstance":
                     var settings = TP.GetMeshInstanceSettings();
                     return new List<object> { new { name = "", label = (string)null, ancestry = new[] { "" }, parameters = SchemaOf(Params(settings?.typeData.parametersInfo)) } };
+                case "lowLevel":
+                    var lowLevelTypes = new List<object>();
+                    foreach (var t in TP.GetLowLevelTypes()) {
+                        var s = t.Value.typeData.settings;
+                        lowLevelTypes.Add(new {
+                            name = t.Key, label = SM.GetOrKey(t.Value.typeData.ui.label ?? t.Key), ancestry = AncestryOf(kind, t.Key),
+                            parameters = SchemaOf(Params(t.Value.parameterContainer)), controlPoints = s.controlPoints, mesh = s.mesh,
+                            contains = s.container?.contains, creatable = s.creatable
+                        });
+                    }
+                    return lowLevelTypes;
                 case "parametricObject":
                     var res = new List<object>();
                     foreach (var t in TP.GetParametricMeshInstanceSettings() ?? new Dictionary<string, CityElements.Types.Runtime.MeshInstanceSettings>()) {

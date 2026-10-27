@@ -4,12 +4,18 @@ using GameObject = Godot.Control;
 using SM = StringManager;
 
 namespace EditorPanels {
-    public class RoadEditorPanel : EditorPanel {
+    public class RoadEditorPanel : EditorPanel, IPropRuleEditor {
         EditorPanelElements.Dropdown pointPlacementModeDropdown;
         EditorPanelElements.Button startIntersectionButton, endIntersectionButton;
-        Dictionary<string, (EditorPanelElements.Button button, EditorPanelElements.Checkbox checkbox)> propControls = new Dictionary<string, (EditorPanelElements.Button, EditorPanelElements.Checkbox)>();
+        readonly PropRuleGroup propRule;
+        readonly Dictionary<string, (EditorPanelElements.Button button, EditorPanelElements.Checkbox checkbox)> propControls;
 
         public RoadEditorPanel() {
+            propRule = new PropRuleGroup(this, create => GetCurRoad(create)?.state, () => {
+                ReadCurValues();
+                builder.NotifyChange();
+            });
+            propControls = propRule.controls;
             AddComplexElement(new PresetSelector(this));
             AddComplexElement(new TypeSelector<CityElements.Types.Runtime.RoadType>(this) { stateGetter = () => GetCurRoad(false)?.state });
         }
@@ -124,15 +130,7 @@ namespace EditorPanels {
 
             } else if (elem.name == "propsGroup") {
                 //Props
-                var types = new List<string> { GetCurType() };
-                pS.AddPresetLoadAndSaveDropdown(p, SM.Get("RD_PROP_RULE_PRESET"), true, "roadPropRule", SetPropRule, GetPropRule, true, x => { var obj = GetPropRule(true); obj.Name = x; SetPropRule(obj); }, types, null, w);
-                propControls.Clear();
-                foreach (var containerType in type.typeData.settings.propsContainers) {
-                    var cb = p.AddCheckbox(SM.Get("RD_PROP_ENABLED"), false, x => { EnablePropContainer(containerType, x); }, w * 0.3f);
-                    var btn = p.AddButton(SM.Get("EDIT_PROP_CONTAINER_" + containerType.ToUpper()), delegate { EditPropContainer(containerType); }, w * 0.7f);
-                    propControls.Add(containerType, (btn, cb));
-                    p.IncreaseRow();
-                }
+                propRule.Add(p, pS, type.typeData.settings.propsContainers, new List<string> { GetCurType() }, w);
 
             } else {
                 return false;
@@ -171,60 +169,14 @@ namespace EditorPanels {
             }
         }
 
-        ObjectState GetPropRule() {
-            return GetPropRule(false);
-        }
-
-        ObjectState GetPropRule(bool createIfNull) {
-            var res = Operations.Roads.GetPropRule(GetCurRoad(), false);
-            if (res == null && createIfNull) {
-                res = new ObjectState(true);
-                SetPropRule(res);
-            }
-            return res;
-        }
-
-        ObjectState SetPropRule(ObjectState state) {
-            Operations.Roads.SetPropRule(GetCurRoad(true), state);
-            ReadCurValues();
-            builder.NotifyChange();
-            return state;
-        }
-
-        void EnablePropContainer(string name, bool enabled) {
-            Operations.Roads.EnablePropContainer(GetCurRoad(), name, enabled);
-            ReadCurValues();
-            builder.NotifyChange();
-        }
-
         protected override void ReadCurValues() {
             base.ReadCurValues();
             Update();
-            foreach (var key in propControls.Keys) {
-                var rule = GetPropRule();
-                var enabled = rule != null && rule.State(key) != null;
-                propControls[key].button.SetInteractable(enabled);
-                var cb = propControls[key].checkbox;
-                cb.actionEnabled = false;
-                cb.SetValue(enabled);
-                cb.actionEnabled = true;
-            }
-        }
-
-        void EditPropContainer(string name) {
-            var panel = builder.propContainerEditorPanel;
-            panel.SetContainer(GetPropRule().State(name), x => { GetPropRule().SetState(name, x); });
-            panel.parentPanel = this;
-            panel.parentState = GetCurRoad(false)?.state;
-            panel.containerName = name;
-            Hide(true);
-            panel.SetActive(true);
+            propRule.Read();
         }
 
         public EditorPanel OpenPropContainer(string name) {
-            if (GetCurRoad(false) == null || GetPropRule()?.State(name) == null) return null;
-            EditPropContainer(name);
-            return builder.propContainerEditorPanel;
+            return propRule.OpenContainer(name);
         }
 
         public void SetActive(bool active, bool withIntersections) {

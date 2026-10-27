@@ -104,5 +104,33 @@ namespace Operations {
         public static void SetSingleMesh(ObjectState elem, string mesh) {
             elem.SetStr("mesh", mesh);
         }
+
+        // Prop rules: the props containers of an element (a road, or a low-level element of a type with props
+        // containers), in "propRule" of its state
+
+        public static ObjectState GetPropRule(ObjectState owner, bool createIfNull) {
+            if (owner == null) return null;
+            var res = owner.State("propRule");
+            if (res == null && createIfNull) {
+                res = new ObjectState(true);
+                SetPropRule(owner, res);
+            }
+            return res;
+        }
+
+        public static void SetPropRule(ObjectState owner, ObjectState rule) {
+            owner?.SetState("propRule", rule);
+        }
+
+        public static bool IsPropContainerEnabled(ObjectState owner, string container) {
+            var rule = GetPropRule(owner, false);
+            return rule != null && rule.State(container) != null;
+        }
+
+        public static void EnablePropContainer(ObjectState owner, string container, bool enabled) {
+            if (owner == null) return;
+            GetPropRule(owner, true).SetState(container, enabled ? new ObjectState(true) : null);
+            owner.FlagAsChanged();
+        }
     }
 }

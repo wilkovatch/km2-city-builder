@@ -13,13 +13,16 @@ using KeyCommand = GameEngine.Input.KeyCommand;
 public partial class TerrainPoint : PhysicsScriptable {
     public IAnchorable anchor = null;
     Vector3 oldPoint;
+    Vector3 oldRotation; //the rotation of the handle at the last update (rotatable points of the low-level elements)
     bool isMoveable = false;
+    bool detachable = false; //moved anyway when on a fixed anchor, which it then leaves (the points of the low-level elements)
     bool big = false;
     public bool dividing = false;
     List<IGroundable> links = new List<IGroundable>();
     bool deleted = false;
     bool selected = true;
     int updatedCount;
+    bool updating = false; //in UpdatePosition (the points it depends on are updated first, see UpdateDependencies)
 
     public static TerrainPoint Create(Vector3 point, IGroundable patch, GameObject parent, IAnchorable anchor = null, int registryId = -1) {
         var obj = (PhysicsGameObject)GameEngine.Resources.InstantiateObject("Handle", GO.GetObject(parent));
@@ -79,7 +82,7 @@ public partial class TerrainPoint : PhysicsScriptable {
                 anchor = null;
             }
             if (IsAnchorNull() || anchor.IsMoveable()) {
-                var lightColor = (anchor is LineAnchor) ? ((GameEngine.Color.yellow + GameEngine.Color.red) * 0.5f) : GameEngine.Color.yellow;
+                var lightColor = (anchor is LineAnchor || anchor is ColumnAnchor) ? ((GameEngine.Color.yellow + GameEngine.Color.red) * 0.5f) : GameEngine.Color.yellow;
                 GS.Cast<Handle>(GetObject()).SetColor(((big ? GameEngine.Color.magenta : GameEngine.Color.red) + lightColor) * 0.5f);
                 isMoveable = true;
             } else {
@@ -102,6 +105,7 @@ public partial class TerrainPoint : PhysicsScriptable {
         if (updatedCount <= 0) {
             updatedCount = links.Count;
             oldPoint = GetPoint();
+            oldRotation = GetRotation();
         }
         SetupAnchorMode();
     }
@@ -114,6 +118,32 @@ public partial class TerrainPoint : PhysicsScriptable {
         return GO.GetPosition(GetObject());
     }
 
+    //the last position of a deleted point (its node is freed)
+    public Vector3 GetPointSafe() {
+        return deleted ? oldPoint : GetPoint();
+    }
+
+    //the rotation of the handle (euler angles in degrees), only used by the rotatable points of the low-level elements
+    public Vector3 GetRotation() {
+        return deleted ? oldRotation : GO.GetRotation(GetObject());
+    }
+
+    public void SetRotation(Vector3 rotation) {
+        if (!deleted) GO.SetRotation(GetObject(), rotation);
+    }
+
+    public bool RotationChanged() {
+        return !deleted && !GeometryHelper.AreVectorsEqual(GetRotation(), oldRotation);
+    }
+
+    public bool IsLinkedTo(IGroundable element) {
+        return links.Contains(element);
+    }
+
+    public List<IGroundable> GetLinks() {
+        return new List<IGroundable>(links);
+    }
+
     public bool OnSegment() {
         return anchor is LineAnchor;
     }
@@ -122,13 +152,54 @@ public partial class TerrainPoint : PhysicsScriptable {
         return deleted;
     }
 
+    //the points the anchor follows are updated first (e.g. a point on the vertical line of a point on a segment follows it
+    //in the same frame)
+    void UpdateDependencies() {
+        if (anchor is ColumnAnchor column) {
+            if (!column.IsDeleted()) column.master.UpdatePosition();
+        } else if (anchor is LineAnchor line) {
+            line.StartPoint?.UpdatePosition();
+            line.EndPoint?.UpdatePosition();
+        }
+    }
+
     public bool UpdatePosition() {
+        if (updating || deleted) return false;
+        updating = true;
+        try {
+            UpdateDependencies();
+            return UpdatePositionOnAnchor();
+        } finally {
+            updating = false;
+        }
+    }
+
+    bool UpdatePositionOnAnchor() {
+        if (anchor is ColumnAnchor column && !column.IsDeleted()) {
+            //the height is the one of the point (also when changed by the constraints of an element), only x and z follow
+            //the master; moved horizontally with the gizmo, the master follows (see ColumnAnchor)
+            column.height = GetPoint().Y;
+            if (GameEngine.Gizmo.GetMainTargetRoot() == GetObject() && !GeometryHelper.AreVectorsEqual(GetPoint(), column.GetPoint())) {
+                History.UndoManager.Touch(this);
+                column.MoveTo(GetPoint());
+            }
+            if (GeometryHelper.AreVectorsEqual(GetPoint(), column.GetPoint())) return !GeometryHelper.AreVectorsEqual(GetPoint(), oldPoint);
+            GO.SetPosition(GetObject(), column.GetPoint());
+            return true;
+        }
         if (!IsAnchorNull()) {
+            var ctrl = Input.GetInputPressed(KeyCommand.Modifier2);
+            var moveable = ctrl || GameEngine.Gizmo.GetMainTargetRoot() == GetObject();
             if (anchor.IsDeleted()) {
                 return true;
+            } else if (detachable && moveable && !anchor.IsMoveable() && !GeometryHelper.AreVectorsEqual(GetPoint(), oldPoint)
+                && GeometryHelper.AreVectorsEqual(anchor.GetPoint(), oldPoint)) {
+                //moved with the gizmo: the point leaves the anchor
+                History.UndoManager.Touch(this);
+                anchor = null;
+                SetupAnchorMode();
+                return true;
             } else if (!GeometryHelper.AreVectorsEqual(anchor.GetPoint(), oldPoint)) {
-                var ctrl = Input.GetInputPressed(KeyCommand.Modifier2);
-                var moveable = ctrl || GameEngine.Gizmo.GetMainTargetRoot() == GetObject();
                 if (anchor is LineAnchor lineAnchor && moveable) lineAnchor.UpdatePercent(GetPoint());
                 GO.SetPosition(GetObject(), anchor.GetPoint());
                 return true;
@@ -141,8 +212,13 @@ public partial class TerrainPoint : PhysicsScriptable {
         }
     }
 
-    public void SetMoveable(bool moveable) {
-        if (!isMoveable) return;
+    //detachable: a point on a fixed anchor can be moved too, leaving the anchor
+    public void SetMoveable(bool moveable, bool detachable = false) {
+        this.detachable = moveable && detachable;
+        if (!isMoveable && !this.detachable) {
+            if (!moveable) GO.SetLayer(GetObject(), 10); //it may have been moveable as a detachable point
+            return;
+        }
         if (moveable) {
             GO.SetLayer(GetObject(), 8);
         }
@@ -167,7 +243,9 @@ public partial class TerrainPoint : PhysicsScriptable {
     }
 
     public void Delete() {
+        if (deleted) return;
         History.UndoManager.Touch(this);
+        oldPoint = GetPoint();
         GO.Destroy(GetObject());
         deleted = true;
     }

@@ -621,13 +621,7 @@ namespace RuntimeGizmos {
         }
 
         static List<GeometryInstance3D> GetTargetRenderers(Node target) {
-            var renderers = new List<GeometryInstance3D>();
-            if (target == null || !GodotObject.IsInstanceValid(target)) return renderers;
-            if (target is GeometryInstance3D render) renderers.Add(render);
-            foreach (var child in target.GetChildren()) {
-                renderers.AddRange(GetTargetRenderers(child));
-            }
-            return renderers;
+            return SelectionOutline.GetRenderers(target);
         }
 
         public void SetPivotPoint() {

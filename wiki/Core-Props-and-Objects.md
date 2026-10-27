@@ -16,7 +16,7 @@ elements/props/
 
 ## Props along roads
 
-The hierarchy is: a road's **prop rule** (state property `propRule`, preset category `roadPropRule`) contains one **container** per props container name of the road type (`left`, `right`, `middle`... as listed in the road type's `propsContainers`); each container (preset category `propContainer`) contains one or more **elements** (preset category `propElem`); each element places one kind of prop along the container's props line using its element type's placement rules.
+The hierarchy is: a road's **prop rule** (state property `propRule`, preset category `roadPropRule`) contains one **container** per props container name of the road type (`left`, `right`, `middle`... as listed in the road type's `propsContainers`); each container (preset category `propContainer`) contains one or more **elements** (preset category `propElem`); each element places one kind of prop along the container's props line using its element type's placement rules. The low-level elements of the types with `propsContainers` have a prop rule too (see [Core Low-Level Elements](Core-Low-Level-Elements)).
 
 The props lines themselves (where the props go) are defined by the road type, see [Core Roads](Core-Roads#props-lines).
 

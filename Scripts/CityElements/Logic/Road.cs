@@ -34,6 +34,9 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     public RoadSplitLine splitLine;
 
     public bool deleted = false;
+    //replaced by low-level elements: its geometry is hidden, can't be selected and is not exported, but it stays for the
+    //elements connected to it (its intersections, the terrain points on its anchors)
+    public bool ghost = false;
     public bool cityPropertiesInjected = false; //the parameters injected by the city properties are in runtimeState
     bool activeSelf = true;
     RoadScriptContext scriptContext;
@@ -112,12 +115,12 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         foreach (var point in points) {
             GO.SetEnabled(point, active);
         }
-        if (points.Count > 0 && activeIntersection) {
+        if (points.Count > 0 && activeIntersection && !ghost) {
             if (startIntersection == null) ShowIntersectionPoint(points[0]);
             if (endIntersection == null) ShowIntersectionPoint(points[points.Count - 1]);
         }
         //the other roads can be connected to the middle of this one while their points are placed
-        splitLine.SetActive(!active && activeIntersection && points.Count >= 2);
+        splitLine.SetActive(!ghost && !active && activeIntersection && points.Count >= 2);
         if (active) MarkEditedEnd();
 
         //while the road is edited, its ends on the intersections are selected and moved instead of the intersections
@@ -696,9 +699,23 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         if (DidRoadChange()) RebuildLine();
     }
 
+    public void SetGhost(bool value) {
+        History.UndoManager.Touch(this);
+        ghost = value;
+        ApplyGhost();
+    }
+
+    public void ApplyGhost() {
+        if (generator == null || GO.IsNull(generator)) return;
+        if (generator.mr != null) generator.mr.Visible = !ghost;
+        generator.CollisionLayer = ghost ? 0u : 1u << 7;
+        if (generator.propsContainer != null) GO.SetEnabled(generator.propsContainer, !ghost);
+    }
+
     public int UpdateMesh() {
         if (forceRemesh) {
             RebuildMesh();
+            ApplyGhost();
             forceRemesh = false;
             repositionObjects = true;
             return 1;

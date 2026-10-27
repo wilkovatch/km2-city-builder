@@ -39,7 +39,7 @@ AI agents use the API through the [MCP Server](MCP-Server) (`Scripts/Mcp`), over
 Godot_v4.7.1-stable_mono_win64_console.exe --path . [--headless] -- selftest api <new folder>
 ```
 
-Creates a city in the folder (from the SF template of the Midtown Madness 2 core) and drives it only with JSON commands: every kind of element, anchors, terrain points and heights, parameters, arrays, presets, props, undo and redo of each change, batches, transactions, errors, a script changing an element open in the editor, parity with the elements made with the editor tools, whole city generation, save and load, export JSON, geometry, the core exporter, the validation, the renders (with a window; headless, only the `no_renderer` error) and the MCP server (its messages, and over HTTP on a test port). It also contains the whole city terrain and building generation written with the commands only (`ScriptTerrain`, `ScriptBuildings`), checked against `city.generateTerrain` and `city.generateBuildings`: they are the reference for scripts generating cities. The same generators written in Python (the `cityTerrain` and `cityBuildings` examples of `wiki/examples/scripts`, see [Python Scripts](Python-Scripts#examples)) are run through `ScriptRunner` and checked in the same way, along with the runner itself (inputs, selection, single undo step, failures, cancelling, settings restored) and the input panel of the scripts. It writes `api_selftest.log` next to the folder and exits with code 1 if anything failed.
+Creates a city in the folder (from the SF template of the Midtown Madness 2 core) and drives it only with JSON commands: every kind of element, anchors, terrain points and heights, parameters, arrays, presets, props, undo and redo of each change, batches, transactions, errors, a script changing an element open in the editor, parity with the elements made with the editor tools, whole city generation, save and load, export JSON, geometry, the core exporter, the validation, the renders (with a window; headless, only the `no_renderer` error), the MCP server (its messages, and over HTTP on a test port) and the low-level elements (control points, constraints, containers, the conversions of the core, ghosts, save and load, their editor). It also contains the whole city terrain and building generation written with the commands only (`ScriptTerrain`, `ScriptBuildings`), checked against `city.generateTerrain` and `city.generateBuildings`: they are the reference for scripts generating cities. The same generators written in Python (the `cityTerrain` and `cityBuildings` examples of `wiki/examples/scripts`, see [Python Scripts](Python-Scripts#examples)) are run through `ScriptRunner` and checked in the same way, along with the runner itself (inputs, selection, single undo step, failures, cancelling, settings restored) and the input panel of the scripts. It writes `api_selftest.log` next to the folder and exits with code 1 if anything failed.
 
 ## Protocol
 
@@ -149,7 +149,7 @@ States (the values of an element) are plain JSON objects, as in the saved city. 
 
 The result also has `mapping`, from the pixels to the city: for the top view `metersPerPixel` and `origin` (the x, z of the top left corner: `x = origin[0] + px * metersPerPixel`, `z = origin[1] - py * metersPerPixel`); for the others the position, forward and up directions and fov of the camera. `labels` and `overlays` give the pixel of each label and overlay (`inView`: inside the image).
 
-`view.screenshot` is the window as the user sees it, and `view.camera.get`, `view.camera.set` and `view.focus` move the camera of the editor (e.g. to show the user an element).
+`view.screenshot` is the window as the user sees it, and `view.camera.get`, `view.camera.set` and `view.focus` move the camera of the editor (e.g. to show the user an element). `view.toggles` and `view.setToggle` read and switch the visibility toggles the core adds to the View menu (e.g. the room outlines of MM2).
 
 ### Changes and undo
 
@@ -298,6 +298,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
+| `elements.convert` | `elements: ref[]`<br>`converter: string` | object | Converts elements to low-level elements with a converter of the core (converters.list): the converter replaces them (roads and intersections become ghosts: hidden, not exported, kept for the elements connected to them; the other elements are deleted; some converters change existing low-level elements instead). Returns the ids of the low-level elements created, then the ones changed |
 | `elements.geometry` | `ref: ref` | object | The generated geometry of a road, intersection, terrain patch, building line (with its buildings), mesh instance or parametric object, as in the export JSON (base64 arrays), with the materials and meshes it references |
 | `elements.get` | `ref: ref`<br>`derived: bool = false` | object | An element as stored in the saved city (ids as references); derived: also the data computed from it (curve, anchors, buildings...) |
 | `elements.list` | `kind: string = null`<br>`name: string = null`<br>`type: string = null` | list | The elements of the city (optionally of a kind, with a name or of a type): id, kind, name, type |
@@ -410,6 +411,38 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `sides.removeFloor` | `side: ref`<br>`floor: int` | - | Removes an upper floor of a building side |
 | `sides.removeSlice` | `side: ref`<br>`floor: int`<br>`slice: int` | - | Removes a slice of a floor of a building side (floor -1: the ground floor) |
 
+### `lowLevel.*`
+
+| Method | Parameters | Result | Description |
+|---|---|---|---|
+| `lowLevel.attachPoint` | `element: ref`<br>`to: point = null`<br>`path: string = null`<br>`vertex: int = null`<br>`line: int[] = null`<br>`column: int = null` | int | Replaces a control point (path) or a vertex (vertex) of a low-level element with an existing terrain point (to: {terrainPoint}, shared from now on), or attaches it to an anchor or segment (to: {anchor} or {anchorLink}), to the line between two terrain points (line: [id, id], it stays where it is closest to it) or to the vertical line of a terrain point (column: id, it keeps its height and follows the x and z of that point; moved horizontally, that point follows) |
+| `lowLevel.create` | `type: string`<br>`position: vec3 = null`<br>`points: any = null`<br>`mesh: object = null`<br>`state: object = null`<br>`container: ref = null`<br>`name: string = null` | int | Creates a low-level element of a type of the core: its control points with the default layout around position, or as given in points (the structure of the control points of the type, each point a point target: position, terrainPoint to share an existing point, anchor, anchorLink...), its mesh (vertices: point targets, triangles: indices, uvs: [u, v] per vertex), its parameters (state, with propRule for the types with props containers, see lowLevel.setPropRule) and its container. Returns its id |
+| `lowLevel.delete` | `element: ref` | - | Deletes a low-level element (the elements it contains are left without a container); the ghost it replaces is deleted with the last element replacing it |
+| `lowLevel.detachPoint` | `element: ref`<br>`path: string = null`<br>`vertex: int = null` | int | A control point (path) or vertex (vertex) of a low-level element stops being shared with the other elements (it gets a copy of the point), or, if only the element uses it, stops following its anchor. Returns the id of the point |
+| `lowLevel.insert` | `element: ref`<br>`array: string`<br>`index: int = null`<br>`position: vec3 = null` | object | Adds an element to an array of the control points (path: e.g. "sections" or "sections.2.lanes") at the index (the end by default), as with the Insert buttons: its points between the ones around it (or continuing the array); in a uniform array, every instance gets one. With position (only at the start or end of the array), the element is centered there and turned as the direction of the array changes, as with the Add at the start/end click modes. Returns the paths of the new points |
+| `lowLevel.merge` | `from: ref`<br>`into: ref` | - | Moves the contents of a container into another one (of a type that can contain them all) and deletes it |
+| `lowLevel.movePoint` | `element: ref`<br>`position: vec3`<br>`path: string = null`<br>`vertex: int = null`<br>`rotation: vec3 = null` | - | Moves a control point (path) or a vertex of the mesh (vertex) of a low-level element, as with the gizmo (the constraints of the type run at the next update; a point on an anchor leaves it); rotation: the euler angles of a rotatable point |
+| `lowLevel.remove` | `element: ref`<br>`array: string`<br>`index: int` | - | Removes the element of an array of the control points at the index (in every instance of a uniform array) |
+| `lowLevel.removePoint` | `element: ref`<br>`path: string = null`<br>`vertex: int = null` | - | Removes a control point (path) or a vertex of the mesh (vertex, with its triangles) of a low-level element, as with the Delete key: a control point takes with it the element of the outermost editable array containing it (e.g. the section of a lane point; lowLevel.remove removes from a given array). The point is deleted if no other element uses it |
+| `lowLevel.setContainer` | `element: ref`<br>`container: ref = null` | - | Puts a low-level element in a container (another low-level element whose type can contain it), or out of any container (container: null) |
+| `lowLevel.setMesh` | `element: ref`<br>`mesh: object` | - | Replaces the mesh of a low-level element: vertices (point targets), triangles (indices), uvs ([u, v] per vertex) |
+| `lowLevel.setPropRule` | `element: ref`<br>`rule: object = null` | - | Sets the prop rule of a low-level element of a type with props containers (rule: {container: props container state, as in the prop rules of the roads}, null to remove it); the props are placed along the prop lines of its geometry |
+| `lowLevel.setUV` | `element: ref`<br>`vertex: int`<br>`uv: vec2` | - | Sets the texture coordinates of a vertex of the mesh (types with editable uvs) |
+
+### `converters.*`
+
+| Method | Parameters | Result | Description |
+|---|---|---|---|
+| `converters.list` | - | object | The converters of the core: name, label, the kinds and types they convert |
+
+### `ghosts.*`
+
+| Method | Parameters | Result | Description |
+|---|---|---|---|
+| `ghosts.list` | - | object | The ghosts: the roads and intersections replaced by low-level elements, with the elements replacing them |
+| `ghosts.restore` | `element: ref` | - | Brings back a ghost: the low-level elements replacing it are deleted |
+| `ghosts.set` | `element: ref`<br>`ghost: bool = true` | - | Makes a road or intersection a ghost (hidden, not exported, kept for the elements connected to it), or a normal element again (ghost: false) |
+
 ### `meshes.*`
 
 | Method | Parameters | Result | Description |
@@ -484,6 +517,8 @@ See [Images](#images).
 | `view.focus` | `ref: ref` | - | Moves the camera of the editor to show an element (as the zoom of the object list) |
 | `view.render` | `camera: string = 'top'`<br>`elements: ref[] = null`<br>`bounds: number[] = null`<br>`center: vec3 = null`<br>`size: number = null`<br>`margin: number = 1.1`<br>`pitch: number = 50`<br>`yaw: number = 30`<br>`distance: number = null`<br>`position: vec3 = null`<br>`target: vec3 = null`<br>`fov: number = 50`<br>`width: int = 1024`<br>`height: int = 1024`<br>`layers: string[] = null`<br>`labels: string[] = null`<br>`labelSize: number = 14`<br>`highlight: ref[] = null`<br>`highlightColor: string = null`<br>`overlays: object[] = null`<br>`grid: number = 0`<br>`scaleBar: bool = false`<br>`background: string = null`<br>`transparent: bool = false`<br>`bestLod: bool = true`<br>`wireframe: bool = false`<br>`format: string = 'png'`<br>`quality: number = 0.9`<br>`path: string = null` | object | Renders the city offscreen and returns the image with the mapping between its pixels and the city coordinates, and the pixel positions of the labels and overlays |
 | `view.screenshot` | `format: string = 'png'`<br>`quality: number = 0.9`<br>`path: string = null` | object | The view of the editor as the user sees it (with its panels) |
+| `view.setToggle` | `name: string`<br>`on: bool` | object | Turns a visibility toggle of the core (see view.toggles) on or off; saved with the city preferences, not an undo step |
+| `view.toggles` | - | object | The visibility toggles of the core (in the View menu) and whether they're on |
 
 ### Dispatcher
 

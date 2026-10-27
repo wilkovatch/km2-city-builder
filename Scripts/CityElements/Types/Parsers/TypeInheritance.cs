@@ -24,6 +24,7 @@ namespace CityElements.Types.Parsers {
         public const string PropsContainers = "props/containers";
         public const string ParametricObjects = "props/parametric";
         public const string CustomTypes = "customTypes";
+        public const string LowLevel = "lowLevel";
 
         static readonly string[] keyFields = { "name", "label", "category" };
 

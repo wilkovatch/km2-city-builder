@@ -60,6 +60,7 @@ namespace IO.ExportedCity {
         public string b64v3a_points; //Vector3[]
         public int startIntersectionId;
         public int endIntersectionId;
+        public bool ghost; //replaced by low-level elements: only kept for the elements connected to it, not to be exported as it is
     }
 
     [System.Serializable]
@@ -69,6 +70,7 @@ namespace IO.ExportedCity {
         public string b64v3_center; //Vector3
         public Road[] roadsThrough;
         public int[] roads;
+        public bool ghost; //as for roads
     }
 
     [System.Serializable]
@@ -122,6 +124,30 @@ namespace IO.ExportedCity {
         public Building[] buildings;
     }
 
+    //a reference to another element of the city (kind: road, intersection, terrainPatch, buildingLine, lowLevel)
+    [System.Serializable]
+    public class ElementReference {
+        public string kind;
+        public int id;
+    }
+
+    //a low-level element: data.fields.state has its type and parameters (the references as ElementReference objects),
+    //data.mesh the geometry built by its script; the control points have the structure defined by its type, each point
+    //being {"id": <terrain point id>, "position": [x, y, z]} (plus "rotation" for the rotatable ones), the same id for a
+    //point shared with other elements
+    [System.Serializable]
+    public class LowLevelElement {
+        public int id;
+        public string type;
+        public BaseData data;
+        public Newtonsoft.Json.Linq.JToken points;
+        public Newtonsoft.Json.Linq.JArray vertices; //the vertices of the mesh, as the points
+        public int[] triangles;
+        public float[][] uvs; //of the vertices (editable or given by the script), null if the type has none
+        public int containerId; //-1 if none
+        public ElementReference source; //the procedural element it replaces (a ghost), null if none
+    }
+
     [System.Serializable]
     public class Material {
         public int id;
@@ -151,6 +177,7 @@ namespace IO.ExportedCity {
         public TerrainPatch[] terrainPatches;
         public BuildingLine[] buildingLines;
         public MeshInstance[] meshInstances;
+        public LowLevelElement[] lowLevelElements;
         public ObjectState cityProperties;
         public TypeAncestry[] typeAncestry;
         public string cityFolder; //the folder of the city project (with its own geometry and texture folders)

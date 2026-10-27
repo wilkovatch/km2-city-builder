@@ -99,6 +99,7 @@ public abstract partial class EditorPanel {
             foreach (var elem in tab.elements) {
                 var w = elem.width;
                 if (processCustomParts != null && processCustomParts.Invoke(elem, p, pS, tS, type)) continue;
+                else if (elem.name.StartsWith("convert:")) AddConversionButton(p, ref curW, totW, elem, elem.name.Substring("convert:".Length));
                 else if (elem.name.Split('_')[0] == "PRESET") {
                     var parts = elem.name.Split('_');
                     System.Func<ObjectState> getter = delegate { return getObject().GetState().GetContainer(parts[1]); };
@@ -114,6 +115,20 @@ public abstract partial class EditorPanel {
             }
         }
         return true;
+    }
+
+    //a button converting the edited element with a converter of the core (not shown if the element can't be converted by it)
+    void AddConversionButton(EditorPanelPage p, ref float curW, float totW, CityElements.Types.TabElement elem, string converterName) {
+        var converter = ConverterCatalog.Get(converterName);
+        var element = getObject?.Invoke();
+        if (converter == null || element == null || !converter.Accepts(element)) return;
+        curW += elem.width;
+        if (curW > totW) {
+            p.IncreaseRow();
+            curW = elem.width;
+        }
+        p.AddButton(GetString(converter.label ?? converterName), delegate { builder.StartConversion(getObject?.Invoke(), converterName); },
+            elem.width, converter.tooltip != null ? GetString(converter.tooltip) : null);
     }
 
     //the text of a string key of the parameters (the child panels use the strings of their parent)
@@ -168,6 +183,9 @@ public abstract partial class EditorPanel {
                         break;
                     case "customElement":
                         p.AddButton(GetString(param.label), delegate { SelectCustomElement(param); }, elem.width, GetString(param.tooltip), null);
+                        break;
+                    case "reference":
+                        field = p.AddFieldReferenceField(builder, GetString(param.label), getObject, pFullName, param, getObject, elem.width, GetString(param.tooltip));
                         break;
                     case "preset":
                         if (!AllowsScriptParameterTypes()) break;
@@ -368,6 +386,7 @@ public abstract partial class EditorPanel {
     public virtual void SetActive(bool active) {
         var disabled = ActiveSelf() && !active;
         if (!active && builder?.arrayPointPlacer != null && builder.arrayPointPlacer.IsPlacingFrom(this)) builder.arrayPointPlacer.Stop();
+        if (!active && builder?.referencePicker != null && builder.referencePicker.IsPickingFrom(this)) builder.referencePicker.Stop();
         foreach (var elem in complexElements.Values) {
             elem.SetActive(active);
         }

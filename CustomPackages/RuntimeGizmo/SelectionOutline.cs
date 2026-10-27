@@ -1,13 +1,17 @@
 using System.Collections.Generic;
 using Godot;
 
-// Screen-space outline of the objects selected with the transform gizmo.
+// Screen-space outline of the objects selected with the transform gizmo (other instances outline other objects, with a
+// layer and colour of their own, set before adding it to the tree).
 // The selected renderers get an extra render layer that only a mask camera sees; it renders their silhouette (alpha) into a
 // SubViewport, and a fullscreen quad draws a fixed-pixel-width outline around it on top of the scene.
 namespace RuntimeGizmos {
     public partial class SelectionOutline : Node3D {
-        // Render layer 20, unused by the city elements (GO.SetLayer only uses layers 0-12)
+        // Render layer 20 (of the gizmo), unused by the city elements (GO.SetLayer only uses layers 0-12)
         public const uint MaskLayer = 1u << 19;
+
+        public uint maskLayer = MaskLayer;
+        public Color outlineColor = new Color(1.0f, 0.5f, 0.0f);
 
         SubViewport maskViewport;
         Camera3D maskCamera;
@@ -29,14 +33,15 @@ namespace RuntimeGizmos {
 
             maskCamera = new Camera3D {
                 Name = "OutlineMaskCamera",
-                CullMask = MaskLayer,
+                CullMask = maskLayer,
                 Environment = new Environment { BackgroundMode = Environment.BGMode.ClearColor }
             };
             maskViewport.AddChild(maskCamera);
             maskCamera.MakeCurrent();
 
-            var material = GameEngine.Resources.LoadMaterial("Materials/SelectionOutline");
+            var material = GameEngine.Resources.LoadMaterial("Materials/SelectionOutline")?.Duplicate() as ShaderMaterial; //one per instance
             material?.SetShaderParameter("mask_texture", maskViewport.GetTexture());
+            material?.SetShaderParameter("outline_color", outlineColor);
             quad = new MeshInstance3D {
                 Name = "OutlineQuad",
                 Mesh = new QuadMesh { Size = new Vector2(2, 2) },
@@ -49,7 +54,7 @@ namespace RuntimeGizmos {
             AddChild(quad);
         }
 
-        // Called every frame by the gizmo with the renderers of the selected objects
+        // Called every frame by the gizmo with the renderers of the selected objects (an empty list hides the outline)
         public void UpdateOutline(List<GeometryInstance3D> renderers) {
             var mainCamera = GetViewport()?.GetCamera3D();
             //in the wireframe view the fullscreen quad would be drawn as its edges
@@ -58,7 +63,7 @@ namespace RuntimeGizmos {
 
             //GO.SetLayer overwrites the layers, so the mask layer is reapplied every frame
             foreach (var render in renderers) {
-                if (GodotObject.IsInstanceValid(render)) render.Layers |= MaskLayer;
+                if (GodotObject.IsInstanceValid(render)) render.Layers |= maskLayer;
             }
 
             var size = (Vector2I)GetViewport().GetVisibleRect().Size;
@@ -75,8 +80,19 @@ namespace RuntimeGizmos {
             maskCamera.Far = mainCamera.Far;
         }
 
-        public static void RemoveFromMask(GeometryInstance3D render) {
-            if (GodotObject.IsInstanceValid(render)) render.Layers &= ~MaskLayer;
+        public static void RemoveFromMask(GeometryInstance3D render, uint layer = MaskLayer) {
+            if (GodotObject.IsInstanceValid(render)) render.Layers &= ~layer;
+        }
+
+        // The renderers of an object and of its children
+        public static List<GeometryInstance3D> GetRenderers(Node target) {
+            var renderers = new List<GeometryInstance3D>();
+            if (target == null || !GodotObject.IsInstanceValid(target)) return renderers;
+            if (target is GeometryInstance3D render) renderers.Add(render);
+            foreach (var child in target.GetChildren()) {
+                renderers.AddRange(GetRenderers(child));
+            }
+            return renderers;
         }
 
         void SetActive(bool value) {

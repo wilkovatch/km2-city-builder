@@ -134,6 +134,11 @@ public class EditorPanelPage {
         }
     }
 
+    //the next elements go in a new row, unless the current one is still empty
+    public void EnsureNewRow() {
+        if (curRow < elements.Count && elements[curRow].Count > 0) IncreaseRow();
+    }
+
     public void IncreaseRow(float heightFactor = 1.0f) {
         rowsHeights[curRow] = 50 * heightFactor;
         curRow++;
@@ -373,6 +378,39 @@ public class EditorPanelPage {
         var status = new FieldStatus(objGetter, fieldName, valueChangedAction, indexGetters);
         var element = new EditorPanelElements.TextureField(title, placeholder, "", value => Recorded(title, () => { status.SetInputFieldValue(value, GameEngine.InputContentType.Standard); BaseExtraAction(value, extraAction); }),
             delegate { builder.OpenTextureSelector(panel, status.GetValue, value => Recorded(title, () => { status.SetValue(value); BaseExtraAction(value, extraAction); }), ReadCurValues); },
+            panel, GetPosition(curRow), widthFactor, tooltip, tag);
+        var fieldElement = AddElement(element, curRow);
+        fieldElements.Add(fieldElement, status);
+        return element;
+    }
+
+    //a reference parameter (see Operations.States.AcceptsReference): owner is the element whose state has it
+    public EditorPanelElements.ReferenceField AddFieldReferenceField(CityBuilderMenuBar builder, string title, System.Func<object> objGetter, string fieldName,
+        CityElements.Types.Parameter param, System.Func<object> owner, float widthFactor = 1.0f, string tooltip = null, string tag = null) {
+
+        var status = new FieldStatus(objGetter, fieldName, valueChangedAction, null);
+        var picker = builder.referencePicker;
+        EditorPanelElements.ReferenceField element = null;
+        System.Func<object, string> getName = value => {
+            if (!(value is ObjectState reference)) return StringManager.Get("REF_NONE");
+            var target = Operations.States.ResolveReference(reference);
+            return target != null ? Api.CityApi.GetName(target) : StringManager.Get("REF_MISSING");
+        };
+        System.Action pick = delegate {
+            if (picker.IsPicking(container, element)) {
+                picker.Stop();
+                return;
+            }
+            picker.Start(container, element, target => Operations.States.AcceptsReference(param, owner(), target),
+                target => Recorded(title, () => status.SetValue(Operations.States.MakeReference(target))), ReadCurValues);
+            ReadCurValues();
+        };
+        System.Action clear = delegate {
+            if (picker.IsPicking(container, element)) picker.Stop();
+            Recorded(title, () => status.SetValue(null));
+            ReadCurValues();
+        };
+        element = new EditorPanelElements.ReferenceField(title, getName, pick, clear, () => picker.IsPicking(container, element),
             panel, GetPosition(curRow), widthFactor, tooltip, tag);
         var fieldElement = AddElement(element, curRow);
         fieldElements.Add(fieldElement, status);

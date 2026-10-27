@@ -311,6 +311,21 @@ namespace Api {
             return GetCamera();
         }
 
+        [ApiMethod("view.toggles", "The visibility toggles of the core (in the View menu) and whether they're on")]
+        public object GetToggles() {
+            RequireCity();
+            var res = new List<object>();
+            foreach (var t in ViewToggles.List()) res.Add(new { name = t.name, label = StringManager.Get(t.label ?? t.name), on = ViewToggles.IsOn(t.name) });
+            return res;
+        }
+
+        [ApiMethod("view.setToggle", "Turns a visibility toggle of the core (see view.toggles) on or off; saved with the city preferences, not an undo step")]
+        public object SetToggle(string name, bool on) {
+            RequireCity();
+            if (!M.SetViewToggle(name, on)) throw ApiException.NotFound("view toggle '" + name + "'");
+            return on;
+        }
+
         [ApiMethod("view.focus", "Moves the camera of the editor to show an element (as the zoom of the object list)")]
         public object Focus(ElementRef @ref) {
             RequireCity();

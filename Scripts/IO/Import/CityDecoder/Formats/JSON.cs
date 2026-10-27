@@ -210,10 +210,11 @@ namespace CityDecoder {
             if (loadedCity.terrainPatches == null) loadedCity.terrainPatches = new IO.SavedCity.TerrainPatch[0];
             if (loadedCity.buildingLines == null) loadedCity.buildingLines = new IO.SavedCity.BuildingLine[0];
             if (loadedCity.terrainPoints == null) loadedCity.terrainPoints = new IO.SavedCity.TerrainPoint[0];
+            if (loadedCity.lowLevelElements == null) loadedCity.lowLevelElements = new IO.SavedCity.LowLevelElement[0];
 
             float totalNum = loadedCity.meshes.Length + loadedCity.roads.Length +
                 loadedCity.intersections.Length + loadedCity.terrainPatches.Length
-                + loadedCity.buildingLines.Length;
+                + loadedCity.buildingLines.Length + loadedCity.lowLevelElements.Length;
 
             int reachedNum = 0;
             int n = 0;
@@ -251,6 +252,7 @@ namespace CityDecoder {
                 }
                 roadComp.state = road.state;
                 roadComp.instanceState = road.instanceState;
+                roadComp.ghost = road.ghost;
                 loadedRoads.Add(road.id, (roadComp, road));
                 if (reachedNum % 50 == 0) {
                     progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
@@ -272,6 +274,7 @@ namespace CityDecoder {
                 intersectionElem.state = intersection.state;
                 intersectionElem.instanceState = intersection.instanceState;
                 if (intersectionElem.instanceState == null) intersectionElem.instanceState = new ObjectState(); //for backwards compatibility
+                intersectionElem.ghost = intersection.ghost;
                 if (intersection.name != null && intersection.name != "") GO.SetName(intersectionElem.geo, intersection.name);
                 else GO.SetName(intersectionElem.geo, "Intersection " + n);
                 foreach (var r in intersection.roads) {
@@ -366,6 +369,47 @@ namespace CityDecoder {
                 reachedNum++;
             }
 
+            //low-level elements (their containers, sources and references once they all exist)
+            var loadedLowLevel = new Dictionary<int, LowLevelElement>();
+            var loadedPatches = manager.patches;
+            n = 0;
+            foreach (var e in loadedCity.lowLevelElements) {
+                n++;
+                var type = e.state?.Str("type", null);
+                var element = manager.CreateLowLevelElement(type, string.IsNullOrEmpty(e.name) ? null : e.name);
+                element.state = e.state ?? new ObjectState();
+                var points = History.ElementSnapshot.LowLevelPoints(e.points, element.state, element,
+                    token => GetTerrainPoint(loadedTerrainPoints[(int)token], pointDict, loadedTerrainPoints), Vector3.Zero);
+                element.SetPoints(points);
+                if (e.meshVertices != null) {
+                    var vertices = new List<TerrainPoint>();
+                    foreach (var p in e.meshVertices) vertices.Add(GetTerrainPoint(loadedTerrainPoints[p], pointDict, loadedTerrainPoints));
+                    element.SetMesh(vertices, new List<int>(e.triangles ?? new int[0]), e.uvs != null ? States.SerializableVector2.GetRuntimeList(e.uvs) : null);
+                }
+                loadedLowLevel[e.id] = element;
+                if (reachedNum % 50 == 0) {
+                    progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
+                    await caller.ToSignal(caller.GetTree(), "process_frame");
+                }
+                reachedNum++;
+            }
+            object LoadedElement(string kind, int id) {
+                switch (kind) {
+                    case "road": return loadedRoads.TryGetValue(id, out var r) ? r.Item1 : null;
+                    case "intersection": return loadedIntersections.TryGetValue(id, out var i) ? i.Item1 : null;
+                    case "terrainPatch": return id >= 0 && id < loadedPatches.Count ? loadedPatches[id] : null;
+                    case "buildingLine": return id >= 0 && id < manager.buildings.Count ? manager.buildings[id] : null;
+                    case "lowLevel": return loadedLowLevel.TryGetValue(id, out var l) ? l : null;
+                    default: return null;
+                }
+            }
+            foreach (var e in loadedCity.lowLevelElements) {
+                var element = loadedLowLevel[e.id];
+                if (e.containerId >= 0 && loadedLowLevel.TryGetValue(e.containerId, out var container)) element.container = container;
+                if (e.source.HasValue) element.source = LoadedElement(e.source.Value.kind, e.source.Value.id);
+                element.state = History.ElementSnapshot.MapReferences(element.state, (kind, id) => History.ElementRegistry.GetId(LoadedElement(kind, id)));
+            }
+
             manager.worldChanged = true;
             manager.ShowAnchors(false);
             manager.ShowIntersections(false);
@@ -390,6 +434,12 @@ namespace CityDecoder {
                     if (inPoint.anchorIndex == -1) anchor = TerrainAnchorLineManager.FindMatching(inPoint.position.GetVector(), anchors);
                     else anchor = anchors[inPoint.anchorIndex];
                 }
+                else if (inPoint.linkType == IO.SavedCity.LinkType.Column) {
+                    if (!dict.ContainsKey(inPoint.elementId)) {
+                        CreateTerrainPoint(loadedTerrainPoints[inPoint.elementId], dict, loadedTerrainPoints);
+                    }
+                    anchor = new ColumnAnchor(dict[inPoint.elementId], inPoint.position.GetVector().Y);
+                }
                 else {
                     if (!dict.ContainsKey(inPoint.elementId)) {
                         CreateTerrainPoint(loadedTerrainPoints[inPoint.elementId], dict, loadedTerrainPoints);
@@ -407,6 +457,7 @@ namespace CityDecoder {
             }
             var newPoint = TerrainPoint.Create(inPoint.position.GetVector(), null, manager.GetTerrainPointContainer(), anchor);
             newPoint.dividing = inPoint.dividing;
+            if (inPoint.rotation.HasValue) newPoint.SetRotation(inPoint.rotation.Value.GetVector());
             dict[inPoint.id] = newPoint;
         }
 

@@ -44,26 +44,19 @@ namespace Operations {
         }
 
         public static ObjectState GetPropRule(Road road, bool createIfNull) {
-            var res = road.state.State("propRule");
-            if (res == null && createIfNull) {
-                res = new ObjectState(true);
-                SetPropRule(road, res);
-            }
-            return res;
+            return Props.GetPropRule(road.state, createIfNull);
         }
 
         public static void SetPropRule(Road road, ObjectState rule) {
-            road.state.SetState("propRule", rule);
+            Props.SetPropRule(road.state, rule);
         }
 
         public static bool IsPropContainerEnabled(Road road, string container) {
-            var rule = GetPropRule(road, false);
-            return rule != null && rule.State(container) != null;
+            return Props.IsPropContainerEnabled(road.state, container);
         }
 
         public static void EnablePropContainer(Road road, string container, bool enabled) {
-            GetPropRule(road, true).SetState(container, enabled ? new ObjectState(true) : null);
-            road.state.FlagAsChanged();
+            Props.EnablePropContainer(road.state, container, enabled);
         }
 
         //the props containers available for the type of the road

@@ -7,7 +7,7 @@ using GS = GameEngine.Scriptable;
 namespace Api {
     //Reading the city
     public partial class CityApi {
-        public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "meshInstance", "terrainPoint", "cityProperties" };
+        public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "meshInstance", "terrainPoint", "cityProperties", "lowLevel" };
 
         internal static int IdOf(object element) {
             return element is CityProperties ? History.ElementRegistry.CityPropertiesId : History.ElementRegistry.GetId(element);
@@ -19,6 +19,7 @@ namespace Api {
                 case Intersection i: return i.state?.Str("type", null);
                 case TerrainPatch p: return p.state?.Str("type", null);
                 case BuildingLine l: return l.state?.Str("type", null);
+                case LowLevelElement e: return e.TypeName;
                 case MeshInstance m: return m.meshPath;
                 default: return null;
             }
@@ -45,6 +46,7 @@ namespace Api {
                 terrainPatches = CountAlive(M.patches),
                 buildingLines = CountAlive(M.buildings),
                 meshInstances = CountAlive(M.meshes),
+                lowLevelElements = CountAlive(M.lowLevelElements),
                 terrainPoints = M.GetTerrainPoints().Count
             };
         }
@@ -148,11 +150,14 @@ namespace Api {
         }
 
         //anchor: the anchor the point is on; segment: the segment it is on (from an anchor to the next one, or between two
-        //terrain points), with its position along it (0-1)
+        //terrain points), with its position along it (0-1); column: the terrain point on whose vertical line it is
         static object PointInfo(TerrainPoint p) {
             object anchor = null, segment = null;
+            int? column = null;
             if (!GO.IsNull(p.anchor) && !p.anchor.IsDeleted()) {
-                if (p.anchor is TerrainAnchor ta) {
+                if (p.anchor is ColumnAnchor c) {
+                    column = History.ElementRegistry.GetId(c.master);
+                } else if (p.anchor is TerrainAnchor ta) {
                     anchor = AnchorRef(ta);
                 } else if (p.anchor is LineAnchor la) {
                     var startAnchor = GS.FindRecursive<TerrainAnchor>(la.start);
@@ -165,7 +170,7 @@ namespace Api {
                     }
                 }
             }
-            return new { id = History.ElementRegistry.GetId(p), position = p.GetPoint(), dividing = p.dividing, anchor, segment };
+            return new { id = History.ElementRegistry.GetId(p), position = p.GetPoint(), dividing = p.dividing, anchor, segment, column };
         }
 
         static List<object> PointsInfo(List<TerrainPoint> points) {
@@ -250,11 +255,14 @@ namespace Api {
                     var used = new List<int>();
                     foreach (var p in M.patches) if (p.GetPerimeterPointsComponents().Contains(point) || p.GetInternalPointsComponents().Contains(point)) used.Add(IdOf(p));
                     foreach (var l in M.buildings) if (l.ContainsPoint(point)) used.Add(IdOf(l));
+                    foreach (var l in M.lowLevelElements) if (l.HasPoint(point)) used.Add(IdOf(l));
                     return new { position = point.GetPoint(), dividing = point.dividing, usedBy = used };
                 }
                 case CityProperties cp: {
                     return new { parametricObjects = new List<string>(cp.objectInstances.Keys) };
                 }
+                case LowLevelElement lowLevel:
+                    return LowLevelDerived(lowLevel);
                 default:
                     return null;
             }
@@ -303,6 +311,7 @@ namespace Api {
                     case Intersection i: element = geometry.GetIntersection(i, IdOf(i)); break;
                     case TerrainPatch p: element = geometry.GetTerrainPatch(p, IdOf(p)); break;
                     case BuildingLine l: element = geometry.GetBuildingLine(l, IdOf(l)); break;
+                    case LowLevelElement ll: element = geometry.GetLowLevelElement(ll, IdOf(ll)); break;
                     case MeshInstance m: element = geometry.GetMeshInstance(m, m.objectParameter == null ? IdOf(m) : -1); break;
                     default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, meshInstance or parametricObject", KindOf(e));
                 }

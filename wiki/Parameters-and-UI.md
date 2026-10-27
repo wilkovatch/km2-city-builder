@@ -57,6 +57,7 @@ Definitions and loop variables are described in [Expression Language](Expression
 | `array` | Editable list | array of states | — |
 | `customElement` | Button opening a sub-panel | nested state | — |
 | `objectInstance` | Button selecting the placed object | nested state | — |
+| `reference` | Reference field: the name of the element, **Pick** (then click the element in the city: the handle under the mouse is green on the elements it accepts, red on the others; Pick again or Escape cancels) and **X** (no element). Also set by the converters and the API (`state.setParam` with the id of the element) | `{"kind": ..., "id": ...}`: another element of the city (`referenceTypes`: the kinds it accepts, `road`, `intersection`, `terrainPatch`, `buildingLine`, `lowLevel` or `lowLevel/<type>`; any element if missing). Not the element itself, a ghost or a deleted element | — (given to the Lua scripts of the [low-level elements](Core-Low-Level-Elements)) |
 
 Values not set yet read as 0, false, an empty string or a zero vector. Default values for new elements come from the presets (see [Core Templates and Presets](Core-Templates-and-Presets)).
 
@@ -140,7 +141,7 @@ A button that opens a panel with the parameters of a custom type (`customTypes/<
 | `label` | String key of the type's name, shown in the type dropdown. |
 | `menuWidth` | Width of the panel, in units of 160 pixels (1.5 is the usual width). |
 | `tabs` | One page per tab, with a button for each tab at the top of the panel (in two rows with four tabs or more). A tab `label` is a string key; an empty label is allowed for single-tab panels. |
-| `elements` | Fields of the tab, in order. `name` is a parameter full name, a built-in group or a `PRESET_<container>` element; `width` is in the same units as `menuWidth`. Elements are placed side by side and wrap to a new row when the sum of their widths exceeds `menuWidth`. |
+| `elements` | Fields of the tab, in order. `name` is a parameter full name, a built-in group, a `PRESET_<container>` element or a `convert:<converter>` button (converting the element with a converter of the core, see [Core Low-Level Elements](Core-Low-Level-Elements#converters)); `width` is in the same units as `menuWidth`. Elements are placed side by side and wrap to a new row when the sum of their widths exceeds `menuWidth`. |
 
 Parameters that are not listed in any tab are still variables and still saved, but cannot be edited. `array` parameters always take a full row.
 
@@ -158,6 +159,7 @@ Built-in groups insert the program's own controls (type and preset selectors, pl
 | Building | `mainGroup` (enabled sides, height, depth, roof texture, acute angle fix, side selection) |
 | Building side | `mainGroup` (floors), `blocksGroup` (block dictionary) |
 | Building block | `mainGroup` (block type) |
+| Low-level element | `mainGroup` (end editing, delete, type, restoring the ghost it replaces), `pointsGroup` (selected point, click mode, array elements), `meshGroup` (texture coordinates of the selected vertex), `containerGroup` (container, contents, merge); see [Core Low-Level Elements](Core-Low-Level-Elements#parametersjson-and-uijson) |
 
 Props elements, mesh instance settings and parametric objects have no groups: their `uiInfo` is a flat list of elements (see [Core Props and Objects](Core-Props-and-Objects)).
 

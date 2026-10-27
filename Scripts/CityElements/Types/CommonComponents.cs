@@ -20,6 +20,9 @@ namespace CityElements.Types {
         public object defaultValue;
         public string presetCategory;
         public string[] extensions;
+        //a "reference" parameter (another element of the city): the kinds it can reference ("road", "intersection",
+        //"lowLevel", or "lowLevel/<type>" for a single low-level type)
+        public string[] referenceTypes;
 
         public string fullName() {
             return container != null ? container + "_" + name : name;

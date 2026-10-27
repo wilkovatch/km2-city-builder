@@ -21,12 +21,23 @@ public class UIDetection {
         if (loop?.CurrentScene == null) return false;
         if (PressConsumedByUI() || NumericFieldDrag.BlocksInput) return true; //the captured mouse of the drag can be anywhere
         var viewport = loop.Root.GetViewport();
+        //the item lists of dropdowns are separate embedded windows, the hovered control of the viewport does not include them
+        var mouse = (Vector2I)viewport.GetMousePosition();
+        foreach (var window in viewport.GetEmbeddedSubwindows()) {
+            if (window.Visible && new Rect2I(window.GetPositionWithDecorations(), window.GetSizeWithDecorations()).HasPoint(mouse)) return true;
+        }
         var hovered = viewport.GuiGetHoveredControl();
         while (hovered != null) {
             if (hovered.IsVisibleInTree() && hovered.MouseFilter == Control.MouseFilterEnum.Stop) return true;
             hovered = hovered.GetParent() as Control;
         }
         return false;
+    }
+
+    //a popup (e.g. the item list of a dropdown) was open at the end of the previous frame, it gets the keys (arrows, escape...)
+    public static bool PopupOpen() {
+        var frame = Engine.GetProcessFrames();
+        return popupOpenFrame == frame - 1 || popupOpenFrame == frame;
     }
 
     //a mouse button was pressed in this frame, but the press was consumed by a control or a popup

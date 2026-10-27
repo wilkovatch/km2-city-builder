@@ -136,6 +136,26 @@ public abstract class EditorPanelElement {
                 fieldControl = container;
                 break;
             }
+            case "ReferenceField": {
+                AddTitle(title);
+                var container = MakeFieldArea();
+                // read-only name of the element, then the pick and clear buttons on the right
+                var lineEdit = new LineEdit { Name = "InputField", Editable = false };
+                UILayout.SetRect(lineEdit, 0, 0.5f, 1, 0.5f, -47.5f, -10, -95, 30);
+                UILayout.StyleLineEdit(lineEdit);
+                container.AddChild(lineEdit);
+                var pick = new Godot.Button { Name = "Pick", Text = "Pick" };
+                UILayout.SetRect(pick, 1, 0.5f, 1, 0.5f, -62.5f, -10, 65, 30);
+                UILayout.StyleButton(pick);
+                container.AddChild(pick);
+                TextFit.Apply(pick, TextFit.DefaultFontSize, 1);
+                var clear = new Godot.Button { Name = "Clear", Text = "X" };
+                UILayout.SetRect(clear, 1, 0.5f, 1, 0.5f, -15, -10, 30, 30);
+                UILayout.StyleButton(clear);
+                container.AddChild(clear);
+                fieldControl = container;
+                break;
+            }
             case "TextureField": {
                 AddTitle(title);
                 var container = MakeFieldArea();

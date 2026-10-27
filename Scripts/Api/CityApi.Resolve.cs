@@ -77,6 +77,7 @@ namespace Api {
                 case TerrainPoint: return "terrainPoint";
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
+                case LowLevelElement: return "lowLevel";
                 case Building: return "building";
                 case BuildingSideGenerator: return "buildingSide";
                 case BlockPart: return "buildingBlock";
@@ -103,6 +104,7 @@ namespace Api {
             foreach (var e in m.patches) yield return e;
             foreach (var e in m.buildings) yield return e;
             foreach (var e in m.meshes) yield return e;
+            foreach (var e in m.lowLevelElements) yield return e;
         }
 
         //an element of the city (with a registry id)
@@ -301,6 +303,10 @@ namespace Api {
                     t.presetCategory = "intersection";
                     t.applyPreset = x => intersection.state = x;
                     t.types = () => TP.GetIntersectionTypes().Keys;
+                    break;
+                case LowLevelElement lowLevel:
+                    t.state = lowLevel.state;
+                    t.parameters = Params(lowLevel.GetLowLevelType()?.parameterContainer);
                     break;
                 case TerrainPatch patch:
                     t.state = patch.state;

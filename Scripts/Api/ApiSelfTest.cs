@@ -220,6 +220,12 @@ namespace Api {
                 await View();
                 await Validate();
                 await McpTests();
+                await LowLevel();
+                await LowLevelEditing();
+                await DerivedPoints();
+                await AutoBai();
+                await LowLevelRoomEditing();
+                await BaiConnections();
             } catch (Abort e) {
                 Log("aborted: " + e.Message);
             } catch (System.Exception e) {
@@ -2103,6 +2109,1011 @@ road(-750)
                 TP.GetRoadTypes(true);
             }
             Check("the type is gone after reloading", !TP.GetRoadTypes().ContainsKey("zzInheritTest"));
+        }
+
+        //the low-level elements of the core (MM2: the PSDL attributes): creation, control points, constraints, containers,
+        //conversions, ghosts, undo, save and load, and their editor
+        async Task LowLevel() {
+            var types = (JArray)await Call("types.list", new { kind = "lowLevel" });
+            Check("the core has low-level types (" + types.Count + ")", types.Count >= 18);
+            var converters = (JArray)await Call("converters.list");
+            Check("the core has the toPsdl converter", converters.Any(c => c["name"].Value<string>() == "toPsdl"));
+            async Task<JToken> Derived(int id) => (await Call("elements.get", new { @ref = id, derived = true }))["derived"];
+            Vector3 Pos(JToken p) => new Vector3(p["position"][0].Value<float>(), p["position"][1].Value<float>(), p["position"][2].Value<float>());
+
+            //a facade: its corners stay a vertical rectangle
+            var facade = (await Call("lowLevel.create", new { type = "facade", position = new[] { 900, 0, 900 } })).Value<int>();
+            var d = await Derived(facade);
+            Check("a new facade has its four corners", d["paths"].Count() == 4);
+            await CheckUndo("moving a corner of a facade", async () => {
+                var tl = Pos(d["points"]["topLeft"]);
+                await Call("lowLevel.movePoint", new { element = facade, path = "topLeft", position = new[] { tl.X + 1, tl.Y + 2, tl.Z } });
+                await Frames(2);
+            });
+            d = await Derived(facade);
+            var p = new Dictionary<string, Vector3>();
+            foreach (var name in new[] { "bottomLeft", "bottomRight", "topLeft", "topRight" }) p[name] = Pos(d["points"][name]);
+            Check("the constraints keep the facade rectangular", Mathf.Abs(p["topLeft"].X - p["bottomLeft"].X) < 1e-3 && Mathf.Abs(p["topRight"].Y - p["topLeft"].Y) < 1e-3);
+
+            //arrays: a road with sidewalks gets and loses sections, not below its minimum
+            var road = (await Call("lowLevel.create", new { type = "roadWithSidewalks", position = new[] { 930, 0, 900 } })).Value<int>();
+            await CheckUndo("inserting a section", async () => await Call("lowLevel.insert", new { element = road, array = "sections", index = 1 }));
+            Check("the road has three sections", (await Derived(road))["points"]["sections"].Count() == 3);
+            await Call("lowLevel.remove", new { element = road, array = "sections", index = 1 });
+            await Expect("removing a section below the minimum", "invalid_operation", "lowLevel.remove", new { element = road, array = "sections", index = 0 });
+            //uniform arrays: a lane added to a section of a BAI road is added to all of them
+            var bai = (await Call("lowLevel.create", new { type = "baiRoad", position = new[] { 960, 0, 900 } })).Value<int>();
+            await Call("lowLevel.insert", new { element = bai, array = "sections.0.forwardLanes" });
+            var sections = (await Derived(bai))["points"]["sections"];
+            Check("a lane is added to every section of a uniform array", sections.All(sec => sec["forwardLanes"].Count() == 2));
+
+            //containers: a facade in a group of building parts, the group merged into a room
+            var room = (await Call("lowLevel.create", new { type = "room", position = new[] { 900, 0, 930 } })).Value<int>();
+            var group = (await Call("lowLevel.create", new { type = "buildingGroup", position = new[] { 900, 0, 930 } })).Value<int>();
+            await Call("lowLevel.setContainer", new { element = facade, container = group });
+            await Expect("a road in a group of building parts", "invalid_operation", "lowLevel.setContainer", new { element = road, container = group });
+            await CheckUndo("merging a group into a room", async () => await Call("lowLevel.merge", new { from = group, into = room }));
+            Check("the facade is in the room after the merge", (await Derived(facade))["container"]?.Value<int>() == room);
+
+            //mesh types and the conversion between them (Python)
+            var fan = (await Call("lowLevel.create", new {
+                type = "triangleFan", points = new JObject(),
+                mesh = new { vertices = new object[] { new { position = new[] { 900, 0, 960 } }, new { position = new[] { 910, 0, 960 } }, new { position = new[] { 910, 1, 970 } } }, triangles = new[] { 0, 1, 2 } }
+            })).Value<int>();
+            var converted = (JArray)await Call("elements.convert", new { elements = new[] { fan }, converter = "toRoofTriangleFan" });
+            var roof = converted.Count == 1 ? converted[0].Value<int>() : -1;
+            var roofDerived = roof >= 0 ? await Derived(roof) : null;
+            Check("a triangle fan converted to a roof triangle fan", roofDerived != null && roofDerived["type"].Value<string>() == "roofTriangleFan"
+                && roofDerived["vertices"].Count() == 3 && History.UndoManager.GetAliveElement(fan) == null);
+            Check("the roof is flat", roofDerived != null && roofDerived["vertices"].All(v => Mathf.Abs(Pos(v).Y - 1) < 1e-3));
+
+            //a road of the city converted: it becomes a ghost replaced by a room with its PSDL attributes and BAI road
+            var cityRoad = ((JArray)await Call("elements.list", new { kind = "road" })).First(r => History.UndoManager.GetAliveElement(r["id"].Value<int>()) is Road rd
+                && rd.startIntersection != null && rd.endIntersection != null && rd.state.Str("type", "") == "psdl")["id"].Value<int>();
+            var before = await Snapshot();
+            var created = (JArray)await Call("elements.convert", new { elements = new[] { cityRoad }, converter = "toPsdl" });
+            var ghosts = (JArray)await Call("ghosts.list");
+            Check("the converted road is a ghost", ghosts.Any(g => g["id"].Value<int>() == cityRoad));
+            var createdTypes = new HashSet<string>();
+            foreach (var id in created) createdTypes.Add((await Derived(id.Value<int>()))["type"].Value<string>());
+            Check("the road is converted to a room, a road attribute and a BAI road (" + string.Join(", ", createdTypes) + ")",
+                createdTypes.Contains("room") && createdTypes.Contains("baiRoad") && createdTypes.Count >= 3);
+            await Call("history.undo");
+            Same("undoing the conversion", before, await Snapshot());
+            await Call("history.redo");
+            Check("redoing the conversion", ((JArray)await Call("ghosts.list")).Count == ghosts.Count);
+
+            //save and load (the ids change: the elements are compared by name)
+            async Task<List<string>> Described() {
+                var names = new Dictionary<int, string>();
+                foreach (var e in (JArray)await Call("elements.list")) names[e["id"].Value<int>()] = e["name"].Value<string>();
+                string Name(JToken id) => id == null || id.Type == JTokenType.Null ? "-" : names.TryGetValue(id.Value<int>(), out var n) ? n : "?";
+                string Positions(JToken t) {
+                    if (t is JObject o && o["position"] != null) return string.Join(",", o["position"].Select(c => System.Math.Round(c.Value<float>(), 2)));
+                    if (t is JObject g) return "{" + string.Join(";", g.Properties().Select(x => x.Name + ":" + Positions(x.Value))) + "}";
+                    if (t is JArray arr) return "[" + string.Join(";", arr.Select(Positions)) + "]";
+                    return "";
+                }
+                var res = new List<string>();
+                foreach (var e in (JArray)await Call("elements.list", new { kind = "lowLevel" })) {
+                    var id = e["id"].Value<int>();
+                    var data = (await Call("elements.get", new { @ref = id }))["data"];
+                    var der = await Derived(id);
+                    var state = (JObject)data["state"].DeepClone();
+                    foreach (var prop in state.Properties().ToList()) {
+                        if (prop.Value is JObject r && r["kind"] != null && r["id"] != null) prop.Value = Name(r["id"]);
+                    }
+                    res.Add(e["name"] + " " + der["type"] + " in " + Name(der["container"]) + " from " + Name(der["source"]) + " " + state.ToString(Newtonsoft.Json.Formatting.None)
+                        + " " + Positions(der["points"]) + " " + string.Join(";", der["vertices"].Select(Positions)) + " " + string.Join(",", der["triangles"]));
+                }
+                foreach (var g in (JArray)await Call("ghosts.list")) res.Add("ghost " + g["name"]);
+                res.Sort(System.StringComparer.Ordinal);
+                return res;
+            }
+            var saved = await Described();
+            await Call("city.save");
+            await Call("city.reload");
+            var loaded = await Described();
+            var missing = saved.Except(loaded).ToList();
+            Check("the low-level elements and ghosts are saved and loaded (" + saved.Count + ")", missing.Count == 0 && saved.Count == loaded.Count);
+            foreach (var m in missing.Take(4)) Log("      " + m.Substring(0, System.Math.Min(300, m.Length)));
+            cityRoad = ((JArray)await Call("ghosts.list")).First()["id"].Value<int>();
+            road = ((JArray)await Call("elements.list", new { kind = "lowLevel", type = "roadWithSidewalks" })).Last()["id"].Value<int>();
+
+            //the editor of a low-level element, and the creation from the menu
+            var element = History.UndoManager.GetAliveElement(road) as LowLevelElement;
+            builder.SelectObject(element, true, null);
+            await Frames(3);
+            Check("the low-level editor is open", CallBuilder<EditorPanel>("FindShownPanel") == builder.lowLevelEditorPanel);
+            Screenshot("lowlevel_editor.png");
+            builder.CloseAllPanels();
+            await Frames(2);
+            History.UndoManager.Record("create", () => CallBuilder<object>("CreateLowLevelElement"));
+            await Frames(3);
+            Check("Create > Low-level element opens the editor to choose the type", CallBuilder<EditorPanel>("FindShownPanel") == builder.lowLevelEditorPanel
+                && builder.lowLevelPlacer.placementMode == ElementPlacer.LowLevelPlacer.PlacementMode.Create);
+            Screenshot("lowlevel_create.png");
+            builder.CloseAllPanels();
+            await Frames(2);
+
+            //the ghost brought back
+            await Call("ghosts.restore", new { element = cityRoad });
+            Check("the restored road is not a ghost any more", ((JArray)await Call("ghosts.list")).All(g => g["id"].Value<int>() != cityRoad));
+
+            //a point on an anchor leaves it when moved, by the API and with the gizmo
+            var anchorRef = ((JArray)await Call("anchors.list")).First(a => !Operations.LowLevel.IsGhost(History.UndoManager.GetAliveElement(a["of"].Value<int>())));
+            var anchoredFan = (await Call("lowLevel.create", new {
+                type = "triangleFan", points = new JObject(),
+                mesh = new { vertices = new object[] { new { position = new[] { 900, 0, 990 } }, new { position = new[] { 910, 0, 990 } }, new { position = new[] { 910, 0, 1000 } } }, triangles = new[] { 0, 1, 2 } }
+            })).Value<int>();
+            async Task<TerrainPoint> Vertex(int index) => History.UndoManager.GetAliveElement((await Derived(anchoredFan))["vertices"][index]["id"].Value<int>()) as TerrainPoint;
+            async Task<TerrainPoint> AttachVertex(int index) {
+                await Call("lowLevel.attachPoint", new { element = anchoredFan, vertex = index, to = new { anchor = new { of = anchorRef["of"], index = anchorRef["index"] } } });
+                await Frames(2);
+                return await Vertex(index);
+            }
+            var anchoredPoint = await AttachVertex(0);
+            Check("a vertex attached to an anchor", anchoredPoint != null && anchoredPoint.anchor is TerrainAnchor);
+            var target = anchoredPoint.GetPoint() + new Vector3(3, 0, 3);
+            await CheckUndo("moving a vertex on an anchor", async () => {
+                await Call("lowLevel.movePoint", new { element = anchoredFan, vertex = 0, position = new[] { target.X, target.Y, target.Z } });
+                await Frames(2);
+            });
+            anchoredPoint = await Vertex(0);
+            Check("the vertex moved by the API leaves the anchor", anchoredPoint.anchor == null && anchoredPoint.GetPoint().DistanceTo(target) < 1e-3);
+            anchoredPoint = await AttachVertex(0);
+            builder.SelectObject(History.UndoManager.GetAliveElement(anchoredFan) as LowLevelElement, true, null);
+            await Frames(3);
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(anchoredPoint.GetObject());
+            History.UndoManager.Record("drag", () => {
+                History.UndoManager.TouchOwner(anchoredPoint.GetObject());
+                GameEngine.GameObject.SetPosition(anchoredPoint.GetObject(), target);
+                builder.helper.elementManager.FlagAsChanged();
+            });
+            await Frames(3);
+            Check("the vertex moved with the gizmo leaves the anchor", anchoredPoint.anchor == null && anchoredPoint.GetPoint().DistanceTo(target) < 1e-3);
+            builder.CloseAllPanels();
+            await Frames(2);
+
+            //the editor of a room (no points group) opened from the editor of an element in it
+            var roomElement = History.UndoManager.GetAliveElement(((JArray)await Call("elements.list", new { kind = "lowLevel", type = "room" })).First()["id"].Value<int>()) as LowLevelElement;
+            var inRoom = builder.helper.elementManager.GetLowLevelChildren(roomElement).First();
+            //a second content to move the highlight to (deleted after)
+            var extraContent = History.UndoManager.GetAliveElement((await Call("lowLevel.create", new {
+                type = "dividedRoad", position = GameEngine.Vector3.EncodePosition(inRoom.GetAllPoints()[0].GetPoint()),
+                container = History.ElementRegistry.GetId(roomElement) })).Value<int>()) as LowLevelElement;
+            await Frames(2);
+            builder.SelectObject(inRoom, true, null);
+            await Frames(3);
+            builder.lowLevelEditorPanel.GetType().GetMethod("EditContainer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(builder.lowLevelEditorPanel, null);
+            await Frames(3);
+            string frameError = null;
+            try {
+                builder.lowLevelEditorPanel.Update(); //shows the selected point again (in a field freed by the rebuild before the fix)
+            } catch (System.Exception e) {
+                frameError = e.GetType().Name;
+            }
+            Check("the editor of the container opens from an element in it" + (frameError != null ? " (" + frameError + ")" : ""),
+                CallBuilder<EditorPanel>("FindShownPanel") == builder.lowLevelEditorPanel && builder.lowLevelEditorPanel.GetElement() == roomElement && frameError == null);
+            //the content picked in the contents dropdown is outlined (on a layer of its own) with its points selected
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var contentsDropdown = builder.lowLevelEditorPanel.GetType().GetField("contentsDropdown", flags).GetValue(builder.lowLevelEditorPanel) as EditorPanelElements.Dropdown;
+            var contentsOption = typeof(EditorPanelElements.Dropdown).GetField("dropdown", flags).GetValue(contentsDropdown) as OptionButton;
+            var roomContents = builder.helper.elementManager.GetLowLevelChildren(roomElement);
+            const uint contentLayer = 1u << 16;
+            bool Outlined(LowLevelElement e) {
+                var renderers = RuntimeGizmos.SelectionOutline.GetRenderers(e.generator);
+                return renderers.Count > 0 && renderers.All(r => !r.Visible || (r.Layers & contentLayer) != 0);
+            }
+            bool NoneOutlined() => roomContents.All(c => RuntimeGizmos.SelectionOutline.GetRenderers(c.generator).All(r => (r.Layers & contentLayer) == 0));
+            bool HighlightOnly(LowLevelElement picked) => Outlined(picked) && picked.IsSelected()
+                && roomContents.Where(c => c != picked).All(c => !c.IsSelected() && !Outlined(c));
+            Check("nothing in the room is highlighted before a content is picked", NoneOutlined() && roomContents.All(c => !c.IsSelected()));
+            contentsOption.EmitSignal(OptionButton.SignalName.ItemSelected, 0); //the first one, shown already
+            await Frames(2);
+            var firstHighlighted = HighlightOnly(roomContents[0]);
+            async Task HighlightScreenshot(string name) {
+                if (DisplayServer.GetName() == "headless") return;
+                //all the contents in view
+                var points = roomContents.SelectMany(e => e.GetAllPoints()).Select(p => p.GetPoint()).ToList();
+                var bounds = new Aabb(points[0], Vector3.Zero);
+                foreach (var p in points) bounds = bounds.Expand(p);
+                var center = bounds.GetCenter();
+                (builder.GetViewport().GetCamera3D() as CameraController)?.SetView(center + new Vector3(0, 0.8f, 0.6f) * Mathf.Max(bounds.Size.Length(), 10), center);
+                await Frames(3);
+                Screenshot(name);
+            }
+            await HighlightScreenshot("contents_highlight_1.png");
+            var secondHighlighted = roomContents.Count > 1;
+            if (roomContents.Count > 1) {
+                contentsOption.Select(1);
+                contentsOption.EmitSignal(OptionButton.SignalName.ItemSelected, 1);
+                await Frames(2);
+                secondHighlighted = HighlightOnly(roomContents[1]);
+                await HighlightScreenshot("contents_highlight_2.png");
+            }
+            Check("picking a content in the contents dropdown highlights it (first " + firstHighlighted + ", second of " + roomContents.Count + " " + secondHighlighted + ")",
+                firstHighlighted && secondHighlighted);
+            builder.CloseAllPanels();
+            await Frames(2);
+            Check("the highlight is removed when the editor is closed", NoneOutlined() && roomContents.All(c => !c.IsSelected())
+                && !builder.gizmo.GetNode<Node3D>("ContentOutline").GetChildren().OfType<MeshInstance3D>().Any(q => q.Visible));
+            Operations.LowLevel.Delete(M, extraContent);
+            await Frames(2);
+        }
+
+        //sections added where clicked, dividers, room perimeters, prop rules and the anchors between points
+        async Task LowLevelEditing() {
+            async Task<JToken> Derived(int id) => (await Call("elements.get", new { @ref = id, derived = true }))["derived"];
+            Vector3 Pos(JToken p) => new Vector3(p["position"][0].Value<float>(), p["position"][1].Value<float>(), p["position"][2].Value<float>());
+            float[] A(Vector3 v) => new[] { v.X, v.Y, v.Z };
+            LowLevelElement Element(int id) => History.UndoManager.GetAliveElement(id) as LowLevelElement;
+            int Triangles(LowLevelElement e) {
+                var res = 0;
+                for (int i = 0; i < GameEngine.Mesh.GetSubmeshCount(e.generator.m); i++) res += GameEngine.Mesh.GetIndices(e.generator.m, i).Length / 3;
+                return res;
+            }
+
+            //sections: added at the end and at the start of a road where clicked, turned to continue it
+            var road = (await Call("lowLevel.create", new { type = "roadWithSidewalks", position = new[] { 1000, 0, 1200 } })).Value<int>();
+            Vector3 Center(JToken section) {
+                var c = Vector3.Zero;
+                var n = 0;
+                foreach (var prop in ((JObject)section).Properties()) {
+                    c += Pos(prop.Value);
+                    n++;
+                }
+                return c / n;
+            }
+            var secs = (await Derived(road))["points"]["sections"];
+            var width = Pos(secs[0]["leftSidewalk"]).DistanceTo(Pos(secs[0]["rightSidewalk"]));
+            var endTarget = Center(secs[1]) + new Vector3(10, 0, 10);
+            await CheckUndo("adding a section where clicked", async () => await Call("lowLevel.insert", new { element = road, array = "sections", position = A(endTarget) }));
+            secs = (await Derived(road))["points"]["sections"];
+            var across = Pos(secs[2]["rightSidewalk"]) - Pos(secs[2]["leftSidewalk"]);
+            Check("a section added at the end is centered where clicked", secs.Count() == 3 && Center(secs[2]).DistanceTo(endTarget) < 1e-3);
+            Check("the section added keeps its width and is turned with the road (" + across + ")", Mathf.Abs(across.Length() - width) < 1e-3
+                && Mathf.Abs(across.Normalized().Dot((endTarget - Center(secs[1])).Normalized())) < 1e-3);
+            var startTarget = Center(secs[0]) - new Vector3(0, 0, 10);
+            await Call("lowLevel.insert", new { element = road, array = "sections", index = 0, position = A(startTarget) });
+            secs = (await Derived(road))["points"]["sections"];
+            Check("a section added at the start is centered where clicked", secs.Count() == 4 && Center(secs[0]).DistanceTo(startTarget) < 1e-3);
+            await Expect("a section added at a position in the middle", "invalid_param", "lowLevel.insert", new { element = road, array = "sections", index = 2, position = A(startTarget) });
+            //the points added can be moved with the gizmo (on the moveable layer while the element is edited)
+            var roadElement = Element(road);
+            roadElement.SetActive(true, true);
+            Operations.LowLevel.InsertArrayElement(roadElement, "sections", 1);
+            var layers = string.Join(",", roadElement.GetAllPoints().Select(p => GO.GetLayer(p.GetObject())).Distinct());
+            Check("the points added while editing can be moved (layers " + layers + ")", roadElement.GetAllPoints().All(p => GO.GetLayer(p.GetObject()) == 8));
+            roadElement.SetActive(false, false);
+            //the panel names the array of the selected point in its buttons
+            builder.SelectObject(roadElement, true, null);
+            await Frames(3);
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(roadElement.GetAllPoints()[0].GetObject());
+            builder.lowLevelEditorPanel.Update();
+            var insertButton = builder.lowLevelEditorPanel.GetType().GetField("insertBeforeButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .GetValue(builder.lowLevelEditorPanel) as EditorPanelElements.Button;
+            Check("the insert buttons name the array of the selected point", insertButton != null && insertButton.GetInteractable());
+            Screenshot("lowlevel_sections.png");
+            builder.CloseAllPanels();
+            await Frames(2);
+
+            //arrays in arrays (the lanes of the sections of a BAI road): Insert, Remove and Delete act on the sections, the
+            //inner buttons on the lanes, and a lane point added by click goes in every section
+            var bai = (await Call("lowLevel.create", new { type = "baiRoad", position = new[] { 1200, 0, 1400 } })).Value<int>();
+            async Task<string> Counts() {
+                var s = (await Derived(bai))["points"]["sections"];
+                return string.Join(",", s.Count(), s.Min(x => x["forwardLanes"].Count()), s.Max(x => x["forwardLanes"].Count()),
+                    s.Min(x => x["backwardLanes"].Count()), s.Max(x => x["backwardLanes"].Count()));
+            }
+            await Call("lowLevel.insert", new { element = bai, array = "sections" });
+            await CheckUndo("removing a lane point", async () => await Call("lowLevel.removePoint", new { element = bai, path = "sections.2.forwardLanes.0" }));
+            var counts = await Counts();
+            Check("removing a lane point removes its section (sections, forward and backward lanes: " + counts + ")", counts == "2,1,1,1,1");
+            await Expect("removing a lane point with the sections at their minimum", "invalid_operation", "lowLevel.removePoint", new { element = bai, path = "sections.0.forwardLanes.0" });
+            builder.SelectObject(Element(bai), true, null);
+            await Frames(3);
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            Godot.Button PanelButton(string name) => typeof(EditorPanelElements.Button).GetField("button", flags)
+                .GetValue(builder.lowLevelEditorPanel.GetType().GetField(name, flags).GetValue(builder.lowLevelEditorPanel)) as Godot.Button;
+            void SelectPoint(string path) {
+                builder.gizmo.ClearTargets();
+                builder.gizmo.AddTarget(((global::LowLevel.PointLeaf)global::LowLevel.PointTree.Find(Element(bai).points, path)).point.GetObject());
+                builder.lowLevelEditorPanel.Update();
+            }
+            async Task Press(string button) {
+                SelectPoint("sections.0.forwardLanes.0");
+                PanelButton(button).EmitSignal(BaseButton.SignalName.Pressed);
+                await Frames(2);
+            }
+            SelectPoint("sections.0.forwardLanes.0");
+            await Frames(2);
+            Screenshot("lowlevel_bai_lanes.png");
+            var sectionsLabel = StringManager.Get("LL_SECTIONS").ToLowerInvariant();
+            var lanesLabel = StringManager.Get("LL_BAI_FORWARD_LANES").ToLowerInvariant();
+            Check("with a lane point selected, Insert and Remove name the sections and the inner buttons the lanes (" + PanelButton("insertAfterButton").Text
+                + " / " + PanelButton("addInnerButton").Text + ")", PanelButton("insertAfterButton").Text.Contains(sectionsLabel)
+                && PanelButton("removeButton").Text.Contains(sectionsLabel) && PanelButton("addInnerButton").Text.Contains(lanesLabel)
+                && PanelButton("removeInnerButton").Text.Contains(lanesLabel) && !PanelButton("addInnerButton").Disabled);
+            await CheckUndo("inserting a section from a lane point", async () => await Press("insertAfterButton"));
+            counts = await Counts();
+            Check("Insert after with a lane point selected adds a section (" + counts + ")", counts == "3,1,1,1,1");
+            await CheckUndo("adding a lane from a lane point", async () => await Press("addInnerButton"));
+            counts = await Counts();
+            Check("Add to lanes adds a lane to every section (" + counts + ")", counts == "3,2,2,1,1");
+            await Press("removeInnerButton");
+            counts = await Counts();
+            Check("Remove from lanes removes a lane from every section (" + counts + ")", counts == "3,1,1,1,1");
+            SelectPoint("sections.0.rightCurb");
+            Check("the inner buttons are disabled for a point in the sections only", PanelButton("addInnerButton").Disabled && PanelButton("removeInnerButton").Disabled);
+            builder.CloseAllPanels();
+            await Frames(2);
+            //the first lane added by click: in every section, at the same place across it (the last section turned by 90 degrees)
+            await Call("lowLevel.remove", new { element = bai, array = "sections.0.backwardLanes", index = 0 });
+            var lastSection = Element(bai).GetLeaves().Where(l => l.path.StartsWith("sections.2.")).ToList();
+            var lastCenter = lastSection.Aggregate(Vector3.Zero, (c, l) => c + l.leaf.point.GetPoint()) / lastSection.Count;
+            foreach (var (path, leaf) in lastSection) {
+                await Call("lowLevel.movePoint", new { element = bai, path, position = A(lastCenter + (leaf.point.GetPoint() - lastCenter).Rotated(Vector3.Up, Mathf.Pi / 2)) });
+            }
+            var secs0 = (await Derived(bai))["points"]["sections"][0];
+            var click = Pos(secs0["rightCurb"]).Lerp(Pos(secs0["leftCurb"]), 0.3f);
+            await CheckUndo("adding a lane point by click", async () => {
+                History.UndoManager.Record("append", () => Operations.LowLevel.AppendPoint(M, Element(bai), "sections.0.backwardLanes", null, click));
+                await Frames(2);
+            });
+            counts = await Counts();
+            var baiSections = (await Derived(bai))["points"]["sections"];
+            var toRight = click.DistanceTo(Pos(secs0["rightCurb"]));
+            var toLeft = click.DistanceTo(Pos(secs0["leftCurb"]));
+            var placed = baiSections.Select(s => s["backwardLanes"].Count() == 1 ? Pos(s["backwardLanes"][0]) : Vector3.Inf).ToList();
+            Check("a lane point added by click goes in every section (" + counts + ")", counts == "3,1,1,1,1");
+            Check("it is where clicked in the nearest section, at the same place across the others (" + string.Join(" ", placed) + ")",
+                placed[0].DistanceTo(click) < 1e-3 && baiSections.Skip(1).All(s => Mathf.Abs(Pos(s["backwardLanes"][0]).DistanceTo(Pos(s["rightCurb"])) - toRight) < 1e-3
+                    && Mathf.Abs(Pos(s["backwardLanes"][0]).DistanceTo(Pos(s["leftCurb"])) - toLeft) < 1e-3));
+
+            //dividers: the closed ends are drawn
+            var dividerState = new { dividerType = 2, dividerValue = 0.5 };
+            var open = (await Call("lowLevel.create", new { type = "dividedRoad", position = new[] { 1040, 0, 1200 }, state = dividerState })).Value<int>();
+            var closed = (await Call("lowLevel.create", new { type = "dividedRoad", position = new[] { 1070, 0, 1200 },
+                state = new { dividerType = 2, dividerValue = 0.5, closeStart = true, closeEnd = true } })).Value<int>();
+            await Frames(2);
+            var capTriangles = Triangles(Element(closed)) - Triangles(Element(open));
+            Check("the closed ends of an elevated divider are drawn (" + capTriangles + " triangles)", capTriangles == 8);
+            foreach (var type in new[] { 1, 3 }) {
+                var flat = (await Call("lowLevel.create", new { type = "dividedRoad", position = new[] { 1100 + type * 30, 0, 1200 }, state = new { dividerType = type, dividerValue = 1.0, closeStart = true } })).Value<int>();
+                await Frames(2);
+                Check("a divider of type " + type + " is drawn", Triangles(Element(flat)) > Triangles(Element(open)) - 40);
+            }
+
+            //rooms: a perimeter set manually, shown as a line that can be clicked to select the room
+            var room = (await Call("lowLevel.create", new {
+                type = "room", points = new { perimeter = new object[] {
+                    new { position = new[] { 1000, 0, 1300 } }, new { position = new[] { 1020, 0, 1300 } },
+                    new { position = new[] { 1020, 0, 1320 } }, new { position = new[] { 1000, 0, 1320 } } } }
+            })).Value<int>();
+            await Frames(3);
+            var roomElement = Element(room);
+            var clicked = GameEngine.Raycast.DoRaycast(builder.helper, new Vector3(1010, 50, 1300), Vector3.Down, out var hit, 100, 1 << 7);
+            Check("a room with a perimeter can be clicked", clicked && hit.collider == roomElement.generator);
+            //the outline is hidden by the core's view toggle (and can't be clicked then), but shown while the room is edited;
+            //the room has no contents, so its placeholder surface inside the perimeter can be clicked anyway (the outline is
+            //clicked just outside it)
+            bool OutlineShown() => roomElement.generator.GetChildren().OfType<GameEngine.LineRenderer>().Any(l => l.enabled);
+            bool ClickableAt(float z) => GameEngine.Raycast.DoRaycast(builder.helper, new Vector3(1010, 50, z), Vector3.Down, out var h, 100, 1 << 7) && h.collider == roomElement.generator;
+            bool Clickable() => ClickableAt(1299.9f);
+            var toggles = (JArray)await Call("view.toggles");
+            Check("view.toggles lists the room outlines of the core, on", toggles.Any(t => t["name"].Value<string>() == "roomOutlines" && t["on"].Value<bool>()));
+            await Call("view.setToggle", new { name = "roomOutlines", on = false });
+            await Frames(2);
+            var offShown = OutlineShown();
+            var offClickable = Clickable();
+            var placeholderClickable = ClickableAt(1310);
+            roomElement.SetActive(true, true);
+            var editedShown = OutlineShown();
+            roomElement.SetActive(false, false);
+            Check("the room outline is hidden by its view toggle (shown " + offShown + ", clickable " + offClickable + ", while edited " + editedShown + ")",
+                !offShown && !offClickable && editedShown && !OutlineShown());
+            Check("a room without contents can be clicked inside its perimeter (its placeholder surface) with the outlines hidden", placeholderClickable);
+            Check("the view toggle is saved in the city preferences", PreferencesManager.Get("viewToggle.roomOutlines", true) == false
+                && ((JArray)await Call("view.toggles")).Any(t => t["name"].Value<string>() == "roomOutlines" && !t["on"].Value<bool>()));
+            await Call("view.setToggle", new { name = "roomOutlines", on = true });
+            await Frames(2);
+            Check("the room outline is shown again with its view toggle on", OutlineShown() && Clickable());
+            await Expect("an unknown view toggle", "not_found", "view.setToggle", new { name = "noSuchToggle", on = true });
+            //in the View menu: after Reset window and a separator, a check item switching it
+            var viewMenu = CallBuilder<MenuBar>("GetMenuBar").FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>().First(b => b.Text == StringManager.Get("VIEW")).GetPopup();
+            viewMenu.EmitSignal(PopupMenu.SignalName.AboutToPopup);
+            var outlinesItem = viewMenu.ItemCount - 1;
+            Check("the View menu ends with a separator and the checked room outlines toggle",
+                viewMenu.GetItemText(outlinesItem - 2) == StringManager.Get("RESET_WINDOW") && viewMenu.IsItemSeparator(outlinesItem - 1)
+                && viewMenu.GetItemText(outlinesItem) == StringManager.Get("VIEW_ROOM_OUTLINES") && viewMenu.IsItemCheckable(outlinesItem) && viewMenu.IsItemChecked(outlinesItem));
+            async Task MenuScreenshot(string name) {
+                if (DisplayServer.GetName() == "headless") return;
+                viewMenu.Popup(new Rect2I(200, 40, 0, 0));
+                await Frames(3);
+                Screenshot(name);
+                viewMenu.Hide();
+            }
+            await MenuScreenshot("view_menu_toggle_on.png");
+            viewMenu.EmitSignal(PopupMenu.SignalName.IdPressed, viewMenu.GetItemId(outlinesItem));
+            await Frames(2);
+            var offFromMenu = !OutlineShown();
+            viewMenu.EmitSignal(PopupMenu.SignalName.AboutToPopup);
+            var uncheckedInMenu = !viewMenu.IsItemChecked(outlinesItem);
+            await MenuScreenshot("view_menu_toggle_off.png");
+            viewMenu.EmitSignal(PopupMenu.SignalName.IdPressed, viewMenu.GetItemId(outlinesItem));
+            await Frames(2);
+            Check("the View menu item switches the toggle (off " + offFromMenu + ", unchecked " + uncheckedInMenu + ")", offFromMenu && uncheckedInMenu && OutlineShown());
+            //a closed array: the element added after the last one is between it and the first one
+            await Call("lowLevel.insert", new { element = room, array = "perimeter" });
+            var perimeter = (await Derived(room))["points"]["perimeter"];
+            Check("a point added at the end of a closed array is between the last and the first one",
+                perimeter.Count() == 5 && Pos(perimeter[4]).DistanceTo(new Vector3(1000, 0, 1310)) < 1e-3);
+            var first = History.UndoManager.GetAliveElement(perimeter[0]["id"].Value<int>()) as TerrainPoint;
+            var again = Operations.LowLevel.AppendPoint(M, roomElement, "perimeter", first.GetObject(), first.GetPoint());
+            Check("a point is not added twice to an array of points", again == null && (await Derived(room))["points"]["perimeter"].Count() == 5);
+            //computed from the contents (converter roomPerimeter)
+            var withRoad = (await Call("lowLevel.create", new { type = "room", position = new[] { 1000, 0, 1200 } })).Value<int>();
+            await Call("lowLevel.setContainer", new { element = road, container = withRoad });
+            JArray changed = null;
+            await CheckUndo("computing the perimeter of a room", async () => changed = (JArray)await Call("elements.convert", new { elements = new[] { withRoad }, converter = "roomPerimeter" }));
+            var computed = (await Derived(withRoad))["points"]["perimeter"];
+            Check("the perimeter of a room computed from its contents (" + computed.Count() + " points)", changed != null && changed.Any(c => c.Value<int>() == withRoad)
+                && computed.Count() >= 4 && (await Call("elements.get", new { @ref = withRoad }))["data"]["state"]["simplifyPerimeter"]?.Value<bool>() == true);
+            Check("the perimeter computed shares the points of the contents", computed.All(p => p["shared"].Value<bool>()));
+            await Expect("the perimeter of a room without surfaces", "converter_failed", "elements.convert", new { elements = new[] { room }, converter = "roomPerimeter" });
+
+            //prop rules: the props of a low-level road placed along its sidewalks, exported with it
+            var rulePreset = Operations.Presets.Filter("roadPropRule", new List<string> { "psdl" }).FirstOrDefault(r => r.State("right") != null || r.State("left") != null);
+            if (rulePreset != null) {
+                var rule = JObject.FromObject(rulePreset, Newtonsoft.Json.JsonSerializer.Create(Json.Settings));
+                await CheckUndo("setting the prop rule of a low-level road", async () => {
+                    await Call("lowLevel.setPropRule", new { element = road, rule });
+                    await Frames(2);
+                });
+                var props = Element(road).generator.props;
+                Check("the props of the prop rule are placed along the low-level road (" + props.Count + ")", props.Count > 0 && props.All(p => p.container == "right" || p.container == "left"));
+                var exportJson = Path.Combine(folder, "..", "api_lowlevel_props.json");
+                await Call("city.exportJson", new { path = exportJson });
+                var exported = ((JArray)JObject.Parse(File.ReadAllText(exportJson))["lowLevelElements"]).FirstOrDefault(e => e["id"].Value<int>() == M.lowLevelElements.IndexOf(Element(road))); //the ids of the export are the indices
+                Check("the props of a low-level road are exported", exported?["data"]?["propLines"] is JArray propLines && propLines.Sum(l => ((JArray)l["props"]).Count) == props.Count);
+            } else {
+                Log("     no prop rule preset with sidewalk props in the template");
+            }
+            await Expect("a prop rule on a type without props containers", "invalid_operation", "lowLevel.setPropRule", new { element = room, rule = new JObject() });
+            await Expect("a prop rule with a container of another type", "not_found", "lowLevel.setPropRule", new { element = road, rule = new JObject { ["middle"] = new JObject() } });
+
+            //anchors between points: on the line between two points, on the vertical line of a point
+            object Fan(float x) => new {
+                type = "triangleFan", points = new JObject(),
+                mesh = new { vertices = new object[] { new { position = new[] { x, 0, 1400 } }, new { position = new[] { x + 10, 0, 1400 } }, new { position = new[] { x + 10, 0, 1410 } } }, triangles = new[] { 0, 1, 2 } }
+            };
+            var fanA = (await Call("lowLevel.create", Fan(1000))).Value<int>();
+            var fanB = (await Call("lowLevel.create", Fan(1030))).Value<int>();
+            async Task<TerrainPoint> V(int fan, int i) => History.UndoManager.GetAliveElement((await Derived(fan))["vertices"][i]["id"].Value<int>()) as TerrainPoint;
+            var a0 = await V(fanA, 0);
+            var a1 = await V(fanA, 1);
+            await CheckUndo("attaching a point to a line", async () => await Call("lowLevel.attachPoint", new { element = fanB, vertex = 0, line = new[] { History.ElementRegistry.GetId(a0), History.ElementRegistry.GetId(a1) } }));
+            var onLine = await V(fanB, 0);
+            Check("a point attached to a line is on it", onLine.anchor is LineAnchor && GeometryHelper.ClosestPointToCurve(onLine.GetPoint(), new List<Vector3> { a0.GetPoint(), a1.GetPoint() }, out _).DistanceTo(onLine.GetPoint()) < 1e-3);
+            var percent = ((LineAnchor)onLine.anchor).percent;
+            await Call("terrainPoints.move", new { point = History.ElementRegistry.GetId(a1), position = A(a1.GetPoint() + new Vector3(0, 4, 6)) });
+            await Frames(2);
+            Check("a point on a line follows its ends", onLine.GetPoint().DistanceTo(a0.GetPoint().Lerp(a1.GetPoint(), percent)) < 1e-3);
+            await CheckUndo("attaching a point to a vertical line", async () => await Call("lowLevel.attachPoint", new { element = fanB, vertex = 1, column = History.ElementRegistry.GetId(a0) }));
+            var onColumn = await V(fanB, 1);
+            await Call("lowLevel.movePoint", new { element = fanB, vertex = 1, position = A(onColumn.GetPoint() + new Vector3(0, 7, 0)) });
+            await Frames(2);
+            Check("a point on a vertical line keeps its own height", onColumn.anchor is ColumnAnchor && Mathf.Abs(onColumn.GetPoint().Y - 7) < 1e-3
+                && Mathf.Abs(onColumn.GetPoint().X - a0.GetPoint().X) < 1e-3 && Mathf.Abs(onColumn.GetPoint().Z - a0.GetPoint().Z) < 1e-3);
+            await Call("terrainPoints.move", new { point = History.ElementRegistry.GetId(a0), position = A(a0.GetPoint() + new Vector3(3, 0, -2)) });
+            await Frames(2);
+            Check("a point on a vertical line follows the point", Mathf.Abs(onColumn.GetPoint().X - a0.GetPoint().X) < 1e-3 && Mathf.Abs(onColumn.GetPoint().Z - a0.GetPoint().Z) < 1e-3
+                && Mathf.Abs(onColumn.GetPoint().Y - 7) < 1e-3);
+            var a0Before = a0.GetPoint();
+            await CheckUndo("moving a point on a vertical line horizontally", async () => {
+                await Call("lowLevel.movePoint", new { element = fanB, vertex = 1, position = A(onColumn.GetPoint() + new Vector3(-2, 1, 1)) });
+                await Frames(2);
+            });
+            Check("moving a point on a vertical line horizontally moves the point it follows", a0.GetPoint().DistanceTo(a0Before + new Vector3(-2, 0, 1)) < 1e-3
+                && Mathf.Abs(onColumn.GetPoint().Y - 8) < 1e-3);
+            //with the gizmo
+            builder.SelectObject(Element(fanB), true, null);
+            await Frames(3);
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(onColumn.GetObject());
+            a0Before = a0.GetPoint();
+            History.UndoManager.Record("drag", () => {
+                History.UndoManager.TouchOwner(onColumn.GetObject());
+                GO.SetPosition(onColumn.GetObject(), onColumn.GetPoint() + new Vector3(1, 0, 0));
+                M.FlagAsChanged();
+            });
+            await Frames(3);
+            Check("dragging a point on a vertical line moves the point it follows", a0.GetPoint().DistanceTo(a0Before + new Vector3(1, 0, 0)) < 1e-3
+                && onColumn.anchor is ColumnAnchor && Mathf.Abs(onColumn.GetPoint().X - a0.GetPoint().X) < 1e-3);
+            builder.CloseAllPanels();
+            await Frames(2);
+            await Expect("a point following itself", "invalid_operation", "lowLevel.attachPoint", new { element = fanA, vertex = 0, column = History.ElementRegistry.GetId(onColumn) });
+            //saved and loaded
+            GO.SetName(Element(fanA), "anchor fan A");
+            GO.SetName(Element(fanB), "anchor fan B");
+            await Call("city.save");
+            await Call("city.reload");
+            var fans = (JArray)await Call("elements.list", new { kind = "lowLevel", type = "triangleFan" });
+            int Named(string name) => fans.First(f => f["name"].Value<string>() == name)["id"].Value<int>();
+            var loadedA0 = await V(Named("anchor fan A"), 0);
+            var loadedB0 = await V(Named("anchor fan B"), 0);
+            var loadedB1 = await V(Named("anchor fan B"), 1);
+            Check("the anchors between points are saved and loaded", loadedB1.anchor is ColumnAnchor column && column.master == loadedA0
+                && loadedB0.anchor is LineAnchor line && line.StartPoint == loadedA0 && Mathf.Abs(loadedB1.GetPoint().Y - 8) < 1e-3);
+
+            //a building converted: its points keep their places when one is moved
+            var lines = (JArray)await Call("elements.list", new { kind = "buildingLine" });
+            if (lines.Count > 0) {
+                var parts = (JArray)await Call("elements.convert", new { elements = new[] { lines[0]["id"].Value<int>() }, converter = "toPsdl" });
+                var points = new HashSet<TerrainPoint>();
+                foreach (var id in parts) foreach (var p in Element(id.Value<int>())?.GetAllPoints() ?? new List<TerrainPoint>()) points.Add(p);
+                var columns = points.Where(p => p.anchor is ColumnAnchor).ToList();
+                var onLines = points.Where(p => p.anchor is LineAnchor la && la.StartPoint != null).ToList();
+                Check("the points of a converted building follow each other (" + columns.Count + " on vertical lines, " + onLines.Count + " on lines)", columns.Count > 0);
+                var master = columns.Select(p => ((ColumnAnchor)p.anchor).master).First(m => m.anchor == null);
+                var followers = columns.Where(p => ((ColumnAnchor)p.anchor).master == master).ToList();
+                await Call("terrainPoints.move", new { point = History.ElementRegistry.GetId(master), position = A(master.GetPoint() + new Vector3(0.5f, 0, 0.5f)) });
+                await Frames(3);
+                Check("moving a corner of a converted building moves the corners above it", followers.All(p => Mathf.Abs(p.GetPoint().X - master.GetPoint().X) < 1e-3 && Mathf.Abs(p.GetPoint().Z - master.GetPoint().Z) < 1e-3));
+            }
+        }
+
+        //derived points, with a type of the test (no type of the core uses them yet): its line copies the line of the first
+        //other element of the same source, with the first point shared and the others 1 m higher
+        async Task DerivedPoints() {
+            float[] A(Vector3 v) => new[] { v.X, v.Y, v.Z };
+            LowLevelElement Element(int id) => History.UndoManager.GetAliveElement(id) as LowLevelElement;
+            var dir = Path.GetFullPath(folder + "_derived");
+            Directory.CreateDirectory(Path.Combine(dir, "derivedTest"));
+            Directory.CreateDirectory(Path.Combine(dir, "lua"));
+            File.WriteAllText(Path.Combine(dir, "derivedTest", "settings.json"), @"{
+                ""controlPoints"": [{ ""name"": ""line"", ""array"": { ""min"": 2, ""defaultCount"": 3, ""defaultStep"": [0, 0, 5] } }],
+                ""derivedPoints"": { ""flag"": ""derived"", ""function"": ""derivedtest.copy"" },
+                ""creatable"": false }");
+            File.WriteAllText(Path.Combine(dir, "derivedTest", "parameters.json"), @"{ ""parameters"": [{ ""name"": ""derived"", ""label"": ""derived"", ""type"": ""bool"" }] }");
+            File.WriteAllText(Path.Combine(dir, "derivedTest", "ui.json"), @"{ ""label"": ""Derived test"", ""menuWidth"": 1.5, ""tabs"": [{ ""label"": """", ""elements"": [
+                { ""name"": ""mainGroup"", ""width"": 1.5 }, { ""name"": ""derived"", ""width"": 1.5 }, { ""name"": ""pointsGroup"", ""width"": 1.5 }] }] }");
+            File.WriteAllText(Path.Combine(dir, "lua", "derivedtest.lua"), string.Join("\n",
+                "local M = {}",
+                "function M.copy(v, ctx)",
+                "  local s = ctx.siblings[1]",
+                "  if s == nil then return nil end",
+                "  local line = {}",
+                "  for i, p in ipairs(s.points.line) do",
+                "    if i == 1 then line[i] = p else line[i] = p + vec3(0, 1, 0) end",
+                "  end",
+                "  return { points = { line = line } }",
+                "end",
+                "return M"));
+            var types = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes();
+            var host = RuntimeCalculator.Scripting.LuaScriptHost.CreateForFolder(Path.Combine(dir, "lua"));
+            types["derivedTest"] = new CityElements.Types.Runtime.LowLevelType(new CityElements.Types.LowLevelType(Path.Combine(dir, "derivedTest")), "derivedTest", host);
+            try {
+                var road = History.UndoManager.GetAliveElement(((JArray)await Call("elements.list", new { kind = "road" })).First()["id"].Value<int>());
+                var src = (await Call("lowLevel.create", new { type = "derivedTest", position = new[] { 1300, 0, 1400 } })).Value<int>();
+                var copy = (await Call("lowLevel.create", new { type = "derivedTest", position = new[] { 1320, 0, 1400 } })).Value<int>();
+                Element(src).source = road; //as if both were converted from the road
+                Element(copy).source = road;
+                await Frames(2);
+                bool Follows() {
+                    var s = Element(src).GetLeaves();
+                    var c = Element(copy).GetLeaves();
+                    return s.Count == c.Count && Enumerable.Range(0, s.Count).All(i => i == 0 ? c[0].leaf.point == s[0].leaf.point
+                        : c[i].leaf.point != s[i].leaf.point && c[i].leaf.point.GetPoint().DistanceTo(s[i].leaf.point.GetPoint() + Vector3.Up) < 1e-3);
+                }
+                Check("derived points: not computed while their flag is off", !Follows());
+                await CheckUndo("turning the derived points on", () => Call("state.setParam", new { @ref = copy, name = "derived", value = true }));
+                Check("derived points: computed when their flag is turned on (the first one shared with the other element)", Follows());
+                var moved = Element(src).GetLeaves()[1].leaf.point.GetPoint() + new Vector3(2, 0, 1);
+                await CheckUndo("moving a point the derived points follow", () => Call("lowLevel.movePoint", new { element = src, path = "line.1", position = A(moved) }));
+                Check("derived points: computed again when the other element changes", Follows() && Element(copy).GetLeaves()[1].leaf.point.GetPoint().DistanceTo(moved + Vector3.Up) < 1e-3);
+                await CheckUndo("adding a point the derived points follow", () => Call("lowLevel.insert", new { element = src, array = "line" }));
+                Check("derived points: the structure follows too (" + Element(copy).GetLeaves().Count + " points)", Follows() && Element(copy).GetLeaves().Count == 4);
+                //the editor: the points can't be moved, added or removed while computed
+                builder.SelectObject(Element(copy), true, null);
+                await Frames(3);
+                var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                global::EditorPanelElement PanelField(string name) => builder.lowLevelEditorPanel.GetType().GetField(name, flags).GetValue(builder.lowLevelEditorPanel) as global::EditorPanelElement;
+                var layers = string.Join(",", Element(copy).GetLeaves().Skip(1).Select(l => GO.GetLayer(l.leaf.point.GetObject())).Distinct());
+                Check("derived points: the editor can't change them (layers " + layers + ")", !PanelField("placementDropdown").GetInteractable()
+                    && !PanelField("insertAfterButton").GetInteractable() && !PanelField("detachButton").GetInteractable()
+                    && Element(copy).GetLeaves().Skip(1).All(l => GO.GetLayer(l.leaf.point.GetObject()) != 8));
+                Screenshot("derived_points_editor.png");
+                builder.CloseAllPanels();
+                await Frames(2);
+                await Call("state.setParam", new { @ref = copy, name = "derived", value = false });
+                await Call("lowLevel.movePoint", new { element = src, path = "line.2", position = A(Element(src).GetLeaves()[2].leaf.point.GetPoint() + new Vector3(0, 0, 3)) });
+                Check("derived points: kept as they are with their flag off", !Follows() && Element(copy).GetLeaves().Count == 4);
+                Operations.LowLevel.Delete(M, Element(src));
+                Operations.LowLevel.Delete(M, Element(copy));
+                await Frames(2);
+            } finally {
+                types.Remove("derivedTest");
+                Directory.Delete(dir, true);
+            }
+        }
+
+        //a BAI road converted with its road (MM2) is auto-calculated: it follows the road attributes converted with it, until
+        //turned off
+        async Task AutoBai() {
+            float[] A(Vector3 v) => new[] { v.X, v.Y, v.Z };
+            LowLevelElement Element(int id) => History.UndoManager.GetAliveElement(id) as LowLevelElement;
+            TerrainPoint Point(LowLevelElement e, string path) => (global::LowLevel.PointTree.Find(e.points, path) as global::LowLevel.PointLeaf)?.point;
+            List<Vector3> Positions(LowLevelElement e) => e.GetLeaves().Select(l => l.leaf.point.GetPoint()).ToList();
+            bool SamePositions(List<Vector3> a, List<Vector3> b) => a.Count == b.Count && Enumerable.Range(0, a.Count).All(i => a[i].DistanceTo(b[i]) < 1e-4f);
+            var cityRoad = ((JArray)await Call("elements.list", new { kind = "road" })).First(r => History.UndoManager.GetAliveElement(r["id"].Value<int>()) is Road rd
+                && rd.startIntersection != null && rd.endIntersection != null && rd.state.Str("type", "") == "psdl" && !Operations.LowLevel.IsGhost(rd))["id"].Value<int>();
+            var created = ((JArray)await Call("elements.convert", new { elements = new[] { cityRoad }, converter = "toPsdl" })).Select(t => Element(t.Value<int>())).ToList();
+            var bai = created.FirstOrDefault(e => e?.TypeName == "baiRoad");
+            var roadTypes = new[] { "roadWithSidewalks", "roadWithoutSidewalks", "dividedRoad" };
+            var parts = created.Where(e => e != null && roadTypes.Contains(e.TypeName)).ToList();
+            Check("a converted BAI road is auto-calculated (road attributes: " + string.Join(", ", parts.Select(e => e.TypeName)) + ")",
+                bai != null && bai.state.Bool("autoCalculated") && parts.Count > 0);
+            if (bai == null || parts.Count == 0) return;
+            var baiId = History.ElementRegistry.GetId(bai);
+            //the lanes are spread evenly between each curb and the middle of the road (the dividers if divided), and the edges and
+            //curbs are the points of the road attributes
+            string Spread() {
+                var paths = bai.GetLeaves().Select(l => l.path).ToList();
+                var n = paths.Count(x => x.EndsWith(".rightEdge"));
+                var b = paths.Count(x => x.StartsWith("sections.0.backwardLanes."));
+                var f = paths.Count(x => x.StartsWith("sections.0.forwardLanes."));
+                for (int i = 0; i < n; i++) {
+                    var sec = "sections." + i + ".";
+                    var rc = Point(bai, sec + "rightCurb");
+                    var lc = Point(bai, sec + "leftCurb");
+                    //the section of a road attribute with the same right curb
+                    string partSection = null;
+                    LowLevelElement part = null;
+                    foreach (var e in parts) {
+                        foreach (var (path, leaf) in e.GetLeaves()) {
+                            if (leaf.point == rc && (path.EndsWith(".leftRoad") || path.EndsWith(".left"))) {
+                                part = e;
+                                partSection = path.Substring(0, path.LastIndexOf('.') + 1);
+                            }
+                        }
+                    }
+                    if (part == null) return "section " + i + ": its right curb is not a point of a road attribute";
+                    var lcName = part.TypeName == "roadWithoutSidewalks" ? "right" : "rightRoad";
+                    if (Point(part, partSection + lcName) != lc) return "section " + i + ": its left curb is not the one of the road attribute";
+                    Vector3 rInner, lInner;
+                    if (part.TypeName == "dividedRoad") {
+                        rInner = Point(part, partSection + "leftDivider").GetPoint();
+                        lInner = Point(part, partSection + "rightDivider").GetPoint();
+                    } else {
+                        var mid = (rc.GetPoint() + lc.GetPoint()) / 2;
+                        rInner = f > 0 ? mid : lc.GetPoint();
+                        lInner = b > 0 ? mid : rc.GetPoint();
+                    }
+                    for (int k = 0; k < b; k++) {
+                        var expected = rc.GetPoint() + (rInner - rc.GetPoint()) * ((k + 0.5f) / b);
+                        if (Point(bai, sec + "backwardLanes." + k).GetPoint().DistanceTo(expected) > 1e-3f) return "section " + i + ": backward lane " + k;
+                    }
+                    for (int k = 0; k < f; k++) {
+                        var expected = lInner + (lc.GetPoint() - lInner) * ((k + 0.5f) / f);
+                        if (Point(bai, sec + "forwardLanes." + k).GetPoint().DistanceTo(expected) > 1e-3f) return "section " + i + ": forward lane " + k;
+                    }
+                }
+                return null;
+            }
+            //the conversion only records the inputs: the points are the converted ones (the lanes of the editor) until an edit
+            var converted = Positions(bai);
+            await Frames(2);
+            await Call("state.setParam", new { @ref = baiId, name = "autoCalculated", value = false });
+            await Call("state.setParam", new { @ref = baiId, name = "autoCalculated", value = true });
+            var recomputed = Positions(bai);
+            var why = Spread();
+            Check("an auto-calculated BAI road computed when turned on (" + (why ?? "ok") + "; " + Enumerable.Range(0, System.Math.Min(converted.Count, recomputed.Count))
+                .Count(i => converted[i].DistanceTo(recomputed[i]) > 1e-4f) + " points differ from the converted ones)", why == null);
+            await Call("history.undo");
+            await Call("history.undo");
+            Check("the converted points are kept after the conversion", SamePositions(converted, Positions(bai)) && bai.state.Bool("autoCalculated"));
+            //it follows the road attributes
+            var part0 = parts[0];
+            var curb = part0.TypeName == "roadWithoutSidewalks" ? "left" : "leftRoad";
+            var movedTo = Point(part0, "sections.1." + curb).GetPoint() + new Vector3(0.6f, 0, 0.4f);
+            var beforeMove = Positions(bai);
+            await CheckUndo("moving a point of the road an auto-calculated BAI road follows", () => Call("lowLevel.movePoint", new { element = History.ElementRegistry.GetId(part0), path = "sections.1." + curb, position = A(movedTo) }));
+            why = Spread();
+            Check("an auto-calculated BAI road follows a point of its road moved (" + (why ?? "ok") + ")", why == null && !SamePositions(beforeMove, Positions(bai)));
+            var sectionCount = bai.GetLeaves().Count(l => l.path.EndsWith(".rightEdge"));
+            await CheckUndo("adding a section to the road an auto-calculated BAI road follows", () => Call("lowLevel.insert", new { element = History.ElementRegistry.GetId(part0), array = "sections", index = 1 }));
+            why = Spread();
+            var newCount = bai.GetLeaves().Count(l => l.path.EndsWith(".rightEdge"));
+            Check("an auto-calculated BAI road gets the section added to its road (" + sectionCount + " -> " + newCount + ", " + (why ?? "ok") + ")", why == null && newCount == sectionCount + 1);
+            //the editor: its points can't be moved
+            builder.SelectObject(bai, true, null);
+            await Frames(3);
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            global::EditorPanelElement PanelField(string name) => builder.lowLevelEditorPanel.GetType().GetField(name, flags).GetValue(builder.lowLevelEditorPanel) as global::EditorPanelElement;
+            var layers = string.Join(",", bai.GetAllPoints().Select(p => GO.GetLayer(p.GetObject())).Distinct());
+            Check("an auto-calculated BAI road can't be edited in the editor (layers " + layers + ")", !PanelField("placementDropdown").GetInteractable()
+                && !PanelField("insertAfterButton").GetInteractable() && bai.GetAllPoints().All(p => GO.GetLayer(p.GetObject()) != 8));
+            if (DisplayServer.GetName() != "headless") {
+                var points = bai.GetAllPoints().Select(p => p.GetPoint()).ToList();
+                var bounds = new Aabb(points[0], Vector3.Zero);
+                foreach (var p in points) bounds = bounds.Expand(p);
+                var center = bounds.GetCenter();
+                (builder.GetViewport().GetCamera3D() as CameraController)?.SetView(center + new Vector3(0, 0.8f, 0.6f) * Mathf.Max(bounds.Size.Length(), 10), center);
+                await Frames(3);
+                Screenshot("auto_bai_editor.png");
+            }
+            builder.CloseAllPanels();
+            await Frames(2);
+            //turned off: the road is edited alone
+            await Call("state.setParam", new { @ref = baiId, name = "autoCalculated", value = false });
+            //(its edges and curbs are still the points of the road: only the lanes are compared)
+            List<Vector3> Lanes() => bai.GetLeaves().Where(l => l.path.Contains("Lanes.")).Select(l => l.leaf.point.GetPoint()).ToList();
+            var beforeOff = Lanes();
+            await Call("lowLevel.movePoint", new { element = History.ElementRegistry.GetId(part0), path = "sections.1." + curb, position = A(movedTo + new Vector3(0, 0, 1)) });
+            await Frames(2);
+            Check("a BAI road not auto-calculated doesn't follow its road", beforeOff.Count > 0 && SamePositions(beforeOff, Lanes()));
+            await Call("ghosts.restore", new { element = cityRoad });
+            await Frames(2);
+        }
+
+        //editing the elements of a converted room: the points shared with the auto-calculated BAI road and with the room stay
+        //shown and moveable, the BAI lanes are shown while anything in the room is edited, a room without visible contents
+        //gets its placeholder surface, and the ghost is deleted with the last element replacing it
+        async Task LowLevelRoomEditing() {
+            LowLevelElement Element(int id) => History.UndoManager.GetAliveElement(id) as LowLevelElement;
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            string PointProblems(LowLevelElement e) {
+                var hidden = e.GetAllPoints().Count(p => !GO.GetEnabled(p.GetObject()));
+                var fixedPoints = e.GetAllPoints().Count(p => GO.GetLayer(p.GetObject()) != 8);
+                return hidden == 0 && fixedPoints == 0 ? null : hidden + " hidden, " + fixedPoints + " not moveable of " + e.GetAllPoints().Count;
+            }
+            bool LanesShown(LowLevelElement bai) {
+                var lines = (System.Collections.IList)typeof(LowLevelGenerator).GetField("lines", flags).GetValue(bai.generator);
+                var shown = 0;
+                foreach (var entry in lines) {
+                    var (lr, line) = ((GameEngine.LineRenderer, global::LowLevel.GeometryLine))entry;
+                    if (line.withContainer && lr.enabled) shown++;
+                }
+                return shown > 0;
+            }
+            var cityRoad = ((JArray)await Call("elements.list", new { kind = "road" })).First(r => History.UndoManager.GetAliveElement(r["id"].Value<int>()) is Road rd
+                && rd.startIntersection != null && rd.endIntersection != null && rd.state.Str("type", "") == "psdl" && !Operations.LowLevel.IsGhost(rd))["id"].Value<int>();
+            var created = ((JArray)await Call("elements.convert", new { elements = new[] { cityRoad }, converter = "toPsdl" })).Select(t => Element(t.Value<int>())).ToList();
+            var room = created.FirstOrDefault(e => e?.TypeName == "room");
+            var bai = created.FirstOrDefault(e => e?.TypeName == "baiRoad");
+            var roadTypes = new[] { "roadWithSidewalks", "roadWithoutSidewalks", "dividedRoad" };
+            var part = created.FirstOrDefault(e => e != null && roadTypes.Contains(e.TypeName));
+            Check("a converted road gives a room, a road attribute and an auto-calculated BAI road", room != null && part != null && bai != null && bai.IsDerived);
+            if (room == null || part == null || bai == null) return;
+
+            //a road attribute edited: its points (shared with the BAI road, which can't be moved) can be moved, also after
+            //moving one of its inner points (the BAI road follows)
+            builder.SelectObject(part, true, null);
+            await Frames(3);
+            var why = PointProblems(part);
+            Check("the points of a road attribute shared with an auto-calculated BAI road can be moved (" + (why ?? "ok") + ")", why == null);
+            Check("the BAI lanes are shown while a road attribute of their room is edited", LanesShown(bai));
+            var curbName = part.TypeName == "roadWithoutSidewalks" ? "left" : "leftRoad";
+            var curb = (global::LowLevel.PointTree.Find(part.points, "sections.1." + curbName) as global::LowLevel.PointLeaf)?.point;
+            var baiBefore = bai.GetAllPoints().Select(p => p.GetPoint()).ToList();
+            if (curb != null) {
+                History.UndoManager.Record("move point", () => {
+                    builder.gizmo.ClearTargets();
+                    builder.gizmo.AddTarget(curb.GetObject());
+                    History.UndoManager.Touch(curb);
+                    GO.SetPosition(curb.GetObject(), curb.GetPoint() + new Vector3(0.3f, 0, 0.2f));
+                    M.FlagAsChanged();
+                });
+                await Frames(4);
+            }
+            var baiMoved = baiBefore.Count != bai.GetAllPoints().Count || bai.GetAllPoints().Select(p => p.GetPoint()).Where((p, i) => p.DistanceTo(baiBefore[i]) > 1e-4f).Any();
+            why = PointProblems(part);
+            Check("after moving an inner point of the road attribute (the BAI road follows: " + baiMoved + "), its points are still shown and moveable (" + (why ?? "ok") + ")",
+                curb != null && baiMoved && why == null);
+            //the click mode changed and back to None
+            builder.lowLevelEditorPanel.SetPointPlacementMode(1);
+            await Frames(2);
+            Check("the BAI lanes are shown in another click mode", LanesShown(bai));
+            builder.lowLevelEditorPanel.SetPointPlacementMode(0);
+            await Frames(2);
+            why = PointProblems(part);
+            Check("back to the None click mode the points can be moved (" + (why ?? "ok") + ") and the BAI lanes are shown", why == null && LanesShown(bai));
+            builder.CloseAllPanels();
+            await Frames(2);
+            Check("the BAI lanes are hidden when nothing in the room is edited", !LanesShown(bai));
+
+            //the room edited: its perimeter points (shared with its contents) can be moved
+            builder.SelectObject(room, true, null);
+            await Frames(3);
+            why = PointProblems(room);
+            Check("the perimeter points of a room can be moved when it's edited (" + (why ?? "ok") + ", " + room.GetAllPoints().Count + " points)",
+                why == null && room.GetAllPoints().Count > 0);
+            Check("the BAI lanes are shown while their room is edited", LanesShown(bai));
+            builder.lowLevelEditorPanel.SetPointPlacementMode(1);
+            await Frames(2);
+            builder.lowLevelEditorPanel.SetPointPlacementMode(0);
+            await Frames(2);
+            var contentsShown = M.GetLowLevelChildren(room).All(c => c.IsActive());
+            Check("back to the None click mode the room's contents are shown and its points can be moved", PointProblems(room) == null && contentsShown);
+            builder.CloseAllPanels();
+            await Frames(2);
+
+            //the placeholder surface of the room: shown only while its contents draw nothing
+            bool PlaceholderShown() => (bool)typeof(LowLevelGenerator).GetField("placeholderShown", flags).GetValue(room.generator);
+            Check("a room whose contents draw meshes has no placeholder surface", room.generator.HasPlaceholder() && !PlaceholderShown());
+            var drawing = M.GetLowLevelChildren(room).Where(c => c.generator.DrawsMesh()).ToList();
+            foreach (var c in drawing) await Call("lowLevel.setContainer", new { element = History.ElementRegistry.GetId(c), container = (object)null });
+            await Frames(2);
+            Check("a room whose contents draw nothing (" + M.GetLowLevelChildren(room).Count + " left) shows its placeholder surface", PlaceholderShown());
+            if (DisplayServer.GetName() != "headless") {
+                var points = room.GetAllPoints().Select(p => p.GetPoint()).ToList();
+                var bounds = new Aabb(points[0], Vector3.Zero);
+                foreach (var p in points) bounds = bounds.Expand(p);
+                var center = bounds.GetCenter();
+                (builder.GetViewport().GetCamera3D() as CameraController)?.SetView(center + new Vector3(0, 0.8f, 0.6f) * Mathf.Max(bounds.Size.Length(), 10), center);
+                await Frames(3);
+                Screenshot("room_placeholder.png");
+            }
+            foreach (var c in drawing) await Call("lowLevel.setContainer", new { element = History.ElementRegistry.GetId(c), container = History.ElementRegistry.GetId(room) });
+            await Frames(2);
+            Check("the placeholder surface is hidden again with the contents back", !PlaceholderShown());
+
+            //the ghost is deleted with the last element replacing it (not with the others), undone with it
+            var replacements = Operations.LowLevel.GetReplacements(M, History.UndoManager.GetAliveElement(cityRoad)).Select(e => History.ElementRegistry.GetId(e)).ToList();
+            bool GhostAlive() => History.UndoManager.GetAliveElement(cityRoad) is Road r && !r.deleted;
+            await Call("lowLevel.delete", new { element = replacements[0] });
+            Check("the ghost is kept while other elements replace it (" + (replacements.Count - 1) + ")", replacements.Count < 2 || GhostAlive());
+            await Call("history.undo");
+            await CheckUndo("deleting the elements replacing a ghost", async () => {
+                await Call("history.begin", new { label = "delete replacements" });
+                foreach (var id in replacements) await Call("lowLevel.delete", new { element = id });
+                await Call("history.commit");
+            });
+            await Frames(2);
+            //(redone by CheckUndo)
+            Check("the ghost is deleted with the last element replacing it", !GhostAlive() && !((JArray)await Call("ghosts.list")).Any(g => g["id"].Value<int>() == cityRoad));
+            await Call("history.undo");
+            await Frames(2);
+            Check("undone, the ghost is back", GhostAlive() && Operations.LowLevel.IsGhost(History.UndoManager.GetAliveElement(cityRoad)));
+            await Call("ghosts.restore", new { element = cityRoad });
+            await Frames(2);
+            Check("a restored ghost is not deleted with its replacements", GhostAlive() && !Operations.LowLevel.IsGhost(History.UndoManager.GetAliveElement(cityRoad)));
+        }
+
+        //a BAI road (MM2) connected by hand to a procedural intersection: the intersection lists it too, in the order of the
+        //roads around it (checked with the lint of the core's bai_check.py)
+        async Task BaiConnections() {
+            if (!PythonManager.IsPythonReady()) {
+                Log("     Python is not available: the BAI connection test is skipped");
+                return;
+            }
+            var format = ((JArray)await Call("exporters.list"))[0]["format"].Value<string>();
+            var script = Path.GetFullPath(Path.Combine(folder, "..", "bai_ends.py"));
+            File.WriteAllText(script, string.Join("\n",
+                "import json, sys",
+                "sys.path.insert(0, sys.argv[1])",
+                "from bai_check import read_bai, lint, CDCDCDCD",
+                "roads, ints = read_bai(sys.argv[2])",
+                "ends = [[rd[k]['intersection'] if rd[k]['index'] != CDCDCDCD else -1 for k in ('start', 'end')] for rd in roads]",
+                "problems = [p for p in lint(roads, ints, False) if 'intersection' in p]",
+                "print(json.dumps({'ends': ends, 'intersections': [it['roads'] for it in ints], 'problems': problems}))"));
+            var tools = Path.Combine(PathHelper.BasePath(), "Files", "cores", "MidtownMadness2", "exporters", "psdl", "tools");
+            async Task<JObject> ExportBai() {
+                var flags = new Dictionary<string, bool> { ["propRules"] = false, ["psdl"] = false, ["inst"] = false, ["bai"] = true,
+                    ["pathset"] = false, ["cinfo_aimap"] = false, ["hudmap"] = false, ["pkgs"] = false };
+                var export = await Send("city.export", new { path = Path.Combine(folder, "..", "api_export_bai"), exporter = format, flags });
+                if (export["error"] != null) {
+                    Log("      export error: " + export["error"]);
+                    return null;
+                }
+                var reported = export["result"]["path"].Value<string>();
+                var path = Path.Combine(Path.GetDirectoryName(reported), "city", Path.GetFileName(reported));
+                var baiFile = Path.ChangeExtension(path, ".bai");
+                if (File.Exists(Path.ChangeExtension(path, ".bin")) || !File.Exists(baiFile)) return null;
+                var (code, data) = await PythonManager.RunScriptTask(script, true, new List<string> { tools, baiFile });
+                if (code != 0) Log("      bai_ends.py: " + data);
+                return code == 0 ? JObject.Parse(data) : null;
+            }
+            int Listed(JObject read) => read["intersections"].Sum(i => i.Count());
+
+            //a procedural intersection of the BAI (with a road to another intersection), the BAI road through its centre
+            var road = ((JArray)await Call("elements.list", new { kind = "road" })).Select(r => History.UndoManager.GetAliveElement(r["id"].Value<int>()) as Road)
+                .First(rd => rd != null && rd.startIntersection != null && rd.endIntersection != null && rd.state.Str("type", "") == "psdl"
+                    && !Operations.LowLevel.IsGhost(rd) && !rd.startIntersection.IsSeamless());
+            var intersection = road.startIntersection;
+            var centre = GO.GetPosition(intersection.point);
+            var bai = (await Call("lowLevel.create", new { type = "baiRoad", position = new[] { centre.X, centre.Y, centre.Z - 5 } })).Value<int>();
+            var before = await ExportBai();
+            int Connected(JObject read) => read["ends"].Sum(e => e.Count(x => x.Value<int>() >= 0));
+            //a road converted: its BAI road takes its place in the intersections
+            await Call("elements.convert", new { elements = new[] { History.ElementRegistry.GetId(road) }, converter = "toPsdl" });
+            var converted = await ExportBai();
+            Check("the BAI road of a converted road is listed by its intersections" + (converted != null ? " (" + Listed(before) + " -> " + Listed(converted)
+                + " road ends listed, " + Connected(before) + " -> " + Connected(converted) + " connected)" : ""), before != null && converted != null
+                && Listed(converted) == Listed(before) && Connected(converted) == Connected(before) && converted["problems"].Count() <= before["problems"].Count());
+            await Call("history.undo");
+            await Expect("a reference to an element of a kind it doesn't accept", "invalid_value", "state.setParam",
+                new { @ref = bai, name = "startIntersection", value = History.ElementRegistry.GetId(road) });
+
+            //connected in the editor: picked with the reference field of the panel
+            var baiElement = History.UndoManager.GetAliveElement(bai) as LowLevelElement;
+            var picker = builder.referencePicker;
+            async Task<EditorPanelElements.ReferenceField> OpenField() {
+                builder.SelectObject(baiElement, true, null);
+                await Frames(3);
+                var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                foreach (var page in (List<EditorPanelPage>)typeof(EditorPanel).GetField("pages", flags).GetValue(builder.lowLevelEditorPanel)) {
+                    foreach (var pair in (Dictionary<EditorPanelElement, FieldStatus>)typeof(EditorPanelPage).GetField("fieldElements", flags).GetValue(page)) {
+                        if (pair.Key is EditorPanelElements.ReferenceField r && pair.Value.fieldName.EndsWith(".startIntersection")) return r;
+                    }
+                }
+                return null;
+            }
+            //(the API calls close the editors, as before an undo: the panel is used between them, then the city flushed as
+            //after a click)
+            async Task CheckGuiUndo(string what, JToken before) {
+                await Call("city.flush");
+                var after = await Snapshot();
+                var top = DebugTopEntry();
+                await Call("history.undo");
+                if (!Same("undo " + what, before, await Snapshot())) Log("      DEBUG entry: " + top);
+                await Call("history.redo");
+                Same("redo " + what, after, await Snapshot());
+            }
+            var beforePick = await Snapshot();
+            var field = await OpenField();
+            Check("the BAI road panel has a reference field for its start intersection (" + field?.GetShownName() + ")",
+                field != null && field.GetShownName() == StringManager.Get("REF_NONE"));
+            if (field != null) {
+                History.UndoManager.Record("pick", field.Pick);
+                await Frames(1);
+                Check("its Pick button starts picking", picker.IsActive() && field.GetShownName() == StringManager.Get("REF_PICKING"));
+                var refused = picker.Pick(road);
+                Check("a road is not picked for an intersection reference", !refused && picker.IsActive() && baiElement.state.State("startIntersection") == null);
+                History.UndoManager.Record("pick", () => picker.Pick(intersection));
+                await Frames(1);
+                var picked = Operations.States.ResolveReference(baiElement.state.State("startIntersection"));
+                Check("the picked intersection is the reference (" + field.GetShownName() + "), the click mode is restored",
+                    picked == intersection && !picker.IsActive() && builder.terrainClick.modifier == builder.lowLevelPlacer
+                    && field.GetShownName() == Api.CityApi.GetName(intersection));
+                Screenshot("reference_field.png");
+                History.UndoManager.Record("pick", field.Pick);
+                builder.CloseAllPanels();
+                await Frames(2);
+                Check("closing the panel ends the pick", !picker.IsActive());
+                await CheckGuiUndo("picking a reference", beforePick);
+            }
+            if (baiElement.state.State("startIntersection") == null) {
+                await Call("state.setParam", new { @ref = bai, name = "startIntersection", value = History.ElementRegistry.GetId(intersection) });
+            }
+            var after = await ExportBai();
+            Check("a BAI road connected to a procedural intersection is exported", before != null && after != null);
+            if (before != null && after != null) {
+                var connected = Connected(after) - Connected(before);
+                Check("the procedural intersection lists the BAI road connected to it (" + Listed(before) + " -> " + Listed(after) + " road ends listed, "
+                    + connected + " more connected)", Listed(after) == Listed(before) + 1 && connected == 1);
+                Check("the road ends and the intersections agree, in the stock order (" + string.Join("; ", after["problems"]) + ")",
+                    after["problems"].Count() <= before["problems"].Count());
+            }
+            var beforeClear = await Snapshot();
+            field = await OpenField();
+            if (field != null) {
+                History.UndoManager.Record("clear", field.Clear);
+                await Frames(1);
+                Check("the clear button of a reference field removes the reference", baiElement.state.State("startIntersection") == null
+                    && field.GetShownName() == StringManager.Get("REF_NONE"));
+                builder.CloseAllPanels();
+                await Frames(2);
+                await CheckGuiUndo("clearing a reference", beforeClear);
+                await Call("history.undo");
+            }
+            await Call("history.undo");
+            await Call("history.undo");
+            File.Delete(script);
         }
 
         void Screenshot(string name) {

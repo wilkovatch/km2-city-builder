@@ -9,7 +9,7 @@ namespace EditorPanels.Props {
         public ElemEditorPanel elemEditor = null;
         Dictionary<string, EPM.Button> btnControls = new Dictionary<string, EPM.Button>();
         public ObjectState parentState = null;
-        public string containerName = null; //the props container of the road prop rule being edited
+        public string containerName = null; //the props container of the prop rule being edited (see IPropRuleEditor)
 
         public ContainerEditorPanel() {
             AddComplexElement(new PresetSelector(this));
@@ -127,8 +127,8 @@ namespace EditorPanels.Props {
 
         public override System.Func<EditorPanel, EditorPanel> CaptureReopen() {
             var name = containerName;
-            if (!(parentPanel is RoadEditorPanel) || name == null) return null;
-            return parent => (parent as RoadEditorPanel)?.OpenPropContainer(name);
+            if (!(parentPanel is IPropRuleEditor) || name == null) return null;
+            return parent => (parent as IPropRuleEditor)?.OpenPropContainer(name);
         }
 
         void SetTypesList(string name) {

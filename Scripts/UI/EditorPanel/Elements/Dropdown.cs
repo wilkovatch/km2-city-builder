@@ -40,6 +40,15 @@ namespace EditorPanelElements {
             OnValueChanged();
         }
 
+        public int GetIndex() {
+            return dropdown.Selected;
+        }
+
+        //picking the selected option again calls the action too
+        public void SetAllowReselect(bool allow) {
+            dropdown.AllowReselect = allow;
+        }
+
         public void SetOptions(List<string> newOptions) {
             dropdown.Clear();
             foreach (var option in newOptions) dropdown.AddItem(option);

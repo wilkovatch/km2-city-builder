@@ -48,7 +48,16 @@ namespace CityEncoder {
 
             //Materials and meshes (props and instances)
             try {
-                geometry = new ExportGeometry(x => x is Road r ? manager.roads.IndexOf(r) : manager.intersections.IndexOf(x as Intersection));
+                geometry = new ExportGeometry(x => {
+                    switch (x) {
+                        case Road r: return manager.roads.IndexOf(r);
+                        case Intersection i: return manager.intersections.IndexOf(i);
+                        case TerrainPatch p: return manager.patches.IndexOf(p);
+                        case BuildingLine l: return manager.buildings.IndexOf(l);
+                        case LowLevelElement e: return manager.lowLevelElements.IndexOf(e);
+                        default: return -1;
+                    }
+                });
                 savedCity.materialDict = geometry.materials.ToArray();
                 savedCity.meshDict = geometry.meshes.ToArray();
             } catch (System.Exception e) {
@@ -137,6 +146,22 @@ namespace CityEncoder {
                     await caller.ToSignal(caller.GetTree(), "process_frame");
                 }
             }
+            //Low-level elements
+            var lowLevelArray = new IO.ExportedCity.LowLevelElement[manager.lowLevelElements.Count];
+            for (int i = 0; i < manager.lowLevelElements.Count; i++) {
+                try {
+                    lowLevelArray[i] = geometry.GetLowLevelElement(manager.lowLevelElements[i], i);
+                } catch (System.Exception e) {
+                    return Fail(e);
+                }
+
+                if (i % 100 == 0 || i == manager.lowLevelElements.Count - 1) {
+                    progressBar.SetProgress(0.9f + 0.05f * ((float)(i + 1) / manager.lowLevelElements.Count));
+                    await caller.ToSignal(caller.GetTree(), "process_frame");
+                }
+            }
+            savedCity.lowLevelElements = lowLevelArray;
+
             try {
                 savedCity.buildingLines = linesArray;
 

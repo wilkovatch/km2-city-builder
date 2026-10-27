@@ -40,6 +40,19 @@ namespace Api {
                 case "mesh":
                     if (value.Type != JTokenType.String) throw ApiException.InvalidValue("'" + name + "' needs a string");
                     return value.Value<string>();
+                case "reference": {
+                    //another element: its id ({"id": n} or n), or null for none
+                    var id = value.Type == JTokenType.Object ? value["id"] : value;
+                    if (id == null || id.Type == JTokenType.Null) return null;
+                    if (id.Type != JTokenType.Integer) throw ApiException.InvalidValue("'" + name + "' needs the id of an element");
+                    var target = History.UndoManager.GetAliveElement(id.Value<int>());
+                    var kind = History.ElementSnapshot.ReferenceKind(target);
+                    if (kind == null) throw ApiException.NotFound("element " + id);
+                    var reference = new ObjectState();
+                    reference.SetStr("kind", kind);
+                    reference.SetInt("id", id.Value<int>());
+                    return reference;
+                }
                 case "objectInstance":
                     throw ApiException.InvalidParam("'" + name + "' is a parametric object: use objects.setTransform and objects.setMesh");
                 case "array":
@@ -148,6 +161,10 @@ namespace Api {
                 var p = t.FindParameter(name);
                 if (p == null) throw ApiException.NotFound("parameter '" + name + "' of " + t.kind + (t.parameters.Length == 0 ? " (it has none)" : ""));
                 var v = ConvertValue(p.type, value, p.enumLabels, name);
+                if (v is ObjectState reference && p.type == "reference" && !Operations.States.AcceptsReference(p, t.owner, Operations.States.ResolveReference(reference))) {
+                    throw ApiException.InvalidValue("'" + name + "' can't reference element " + reference.Int("id", -1)
+                        + (p.referenceTypes != null ? " (" + string.Join(", ", p.referenceTypes) + ")" : ""));
+                }
                 var target = p.instanceSpecific ? t.instanceState : t.state;
                 if (target == null) throw ApiException.InvalidParam("'" + name + "' is instance specific, but " + t.kind + " has no instance state");
                 History.UndoManager.Touch(t.owner);
@@ -252,8 +269,8 @@ namespace Api {
                 History.UndoManager.Touch(e);
                 switch (e) {
                     case Intersection i: GameEngine.GameObject.SetName(i.geo, name); break;
-                    case Road or TerrainPatch or BuildingLine or MeshInstance: GameEngine.GameObject.SetName((Godot.Node3D)e, name); break;
-                    default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine or meshInstance", KindOf(e));
+                    case Road or TerrainPatch or BuildingLine or MeshInstance or LowLevelElement: GameEngine.GameObject.SetName((Godot.Node3D)e, name); break;
+                    default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, meshInstance or lowLevel", KindOf(e));
                 }
                 return name;
             });

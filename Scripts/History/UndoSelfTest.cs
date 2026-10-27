@@ -22,20 +22,22 @@ namespace History {
         //new: a new city in the folder; props: a copy of an existing city, its road props selected again; ui: a copy of an
         //existing city, the editors open before undo/redo must be reopened after it; split: only the tests of the roads
         //connected to the middle of other roads, on a new city; load: a copy of an existing city, the terrain under its
-        //intersections is edited, undone and redone; drag: the middle mouse drag of the numeric fields, on a new city
-        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag" };
+        //intersections is edited, undone and redone; drag: the middle mouse drag of the numeric fields, on a new city;
+        //dropdown: the keyboard navigation of the dropdown lists and the camera under them, on a new city
+        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown" };
 
         public static void Start(CityBuilderMenuBar builder, string folder, string mode) {
             builder.AddChild(new UndoSelfTest {
                 builder = builder, folder = folder, Name = "UndoSelfTest",
                 propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", loadExisting = mode == "load",
-                dragOnly = mode == "drag"
+                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown"
             });
         }
 
         bool propsSelection = false;
         bool splitOnly = false;
         bool dragOnly = false;
+        bool dropdownOnly = false;
 
         static object Invoke(object obj, string name, params object[] args) {
             for (var type = obj.GetType(); type != null; type = type.BaseType) {
@@ -544,7 +546,7 @@ namespace History {
                 foreach (var k in ((System.Collections.IDictionary)Field(roadPanel, "propControls")).Keys) { container = (string)k; break; }
                 if (container != null) {
                     if (road.state.State("propRule")?.State(container) == null) {
-                        UndoManager.Record("enable props", () => { UndoManager.Touch(road); Invoke(roadPanel, "EnablePropContainer", container, true); });
+                        UndoManager.Record("enable props", () => { UndoManager.Touch(road); Invoke(Field(roadPanel, "propRule"), "EnableContainer", container, true); });
                         M.FlagAsChanged();
                         await Frames(6);
                     }
@@ -693,6 +695,7 @@ namespace History {
             else if (loadExisting) RunOnExistingCity();
             else if (splitOnly) RunSplit();
             else if (dragOnly) RunDrag();
+            else if (dropdownOnly) RunDropdown();
             else Run();
         }
 
@@ -1717,6 +1720,101 @@ namespace History {
             Log("finished with " + failures + " failures");
             File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
             GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        async void RunDropdown() {
+            var lastCity = SettingsManager.Get("LastCity", "");
+            try {
+                await LoadNewCity();
+                await DropdownTests();
+            } catch (System.Exception e) {
+                Log("exception: " + e);
+                failures++;
+            }
+            SettingsManager.Set("LastCity", lastCity);
+            Log("finished with " + failures + " failures");
+            File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
+            GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        //the item list of a road editor dropdown, opened with a real click: arrow keys move through it, the mouse wheel over it
+        //does not move the camera
+        async Task DropdownTests() {
+            var road = new ElementPlacer.RoadPlacer(M).GetRoad();
+            road.AddPoint(new Vector3(0, 0, 0));
+            road.AddPoint(new Vector3(60, 0, 0));
+            await Frames(6);
+            builder.SelectObject(road, true, null);
+            await Frames(6);
+            UndoManager.FinalizePending();
+            OptionButton dropdown = null;
+            foreach (var node in builder.FindChildren("*", nameof(OptionButton), true, false)) {
+                var button = (OptionButton)node;
+                if (button.IsVisibleInTree() && !button.Disabled && button.ItemCount >= 3) { dropdown = button; break; }
+            }
+            Check("the road editor has a dropdown with at least 3 items", dropdown != null);
+            if (dropdown == null) return;
+            var popup = dropdown.GetPopup();
+            void Send(InputEvent @event) => Input.ParseInputEvent(@event);
+            async Task Click(Vector2 pos) {
+                Input.WarpMouse(pos);
+                await Frames(2);
+                Send(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = pos, GlobalPosition = pos, ButtonMask = MouseButtonMask.Left });
+                await Frames(1);
+                Send(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = pos, GlobalPosition = pos });
+                await Frames(4);
+            }
+            async Task Key(Key key) {
+                Send(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = true });
+                await Frames(2);
+                Send(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = false });
+                await Frames(2);
+            }
+            dropdown.Select(0);
+            await Click(dropdown.GetGlobalRect().GetCenter());
+            Log("dropdown '" + dropdown.GetItemText(0) + "' (" + dropdown.ItemCount + " items), list open " + popup.Visible + ", focused item " + popup.GetFocusedItem()
+                + ", focus owner " + GetViewport().GuiGetFocusOwner()?.Name);
+            Check("a click opens the item list", popup.Visible);
+            if (!popup.Visible) return;
+            await Key(Godot.Key.Down);
+            var focused1 = popup.GetFocusedItem();
+            await Key(Godot.Key.Down);
+            var focused2 = popup.GetFocusedItem();
+            await Key(Godot.Key.Up);
+            var focused3 = popup.GetFocusedItem();
+            Log("focused item after down, down, up: " + focused1 + ", " + focused2 + ", " + focused3);
+            Check("the arrow keys move through the items", focused1 >= 0 && focused2 == focused1 + 1 && focused3 == focused1);
+            await Key(Godot.Key.Delete);
+            Check("delete on the item list does not delete the edited road", M.roads.Contains(road) && popup.Visible);
+            await Key(Godot.Key.Down);
+            var count = UndoCount();
+            await Key(Godot.Key.Enter);
+            await Frames(4);
+            UndoManager.FinalizePending();
+            Log("selected after enter: " + dropdown.Selected + ", list open " + popup.Visible + ", " + (UndoCount() - count) + " new entries");
+            Check("enter selects the focused item and closes the list", dropdown.Selected == focused2 && !popup.Visible);
+
+            //the wheel over the open list scrolls the list, not the camera
+            var camera = GetViewport().GetCamera3D();
+            await Click(dropdown.GetGlobalRect().GetCenter());
+            Check("a second click opens the item list again", popup.Visible);
+            if (!popup.Visible) return;
+            var cameraTransform = camera.GlobalTransform;
+            var listPos = popup.Position + popup.Size / 2;
+            Input.WarpMouse(listPos);
+            await Frames(3);
+            for (int i = 0; i < 5; i++) {
+                foreach (var pressed in new[] { true, false }) {
+                    Send(new InputEventMouseButton { ButtonIndex = MouseButton.WheelDown, Pressed = pressed, Position = listPos, GlobalPosition = listPos, Factor = 1 });
+                    await Frames(1);
+                }
+            }
+            await Frames(4);
+            Log("wheel at " + listPos + " over the list " + new Rect2I(popup.Position, popup.Size) + ", list open " + popup.Visible);
+            Check("the wheel over the item list does not move the camera", camera.GlobalTransform.IsEqualApprox(cameraTransform));
+            await Key(Godot.Key.Escape);
+            Check("escape closes the item list", !popup.Visible);
+            Check("escape on the item list leaves the road editor open", Panel<EditorPanels.RoadEditorPanel>("roadEditorPanel").IsOpen());
         }
 
         //the middle mouse drag on the numeric fields of the road editor, with real mouse events through the viewport

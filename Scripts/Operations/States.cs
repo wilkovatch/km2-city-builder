@@ -155,5 +155,44 @@ namespace Operations {
         public static void FlagAsChanged(IObjectWithState obj) {
             obj?.GetState()?.FlagAsChanged();
         }
+
+        //References: the value of a reference parameter is another element of the city, {"kind": ..., "id": ...} (the
+        //registry id); referenceTypes lists the kinds it accepts (road, intersection, lowLevel, lowLevel/<type>...)
+
+        //whether a reference parameter of the owner can reference the element (not itself, a ghost or a deleted element)
+        public static bool AcceptsReference(Parameter param, object owner, object element) {
+            var kind = History.ElementSnapshot.ReferenceKind(element);
+            if (kind == null || element == owner || LowLevel.IsGhost(element) || IsDeleted(element)) return false;
+            if (param.referenceTypes == null || param.referenceTypes.Length == 0) return true;
+            var type = element is LowLevelElement lowLevel ? lowLevel.TypeName : null;
+            foreach (var t in param.referenceTypes) {
+                if (t == kind || (type != null && t == kind + "/" + type)) return true;
+            }
+            return false;
+        }
+
+        public static ObjectState MakeReference(object element) {
+            var reference = new ObjectState();
+            reference.SetStr("kind", History.ElementSnapshot.ReferenceKind(element));
+            reference.SetInt("id", History.ElementRegistry.GetId(element));
+            return reference;
+        }
+
+        //the element of a reference (null if none, or if it was deleted)
+        public static object ResolveReference(ObjectState reference) {
+            if (reference == null) return null;
+            var element = History.UndoManager.GetAliveElement(reference.Int("id", -1));
+            return element == null || IsDeleted(element) ? null : element;
+        }
+
+        static bool IsDeleted(object element) {
+            switch (element) {
+                case Road road: return road.deleted;
+                case Intersection intersection: return intersection.IsDeleted();
+                case TerrainPatch patch: return patch.IsDeleted();
+                case LowLevelElement lowLevel: return lowLevel.IsDeleted();
+                default: return false;
+            }
+        }
     }
 }

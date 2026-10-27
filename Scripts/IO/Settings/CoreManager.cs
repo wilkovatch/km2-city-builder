@@ -16,6 +16,7 @@ public class CoreManager {
     }
 
     static GenericSettingsManager instance = null;
+    static string instancePath;
     static GenericSettingsManager reposInstance = null;
 
     public static T Get<T>(string key, T defaultValue) {
@@ -27,9 +28,12 @@ public class CoreManager {
     }
 
     static GenericSettingsManager GetInstance() {
-        if (instance == null) {
-            instance = new GenericSettingsManager(PathHelper.FilesPath() + "/settings.json");
+        //read again when the core changed (e.g. read before the city, and so its core, was loaded)
+        var path = PathHelper.FilesPath() + "/settings.json";
+        if (instance == null || instancePath != path) {
+            instance = new GenericSettingsManager(path);
             instance.LoadSettings();
+            instancePath = path;
         }
         return instance;
     }

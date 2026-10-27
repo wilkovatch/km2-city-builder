@@ -33,7 +33,7 @@ The node holding a road's mesh, collider, center line (`lr`), lane lines and pro
 
 Traffic lanes and props lines are described by pairs of bound expressions. For each section the generator evaluates both bounds and stores the point at the lane's position (0..1) between them, which gives one polyline per lane. Lane polylines are drawn in the color of their traffic type and exported with the city.
 
-`PlaceProps` reads the road's `propRule` state. For each props container of the road type that is enabled in the rule, and for each element in it, `PlacePropsLane` runs the element type's placement loop: starting at `i = 0`, it evaluates `zPos` (distance along the line), `xPos` (0 = start bound, 1 = end bound) and the conditions, places the mesh on the ground at that point facing `forward`, and continues until `whileCondition` is false (with a hard limit of 1000 props per element). Props are put on layer 13 and named `<container>;<mesh>`.
+`PlaceProps` reads the road's `propRule` state and places the props with `PropPlacer` (shared with the low-level elements, whose lines are the `propLines` of their geometry script, see [Core Low-Level Elements](Core-Low-Level-Elements)). For each props container of the road type that is enabled in the rule, and for each element in it, the element type's placement loop runs: starting at `i = 0`, it evaluates `zPos` (distance along the line), `xPos` (0 = start bound, 1 = end bound) and the conditions, places the mesh on the ground at that point facing `forward`, and continues until `whileCondition` is false (with a hard limit of 1000 props per element). Props are put on layer 13 and named `<container>;<mesh>`.
 
 ## Intersections
 

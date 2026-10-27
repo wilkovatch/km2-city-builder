@@ -13,7 +13,8 @@ namespace History {
         Intersection,
         TerrainPoint,
         TerrainPatch,
-        BuildingLine
+        BuildingLine,
+        LowLevel
     }
 
     //Captures single elements in the IO.SavedCity format (shared with the city encoder, with a different id resolution),
@@ -28,6 +29,7 @@ namespace History {
                 case TerrainPoint: return ElementKind.TerrainPoint;
                 case TerrainPatch: return ElementKind.TerrainPatch;
                 case BuildingLine: return ElementKind.BuildingLine;
+                case LowLevelElement: return ElementKind.LowLevel;
                 default: return null;
             }
         }
@@ -45,6 +47,7 @@ namespace History {
                 case TerrainPoint point: return !point.IsDeleted() && IsNodeAlive(point);
                 case TerrainPatch patch: return !patch.IsDeleted() && IsNodeAlive(patch);
                 case BuildingLine line: return !line.IsDeleted() && IsNodeAlive(line);
+                case LowLevelElement lowLevel: return !lowLevel.IsDeleted() && IsNodeAlive(lowLevel);
                 default: return false;
             }
         }
@@ -80,6 +83,7 @@ namespace History {
             elem.state = road.state;
             elem.startIntersectionId = road.startIntersection == null ? -1 : intersectionId(road.startIntersection);
             elem.endIntersectionId = road.endIntersection == null ? -1 : intersectionId(road.endIntersection);
+            elem.ghost = road.ghost;
             return elem;
         }
 
@@ -95,6 +99,7 @@ namespace History {
                 iRoadsArray[j] = roadId(intersection.roads[j]);
             }
             elem.roads = iRoadsArray;
+            elem.ghost = intersection.ghost;
             return elem;
         }
 
@@ -110,12 +115,16 @@ namespace History {
 
             newElem.dividing = p.dividing;
             newElem.position = new SVector3(p.GetPoint());
+            if (IsRotatable(p)) newElem.rotation = new SVector3(p.GetRotation());
             try {
                 if (!GO.IsNull(p.anchor) && !p.anchor.IsDeleted()) {
                     Node3D parent = null;
                     TerrainAnchor realAnchor = null;
-                    TerrainPoint realPoint1 = null, realPoint2 = null;
-                    if (p.anchor is TerrainAnchor terrainAnchor && !GO.IsNull(terrainAnchor)) {
+                    TerrainPoint realPoint1 = null, realPoint2 = null, columnMaster = null;
+                    if (p.anchor is ColumnAnchor column) {
+                        newElem.linkType = IO.SavedCity.LinkType.Column;
+                        columnMaster = column.master;
+                    } else if (p.anchor is TerrainAnchor terrainAnchor && !GO.IsNull(terrainAnchor)) {
                         newElem.linkType = IO.SavedCity.LinkType.Point;
                         parent = GO.GetParent(terrainAnchor.GetObject());
                         realAnchor = terrainAnchor;
@@ -152,6 +161,14 @@ namespace History {
                             } else {
                                 newElem.linkType = IO.SavedCity.LinkType.None;
                             }
+                        } else {
+                            newElem.linkType = IO.SavedCity.LinkType.None;
+                        }
+                    } else if (columnMaster != null) {
+                        var id = pointId(columnMaster);
+                        if (id >= 0) {
+                            newElem.elementId = id;
+                            newElem.elementType = IO.SavedCity.LinkElementType.TerrainPoint;
                         } else {
                             newElem.linkType = IO.SavedCity.LinkType.None;
                         }
@@ -239,6 +256,72 @@ namespace History {
             return elem;
         }
 
+        //a point of a low-level element whose definition lets it be rotated
+        static bool IsRotatable(TerrainPoint p) {
+            foreach (var link in p.GetLinks()) {
+                if (link is LowLevelElement element) {
+                    foreach (var (_, leaf) in element.GetLeaves()) {
+                        if (leaf.point == p && leaf.def.rotatable) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        //the kind of an element as named in the saved references (null if it can't be referenced)
+        public static string ReferenceKind(object element) {
+            switch (element) {
+                case Road: return "road";
+                case Intersection: return "intersection";
+                case TerrainPatch: return "terrainPatch";
+                case BuildingLine: return "buildingLine";
+                case LowLevelElement: return "lowLevel";
+                default: return null;
+            }
+        }
+
+        //the references of the parameters of a low-level element converted with the given function (a copy of the state
+        //is made only if it has references); the references are {"kind": ..., "id": ...} states
+        public static ObjectState MapReferences(ObjectState state, System.Func<string, int, int> map) {
+            if (state == null) return null;
+            var type = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes().TryGetValue(state.Str("type", ""), out var t) ? t : null;
+            if (type == null) return state;
+            ObjectState res = null;
+            foreach (var name in type.GetReferenceParameters()) {
+                var reference = state.State(name);
+                if (reference == null) continue;
+                if (res == null) res = (ObjectState)state.Clone();
+                var mapped = new ObjectState();
+                var kind = reference.Str("kind", "");
+                mapped.SetStr("kind", kind);
+                mapped.SetInt("id", map(kind, reference.Int("id", -1)));
+                res.SetState(name, mapped);
+            }
+            return res ?? state;
+        }
+
+        public static IO.SavedCity.LowLevelElement CaptureLowLevel(LowLevelElement element, int id, System.Func<TerrainPoint, int> pointId,
+            System.Func<object, int> elementId, System.Func<string, int, int> mapReference) {
+
+            var elem = new IO.SavedCity.LowLevelElement();
+            elem.id = id;
+            elem.name = GO.GetName(element);
+            elem.state = MapReferences(element.state, mapReference);
+            elem.points = LowLevel.PointTree.ToJson(element.points, pointId);
+            if (element.meshVertices.Count > 0 || element.triangles.Count > 0) {
+                elem.meshVertices = element.meshVertices.ConvertAll(p => pointId(p)).ToArray();
+                elem.triangles = element.triangles.ToArray();
+                if (element.uvs.Exists(uv => uv != Vector2.Zero)) elem.uvs = element.uvs.ConvertAll(uv => new States.SerializableVector2(uv)).ToArray();
+            }
+            elem.containerId = element.container == null || element.container.IsDeleted() ? -1 : elementId(element.container);
+            var sourceKind = ReferenceKind(element.source);
+            if (sourceKind != null && IsAlive(element.source)) {
+                var sourceId = elementId(element.source);
+                if (sourceId >= 0) elem.source = new IO.SavedCity.ElementReference { kind = sourceKind, id = sourceId };
+            }
+            return elem;
+        }
+
         // Undo mementos (the captures serialized as JSON, with registry ids as references)
 
         //an element being deleted is still registered (until its transaction is finalized), so that the elements
@@ -272,6 +355,9 @@ namespace History {
                     break;
                 case ElementKind.BuildingLine:
                     data = CaptureBuildingLine((BuildingLine)element, id, RegistryId);
+                    break;
+                case ElementKind.LowLevel:
+                    data = CaptureLowLevel((LowLevelElement)element, id, RegistryId, RegistryId, (kind, refId) => refId);
                     break;
                 default:
                     return null;
@@ -338,6 +424,13 @@ namespace History {
                     line.Initialize(manager.GetTerrainPointContainer());
                     manager.AddBuildingLine(line, id);
                     return line;
+                }
+                case ElementKind.LowLevel: {
+                    var e = Deserialize<IO.SavedCity.LowLevelElement>(json);
+                    var element = GS.Create<LowLevelElement>(NameOrDefault(e.name, "Element"), manager.GetLowLevelContainer());
+                    element.Initialize(e.state?.Str("type", null), manager.GetTerrainPointContainer());
+                    manager.AddLowLevelElement(element, id);
+                    return element;
                 }
                 default:
                     return null;
@@ -407,6 +500,8 @@ namespace History {
                     road.instanceState = Changed(r.instanceState);
                     road.startIntersection = GetAlive<Intersection>(r.startIntersectionId);
                     road.endIntersection = GetAlive<Intersection>(r.endIntersectionId);
+                    road.ghost = r.ghost;
+                    road.ApplyGhost();
                     road.forceRemesh = true;
                     return road;
                 }
@@ -424,6 +519,9 @@ namespace History {
                             if (road != null && !intersection.roads.Contains(road)) intersection.roads.Add(road);
                         }
                     }
+                    intersection.ghost = i.ghost;
+                    intersection.ApplyGhost();
+                    intersection.SetActive(false);
                     intersection.forceRemesh = true;
                     return intersection;
                 }
@@ -433,6 +531,7 @@ namespace History {
                     point.dividing = p.dividing;
                     point.anchor = ResolveAnchor(p);
                     GO.SetPosition(point.GetObject(), p.position.GetVector());
+                    if (p.rotation.HasValue) point.SetRotation(p.rotation.Value.GetVector());
                     return point;
                 }
                 case ElementKind.TerrainPatch: {
@@ -463,9 +562,35 @@ namespace History {
                     line.RestoreFromSnapshot(GetPoints(l.linePoints), Changed(l.state), Changed(l.instanceState), buildingStates, sideStates);
                     return line;
                 }
+                case ElementKind.LowLevel: {
+                    var e = Deserialize<IO.SavedCity.LowLevelElement>(json);
+                    var lowLevel = (LowLevelElement)element;
+                    if (!string.IsNullOrEmpty(e.name)) GO.SetName(lowLevel, e.name);
+                    var origin = lowLevel.GetCenter();
+                    var lowLevelState = Changed(e.state);
+                    var newPoints = LowLevelPoints(e.points, lowLevelState, lowLevel, token => GetAlive<TerrainPoint>((int)token), origin);
+                    var vertices = new List<TerrainPoint>();
+                    if (e.meshVertices != null) {
+                        foreach (var vid in e.meshVertices) vertices.Add(GetAlive<TerrainPoint>(vid) ?? lowLevel.CreatePoint(origin));
+                    }
+                    var uvs = e.uvs != null ? States.SerializableVector2.GetRuntimeList(e.uvs) : new List<Vector2>();
+                    object source = e.source.HasValue ? GetAlive<object>(e.source.Value.id) : null;
+                    lowLevel.RestoreFromSnapshot(lowLevelState, newPoints, vertices, new List<int>(e.triangles ?? new int[0]), uvs,
+                        GetAlive<LowLevelElement>(e.containerId), source);
+                    return lowLevel;
+                }
                 default:
                     return element;
             }
+        }
+
+        //the control points of a low-level element from their JSON (missing points are created, see PointTree.FromJson)
+        public static LowLevel.PointGroup LowLevelPoints(Newtonsoft.Json.Linq.JToken points, ObjectState state, LowLevelElement element,
+            System.Func<Newtonsoft.Json.Linq.JToken, TerrainPoint> getPoint, Vector3 origin) {
+
+            var type = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes().TryGetValue(state?.Str("type", "") ?? "", out var t) ? t : null;
+            var rootDef = LowLevel.PointTree.RootDef(type?.typeData.settings.controlPoints);
+            return (LowLevel.PointGroup)LowLevel.PointTree.FromJson(points, rootDef, getPoint, (def, pos) => element.CreatePoint(pos), origin);
         }
 
         //same logic as the city decoder, with the registry ids as references
@@ -483,6 +608,9 @@ namespace History {
                         if (inPoint.anchorIndex == -1) anchor = TerrainAnchorLineManager.FindMatching(inPoint.position.GetVector(), anchors);
                         else if (inPoint.anchorIndex < anchors.Count) anchor = anchors[inPoint.anchorIndex];
                     }
+                } else if (inPoint.linkType == IO.SavedCity.LinkType.Column) {
+                    var master = GetAlive<TerrainPoint>(inPoint.elementId);
+                    if (master != null) anchor = new ColumnAnchor(master, inPoint.position.GetVector().Y);
                 } else {
                     var linkedPoint1 = GetAlive<TerrainPoint>(inPoint.elementId);
                     var linkedPoint2 = GetAlive<TerrainPoint>(inPoint.anchorIndex);
@@ -523,6 +651,9 @@ namespace History {
                     break;
                 case ElementKind.BuildingLine:
                     ((BuildingLine)element).RemoveForUndo();
+                    break;
+                case ElementKind.LowLevel:
+                    ((LowLevelElement)element).RemoveForUndo();
                     break;
             }
         }

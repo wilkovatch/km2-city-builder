@@ -39,6 +39,10 @@ public partial class MenuBar : Control {
         elements[i].SetEntryInteractable(entry, enabled);
     }
 
+    public void SetEntryChecked(int i, int entry, bool isChecked) {
+        elements[i].SetEntryChecked(entry, isChecked);
+    }
+
     public void SetOnOpen(int i, System.Action action) {
         elements[i].SetOnOpen(action);
     }

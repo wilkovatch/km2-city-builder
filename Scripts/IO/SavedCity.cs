@@ -26,6 +26,9 @@ namespace IO.SavedCity {
         public SVector2[] pointRotations;
         public int startIntersectionId; //reference to an intersection
         public int endIntersectionId; //reference to an intersection
+        //replaced by low-level elements: hidden and not exported, kept for the elements connected to it
+        [Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Ignore)]
+        public bool ghost;
     }
 
     [System.Serializable]
@@ -36,11 +39,14 @@ namespace IO.SavedCity {
         public SVector3 center;
         public ObjectState state;
         public ObjectState instanceState;
+        [Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Ignore)]
+        public bool ghost; //as for roads
     }
 
     [System.Serializable]
     public enum LinkType {
-        None, Point, Line
+        None, Point, Line,
+        Column //on the vertical line of a terrain point (elementId), see ColumnAnchor
     }
 
     [System.Serializable]
@@ -58,6 +64,9 @@ namespace IO.SavedCity {
         public int elementId; //reference to a road, intersection or previous terrain point
         public int anchorIndex; //index of the anchor (or link start point) in the road/intersection (or link end point id if element type is terrain point)
         public float percent; //used if linktype is line
+        //the rotation of the rotatable points of the low-level elements (euler angles in degrees), missing for the others
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public SVector3? rotation;
     }
 
     [System.Serializable]
@@ -88,6 +97,30 @@ namespace IO.SavedCity {
         public ObjectState[] sides;
     }
 
+    //a reference to an element of the city (a parameter of a low-level element, or the element it replaces)
+    [System.Serializable]
+    public struct ElementReference {
+        public string kind; //road, intersection, terrainPatch, buildingLine, lowLevel
+        public int id;
+    }
+
+    [System.Serializable]
+    public struct LowLevelElement {
+        public int id;
+        public string name;
+        public ObjectState state; //the type and the parameters
+        public Newtonsoft.Json.Linq.JToken points; //the control points, structured as defined by the type, as terrain point ids
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int[] meshVertices; //terrain point ids
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int[] triangles;
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public SVector2[] uvs;
+        public int containerId; //reference to another low-level element, -1 if none
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ElementReference? source; //the procedural element it replaces (a ghost)
+    }
+
     [System.Serializable]
     public struct SavedCity {
         public int heightmapResolution;
@@ -101,5 +134,6 @@ namespace IO.SavedCity {
         public TerrainPoint[] terrainPoints;
         public TerrainPatch[] terrainPatches;
         public BuildingLine[] buildingLines;
+        public LowLevelElement[] lowLevelElements;
     }
 }

@@ -25,6 +25,7 @@ Static entry point. Every getter reads its folder of the current core (`Files/co
 | `GetParametricMeshInstanceSettings` | `props/parametric/<name>.json` | `Runtime.MeshInstanceSettings` per object type |
 | `GetCitySettings` | `cityProperties/` | `Runtime.CitySettings` under the key `"city"` |
 | `GetCustomTypes` | `customTypes/<name>.json` | `CustomElement` |
+| `GetLowLevelTypes` | `lowLevel/<name>/` (optional folder) | `Runtime.LowLevelType` |
 
 ### Inheritance (`Types/Parsers/TypeInheritance.cs`)
 
@@ -105,5 +106,6 @@ Subclasses fill the variables in this order, through the protected helpers:
 | `MeshInstanceSettings` | `Types.MeshInstanceSettings` | Layer, placer mask and automatic Y offset rules of mesh instances. |
 | `CitySettings` | `Types.CitySettings.CitySettings` | City properties. |
 | `ArrayProperties` | `Types.ArrayProperties` | Parameters of the elements of an `array`/`customElement` parameter. |
+| `LowLevelType` | `Types.LowLevelType` (`LowLevelComponents.cs`: `LowLevelSettings`, `LowLevelPointNode`, `LowLevelArraySettings`, `LowLevelMeshSettings`, `LowLevelContainerSettings`) | Parameters and static definitions; resolves the Lua functions of `geometry` and `constraints` when the core is loaded (they are read again with the types, `CityBuilderMenuBar.Reload`), checks the control points (unique names without dots), `CanContain`, `GetReferenceParameters`. See [Core Low-Level Elements](Core-Low-Level-Elements). |
 
 Each runtime type is shared by all the elements of that type. Road and block generators therefore work on a **clone** of `variableContainer` (`VariableContainer.GetClone()`, same layout, separate values). Some short, self-contained evaluations (junction states, mesh instance rules, terrain patches) fill the type's own container or a per-element clone right before using it; since everything runs on the main thread this is safe as long as the values are not kept between elements.

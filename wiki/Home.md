@@ -25,7 +25,7 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 3. [Settings, Paths and Python](Settings-Paths-and-Python): `CoreManager`, `PreferencesManager`, `SettingsManager`, `PathHelper`, `StringManager`, `PythonManager`.
 4. [Type System](Type-System): JSON type definitions, `TypeParser`, runtime types.
 5. [Runtime Calculator](Runtime-Calculator): the expression parser and evaluator, and the Lua scripts host.
-6. [City Elements](City-Elements): roads, intersections, terrain patches, buildings, mesh instances, city properties, state and presets.
+6. [City Elements](City-Elements): roads, intersections, terrain patches, buildings, mesh instances, low-level elements, city properties, state and presets.
 7. [Geometry Generation](Geometry-Generation): the generators that turn types and state into meshes.
 8. [Input and Output](Input-and-Output): saving, loading, exporting, mesh/texture import, materials.
 9. [User Interface](User-Interface): menu bar, editor panels, placers and terrain tools, camera, debug console.
@@ -44,6 +44,7 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 8. [Core Buildings](Core-Buildings): building types and building blocks.
 9. [Core Props and Objects](Core-Props-and-Objects): prop elements and containers, mesh instances, parametric objects.
 10. [Core City Properties](Core-City-Properties): city-wide parameters and custom types.
-11. [Core Lua Scripts](Core-Lua-Scripts): definitions computed by Lua functions (variables, context, vectors, sandbox).
-12. [Core Python Integration](Core-Python-Integration): custom mesh/texture formats, exporters, export JSON format, migrations.
-13. [Core Templates and Presets](Core-Templates-and-Presets): city templates, presets, preferences.
+11. [Core Low-Level Elements](Core-Low-Level-Elements): elements mapping to the primitives of the game (the PSDL attributes for MM2), their Lua geometry and constraints, the converters from the procedural elements, ghosts.
+12. [Core Lua Scripts](Core-Lua-Scripts): definitions computed by Lua functions (variables, context, vectors, sandbox).
+13. [Core Python Integration](Core-Python-Integration): custom mesh/texture formats, exporters, export JSON format, migrations.
+14. [Core Templates and Presets](Core-Templates-and-Presets): city templates, presets, preferences.

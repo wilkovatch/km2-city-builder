@@ -29,6 +29,7 @@ public partial class Intersection: IObjectWithState {
     List<GameObject> roadsThrough = new List<GameObject>();
 
     public TerrainAnchorLineManager anchorManager;
+    public bool ghost = false; //replaced by low-level elements (see Road.ghost)
 
     public partial class IntersectionComponent : PhysicsScriptable {
         public Intersection intersection;
@@ -68,8 +69,28 @@ public partial class Intersection: IObjectWithState {
         GO.SetLayer(point, layer);
         var handle = GS.Cast<Handle>(point);
         if (handle != null) {
-            handle.SetHandleActive(active);
+            handle.SetHandleActive(active && !ghost);
             handle.SetColor(color);
+        }
+        if (ghost) GO.SetLayer(point, -1);
+    }
+
+    public void SetGhost(bool value) {
+        History.UndoManager.Touch(this);
+        ghost = value;
+        ApplyGhost();
+        SetActive(false);
+    }
+
+    public void ApplyGhost() {
+        if (deleted || GO.IsNull(geo)) return;
+        if (generator.mr != null) generator.mr.Visible = !ghost;
+        generator.CollisionLayer = ghost ? 0u : 1u << 7;
+        foreach (var roadThrough in roadsThrough) {
+            var gen = GS.FindRecursive<RoadGenerator>(roadThrough);
+            if (gen == null) continue;
+            if (gen.mr != null) gen.mr.Visible = !ghost;
+            gen.CollisionLayer = ghost ? 0u : 1u << 7;
         }
     }
 
@@ -596,6 +617,7 @@ public partial class Intersection: IObjectWithState {
         }
 
         anchorManager.Update(geo, generator.sidePoints, generator.sidePointStartRoads, generator.sidePointEndRoads, centers);
+        ApplyGhost();
 
         foreach(var road in roads) {
             anchorManager.ConnectTo(road.anchorManager);

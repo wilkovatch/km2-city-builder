@@ -107,6 +107,21 @@ A polygon of perimeter `TerrainPoint`s, with optional internal points (to add ve
 | `Building` (`Logic/Buildings/Building.cs`) | One building of a line, with up to four `BuildingSideGenerator`s (`front`, `left`, `right`, `back`) and a roof. Its state holds the building type parameters, the built-in `front`/`left`/`right`/`back`/`top` switches, `height`, `depth`, `fixAcuteAngles`, `topTexture`, and the states of its sides (`frontState`, ...). `PreUpdateMesh` computes the side splines from the line and the neighboring buildings; `UpdateMesh` rebuilds the sides and the roof. |
 | `BuildingSideGenerator` | See [Geometry Generation](Geometry-Generation#buildings). |
 
+## Low-level elements
+
+The elements of the low-level types of the core (see [Core Low-Level Elements](Core-Low-Level-Elements)).
+
+| Class | Role |
+|---|---|
+| `LowLevelElement` (`Logic/LowLevelElement.cs`) | The element: `state` (type and parameters), `points` (the control points, a `PointGroup`), the mesh (`meshVertices`, `triangles`, `uvs`; `scriptUVs` given by the geometry script), `container` (another low-level element) and `source` (the ghost it replaces). Its points are `TerrainPoint`s linked to it (it is an `IGroundable`, not projected on the ground), so they can be anchored and shared like the points of the patches. Array editing (`InsertArrayElement`, `RemoveArrayElement`, uniform arrays included), `ReplacePoint` (sharing), `SetMesh`, `SetContainer`/`CanBeIn`. The update (`ElementManager.UpdateLowLevelElements`) refreshes the points (anchors), runs the constraints of every element a few times while they move points (`ApplyConstraints`, comparing with the positions they last saw), then rebuilds the geometry of the changed ones (`UpdateGeometry`: points, points of the referenced elements, state, structure). The scripts get the context built by `CreateScriptContext`. |
+| `LowLevel.PointTree` (`Logic/LowLevel/PointTree.cs`) | The tree of control points (`PointLeaf`, `PointGroup`, `PointList`): default content, paths, array elements (new points between their neighbours), uniform instances, JSON (point ids) and validation. |
+| `LowLevel.LowLevelScripting` (`Logic/LowLevel/LowLevelScripting.cs`) | The Lua tables of the points and the reading of the geometry (`GeometryResult`) and constraints (`ConstraintsResult`) returned by the scripts. |
+| `LowLevelGenerator` (`Geometry/LowLevelGenerator.cs`) | The geometry of the element (layer 7): one submesh per mesh of the script, the lines (shown while the element is edited, unless `always`), and a collider of the meshes, the pick-only meshes and the `always` lines. |
+
+### Ghosts
+
+`Road.ghost` and `Intersection.ghost` (saved with them): a road or intersection replaced by low-level elements. `ApplyGhost` hides its generated meshes (and the roads through an intersection, and the props of a road) and removes them from the collision layer; the intersection handle is hidden; the split line and the free ends of a ghost road are not offered to other roads; ghosts are left out of the object list. Everything else (curves, sizes, anchors, the parametric objects) works as usual, so the elements around keep their geometry. `Operations.LowLevel` sets, lists and restores them.
+
 ## `MeshInstance` (`Logic/MeshInstance.cs`)
 
 A mesh loaded from a file and placed freely in the city (a building, a prop, a parametric object).

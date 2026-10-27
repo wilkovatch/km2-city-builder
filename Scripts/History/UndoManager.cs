@@ -303,6 +303,9 @@ namespace History {
         public static bool CanUndo => undoStack.Count > 0 && !IsBusy && !IsGroupOpen;
         //changes every time an undo step is added, to know if an action recorded one
         public static int Version { get; private set; } = 0;
+        //changes every time an undo step is undone or redone (what the elements derive from others must not be computed
+        //again from the restored state: the step restored it too)
+        public static int AppliedVersion { get; private set; } = 0;
         public static bool CanRedo => redoStack.Count > 0 && !IsBusy && !IsGroupOpen;
         public static bool IsGroupOpen => groupMarker >= 0;
         public static string GroupLabel => groupLabel;
@@ -335,6 +338,25 @@ namespace History {
                 action.Invoke();
             } finally {
                 Commit();
+            }
+        }
+
+        //runs a change derived by the update from the last action (e.g. points computed from the elements it edited) in
+        //the transaction of that action, committed but not finalized yet (or in the open one): undoing the action undoes it
+        //too. Without one (nothing recorded) it just runs
+        public static void RecordDerived(System.Action action) {
+            if (current != null || applying || queued.Count == 0) {
+                action.Invoke();
+                return;
+            }
+            var t = queued[queued.Count - 1];
+            queued.RemoveAt(queued.Count - 1); //not an earlier transaction for the elements it touches
+            current = t;
+            try {
+                action.Invoke();
+            } finally {
+                current = null;
+                queued.Add(t);
             }
         }
 
@@ -393,6 +415,7 @@ namespace History {
             Node3D anchorObj = null;
             if (point.anchor is TerrainAnchor ta) anchorObj = ta.GetObject();
             else if (point.anchor is LineAnchor la) anchorObj = la.start;
+            else if (point.anchor is ColumnAnchor) return null; //follows a terrain point, not a road or intersection
             if (anchorObj == null || !GodotObject.IsInstanceValid(anchorObj)) return null;
             return GO.GetParent(anchorObj);
         }
@@ -491,6 +514,7 @@ namespace History {
             foreach (var point in manager.GetTerrainPoints()) Touch(point, false);
             foreach (var patch in manager.patches) Touch(patch, false);
             foreach (var line in manager.buildings) Touch(line, false);
+            foreach (var element in manager.lowLevelElements) Touch(element, false);
         }
 
         public static void FinalizePending() {
@@ -718,7 +742,7 @@ namespace History {
         // Application
 
         static readonly ElementKind[] removalOrder = {
-            ElementKind.BuildingLine, ElementKind.TerrainPatch, ElementKind.TerrainPoint,
+            ElementKind.LowLevel, ElementKind.BuildingLine, ElementKind.TerrainPatch, ElementKind.TerrainPoint,
             ElementKind.Intersection, ElementKind.Road, ElementKind.Mesh
         };
 
@@ -757,6 +781,7 @@ namespace History {
 
         static void Apply(HistoryEntry entry, bool undo) {
             applying = true;
+            AppliedVersion++;
             try {
                 //terrain first, so that the elements projected on it follow
                 if (undo) {
@@ -789,7 +814,8 @@ namespace History {
                 ApplyKinds(updates, ElementKind.CityProperties, ElementKind.Mesh, ElementKind.Road, ElementKind.Intersection);
                 var hasTerrainElements = false;
                 foreach (var (change, _) in updates) {
-                    if (change.kind == ElementKind.TerrainPoint || change.kind == ElementKind.TerrainPatch || change.kind == ElementKind.BuildingLine) {
+                    if (change.kind == ElementKind.TerrainPoint || change.kind == ElementKind.TerrainPatch || change.kind == ElementKind.BuildingLine
+                        || change.kind == ElementKind.LowLevel) {
                         hasTerrainElements = true;
                         break;
                     }
@@ -803,7 +829,7 @@ namespace History {
                     }
                 }
                 ApplyKinds(updates, ElementKind.TerrainPoint);
-                ApplyKinds(updates, ElementKind.TerrainPatch, ElementKind.BuildingLine);
+                ApplyKinds(updates, ElementKind.TerrainPatch, ElementKind.BuildingLine, ElementKind.LowLevel);
             } finally {
                 applying = false;
             }

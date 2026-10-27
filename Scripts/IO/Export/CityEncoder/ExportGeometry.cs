@@ -245,6 +245,7 @@ namespace CityEncoder {
                 elem.b64v3a_points = GetEncodedVector3s(pointArray);
                 elem.startIntersectionId = IdOf(road.startIntersection);
                 elem.endIntersectionId = IdOf(road.endIntersection);
+                elem.ghost = road.ghost;
 
                 //props and traffic lines
                 var lanes = new List<ObjectState>();
@@ -265,8 +266,15 @@ namespace CityEncoder {
                 }
                 baseData.fields.SetArray("lanes", lanes.ToArray());
             }
+            baseData.propLines = GetPropLines(generator.props);
+            elem.data = baseData;
+            return elem;
+        }
+
+        //the props placed by a prop rule (see PropPlacer), by props container
+        IO.ExportedCity.PropLine[] GetPropLines(List<(string container, string meshName, GameObject obj)> props) {
             var propLanes = new Dictionary<string, List<IO.ExportedCity.MeshReference>>();
-            foreach (var (container, meshName, prop) in generator.props) {
+            foreach (var (container, meshName, prop) in props) {
                 if (!propLanes.ContainsKey(container)) propLanes[container] = new List<IO.ExportedCity.MeshReference>();
                 var mr = new IO.ExportedCity.MeshReference();
                 mr.meshId = meshLookup.ContainsKey(meshName) ? meshLookup[meshName] : -1;
@@ -275,17 +283,16 @@ namespace CityEncoder {
                 mr.b64v3_scale = GetEncodedVector3(GO.GetLocalScale(prop));
                 propLanes[container].Add(mr);
             }
-            baseData.propLines = new IO.ExportedCity.PropLine[propLanes.Count];
+            var res = new IO.ExportedCity.PropLine[propLanes.Count];
             int laneI = 0;
             foreach (var key in propLanes.Keys) {
                 var tmp = new IO.ExportedCity.PropLine();
                 tmp.name = key;
                 tmp.props = propLanes[key].ToArray();
-                baseData.propLines[laneI] = tmp;
+                res[laneI] = tmp;
                 laneI++;
             }
-            elem.data = baseData;
-            return elem;
+            return res;
         }
 
         public IO.ExportedCity.Intersection GetIntersection(Intersection intersection, int id) {
@@ -304,6 +311,7 @@ namespace CityEncoder {
             }
             elem.roads = iRoadsArray;
             elem.id = id;
+            elem.ghost = intersection.ghost;
             var roadsThrough = intersection.GetRoadsThrough();
             elem.roadsThrough = new IO.ExportedCity.Road[roadsThrough.Count];
             for (int j = 0; j < roadsThrough.Count; j++) {
@@ -349,6 +357,68 @@ namespace CityEncoder {
             }
             elem.borderMeshes = elemRails;
             elem.id = id;
+            return elem;
+        }
+
+        Newtonsoft.Json.Linq.JObject GetLowLevelPoint(TerrainPoint p, bool rotatable) {
+            var res = new Newtonsoft.Json.Linq.JObject();
+            res["id"] = History.ElementRegistry.GetId(p);
+            var pos = p.GetPoint();
+            res["position"] = new Newtonsoft.Json.Linq.JArray(pos.X, pos.Y, pos.Z);
+            if (rotatable) {
+                var rot = p.GetRotation();
+                res["rotation"] = new Newtonsoft.Json.Linq.JArray(rot.X, rot.Y, rot.Z);
+            }
+            return res;
+        }
+
+        IO.ExportedCity.ElementReference GetReference(object element) {
+            var kind = History.ElementSnapshot.ReferenceKind(element);
+            var id = IdOf(element);
+            return kind != null && id >= 0 ? new IO.ExportedCity.ElementReference { kind = kind, id = id } : null;
+        }
+
+        static Newtonsoft.Json.Linq.JToken GetLowLevelPoints(LowLevel.PointNode node, System.Func<LowLevel.PointLeaf, Newtonsoft.Json.Linq.JToken> leafValue) {
+            switch (node) {
+                case LowLevel.PointLeaf leaf:
+                    return leafValue(leaf);
+                case LowLevel.PointGroup group: {
+                    var obj = new Newtonsoft.Json.Linq.JObject();
+                    foreach (var (name, child) in group.children) obj[name] = GetLowLevelPoints(child, leafValue);
+                    return obj;
+                }
+                case LowLevel.PointList list: {
+                    var arr = new Newtonsoft.Json.Linq.JArray();
+                    foreach (var item in list.items) arr.Add(GetLowLevelPoints(item, leafValue));
+                    return arr;
+                }
+            }
+            return null;
+        }
+
+        public IO.ExportedCity.LowLevelElement GetLowLevelElement(LowLevelElement element, int id) {
+            var elem = new IO.ExportedCity.LowLevelElement();
+            elem.id = id;
+            elem.type = element.TypeName;
+            var baseData = new IO.ExportedCity.BaseData();
+            baseData.name = GO.GetName(element);
+            baseData.fields = new ObjectState();
+            baseData.fields.SetState("state", History.ElementSnapshot.MapReferences(element.state, (kind, refId) => {
+                var target = History.ElementRegistry.Get(refId);
+                return target == null ? -1 : IdOf(target);
+            }));
+            baseData.mesh = GetMeshData(GO.GetObject(element.generator));
+            baseData.propLines = GetPropLines(element.generator.props);
+            elem.data = baseData;
+            elem.points = GetLowLevelPoints(element.points, leaf => GetLowLevelPoint(leaf.point, leaf.def.rotatable));
+            elem.vertices = new Newtonsoft.Json.Linq.JArray();
+            foreach (var v in element.meshVertices) elem.vertices.Add(GetLowLevelPoint(v, false));
+            elem.triangles = element.triangles.ToArray();
+            var uvMode = element.Settings?.mesh?.uvs ?? "none";
+            var uvs = uvMode == "editable" ? element.uvs : uvMode == "script" ? element.scriptUVs : null;
+            if (uvs != null) elem.uvs = uvs.ConvertAll(uv => new[] { uv.X, uv.Y }).ToArray();
+            elem.containerId = element.container == null || element.container.IsDeleted() ? -1 : IdOf(element.container);
+            elem.source = element.source != null && History.ElementSnapshot.IsAlive(element.source) ? GetReference(element.source) : null;
             return elem;
         }
 

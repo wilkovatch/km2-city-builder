@@ -788,6 +788,7 @@ public static partial class GameEngine {
                 return Godot.Input.IsActionJustPressed(command.ToString());
             }
             else if (keyMapping.ContainsKey(command)) {
+                if (UIDetection.PopupOpen()) return false;
                 var (key, modifier) = keyMapping[command];
                 return Godot.Input.IsActionJustPressed(command.ToString())
                     && (modifier == Key.None || Godot.Input.IsActionPressed(command.ToString() + "_m"));
@@ -805,6 +806,7 @@ public static partial class GameEngine {
                 return Godot.Input.IsActionPressed(command.ToString());
             }
             else if (keyMapping.ContainsKey(command)) {
+                if (UIDetection.PopupOpen()) return false;
                 var (key, modifier) = keyMapping[command];
                 return Godot.Input.IsActionPressed(command.ToString())
                     && (modifier == Key.None || Godot.Input.IsActionPressed(command.ToString() + "_m"));
