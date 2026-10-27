@@ -25,6 +25,7 @@ mono_crash.*.json
 # *.pck
 
 CLAUDE.local.md
+AGENTS.local.md
 
 # Runtime data created next to the project when running from the editor
 /settings.json
