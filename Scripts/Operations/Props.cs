@@ -3,6 +3,23 @@ using System.Collections.Generic;
 namespace Operations {
     //The props containers of the road prop rules (see Roads.EnablePropContainer) and their elements
     public static class Props {
+        public static void NormalizeRule(ObjectState rule) {
+            if (rule == null) return;
+            var elementTypes = CityElements.Types.Parsers.TypeParser.GetPropsElementTypes();
+            foreach (var value in rule.properties.Values) {
+                if (value is not ObjectState container) continue;
+                var type = GetContainerType(container);
+                if (type == null) throw new System.ArgumentException("unknown prop container type");
+                foreach (var slot in type.parameters) {
+                    var elements = slot.maxNumber == 1 ? new[] { container.State(slot.name) } : container.Array<ObjectState>(slot.name);
+                    foreach (var e in elements ?? new ObjectState[0]) {
+                        if (e == null) continue;
+                        if (!elementTypes.TryGetValue(e.Str("type"), out var element)) throw new System.ArgumentException("unknown prop element type");
+                        States.Normalize(e, element.parameterContainer.parameters);
+                    }
+                }
+            }
+        }
         //the type of the container: the first one if not set yet (as shown by its editor, which sets it)
         public static CityElements.Types.PropsContainerType GetContainerType(ObjectState container) {
             var types = CityElements.Types.Parsers.TypeParser.GetPropsContainersTypes();

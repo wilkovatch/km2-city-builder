@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using TI = CityElements.Types.Parsers.TypeInheritance;
@@ -240,7 +240,9 @@ namespace CityElements.Types.Parsers {
         //Low-level elements (the folder is optional, cores without it have no low-level types)
         static Dictionary<string, Runtime.LowLevelType> lowLevelTypes;
         public static Dictionary<string, Runtime.LowLevelType> GetLowLevelTypes(bool reload = false) {
-            return GetTypes(ref lowLevelTypes, TI.LowLevel, LoadLowLevelTypes, reload);
+            var types = GetTypes(ref lowLevelTypes, TI.LowLevel, LoadLowLevelTypes, reload);
+            if (!types.ContainsKey(PropPath.TypeId)) types.Add(PropPath.TypeId, PropPath.CreateType());
+            return types;
         }
 
         public static Dictionary<string, Runtime.LowLevelType> LoadLowLevelTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {

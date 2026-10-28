@@ -20,13 +20,13 @@ namespace Api {
     }
 
     public class PropContainerPart {
-        public Road road;
+        public IObjectWithState road;
         public string container;
         public ObjectState state;
     }
 
     public class PropElementPart {
-        public Road road;
+        public IObjectWithState road;
         public string container;
         public string list;
         public int index; //-1: the single element of the list
@@ -77,6 +77,7 @@ namespace Api {
                 case TerrainPoint: return "terrainPoint";
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
+                case PropPath: return "propPath";
                 case LowLevelElement: return "lowLevel";
                 case Building: return "building";
                 case BuildingSideGenerator: return "buildingSide";
@@ -157,9 +158,9 @@ namespace Api {
                 return new BorderMeshPart { patch = patch, index = r.borderMesh.Value, mesh = bm };
             }
             if (r.road != null) {
-                var road = Resolve<Road>(r.road, "road");
+                var road = Resolve<IObjectWithState>(r.road, null);
                 if (r.container == null) throw ApiException.InvalidParam("missing props container");
-                var containerState = Operations.Roads.GetPropRule(road, false)?.State(r.container);
+                var containerState = Operations.Props.GetPropRule(road.GetState(), false)?.State(r.container);
                 if (containerState == null) throw ApiException.NotFound("props container '" + r.container + "' (enable it first)");
                 if (r.list == null) return new PropContainerPart { road = road, container = r.container, state = containerState };
                 if (Operations.Props.GetListParameter(containerState, r.list) == null) throw ApiException.NotFound("props list '" + r.list + "'");
@@ -371,21 +372,21 @@ namespace Api {
                     t.owner = pc.road;
                     t.state = pc.state;
                     t.presetCategory = "propContainer";
-                    t.applyPreset = x => Operations.Roads.GetPropRule(pc.road, true).SetState(pc.container, x);
+                    t.applyPreset = x => Operations.Props.GetPropRule(pc.road.GetState(), true).SetState(pc.container, x);
                     t.types = () => TP.GetPropsContainersTypes().Keys;
-                    t.afterChange = () => pc.road.state.FlagAsChanged();
+                    t.afterChange = () => pc.road.GetState().FlagAsChanged();
                     break;
                 case PropElementPart pe:
                     t.owner = pe.road;
                     t.state = pe.state;
                     t.parameters = Params(TypeOf(TP.GetPropsElementTypes(), pe.state.Str("type", null))?.typeData.parametersInfo);
-                    var containerState = Operations.Roads.GetPropRule(pe.road, false).State(pe.container);
+                    var containerState = Operations.Props.GetPropRule(pe.road.GetState(), false).State(pe.container);
                     var allowed = Operations.Props.GetAllowedTypes(containerState, pe.list);
                     t.presetCategory = "propElem";
                     t.presetAllowedTypes = allowed;
                     t.applyPreset = x => pe.state.properties = x.properties;
                     t.types = () => allowed.Count > 0 ? allowed : new List<string>(TP.GetPropsElementTypes().Keys);
-                    t.afterChange = () => pe.road.state.FlagAsChanged();
+                    t.afterChange = () => pe.road.GetState().FlagAsChanged();
                     break;
                 case ParameterElementPart pp:
                     t.owner = pp.parent.owner;

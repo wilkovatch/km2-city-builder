@@ -12,6 +12,12 @@ namespace EditorPanels {
     //meshGroup (texture coordinates of the selected vertex), containerGroup (container and contents), propsGroup (the prop
     //rule, for the types with props containers)
     public class LowLevelElementEditorPanel : EditorPanel, IPropRuleEditor {
+        string creationTypeValue;
+        public string creationType {
+            get => creationTypeValue;
+            set { creationTypeValue = value; builtType = "\0"; }
+        }
+        int selectedRibbon;
         string builtType = null; //the type the panel was built for
         LowLevelElement builtElement = null; //and the element (its arrays, container and contents are listed)
         EditorPanelElements.Dropdown createTypeDropdown, placementDropdown, containerDropdown, contentsDropdown, mergeDropdown;
@@ -42,6 +48,7 @@ namespace EditorPanels {
         public LowLevelElementEditorPanel() {
             AddComplexElement(new PresetSelector(this)); //for the presets of the prop rule (the element itself has none)
             propRule = new PropRuleGroup(this, _ => GetElement()?.state, () => {
+                if (GetElement() is PropPath path) { path.SynchronizeRule(); builtElement = null; }
                 ReadCurValues();
                 builder.NotifyChange();
             });
@@ -82,6 +89,10 @@ namespace EditorPanels {
             var p = GetPage(0);
             p.AddButton(SM.Get("END_EDITING"), Terminate, 1.5f);
             p.IncreaseRow();
+            if (creationType != null) {
+                p.AddLabel(SM.Get("CREATE_PROP_RULE") + ": " + SM.Get("LL_CLICK_TO_CREATE"), 1.5f);
+                return;
+            }
             creatableTypes.Clear();
             var names = new List<string>();
             foreach (var type in CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()) {
@@ -173,7 +184,39 @@ namespace EditorPanels {
                     vField = p.AddInputField("V", "V", "", GameEngine.InputContentType.Decimal, x => SetUV(1, x), w * 0.5f);
                     p.IncreaseRow();
                 }
+            } else if (elem.name == "propPathGroup" && GetElement() is PropPath propPath) {
+                var ribbonNames = new List<string>(propPath.RibbonNames);
+                selectedRibbon = System.Math.Clamp(selectedRibbon, 0, ribbonNames.Count - 1);
+                var ribbonDropdown = p.AddDropdown(SM.Get("PROP_PATH_RIBBONS"), ribbonNames, i => { selectedRibbon = i; builtElement = null; }, w);
+                ribbonDropdown.actionEnabled = false;
+                ribbonDropdown.SetValue(selectedRibbon);
+                ribbonDropdown.actionEnabled = true;
+                p.IncreaseRow();
+                p.AddInputField(SM.Get("PROP_PATH_NAME"), "", ribbonNames[selectedRibbon], GameEngine.InputContentType.Standard, value => {
+                    propPath.RenameRibbon(selectedRibbon, value); builder.NotifyChange(); builtElement = null;
+                }, w);
+                p.IncreaseRow();
+                p.AddButton(SM.Get("PROP_PATH_REMOVE_RIBBON"), () => {
+                    propPath.RemoveRibbon(selectedRibbon); builder.NotifyChange(); builtElement = null;
+                }, w);
+                p.IncreaseRow();
+                p.AddButton(SM.Get("PROP_PATH_ADD_RIBBON"), () => {
+                    var names = new List<string>(propPath.RibbonNames);
+                    Operations.LowLevel.InsertArrayElement(propPath, "ribbons", names.Count, false);
+                    var number = names.Count;
+                    while (names.Contains("ribbon" + number)) number++;
+                    names.Add("ribbon" + number);
+                    propPath.state.SetArray("ribbonNames", names.ToArray());
+                    propPath.state.FlagAsChanged();
+                    builder.NotifyChange();
+                    builtElement = null;
+                }, w);
+                p.IncreaseRow();
             } else if (elem.name == "propsGroup") {
+                if (GetElement() is PropPath path) {
+                    propRule.Add(p, GetComplexElement<PresetSelector>(), path.RibbonNames, null, w);
+                    return true;
+                }
                 if (settings.propsContainers != null && settings.propsContainers.Length > 0) {
                     var presetTypes = settings.propsPresetType != null ? new List<string> { settings.propsPresetType } : null;
                     propRule.Add(p, GetComplexElement<PresetSelector>(), settings.propsContainers, presetTypes, w);
@@ -573,12 +616,13 @@ namespace EditorPanels {
                     ShowContainerLines(element);
                     ShowMoveHandle(element);
                 } else {
-                    SetTitle(SM.Get("LL_NEW_ELEMENT"));
+                    SetTitle(SM.Get(creationType == PropPath.TypeId ? "CREATE_PROP_RULE" : "LL_NEW_ELEMENT"));
                 }
             }
         }
 
         void OnFrame() {
+            if (GetElement() != builtElement && lastCanvas != null) Initialize(lastCanvas);
             ShowSelectedPoint();
             UpdateContentOutline();
         }
@@ -595,7 +639,7 @@ namespace EditorPanels {
         //a container gets a handle moving it with its contents, at their center (hidden with the element, or in another
         //click mode)
         void ShowMoveHandle(LowLevelElement element) {
-            if (!element.GetLowLevelType()?.IsContainer ?? true) return;
+            if (element is not PropPath && (!element.GetLowLevelType()?.IsContainer ?? true)) return;
             var center = Operations.LowLevel.CenterWithContents(builder.helper.elementManager, element);
             if (center.HasValue) element.ShowMoveHandle(true, center.Value);
         }
@@ -632,6 +676,7 @@ namespace EditorPanels {
         }
 
         public override void Update() {
+            if (GetElement() != builtElement && lastCanvas != null) Initialize(lastCanvas);
             shownAnything = false;
             ShowSelectedPoint();
         }

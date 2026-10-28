@@ -13,6 +13,8 @@ namespace Operations {
     public static class Conversion {
         public class Result {
             public bool success;
+            public Dictionary<string, int> pointIds = new Dictionary<string, int>();
+            public Dictionary<string, int> elementIds = new Dictionary<string, int>();
             public string error; //unknown_converter, not_accepted, converter_failed, invalid_output
             public string message;
             public List<LowLevelElement> created = new List<LowLevelElement>();
@@ -152,7 +154,10 @@ namespace Operations {
         // Output
 
         static Vector3 ReadVector(JToken token, string what) {
-            if (token is JArray a && a.Count >= 3) return new Vector3((float)a[0], (float)a[1], (float)a[2]);
+            if (token is JArray a && a.Count == 3) {
+                var v = new Vector3((float)a[0], (float)a[1], (float)a[2]);
+                if (float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z)) return v;
+            }
             throw new System.Exception(what + " must be [x, y, z]");
         }
 
@@ -207,14 +212,65 @@ namespace Operations {
                 }
             }
             foreach (var e in elements ?? new JArray()) {
-                var id = Key(e["id"]) ?? "?";
+                var id = Key(e["id"]);
+                if (id == null) return "an element has no id";
                 var type = Key(e["type"]);
                 if (type == null || !types.ContainsKey(type)) return "the element " + id + " has an unknown type " + type;
                 if (!elementIds.Add(id)) return "the element " + id + " is defined twice";
                 var missing = MissingPoint(e["points"], false) ?? MissingPoint(e["mesh"]?["vertices"], false);
                 if (missing != null) return "the element " + id + " uses the undefined point " + missing;
+                if (e["mesh"] is JObject mesh) {
+                    var n = (mesh["vertices"] as JArray)?.Count ?? 0;
+                    var ts = mesh["triangles"] as JArray ?? new JArray();
+                    if (ts.Count % 3 != 0 || ts.Any(t => (int)t < 0 || (int)t >= n)) return "invalid mesh triangles of " + id;
+                    if (mesh["uvs"] is JArray uv && uv.Count != n) return "invalid mesh UV count of " + id;
+                }
+            }
+            var entries = (elements ?? new JArray()).ToDictionary(e => Key(e["id"]));
+            foreach (var e in elements ?? new JArray()) {
+                if (e["container"]?.Type == JTokenType.String) {
+                    var c = Key(e["container"]);
+                    if (!entries.TryGetValue(c, out var parent)) return "undefined container " + c;
+                    if (!types[Key(parent["type"])].CanContain(Key(e["type"]))) return "incompatible container " + c;
+                    var seen = new HashSet<string> { Key(e["id"]) };
+                    while (c != null && entries.TryGetValue(c, out var next)) {
+                        if (!seen.Add(c)) return "cyclic containers";
+                        c = next["container"]?.Type == JTokenType.String ? Key(next["container"]) : null;
+                    }
+                }
+                foreach (var name in types[Key(e["type"])].GetReferenceParameters()) {
+                    var reference = e["state"]?[name];
+                    var rid = reference is JObject obj ? obj["id"] : reference;
+                    if (rid?.Type == JTokenType.String && !elementIds.Contains(Key(rid))) return "undefined element reference " + rid;
+                }
+            }
+            if (output["points"] is JArray anchors) {
+                var edges = anchors.ToDictionary(p => Key(p["id"]), p => p["anchor"] is JObject a
+                    ? a["line"] is JArray line ? line.Select(Key).ToList() : new List<string> { Key(a["column"]) }
+                    : new List<string>());
+                var done = new HashSet<string>();
+                bool Cycle(string id, HashSet<string> visiting) {
+                    if (done.Contains(id)) return false;
+                    if (!visiting.Add(id)) return true;
+                    foreach (var target in edges[id]) if (Cycle(target, visiting)) return true;
+                    visiting.Remove(id); done.Add(id); return false;
+                }
+                foreach (var id in pointIds) if (Cycle(id, new HashSet<string>())) return "cyclic point anchors";
             }
             return null;
+        }
+
+        public static string ValidateImport(JObject output) {
+            if (output == null || output["updates"] != null || output["replace"] != null) return "import accepts only points and elements";
+            foreach (var e in output["elements"] as JArray ?? new JArray()) {
+                if (e["source"] != null) return "imported elements cannot have procedural sources";
+            }
+            try { return Validate(output, CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()); }
+            catch (System.Exception error) { return error.Message; }
+        }
+
+        public static Result Import(ElementManager manager, JObject output) {
+            return Apply(manager, null, new List<object>(), output);
         }
 
         public static Result Apply(ElementManager manager, ConverterCatalog.ConverterInfo converter, List<object> elements, JObject output) {
@@ -245,6 +301,7 @@ namespace Operations {
                         if (p["rotation"] != null) point.SetRotation(ReadVector(p["rotation"], "rotation"));
                     }
                     points[Key(p["id"])] = point;
+                    res.pointIds[Key(p["id"])] = Id(point);
                 }
                 //the anchors between the points created (the existing points welded to keep theirs)
                 foreach (var p in pointArray) {
@@ -254,7 +311,10 @@ namespace Operations {
                     var ok = anchor["line"] is JArray line
                         ? LowLevel.AttachToLine(point, points[Key(line[0])], points[Key(line[1])])
                         : LowLevel.AttachToColumn(point, points[Key(anchor["column"])]);
-                    if (!ok) GameEngine.LogWarning("Conversion: the anchor of the point " + Key(p["id"]) + " would make it follow itself, skipped");
+                    if (!ok) {
+                        if (converter == null) throw new System.ArgumentException("the anchor of point " + Key(p["id"]) + " would make it follow itself");
+                        GameEngine.LogWarning("Conversion: cyclic point anchor skipped");
+                    }
                 }
             }
 
@@ -272,7 +332,10 @@ namespace Operations {
             foreach (var e in outputElements) {
                 var type = Key(e["type"]);
                 var element = manager.CreateLowLevelElement(type, Key(e["name"]));
+                res.elementIds[Key(e["id"])] = Id(element);
                 var state = e["state"] is JObject stateObj ? stateObj.ToObject<ObjectState>() : new ObjectState();
+                Operations.States.Normalize(state, types[type].parameterContainer.parameters);
+                Operations.Props.NormalizeRule(state.State("propRule"));
                 state.SetStr("type", type);
                 element.state = state;
                 var origin = Vector3.Zero;
@@ -367,7 +430,7 @@ namespace Operations {
             }
 
             //the converted elements are replaced
-            var replace = output["replace"] != null ? (bool)output["replace"] : converter.replace;
+            var replace = output["replace"] != null ? (bool)output["replace"] : converter?.replace ?? false;
             if (replace) {
                 foreach (var e in elements) Replace(manager, e);
             }

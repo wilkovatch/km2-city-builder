@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using GameObject = Godot.Node3D;
 using GO = GameEngine.GameObject;
@@ -7,6 +8,18 @@ using GH = GeometryHelper;
 //The props of a prop rule ("propRule" of a state: a props container for each name), placed along the lines of each
 //container (between a start and an end line with as many points): used by the roads and the low-level elements
 public static class PropPlacer {
+    static Vector3 PathTangent(Vector3[] path, float distance) {
+        var last = GameEngine.Vector3.forward;
+        for (int i = 0; i + 1 < path.Length; i++) {
+            var delta = path[i + 1] - path[i];
+            var length = delta.Length();
+            if (length < 0.000001f) continue;
+            last = delta / length;
+            if (distance <= length) return last;
+            distance -= length;
+        }
+        return last;
+    }
     //lines: the start and end lines of a container, null if it has none; the props are created in propsContainer (on the
     //props layer) and listed in props
     public static void Place(ObjectState rule, string[] containerNames, System.Func<string, (Vector3[] inLine, Vector3[] outLine)?> lines,
@@ -35,8 +48,51 @@ public static class PropPlacer {
         }
     }
 
-    static void PlaceLane(Vector3[] inLine, Vector3[] outLine, ObjectState elem, string containerType, GameObject propsContainer,
+    public static void PlaceRibbons(ObjectState rule, List<LowLevel.GeometryPropLine> ribbons, GameObject root,
         List<(string container, string meshName, GameObject obj)> props) {
+        if (rule == null) return;
+        foreach (var group in ribbons.GroupBy(r => r.container)) {
+            var container = rule.State(group.Key);
+            if (container == null) continue;
+            var type = Operations.Props.GetContainerType(container);
+            if (type == null) continue;
+            var segments = group.ToList();
+            foreach (var param in type.parameters) {
+                var elements = param.maxNumber == 1 ? new[] { container.State(param.name) } : container.Array<ObjectState>(param.name);
+                foreach (var elem in elements ?? new ObjectState[0]) {
+                    if (elem != null) PlaceLane(segments[0].startBound.ToArray(), segments[0].endBound.ToArray(), elem,
+                        group.Key, root, props, segments);
+                }
+            }
+        }
+    }
+
+    static (Vector3 pos, Vector3 dir, Vector3 tangent) Sample(List<LowLevel.GeometryPropLine> segments, float x, float z) {
+        foreach (var segment in segments) {
+            var mid = segment.distanceReference.Count == segment.startBound.Count ? segment.distanceReference
+                : segment.startBound.Zip(segment.endBound, (a, b) => (a + b) * 0.5f).ToList();
+            for (int i = 0; i + 1 < mid.Count; i++) {
+                var length = mid[i].DistanceTo(mid[i + 1]);
+                if (length < 0.000001f) continue;
+                if (z <= length) {
+                    var t = Mathf.Clamp(z / length, 0, 1);
+                    var a = segment.startBound[i].Lerp(segment.startBound[i + 1], t);
+                    var b = segment.endBound[i].Lerp(segment.endBound[i + 1], t);
+                    var tangent = (mid[i + 1] - mid[i]).Normalized();
+                    var right = (a - b).Normalized();
+                    if (right.LengthSquared() < 0.000001f) right = tangent.Cross(GameEngine.Vector3.up).Normalized();
+                    return (a.Lerp(b, x), right, tangent);
+                }
+                z -= length;
+            }
+        }
+        var last = segments[segments.Count - 1];
+        var n = last.startBound.Count - 1;
+        return (last.startBound[n].Lerp(last.endBound[n], x), GameEngine.Vector3.right, GameEngine.Vector3.forward);
+    }
+
+    static void PlaceLane(Vector3[] inLine, Vector3[] outLine, ObjectState elem, string containerType, GameObject propsContainer,
+        List<(string container, string meshName, GameObject obj)> props, List<LowLevel.GeometryPropLine> segments = null, bool edgeCall = false) {
 
         if (inLine.Length != outLine.Length) {
             GameEngine.Print("Invalid props spline detected");
@@ -51,6 +107,9 @@ public static class PropPlacer {
                 midLine[i] = (inLine[i] + outLine[i]) * 0.5f;
             }
             var midLength = GH.GetPathLength(midLine);
+            if (segments != null) midLength = segments.Sum(segment => GH.GetPathLength(
+                segment.distanceReference.Count == segment.startBound.Count ? segment.distanceReference.ToArray()
+                : segment.startBound.Zip(segment.endBound, (a, b) => (a + b) * 0.5f).ToArray()));
             var type = types[typeName];
             int numElemMeshes = 1;
             if (type.typeData.maxMeshes != 1) {
@@ -61,6 +120,27 @@ public static class PropPlacer {
                 }
                 numElemMeshes = meshesList.Length;
             }
+            if (segments == null && type.rules.iterationScope == "edge") {
+                segments = new List<LowLevel.GeometryPropLine> { new LowLevel.GeometryPropLine {
+                    container = containerType, startBound = inLine.ToList(), endBound = outLine.ToList()
+                } };
+            }
+            if (segments != null && type.rules.iterationScope == "edge" && !edgeCall) {
+                foreach (var segment in segments) {
+                    for (int k = 0; k + 1 < segment.startBound.Count; k++) {
+                        var edge = new LowLevel.GeometryPropLine { container = containerType,
+                            startBound = segment.startBound.GetRange(k, 2), endBound = segment.endBound.GetRange(k, 2) };
+                        if (segment.distanceReference.Count == segment.startBound.Count) edge.distanceReference = segment.distanceReference.GetRange(k, 2);
+                        var middle = edge.distanceReference.Count == 2 ? edge.distanceReference
+                            : edge.startBound.Zip(edge.endBound, (a, b) => (a + b) * 0.5f).ToList();
+                        if (middle[0].DistanceTo(middle[1]) < 0.000001f) continue;
+                        PlaceLane(edge.startBound.ToArray(), edge.endBound.ToArray(), elem, containerType, propsContainer, props,
+                            new List<LowLevel.GeometryPropLine> { edge }, true);
+                    }
+                }
+                return;
+            }
+            if (numElemMeshes == 0) return;
             var varSet = type.variableContainer.GetClone();
             type.FillInitialVariables(varSet, elem, midLength, numElemMeshes);
 
@@ -74,13 +154,19 @@ public static class PropPlacer {
             var meshes = elem.Array<string>("meshes");
             var posDir = GH.GetPointAndDirOnSidewalk(inLine, outLine, midLine, x, z);
             type.FillSegmentVariables(varSet, i, lastX, lastZ);
-            type.FillPositionVariables(varSet, posDir.dir, x, z);
+            type.FillPositionVariables(varSet, posDir.dir, x, z, PathTangent(midLine, z));
             while (true) {
                 type.FillSegmentVariables(varSet, i, lastX, lastZ);
                 x = type.rules.xPos.GetValue(varSet);
                 z = type.rules.zPos.GetValue(varSet);
                 posDir = GH.GetPointAndDirOnSidewalk(inLine, outLine, midLine, x, z);
-                type.FillPositionVariables(varSet, posDir.dir, x, z);
+                Vector3? tangent = PathTangent(midLine, z);
+                if (segments != null) {
+                    var sampled = Sample(segments, x, z);
+                    posDir = (sampled.pos, sampled.dir);
+                    tangent = sampled.tangent;
+                }
+                type.FillPositionVariables(varSet, posDir.dir, x, z, tangent);
                 if (!type.rules.whileCondition.GetValue(varSet) || i >= 1000) break; //TODO: 1000 is a freeze workaround, check what a sensible max amount could be
                 if (type.rules.ifCondition == null || type.rules.ifCondition.GetValue(varSet)) {
                     string meshName;

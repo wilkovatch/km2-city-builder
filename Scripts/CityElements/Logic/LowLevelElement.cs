@@ -172,7 +172,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     }
 
     //a new element of the array at the index (and of the other instances of a uniform array), false if the array can't grow
-    public bool InsertArrayElement(string arrayPath, int index, bool userEdit = true) {
+    public virtual bool InsertArrayElement(string arrayPath, int index, bool userEdit = true) {
         var list = PointTree.Find(points, arrayPath) as PointList;
         if (list == null || index < 0 || index > list.items.Count) return false;
         var a = list.def.array;
@@ -189,7 +189,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     }
 
     //removes the element of the array at the index (and of the other instances of a uniform array), false if it can't
-    public bool RemoveArrayElement(string arrayPath, int index, bool userEdit = true) {
+    public virtual bool RemoveArrayElement(string arrayPath, int index, bool userEdit = true) {
         var list = PointTree.Find(points, arrayPath) as PointList;
         if (list == null || index < 0 || index >= list.items.Count) return false;
         var a = list.def.array;
@@ -704,7 +704,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         return 1;
     }
 
-    void Rebuild() {
+    protected virtual void Rebuild() {
         var type = curType;
         if (type?.geometryFunction == null) {
             generator.Clear();

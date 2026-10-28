@@ -92,7 +92,7 @@ A reference (`ref` in the method reference) is one of:
 | `{"parent": <ref>, "param": "trafficCars", "index": 0}` | an element of an array parameter (no `index`: a custom element parameter) |
 | `{"owner": <ref>, "object": "trafficLight", "path": ["races.0"]}` | a parametric object (an `objectInstance` parameter) of a road or of the city properties; `path` lists the array elements leading to it, from the owner |
 
-The kinds are `road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`, `terrainPoint`, `cityProperties`, and for the parts of elements `building`, `buildingSide`, `buildingBlock`, `borderMesh`, `propContainer`, `propElement`, `arrayElement`, `customElement`, `parametricObject`.
+The kinds are `road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`, `terrainPoint`, `cityProperties`, `propPath`, and for the parts of elements `building`, `buildingSide`, `buildingBlock`, `borderMesh`, `propContainer`, `propElement`, `arrayElement`, `customElement`, `parametricObject`.
 
 ### Points
 
@@ -431,6 +431,36 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `lowLevel.setMesh` | `element: ref`<br>`mesh: object` | - | Replaces the mesh of a low-level element: vertices (point targets), triangles (indices), uvs ([u, v] per vertex) |
 | `lowLevel.setPropRule` | `element: ref`<br>`rule: object = null` | - | Sets the prop rule of a low-level element of a type with props containers (rule: {container: props container state, as in the prop rules of the roads}, null to remove it); the props are placed along the prop lines of its geometry |
 | `lowLevel.setUV` | `element: ref`<br>`vertex: int`<br>`uv: vec2` | - | Sets the texture coordinates of a vertex of the mesh (types with editable uvs) |
+
+### `propPaths.*`
+
+Standalone rules are kind `propPath`. They reuse the low-level point paths shown by `elements.get(derived: true)`, such as `ribbons.0.segments.0.sections.1.start`. The `road` field of a props-container/element reference also accepts a prop-path owner.
+
+| Method | Parameters | Result | Description |
+|---|---|---|---|
+| `propPaths.create` | `ribbons: object`, `rule: object = null`, `name: string = null` | int | Creates a rule; ribbons map container names to segments, each a list of `{start, end, reference?}` point targets. References must cover the whole segment if supplied. |
+| `propPaths.setRibbons` | `element: ref`, `ribbons: object` | - | Replaces ribbon geometry. |
+| `propPaths.setRule` | `element: ref`, `rule: object` | - | Replaces rule state, retaining ribbons and creating defaults for new containers. |
+| `propPaths.move` | `element: ref`, `offset: vec3 = null`, `position: vec3 = null` | int | Moves the rule, respecting shared/anchored points. |
+| `propPaths.delete` | `element: ref` | - | Deletes the owner and generated props. |
+| `propPaths.insert` / `remove` | `element: ref`, `array: string`, `index: int` (optional for insert), `position: vec3 = null` (insert only) | object / - | Adds/removes segments or paired sections using point-array paths. |
+| `propPaths.renameRibbon` / `removeRibbon` | `element: ref`, `index: int`, `name: string` (rename only) | - | Updates ribbon geometry and its container together. At least one ribbon remains. |
+| `propPaths.movePoint` | `element: ref`, `path: string`, `position: vec3` | - | Moves a ribbon point. |
+| `propPaths.attachPoint` | `element: ref`, `path: string`, `to: point = null`, `line: int[] = null`, `column: int = null` | int | Shares/anchors a ribbon point. |
+| `propPaths.detachPoint` | `element: ref`, `path: string` | int | Detaches a ribbon point. |
+
+```json
+{"method":"propPaths.create","params":{"ribbons":{"main":[[
+  {"start":{"position":[0,0,0]},"end":{"position":[2,0,0]}},
+  {"start":{"position":[0,0,20]},"end":{"position":[2,0,20]}}
+]]},"rule":{"main":{"type":"line","element":{"type":"line","mesh":"geometry/prop.obj","start":0,"elemDistance":5,"maxNumber":10,"xPos":0.5}}}}}
+```
+
+The example's prop types are supplied by the core. A rule with no enabled container remains a selectable ribbon.
+
+`lowLevel.import(data)` applies the `points`/`elements` payload described in [Core Low-Level Elements](Core-Low-Level-Elements#converters), returning `{points: {localId: apiId}, elements: {localId: apiId}}`. It checks local IDs, references, meshes and cyclic attachments before applying. `updates`, `replace` and procedural `source` are forbidden. The normal 1 cm welding/anchor behavior applies; `weld: false` preserves a distinct new point. One local ID used repeatedly always shares that point. The built-in prop-path type is accepted as well as core low-level types.
+
+`state.import(ref, values, append: string[] = null)` imports core parameter state, including nested arrays/custom elements and object transforms. It normalizes numeric values against the core schema; `append` names arrays whose existing contents are retained. Other supplied parameters replace their current values. This is an undoable API for importer scripts; use `state.setParam` for ordinary scalar edits.
 
 ### `converters.*`
 

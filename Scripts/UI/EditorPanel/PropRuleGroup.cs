@@ -31,7 +31,10 @@ public abstract partial class EditorPanel {
             controls.Clear();
             foreach (var containerType in containers ?? new string[0]) {
                 var cb = p.AddCheckbox(SM.Get("RD_PROP_ENABLED"), false, x => { EnableContainer(containerType, x); }, w * 0.3f);
-                var btn = p.AddButton(SM.Get("EDIT_PROP_CONTAINER_" + containerType.ToUpper()), delegate { EditContainer(containerType); }, w * 0.7f);
+                var labelKey = "EDIT_PROP_CONTAINER_" + containerType.ToUpper();
+                var label = SM.GetOrKey(labelKey);
+                if (label == labelKey) label = SM.Get("PROP_PATH_EDIT_RIBBON").Replace("$RIBBON", containerType);
+                var btn = p.AddButton(label, delegate { EditContainer(containerType); }, w * 0.7f);
                 controls.Add(containerType, (btn, cb));
                 p.IncreaseRow();
             }

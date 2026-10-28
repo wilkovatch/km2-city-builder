@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using RC = RuntimeCalculator;
 using Godot;
@@ -6,6 +6,7 @@ using Godot;
 namespace CityElements.Types.Runtime {
     public class PropsElementType : RuntimeType<Types.PropsElementType> {
         public class PlacementRules {
+            public string iterationScope;
             public RC.Numbers.Number meshIndex = null;
             public RC.Booleans.Boolean whileCondition;
             public RC.Booleans.Boolean ifCondition = null;
@@ -16,6 +17,8 @@ namespace CityElements.Types.Runtime {
             public RC.Booleans.Boolean meshTransform = null;
 
             public PlacementRules(PropsElementPlacementRules type) {
+                iterationScope = type.iterationScope ?? "path";
+                if (iterationScope != "path" && iterationScope != "edge") throw new System.Exception("unknown prop iteration scope " + iterationScope);
                 if (type.meshIndex != null) meshIndex = RC.Parsers.FloatParser.ParseExpression(type.meshIndex);
                 whileCondition = RC.Parsers.BooleanParser.ParseExpression(type.whileCondition);
                 if (type.ifCondition != null) ifCondition = RC.Parsers.BooleanParser.ParseExpression(type.ifCondition);
@@ -44,7 +47,7 @@ namespace CityElements.Types.Runtime {
             var floatVars = new List<string>() { "i", "x", "z", "lastX", "lastZ", "totalLength", "meshNum" };
             var vec2Vars = new List<string>();
             var vec3Vars = new List<string>() {
-                "localUp", "localRight", "localForward",
+                "localUp", "localRight", "localForward", "pathForward",
                 "worldUp", "worldRight", "worldForward"
             };
             return (floatVars, vec2Vars, vec3Vars);
@@ -78,7 +81,8 @@ namespace CityElements.Types.Runtime {
             FillBaseIterationVariables(variableContainer);
         }
 
-        public void FillPositionVariables(RC.VariableContainer variableContainer, Vector3 curSectionRight, float x, float z) {
+        public void FillPositionVariables(RC.VariableContainer variableContainer, Vector3 curSectionRight, float x, float z, Vector3? pathForward = null) {
+            FillVector3(variableContainer, "pathForward", pathForward ?? GameEngine.Vector3.forward);
             var fwd = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(GameEngine.Vector3.down, curSectionRight));
             FillVector3(variableContainer, "localRight", curSectionRight);
             FillVector3(variableContainer, "localForward", fwd);

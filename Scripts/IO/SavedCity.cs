@@ -1,4 +1,4 @@
-﻿using SVector3 = States.SerializableVector3;
+using SVector3 = States.SerializableVector3;
 using SQuaternion = States.SerializableQuaternion;
 using SVector2 = States.SerializableVector2;
 
@@ -135,5 +135,6 @@ namespace IO.SavedCity {
         public TerrainPatch[] terrainPatches;
         public BuildingLine[] buildingLines;
         public LowLevelElement[] lowLevelElements;
+        public LowLevelElement[] propPaths;
     }
 }

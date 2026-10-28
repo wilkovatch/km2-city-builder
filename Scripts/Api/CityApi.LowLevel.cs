@@ -10,6 +10,18 @@ namespace Api {
     //The low-level elements of the core (see the Core Low-Level Elements page of the wiki), the conversion of elements to
     //them, and the ghosts of the procedural elements they replace
     public partial class CityApi {
+        [ApiMethod("lowLevel.import", "Imports a complete low-level points/elements payload with local ids as one undoable operation")]
+        public object ImportLowLevel(JObject data) {
+            RequireCity();
+            var error = Operations.Conversion.ValidateImport(data);
+            if (error != null) throw ApiException.InvalidValue(error);
+            return ApplyChange("import low-level elements", () => {
+                var result = Operations.Conversion.Import(M, data);
+                if (!result.success) throw ApiException.InvalidValue(result.message);
+                return new { points = result.pointIds, elements = result.elementIds };
+            });
+        }
+
         // Points
 
         //the point of a low-level element from a point target (a new one, or an existing terrain point to share)
@@ -32,7 +44,7 @@ namespace Api {
         }
 
         LowLevelElement ResolveLowLevel(ElementRef r) {
-            return Resolve<LowLevelElement>(r, "lowLevel");
+            return Resolve<LowLevelElement>(r, null);
         }
 
         static object LowLevelPointInfo(LowLevel.PointLeaf leaf) {

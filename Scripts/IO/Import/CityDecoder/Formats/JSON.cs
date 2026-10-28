@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Linq;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
@@ -210,7 +211,8 @@ namespace CityDecoder {
             if (loadedCity.terrainPatches == null) loadedCity.terrainPatches = new IO.SavedCity.TerrainPatch[0];
             if (loadedCity.buildingLines == null) loadedCity.buildingLines = new IO.SavedCity.BuildingLine[0];
             if (loadedCity.terrainPoints == null) loadedCity.terrainPoints = new IO.SavedCity.TerrainPoint[0];
-            if (loadedCity.lowLevelElements == null) loadedCity.lowLevelElements = new IO.SavedCity.LowLevelElement[0];
+            loadedCity.lowLevelElements = System.Linq.Enumerable.Concat(loadedCity.lowLevelElements ?? new IO.SavedCity.LowLevelElement[0],
+                loadedCity.propPaths ?? new IO.SavedCity.LowLevelElement[0]).ToArray();
 
             float totalNum = loadedCity.meshes.Length + loadedCity.roads.Length +
                 loadedCity.intersections.Length + loadedCity.terrainPatches.Length
@@ -399,6 +401,7 @@ namespace CityDecoder {
                     case "intersection": return loadedIntersections.TryGetValue(id, out var i) ? i.Item1 : null;
                     case "terrainPatch": return id >= 0 && id < loadedPatches.Count ? loadedPatches[id] : null;
                     case "buildingLine": return id >= 0 && id < manager.buildings.Count ? manager.buildings[id] : null;
+                    case "propPath":
                     case "lowLevel": return loadedLowLevel.TryGetValue(id, out var l) ? l : null;
                     default: return null;
                 }

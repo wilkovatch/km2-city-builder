@@ -235,3 +235,7 @@ The export JSON has `lowLevelElements`: `id`, `type`, `data` (`name`, `fields.st
 ## Midtown Madness 2
 
 The low-level types and converters of the Midtown Madness 2 core (the attributes of the rooms of the PSDL, the BAI roads and intersections) are described in the README of the core.
+
+## Importing a payload without conversion
+
+Scripts can call `lowLevel.import(data)` with the converter output's `points` and `elements`. Local point IDs preserve shared topology, element IDs resolve containers/references, and the return value maps both sets of IDs to API IDs. Import does not create ghosts or replace procedural geometry. The endpoint rejects updates, replacement directives, procedural sources, invalid references/meshes, and cyclic attachment graphs. Changes participate in the script's transaction. See [Scripting API](Scripting-API#proppaths).

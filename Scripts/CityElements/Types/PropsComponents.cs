@@ -1,9 +1,10 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 
 namespace CityElements.Types {
     public class PropsElementPlacementRules {
+        public string iterationScope; //path (default), or edge: restart expressions on each edge
         public string meshIndex;
         public string whileCondition;
         public string ifCondition;

@@ -217,7 +217,7 @@ public partial class ElementManager : Scriptable {
             var baseName = Operations.LowLevel.GetTypeLabel(type) + " ";
             name = baseName + Actions.Helpers.GetLatestObjectNumber(container, baseName);
         }
-        var element = GS.Create<LowLevelElement>(name, container);
+        LowLevelElement element = type == PropPath.TypeId ? GS.Create<PropPath>(name, container) : GS.Create<LowLevelElement>(name, container);
         element.Initialize(type, GetTerrainPointContainer());
         AddLowLevelElement(element);
         return element;

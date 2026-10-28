@@ -633,5 +633,19 @@
 	"LL_MERGE_INTO": "Merge into",
 	"LL_MERGE": "Merge",
 	"LL_MERGE_TOOLTIP": "Moves the contents of this element into the chosen one, and deletes this one",
-	"LL_MERGE_ERROR": "The contents of this element can't all be put in the chosen one"
+	"LL_MERGE_ERROR": "The contents of this element can't all be put in the chosen one",
+	"CREATE_PROP_RULE": "Prop rule",
+	"PROP_PATH_RIBBONS": "Ribbons",
+	"PROP_PATH_SEGMENTS": "Segments",
+	"PROP_PATH_SECTIONS": "Sections",
+	"PROP_PATH_START": "First boundary",
+	"PROP_PATH_END": "Second boundary",
+	"PROP_PATH_REFERENCE": "Distance reference",
+	"PROP_PATH_USE_REFERENCE": "Use distance reference",
+	"PROP_PATH_ADD_RIBBON": "Add ribbon",
+	"EDIT_PROP_CONTAINER_MAIN": "Edit props",
+	"EDIT_PROP_CONTAINER_RIBBON1": "Edit ribbon props",
+	"PROP_PATH_NAME": "Ribbon name",
+	"PROP_PATH_REMOVE_RIBBON": "Remove ribbon",
+	"PROP_PATH_EDIT_RIBBON": "Edit $RIBBON props"
 }

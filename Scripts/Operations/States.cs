@@ -5,6 +5,33 @@ namespace Operations {
     //Editing of element states through the parameters defined by the core: array and custom element parameters,
     //types, and where each parameter is stored
     public static class States {
+        //JSON numbers do not carry the float/int distinction used by ObjectState. Import against the schema,
+        //including nested arrays and object transforms, before publishing the state to a live element.
+        public static void Normalize(ObjectState state, Parameter[] parameters) {
+            if (state == null) return;
+            foreach (var p in parameters ?? new Parameter[0]) {
+                var name = p.fullName();
+                if (!state.properties.TryGetValue(name, out var value) || value == null) continue;
+                if (p.type == "float") {
+                    var number = System.Convert.ToSingle(value);
+                    if (!float.IsFinite(number)) throw new System.ArgumentException("non-finite parameter " + name);
+                    state.SetFloat(name, number);
+                } else if (p.type == "int" || p.type == "enum") state.SetInt(name, System.Convert.ToInt32(value));
+                else if (p.type == "array") {
+                    foreach (var item in state.Array<ObjectState>(name) ?? new ObjectState[0]) Normalize(item, GetSubparams(p));
+                } else if (p.type == "customElement") Normalize(state.State(name), GetSubparams(p));
+                else if (p.type == "objectInstance") {
+                    var obj = state.State(name);
+                    foreach (var key in new[] { "localPosition", "localRotation", "localScale" }) {
+                        var vector = obj?.State(key);
+                        if (vector == null) continue;
+                        foreach (var axis in new[] { "x", "y", "z" }) {
+                            if (vector.properties.TryGetValue(axis, out var component)) vector.SetFloat(axis, System.Convert.ToSingle(component));
+                        }
+                    }
+                }
+            }
+        }
         //where a parameter of an element is stored: the instance specific ones are never part of presets
         public static string GetParameterPath(Parameter param, bool prependState = true) {
             return (prependState ? (param.instanceSpecific ? "instanceState." : "state.") : "") + "properties." + param.fullName();

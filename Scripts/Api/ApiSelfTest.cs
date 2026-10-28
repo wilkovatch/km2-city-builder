@@ -227,6 +227,7 @@ namespace Api {
                 await LowLevelRoomEditing();
                 await BaiConnections();
                 await PointAttachments();
+                await StandalonePropRules();
             } catch (Abort e) {
                 Log("aborted: " + e.Message);
             } catch (System.Exception e) {

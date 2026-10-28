@@ -131,6 +131,36 @@ namespace Api {
             return new { kind = t.kind, type = t.state?.Str("type", null), state = t.state, instanceState = t.instanceState };
         }
 
+        [ApiMethod("state.import", "Imports core state values, optionally appending named array parameters (for city import scripts)")]
+        public void ImportState(ElementRef @ref, JObject values, string[] append = null) {
+            ApplyChange("import state", () => {
+                var target = GetStateTarget(@ref);
+                var incoming = values.ToObject<ObjectState>();
+                Operations.States.Normalize(incoming, target.parameters);
+                foreach (var property in incoming.properties) {
+                    if (target.FindParameter(property.Key) == null) throw ApiException.NotFound("parameter '" + property.Key + "'");
+                }
+                History.UndoManager.Touch(target.owner);
+                void Assign(string name, object value) {
+                    if (value is ObjectState child) target.state.SetState(name, child);
+                    else if (value is ObjectState[] children) target.state.SetArray(name, children);
+                    else target.state.SetProperty(name, value);
+                }
+                foreach (var property in incoming.properties) {
+                    if (append != null && System.Array.IndexOf(append, property.Key) >= 0) {
+                        if (values[property.Key] is not JArray array) throw ApiException.InvalidValue("append requires an array");
+                        var existing = Json.ToToken(target.state.GetProperty<object>(property.Key, null)) as JArray ?? new JArray();
+                        foreach (var item in array) existing.Add(item.DeepClone());
+                        var merged = new JObject { [property.Key] = existing }.ToObject<ObjectState>();
+                        Operations.States.Normalize(merged, target.parameters);
+                        Assign(property.Key, merged.properties[property.Key]);
+                    } else Assign(property.Key, property.Value);
+                }
+                target.state.FlagAsChanged();
+                target.afterChange?.Invoke();
+            });
+        }
+
         [ApiMethod("state.schema", "The parameters of the core and the built-in properties an element or part of one can have, and its types and presets")]
         public object GetSchema(ElementRef @ref) {
             var t = GetStateTarget(@ref);

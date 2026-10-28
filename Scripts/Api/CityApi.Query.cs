@@ -7,7 +7,7 @@ using GS = GameEngine.Scriptable;
 namespace Api {
     //Reading the city
     public partial class CityApi {
-        public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "meshInstance", "terrainPoint", "cityProperties", "lowLevel" };
+        public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "meshInstance", "terrainPoint", "cityProperties", "lowLevel", "propPath" };
 
         internal static int IdOf(object element) {
             return element is CityProperties ? History.ElementRegistry.CityPropertiesId : History.ElementRegistry.GetId(element);

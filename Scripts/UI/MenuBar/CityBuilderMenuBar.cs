@@ -190,6 +190,7 @@ public partial class CityBuilderMenuBar : Control {
             SM.Get("CREATE_BUILDING_LINE"),
             SM.Get("CREATE_MESH_INSTANCE"),
             SM.Get("CREATE_LOW_LEVEL_ELEMENT"),
+            SM.Get("CREATE_PROP_RULE"),
             MenuBar.Divider,
             SM.Get("CREATE_WHOLE_CITY_TERRAIN"),
             SM.Get("CREATE_WHOLE_CITY_BUILDINGS"),
@@ -200,6 +201,7 @@ public partial class CityBuilderMenuBar : Control {
             CreateBuildingLine,
             CreateMeshInstance,
             CreateLowLevelElement,
+            CreatePropPath,
             null,
             CreateCityTerrain,
             CreateCityBuildings
@@ -1163,8 +1165,18 @@ public partial class CityBuilderMenuBar : Control {
         helper.elementManager.ShowAnchors(true);
     }
 
+    void CreatePropPath() {
+        StartLowLevelCreation(PropPath.TypeId);
+    }
+
     void CreateLowLevelElement() {
+        StartLowLevelCreation(null);
+    }
+
+    void StartLowLevelCreation(string type) {
         DisableAllPanels(lowLevelEditorPanel);
+        lowLevelEditorPanel.creationType = type;
+        lowLevelPlacer.createType = type;
         lowLevelPlacer.SetElement(null);
         lowLevelPlacer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.Create;
         terrainClick.modifier = lowLevelPlacer;

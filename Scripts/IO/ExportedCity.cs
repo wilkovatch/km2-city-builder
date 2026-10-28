@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace IO.ExportedCity {
     [System.Serializable]
@@ -178,6 +178,7 @@ namespace IO.ExportedCity {
         public BuildingLine[] buildingLines;
         public MeshInstance[] meshInstances;
         public LowLevelElement[] lowLevelElements;
+        public LowLevelElement[] propPaths;
         public ObjectState cityProperties;
         public TypeAncestry[] typeAncestry;
         public string cityFolder; //the folder of the city project (with its own geometry and texture folders)

@@ -79,6 +79,7 @@ A container state is `{ "type": ..., "name": ..., "<slot>": <element state or li
 
 | Rule | Type | Description |
 |---|---|---|
+| `iterationScope` | string | `"path"` (default), or `"edge"`: restart placement on each nonzero polyline edge. |
 | `zPos` | float | Distance along the props line (measured on the line halfway between its two bounds). |
 | `xPos` | float | Position across the props line: 0 on the first bound, 1 on the second. |
 | `whileCondition` | bool | Placement continues while this is true. |
@@ -105,6 +106,7 @@ Variables of element types:
 | `lastX`, `lastZ` | float | Position of the previous iteration (0 at the first). |
 | `totalLength` | float | Length of the props line. |
 | `meshNum` | float | Number of meshes in the element's list (1 for single-mesh types). |
+| `pathForward` | vec3 | Current path tangent, including slopes. |
 | `localRight` | vec3 | Horizontal direction across the props line, pointing from the second bound to the first. |
 | `localForward` | vec3 | Direction along the props line. |
 | `localUp`, `worldUp`, `worldRight`, `worldForward` | vec3 | |
@@ -112,6 +114,18 @@ Variables of element types:
 For random placements use `rnd(min, max, seed)`: its sequences restart each time the road is rebuilt, so the props do not move at every rebuild.
 
 Props are put on layer 13 and exported with the road at their placement points (`propLines`, see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)).
+
+## Standalone prop rules
+
+**Create → Prop rule** creates a freely placed rule (`propPath` in the API). It uses the same prop containers, elements and `roadPropRule` presets as a road, with editable ribbons instead of a road's generated props lines. A ribbon has two boundary lines; sections pair their points. Separate segments leave gaps in the placement area while retaining the spacing and maximum count across the ribbon. Each container has its own sequence.
+
+The editor supports adding, renaming and removing ribbons, adding/removing segments and paired sections, sharing or anchoring points, and a central move handle. Ribbon guides remain selectable without any prop meshes; clicking a generated prop edits its rule. Generated props are rebuilt, not saved as individual instances. Points, anchors, presets and transforms participate in undo/redo and save/load.
+
+An optional distance-reference point in every section of a segment changes where length is measured; interpolation still places props between the boundaries. Segments without a reference use their midpoint line. The **Use distance reference** checkbox enables the supplied references. A collapsed ribbon (both boundaries on the same line) is valid.
+
+Prop element `placementRules.iterationScope` is `"path"` by default. `"edge"` restarts the element's expressions for every nonzero polyline edge, with `i`, `lastX`, `lastZ` reset and `totalLength` equal to that edge's length. `pathForward` is the current normalized path tangent; its horizontal projection can be used by `forward` when a collapsed ribbon has no across direction. For example, `cross(worldUp, pathForward)` turns a prop a quarter turn from the tangent. The existing 1000-iteration guard applies to each sequence.
+
+Saved cities and export JSON have a separate `propPaths` array. Internally these elements reuse low-level point ownership and history; the reserved built-in type `__propPath` is independent of the core. Export records contain rule state, ribbon control points and evaluated `data.propLines`, using the ordinary mesh dictionary. Exporters decide whether to write a procedural path or its evaluated placements; a core's road-specific suppression of generated props must not silently suppress standalone rules.
 
 ## Mesh instances (`meshInstance.json`)
 

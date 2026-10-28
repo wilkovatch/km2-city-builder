@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -168,7 +168,8 @@ namespace CityEncoder {
                     await caller.ToSignal(caller.GetTree(), "process_frame");
                 }
             }
-            savedCity.lowLevelElements = lowLevelArray;
+            savedCity.lowLevelElements = System.Array.FindAll(lowLevelArray, e => e.state.Str("type", "") != PropPath.TypeId);
+            savedCity.propPaths = System.Array.FindAll(lowLevelArray, e => e.state.Str("type", "") == PropPath.TypeId);
 
             try {
                 savedCity.terrainPoints = GetTerrainPointsArray(pointsList);

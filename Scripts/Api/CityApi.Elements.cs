@@ -832,7 +832,7 @@ namespace Api {
                     if (Operations.Props.IsListFull(c.state, list)) throw new ApiException("limit_reached", "'" + list + "' can have at most " + param.maxNumber + " elements");
                     res = Operations.Props.AddElement(c.state, list);
                 }
-                c.road.state.FlagAsChanged();
+                c.road.GetState().FlagAsChanged();
                 return res;
             });
         }
@@ -843,7 +843,7 @@ namespace Api {
                 var c = Resolve<PropContainerPart>(container, "propContainer");
                 History.UndoManager.Touch(c.road);
                 if (!Operations.Props.RemoveElement(c.state, list, index)) throw ApiException.NotFound("props element " + index + " of '" + list + "'");
-                c.road.state.FlagAsChanged();
+                c.road.GetState().FlagAsChanged();
             });
         }
 
@@ -861,7 +861,7 @@ namespace Api {
                 var max = type?.typeData.maxMeshes ?? 0;
                 if (max > 0 && (e.state.Array<string>("meshes")?.Length ?? 0) >= max) throw new ApiException("limit_reached", "the props element can have at most " + max + " meshes");
                 Operations.Props.AddMesh(e.state, mesh);
-                e.road.state.FlagAsChanged();
+                e.road.GetState().FlagAsChanged();
             });
         }
 
@@ -870,7 +870,7 @@ namespace Api {
             ApplyChange("change mesh", () => {
                 var e = ResolvePropElement(element);
                 if (!Operations.Props.SetMesh(e.state, index, mesh)) throw ApiException.NotFound("mesh " + index);
-                e.road.state.FlagAsChanged();
+                e.road.GetState().FlagAsChanged();
             });
         }
 
@@ -879,7 +879,7 @@ namespace Api {
             ApplyChange("delete mesh", () => {
                 var e = ResolvePropElement(element);
                 if (!Operations.Props.RemoveMesh(e.state, index)) throw ApiException.NotFound("mesh " + index);
-                e.road.state.FlagAsChanged();
+                e.road.GetState().FlagAsChanged();
             });
         }
 
@@ -888,7 +888,7 @@ namespace Api {
             ApplyChange("change mesh", () => {
                 var e = ResolvePropElement(element);
                 Operations.Props.SetSingleMesh(e.state, mesh);
-                e.road.state.FlagAsChanged();
+                e.road.GetState().FlagAsChanged();
             });
         }
     }

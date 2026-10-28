@@ -33,6 +33,7 @@ namespace LowLevel {
     //the lines along which the props of a props container of the prop rule are placed (as the propsLines of the roads)
     public class GeometryPropLine {
         public string container;
+        public List<Vector3> distanceReference = new List<Vector3>();
         public List<Vector3> startBound = new List<Vector3>();
         public List<Vector3> endBound = new List<Vector3>(); //as many points as startBound
     }

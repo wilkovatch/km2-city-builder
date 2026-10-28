@@ -58,6 +58,8 @@ namespace CityElements.Types {
         public ParameterContainer parameters;
         public LowLevelSettings settings;
 
+        public LowLevelType() { }
+
         public LowLevelType(string folder) {
             ui = Parsers.TypeInheritance.Load<Panel>(folder, "ui.json");
             parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");

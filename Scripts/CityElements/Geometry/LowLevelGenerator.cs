@@ -60,6 +60,10 @@ public partial class LowLevelGenerator : PhysicsScriptable {
         props.Clear();
         propsContainer = GO.Create("PropsContainer");
         GO.SetParent(propsContainer, this);
+        if (GetParent() is PropPath) {
+            PropPlacer.PlaceRibbons(state.State("propRule"), propLines, propsContainer, props);
+            return;
+        }
         PropPlacer.Place(state.State("propRule"), containers, container => {
             var line = propLines.Find(l => l.container == container);
             return line == null ? null : (line.startBound.ToArray(), line.endBound.ToArray());

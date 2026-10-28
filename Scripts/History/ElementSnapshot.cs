@@ -278,6 +278,7 @@ namespace History {
                 case Intersection: return "intersection";
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
+                case PropPath: return "propPath";
                 case LowLevelElement: return "lowLevel";
                 default: return null;
             }
@@ -430,7 +431,9 @@ namespace History {
                 }
                 case ElementKind.LowLevel: {
                     var e = Deserialize<IO.SavedCity.LowLevelElement>(json);
-                    var element = GS.Create<LowLevelElement>(NameOrDefault(e.name, "Element"), manager.GetLowLevelContainer());
+                    LowLevelElement element = e.state?.Str("type", null) == PropPath.TypeId
+                        ? GS.Create<PropPath>(NameOrDefault(e.name, "Element"), manager.GetLowLevelContainer())
+                        : GS.Create<LowLevelElement>(NameOrDefault(e.name, "Element"), manager.GetLowLevelContainer());
                     element.Initialize(e.state?.Str("type", null), manager.GetTerrainPointContainer());
                     manager.AddLowLevelElement(element, id);
                     return element;
