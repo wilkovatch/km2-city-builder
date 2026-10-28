@@ -434,6 +434,12 @@ namespace CityDecoder {
                     if (inPoint.anchorIndex == -1) anchor = TerrainAnchorLineManager.FindMatching(inPoint.position.GetVector(), anchors);
                     else anchor = anchors[inPoint.anchorIndex];
                 }
+                else if (inPoint.linkType == IO.SavedCity.LinkType.Point) {
+                    if (!dict.ContainsKey(inPoint.elementId)) {
+                        CreateTerrainPoint(loadedTerrainPoints[inPoint.elementId], dict, loadedTerrainPoints);
+                    }
+                    anchor = new PointAnchor(dict[inPoint.elementId]);
+                }
                 else if (inPoint.linkType == IO.SavedCity.LinkType.Column) {
                     if (!dict.ContainsKey(inPoint.elementId)) {
                         CreateTerrainPoint(loadedTerrainPoints[inPoint.elementId], dict, loadedTerrainPoints);

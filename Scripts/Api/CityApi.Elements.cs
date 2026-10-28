@@ -447,6 +447,27 @@ namespace Api {
             return ResolveTerrainPoint(point).GetPoint();
         }
 
+        [ApiMethod("terrainPoints.attach", "Attaches an existing terrain point to a road/intersection anchor or anchor segment (to: {anchor} or {anchorLink}); building points can also follow a patch corner ({terrainPoint}) or edge ({link, position}). Keeps shared references and returns the point id")]
+        public int AttachTerrainPoint(int point, PointTarget to) {
+            if (to == null || (to.anchor == null && to.anchorLink == null && !to.terrainPoint.HasValue && to.link == null)) {
+                throw ApiException.InvalidParam("to must be an anchor, anchorLink, terrainPoint or link");
+            }
+            return ApplyChange("attach point", () => {
+                var p = ResolveTerrainPoint(point);
+                var (obj, pos) = ResolvePoint(to);
+                if (!Operations.TerrainPoints.Attach(p, obj, pos)) throw ApiException.InvalidOperation("the target is not an available anchor/segment or would create a circular attachment");
+                return point;
+            });
+        }
+
+        [ApiMethod("terrainPoints.detach", "Clears the attachment of a terrain point, keeping its position and all shared references. Returns the point id")]
+        public int DetachTerrainPoint(int point) {
+            return ApplyChange("detach point", () => {
+                Operations.TerrainPoints.Detach(ResolveTerrainPoint(point));
+                return point;
+            });
+        }
+
         [ApiMethod("patches.delete", "Deletes a terrain patch")]
         public void DeletePatch(ElementRef patch) {
             ApplyChange("delete terrain patch", () => Operations.TerrainPatches.Delete(EditPatch(patch)));

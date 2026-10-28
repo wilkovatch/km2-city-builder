@@ -407,37 +407,44 @@ namespace History {
                 if (!queued[i].afterOverride.ContainsKey(id)) queued[i].afterOverride[id] = before;
                 break;
             }
-            if (alive && withAnchoredPoints && (kind == ElementKind.Road || kind == ElementKind.Intersection)) TouchAnchoredPoints(element);
+            if (alive && withAnchoredPoints && (kind == ElementKind.Road || kind == ElementKind.Intersection || kind == ElementKind.TerrainPoint)) TouchAnchoredPoints(element);
         }
 
-        static Node3D GetAnchorOwner(TerrainPoint point) {
-            if (point.IsDeleted() || GO.IsNull(point.anchor) || point.anchor.IsDeleted()) return null;
-            Node3D anchorObj = null;
-            if (point.anchor is TerrainAnchor ta) anchorObj = ta.GetObject();
-            else if (point.anchor is LineAnchor la) anchorObj = la.start;
-            else if (point.anchor is ColumnAnchor) return null; //follows a terrain point, not a road or intersection
-            if (anchorObj == null || !GodotObject.IsInstanceValid(anchorObj)) return null;
-            return GO.GetParent(anchorObj);
+        static IEnumerable<Node3D> GetAnchorOwners(TerrainPoint point) {
+            if (point.IsDeleted() || GO.IsNull(point.anchor) || point.anchor.IsDeleted()) yield break;
+            if (point.anchor is PointAnchor fixedPoint) {
+                yield return fixedPoint.master.GetObject();
+            } else if (point.anchor is ColumnAnchor column) {
+                yield return column.master.GetObject();
+            } else if (point.anchor is TerrainAnchor ta) {
+                yield return GO.GetParent(ta.GetObject());
+            } else if (point.anchor is LineAnchor line) {
+                foreach (var node in new[] { line.start, line.end }) {
+                    if (node == null || !GodotObject.IsInstanceValid(node)) continue;
+                    yield return GameEngine.Scriptable.FindRecursive<TerrainPoint>(node) != null ? node : GO.GetParent(node);
+                }
+            }
         }
 
-        //the terrain points anchored to a road or intersection lose their anchor if its anchors are regenerated
+        //Capture followers too: deleting a source or regenerating its anchors can clear their attachment.
         static void TouchAnchoredPoints(object owner) {
-            var ownerNode = owner is Road road ? road : (owner as Intersection)?.geo;
+            var ownerNode = owner is Road road ? road : owner is TerrainPoint pointOwner ? pointOwner.GetObject() : (owner as Intersection)?.geo;
             if (ownerNode == null) return;
             if (current.anchoredPoints == null) {
                 current.anchoredPoints = new Dictionary<Node3D, List<TerrainPoint>>();
                 foreach (var point in manager.GetTerrainPoints()) {
-                    var anchorOwner = GetAnchorOwner(point);
-                    if (anchorOwner == null) continue;
-                    if (!current.anchoredPoints.TryGetValue(anchorOwner, out var list)) {
-                        list = new List<TerrainPoint>();
-                        current.anchoredPoints[anchorOwner] = list;
+                    foreach (var anchorOwner in GetAnchorOwners(point)) {
+                        if (anchorOwner == null) continue;
+                        if (!current.anchoredPoints.TryGetValue(anchorOwner, out var list)) {
+                            list = new List<TerrainPoint>();
+                            current.anchoredPoints[anchorOwner] = list;
+                        }
+                        if (!list.Contains(point)) list.Add(point);
                     }
-                    list.Add(point);
                 }
             }
             if (current.anchoredPoints.TryGetValue(ownerNode, out var points)) {
-                foreach (var point in points) Touch(point, false);
+                foreach (var point in points) Touch(point, true);
             }
         }
 

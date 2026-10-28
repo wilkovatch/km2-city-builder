@@ -226,6 +226,7 @@ namespace Api {
                 await AutoBai();
                 await LowLevelRoomEditing();
                 await BaiConnections();
+                await PointAttachments();
             } catch (Abort e) {
                 Log("aborted: " + e.Message);
             } catch (System.Exception e) {
@@ -1347,6 +1348,219 @@ namespace Api {
             Check("internal points generated (" + Len((await Derived(big))["internalPoints"]) + ")", Len((await Derived(big))["internalPoints"]) > 3);
             await Expect("internal points generated twice", "invalid_operation", "patches.generateInternalPoints", new { patch = big, distance = 30 });
             await Call("patches.delete", new { patch = big });
+        }
+
+        async Task PointAttachments() {
+            var source = (await Call("roads.create", new { points = new[] { Pos(-700, 700), Pos(-600, 700) } })).Value<int>();
+            var branch = (await Call("roads.create", new { points = new object[] { new { roadEnd = new { road = source } }, Pos(-600, 800) } })).Value<int>();
+            var intersection = (await Derived(source))["endIntersection"].Value<int>();
+            var created = await Call("patches.create", new {
+                perimeter = new[] { Pos(-700, 720), Pos(-600, 720), Pos(-600, 820), Pos(-700, 820) },
+                internalPoints = new[] { Pos(-650, 760) }, details = true
+            });
+            var patchId = created["id"].Value<int>();
+            var pointId = created["points"][0].Value<int>();
+            var internalId = (await Derived(patchId))["internalPoints"][0]["id"].Value<int>();
+            var lineId = (await Call("lines.create", new { points = new object[] { new { terrainPoint = pointId }, Pos(-700, 820) } })).Value<int>();
+            await Call("elements.rename", new { @ref = patchId, name = "Attachment test patch" });
+            await Call("elements.rename", new { @ref = lineId, name = "Attachment test line" });
+            await Call("patches.borderMesh.add", new { patch = patchId });
+            await Call("patches.borderMesh.addPoint", new { patch = patchId, borderMesh = 0, point = pointId });
+            await Call("patches.borderMesh.addPoint", new { patch = patchId, borderMesh = 0, point = created["points"][1].Value<int>() });
+
+            object Anchor(int owner, int index = 0) => new { anchor = new { of = owner, index } };
+            TerrainPoint Point(int id) => History.UndoManager.GetAliveElement(id) as TerrainPoint;
+            var target = Anchor(source);
+            await CheckUndo("attaching an existing shared point", () => Call("terrainPoints.attach", new { point = pointId, to = target }));
+            Check("attachment keeps the shared point id and the building line follows", (await Derived(lineId))["points"][0]["id"].Value<int>() == pointId
+                && Point(pointId).anchor is TerrainAnchor && Point(pointId).GetLinks().Count == 2);
+            var patchElement = History.UndoManager.GetAliveElement(patchId) as TerrainPatch;
+            Check("a border mesh keeps the attached perimeter point", patchElement.GetBorderMesh(0).segment.Contains(Point(pointId)));
+            await Expect("a fixed attached point cannot be moved", "invalid_operation", "terrainPoints.move", new { point = pointId, position = V(-710, 0, 710) });
+            await Expect("attachment requires an anchor target", "invalid_param", "terrainPoints.attach", new { point = pointId, to = Pos(-710, 710) });
+            await Expect("attachment validates the anchor index", "not_found", "terrainPoints.attach", new { point = pointId, to = Anchor(source, 99999) });
+
+            await CheckUndo("attaching an internal point to an intersection", () => Call("terrainPoints.attach", new { point = internalId, to = Anchor(intersection) }));
+            Check("an internal point follows an intersection anchor", Point(internalId).anchor is TerrainAnchor);
+            await Call("terrainPoints.detach", new { point = internalId });
+
+            var segmentAnchor = ((JArray)await Call("anchors.list")).First(a => a["of"].Value<int>() == source && a["next"].Type != JTokenType.Null);
+            var segmentRef = new { of = source, index = segmentAnchor["index"].Value<int>() };
+            var segment = await Call("anchors.segment", new { anchor = segmentRef });
+            var start = Vec(segment["start"]);
+            var end = Vec(segment["end"]);
+            var quarter = start.Lerp(end, 0.25f);
+            await CheckUndo("reattaching a point to a segment", () => Call("terrainPoints.attach", new { point = pointId, to = new { anchorLink = segmentRef, position = quarter } }));
+            Check("segment attachment snaps to the requested position", Point(pointId).GetPoint().DistanceTo(quarter) < 0.01f);
+            await Call("terrainPoints.move", new { point = pointId, position = start.Lerp(end, 0.75f) + Vector3.Up * 5 });
+            Check("an attached point slides on its segment", Point(pointId).GetPoint().DistanceTo(start.Lerp(end, 0.75f)) < 0.01f);
+            var percent = ((LineAnchor)Point(pointId).anchor).percent;
+            await CheckUndo("moving the source of a segment attachment", () => Call("roads.movePoint", new { road = source, index = 0, position = V(-720, 0, 690) }));
+            Check("source movement preserves the segment percentage", Point(pointId).anchor is LineAnchor movedSegment && Mathf.Abs(movedSegment.percent - percent) < 0.001f
+                && movedSegment.GetPoint().DistanceTo(Point(pointId).GetPoint()) < 0.01f);
+
+            //Exercise the buttons, temporary click mode, selection and fixed-point gizmo in the actual editor.
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var panel = (EditorPanels.TransformPropertiesEditorPanel)typeof(CityBuilderMenuBar).GetField("transformPropertiesEditorPanel", flags).GetValue(builder);
+            T Field<T>(string name) => (T)panel.GetType().GetField(name, flags).GetValue(panel);
+            void Press(string name) {
+                var button = Field<EditorPanelElements.Button>(name);
+                ((Godot.Button)typeof(EditorPanelElements.Button).GetField("button", flags).GetValue(button)).EmitSignal(Godot.Button.SignalName.Pressed);
+            }
+            async Task OpenPointEditor() {
+                patchElement = History.UndoManager.GetAliveElement(patchId) as TerrainPatch;
+                builder.SelectObject(patchElement, true, null);
+                builder.gizmo.ClearTargets();
+                builder.gizmo.AddTarget(Point(pointId).GetObject());
+                CallBuilder<object>("EditCurSelectedObjectTransform");
+                await Frames(2);
+            }
+            await OpenPointEditor();
+            var selectedSegment = (LineAnchor)Point(pointId).anchor;
+            var dragPosition = GO.GetPosition(selectedSegment.start).Lerp(GO.GetPosition(selectedSegment.end), 0.4f);
+            History.UndoManager.Record("drag segment point", () => {
+                History.UndoManager.Touch(Point(pointId));
+                GO.SetPosition(Point(pointId).GetObject(), dragPosition + Vector3.Up * 5);
+                builder.NotifyChange();
+            });
+            await Frames(2);
+            Check("a gizmo drag slides the selected point on its segment", Point(pointId).GetPoint().DistanceTo(dragPosition) < 0.01f);
+            var selectedPercent = selectedSegment.percent;
+            var selectedSource = History.UndoManager.GetAliveElement(source) as Road;
+            History.UndoManager.Record("move selected point source", () => {
+                History.UndoManager.TouchOwner(selectedSource.points[0]);
+                GO.SetPosition(selectedSource.points[0], GO.GetPosition(selectedSource.points[0]) + new Vector3(-2, 0, -1));
+                builder.NotifyChange();
+            });
+            await Frames(2);
+            Check("a selected segment point follows source movement without sliding", Mathf.Abs(selectedSegment.percent - selectedPercent) < 0.001f
+                && Point(pointId).GetPoint().DistanceTo(selectedSegment.GetPoint()) < 0.01f);
+            var previous = builder.terrainClick.modifier;
+            Press("attachPointButton");
+            var picker = Field<ElementPlacer.TerrainPointAttachmentPicker>("attachmentPicker");
+            Check("the attach button starts a temporary picker", picker.IsActive);
+            Check("the picker rejects attaching a point to itself", !picker.Pick(Point(pointId).GetObject(), Point(pointId).GetPoint()) && picker.IsActive);
+            Godot.Input.ParseInputEvent(new InputEventKey { PhysicalKeycode = Godot.Key.Escape, Pressed = true });
+            await Frames(2);
+            Godot.Input.ParseInputEvent(new InputEventKey { PhysicalKeycode = Godot.Key.Escape, Pressed = false });
+            await Frames(1);
+            Check("cancelling restores the click mode and selected point", !picker.IsActive && builder.terrainClick.modifier == previous
+                && builder.gizmo.mainTargetRoot == Point(pointId).GetObject() && panel.ActiveSelf());
+            var beforePick = await Snapshot();
+            Press("attachPointButton");
+            var sourceElement = History.UndoManager.GetAliveElement(source) as Road;
+            var anchor = sourceElement.anchorManager.GetTerrainAnchors()[0];
+            History.UndoManager.Record("attach point", () => picker.Pick(anchor.GetObject(), anchor.GetPoint()));
+            await Frames(2);
+            Check("picking restores selection and locks the fixed point", !picker.IsActive && builder.terrainClick.modifier == previous
+                && builder.gizmo.mainTargetRoot == Point(pointId).GetObject() && builder.gizmo.transformType == RuntimeGizmos.TransformType.None
+                && !Field<EditorPanelElement>("pointPositionField").GetInteractable());
+            Screenshot("point_attachment_editor.png");
+            panel.GetType().GetMethod("EndHandleEditing", flags).Invoke(panel, null);
+            Check("returning to the patch editor keeps the attached point fixed and selected", builder.terrainClick.modifier is ElementPlacer.TerrainPlacer
+                && builder.gizmo.mainTargetRoot == Point(pointId).GetObject() && builder.gizmo.transformType == RuntimeGizmos.TransformType.None);
+            await Call("city.flush");
+            var afterPick = await Snapshot();
+            await Call("history.undo");
+            Same("undo attaching from the point editor", beforePick, await Snapshot());
+            await Call("history.redo");
+            Same("redo attaching from the point editor", afterPick, await Snapshot());
+            await OpenPointEditor();
+            var beforeDetach = Point(pointId).GetPoint();
+            Press("detachPointButton");
+            Check("the detach button preserves position, sharing and enables movement", Point(pointId).anchor == null && Point(pointId).GetLinks().Count == 2
+                && Point(pointId).GetPoint().DistanceTo(beforeDetach) < 0.01f && Field<EditorPanelElement>("pointPositionField").GetInteractable());
+            panel.GetType().GetMethod("EndHandleEditing", flags).Invoke(panel, null);
+            Check("returning to the patch editor keeps the detached point movable", builder.gizmo.transformType == RuntimeGizmos.TransformType.Move);
+            CallBuilder<object>("EditCurSelectedObjectTransform");
+            Press("attachPointButton");
+            builder.CloseAllPanels();
+            Check("closing the point editor stops its picker", !picker.IsActive && builder.terrainClick.modifier != picker);
+
+            await Call("terrainPoints.attach", new { point = pointId, to = target });
+            var beforeDelete = Point(pointId).GetPoint();
+            await CheckUndo("deleting an attachment source", () => Call("roads.delete", new { road = source }));
+            Check("deleting the source leaves its point free in place", Point(pointId).anchor == null && Point(pointId).GetPoint().DistanceTo(beforeDelete) < 0.01f);
+            await Call("history.undo");
+            await CheckUndo("detaching an existing shared point", () => Call("terrainPoints.detach", new { point = pointId }));
+
+            //Existing building points also follow patch corners and the links between patch perimeter points.
+            var patchBuilding = (await Call("lines.create", new { points = new[] { Pos(-780, 720), Pos(-780, 820) } })).Value<int>();
+            await Call("elements.rename", new { @ref = patchBuilding, name = "Patch attachment buildings" });
+            var buildingPoints = (await Derived(patchBuilding))["points"];
+            var cornerId = buildingPoints[0]["id"].Value<int>();
+            var edgeId = buildingPoints[1]["id"].Value<int>();
+            var edgeStart = created["points"][1].Value<int>();
+            var edgeEnd = created["points"][2].Value<int>();
+            await CheckUndo("attaching a building point to a patch corner", () => Call("terrainPoints.attach", new { point = cornerId, to = new { terrainPoint = internalId } }));
+            Check("a patch point attachment keeps the building point identity", Point(cornerId).anchor is PointAnchor fixedCorner
+                && fixedCorner.master == Point(internalId) && Point(cornerId).GetPoint().DistanceTo(Point(internalId).GetPoint()) < 0.01f
+                && (await Derived(patchBuilding))["points"][0]["pointAnchor"].Value<int>() == internalId);
+            await Expect("a building point fixed to a patch corner cannot be moved", "invalid_operation", "terrainPoints.move", new { point = cornerId, position = V(-800, 0, 700) });
+            Check("indirect attachments through a fixed point cannot form a cycle", !Operations.LowLevel.AttachToColumn(Point(internalId), Point(cornerId)));
+            var movedCorner = Point(internalId).GetPoint() + new Vector3(2, 0, 1);
+            await CheckUndo("moving a patch corner followed by a building", () => Call("terrainPoints.move", new { point = internalId, position = movedCorner }));
+            Check("the building follows its patch corner", Point(cornerId).GetPoint().DistanceTo(Point(internalId).GetPoint()) < 0.01f);
+
+            var edgeMiddle = Point(edgeStart).GetPoint().Lerp(Point(edgeEnd).GetPoint(), 0.5f);
+            await CheckUndo("attaching a building point to a patch edge", () => Call("terrainPoints.attach", new { point = edgeId, to = new { link = new[] { edgeStart, edgeEnd }, position = edgeMiddle } }));
+            Check("a patch edge attachment uses its terrain points", Point(edgeId).anchor is LineAnchor patchEdge
+                && patchEdge.StartPoint == Point(edgeStart) && patchEdge.EndPoint == Point(edgeEnd)
+                && Point(edgeId).GetPoint().DistanceTo(edgeMiddle) < 0.01f);
+            await Call("terrainPoints.move", new { point = edgeId, position = Point(edgeStart).GetPoint().Lerp(Point(edgeEnd).GetPoint(), 0.25f) + new Vector3(3, 5, 0) });
+            Check("the building point slides along the patch edge", GeometryHelper.ClosestPoint(Point(edgeId).GetPoint(), Point(edgeStart).GetPoint(), Point(edgeEnd).GetPoint()).DistanceTo(Point(edgeId).GetPoint()) < 0.01f);
+            await Expect("a patch-edge attachment cannot depend on itself", "invalid_operation", "terrainPoints.attach", new {
+                point = pointId, to = new { link = new[] { pointId, edgeStart }, position = Point(pointId).GetPoint() }
+            });
+            await CheckUndo("deleting a patch corner followed by a building", () => Call("patches.removePoint", new { patch = patchId, point = internalId }));
+            Check("deleting a patch corner releases the building point", Point(cornerId).anchor == null);
+            await Call("history.undo");
+            Check("undo restores the building's fixed patch attachment", Point(cornerId).anchor is PointAnchor restoredCorner && restoredCorner.master == Point(internalId));
+            await CheckUndo("deleting an endpoint of a building's patch edge", () => Call("patches.removePoint", new { patch = patchId, point = edgeEnd }));
+            Check("deleting a patch edge endpoint releases the building point", Point(edgeId).anchor == null);
+            await Call("history.undo");
+
+            //Use the same picker from a building's own point panel, including a patch point that has no road anchor.
+            var buildingElement = History.UndoManager.GetAliveElement(patchBuilding) as BuildingLine;
+            builder.SelectObject(buildingElement, true, null);
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(Point(cornerId).GetObject());
+            CallBuilder<object>("EditCurSelectedObjectTransform");
+            Press("detachPointButton");
+            Press("attachPointButton");
+            History.UndoManager.Record("pick patch corner", () => picker.Pick(Point(internalId).GetObject(), Point(internalId).GetPoint()));
+            Check("the building picker accepts patch corners and keeps its selected point", Point(cornerId).anchor is PointAnchor && !picker.IsActive
+                && builder.gizmo.mainTargetRoot == Point(cornerId).GetObject());
+            Press("attachPointButton");
+            //The patch link is distinct from the generated road anchor segments.
+            var terrainLink = GameEngine.Scriptable.FindMultipleRecursive<PointLink>(Point(edgeStart).GetObject()).First(l => l.next == Point(edgeEnd).GetObject());
+            History.UndoManager.Record("pick patch edge", () => picker.Pick(terrainLink, Point(edgeStart).GetPoint().Lerp(Point(edgeEnd).GetPoint(), 0.5f)));
+            Check("the building picker accepts patch edge links", Point(cornerId).anchor is LineAnchor pickedPatchEdge
+                && pickedPatchEdge.StartPoint == Point(edgeStart) && !picker.IsActive);
+            Screenshot("building_patch_attachment.png");
+            builder.CloseAllPanels();
+            await Call("terrainPoints.attach", new { point = cornerId, to = new { terrainPoint = internalId } });
+            await Call("terrainPoints.attach", new { point = internalId, to = new { anchorLink = segmentRef } });
+            Check("a building point follows a patch point already on a line anchor", Point(internalId).anchor is LineAnchor
+                && Point(cornerId).GetPoint().DistanceTo(Point(internalId).GetPoint()) < 0.01f);
+
+            await Call("terrainPoints.attach", new { point = pointId, to = new { anchorLink = segmentRef } });
+            await Call("city.save");
+            await Call("city.close");
+            await Call("city.load", new { folder });
+            var loaded = (JArray)await Call("elements.list");
+            patchId = loaded.First(e => e["name"].Value<string>() == "Attachment test patch")["id"].Value<int>();
+            lineId = loaded.First(e => e["name"].Value<string>() == "Attachment test line")["id"].Value<int>();
+            pointId = (await Derived(patchId))["perimeter"][0]["id"].Value<int>();
+            Check("save/load keeps the new segment attachment and shared identity", Point(pointId).anchor is LineAnchor
+                && (await Derived(lineId))["points"][0]["id"].Value<int>() == pointId);
+            patchBuilding = loaded.First(e => e["name"].Value<string>() == "Patch attachment buildings")["id"].Value<int>();
+            buildingPoints = (await Derived(patchBuilding))["points"];
+            cornerId = buildingPoints[0]["id"].Value<int>();
+            edgeId = buildingPoints[1]["id"].Value<int>();
+            internalId = (await Derived(patchId))["internalPoints"][0]["id"].Value<int>();
+            Check("save/load keeps fixed patch-point attachments", Point(cornerId).anchor is PointAnchor loadedCorner && loadedCorner.master == Point(internalId));
+            Check("save/load keeps patch-edge attachments", Point(edgeId).anchor is LineAnchor loadedEdge && loadedEdge.StartPoint != null && loadedEdge.EndPoint != null);
         }
 
         async Task Heights() {

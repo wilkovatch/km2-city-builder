@@ -61,7 +61,7 @@ namespace IO.SavedCity {
         public bool dividing;
         public LinkType linkType;
         public LinkElementType elementType; //type of the entity the anchor is in (if the point is on an anchor)
-        public int elementId; //reference to a road, intersection or previous terrain point
+        public int elementId; //reference to a road, intersection or previous terrain point (Point: fixed, Column: vertical)
         public int anchorIndex; //index of the anchor (or link start point) in the road/intersection (or link end point id if element type is terrain point)
         public float percent; //used if linktype is line
         //the rotation of the rotatable points of the low-level elements (euler angles in degrees), missing for the others

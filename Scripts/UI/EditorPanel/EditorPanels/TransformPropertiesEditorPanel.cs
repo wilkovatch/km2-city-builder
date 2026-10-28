@@ -12,6 +12,10 @@ namespace EditorPanels {
         EditorPanelElements.Label spaceLabel = null;
         bool notOnHandle;
         bool onParametricObject;
+        ElementPlacer.TerrainPointAttachmentPicker attachmentPicker;
+        EditorPanelElements.Label attachmentStatus;
+        EditorPanelElements.Button attachPointButton, detachPointButton, projectPointButton;
+        EditorPanelElement pointPositionField;
 
         public override void Initialize(Control canvas) {
             if (PreferencesManager.workingDirectory == "") {
@@ -23,6 +27,10 @@ namespace EditorPanels {
             var w = width;
             Initialize(canvas, 1, w);
             var p0 = GetPage(0);
+            attachmentStatus = null;
+            detachPointButton = null;
+            pointPositionField = null;
+            projectPointButton = null;
             CityElements.Types.ObjectInstanceSettings objSettings = null;
             var instComp = instance != null ? GS.Cast<MeshInstance>(instance) : null;
             if (instComp == null) onParametricObject = false;
@@ -64,9 +72,17 @@ namespace EditorPanels {
                     rotBtn.SetInteractable(axes[1] || axes[2]);
                 }
             }
+            if (GetProceduralPoint() != null) {
+                attachmentPicker ??= new ElementPlacer.TerrainPointAttachmentPicker(builder);
+                p0.IncreaseRow();
+                attachmentStatus = p0.AddLabel("", w);
+                p0.IncreaseRow();
+                attachPointButton = p0.AddButton(SM.Get("POINT_ATTACH"), AttachPoint, w * 0.65f, SM.Get("POINT_ATTACH_TOOLTIP"));
+                detachPointButton = p0.AddButton(SM.Get("POINT_DETACH"), DetachPoint, w * 0.35f, SM.Get("POINT_DETACH_TOOLTIP"));
+            }
             p0.IncreaseRow();
             p0.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), GetGizmo, "snapToGrid", null, w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
-            p0.AddButton(SM.Get("PROJECT_TO_GROUND"), ProjectToGround, w * 0.5f);
+            projectPointButton = p0.AddButton(SM.Get("PROJECT_TO_GROUND"), ProjectToGround, w * 0.5f);
             p0.IncreaseRow();
             if (onParametricObject) {
                 p0.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_PARENT"), w);
@@ -79,6 +95,7 @@ namespace EditorPanels {
             p0.IncreaseRow();
             var posFieldName = onParametricObject ? "localPosition" : "position";
             var posField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_POS"), GetCurTransform, "transform." + posFieldName, null, w, null, null, value => { Reselect(); });
+            pointPositionField = posField;
             p0.IncreaseRow();
             if (!notOnHandle && GetHandleRoad() != null) {
                 var axes = GetPointRotationAxes();
@@ -157,6 +174,66 @@ namespace EditorPanels {
             }
         }
 
+        TerrainPoint GetProceduralPoint() {
+            DropDeletedInstance();
+            var point = instance == null || notOnHandle ? null : GS.FindRecursive<TerrainPoint>(instance);
+            return point != null && !point.IsDeleted() && point.GetLinks().Exists(e => e is TerrainPatch || e is BuildingLine) ? point : null;
+        }
+
+        bool FixedPoint() {
+            var point = GetProceduralPoint();
+            return point != null && !GO.IsNull(point.anchor) && !point.anchor.IsDeleted() && !point.anchor.IsMoveable();
+        }
+
+        void RefreshAttachmentControls() {
+            var point = GetProceduralPoint();
+            if (point == null || attachmentStatus == null) return;
+            point.Select(true);
+            point.SetMoveable(true);
+            var attached = !GO.IsNull(point.anchor) && !point.anchor.IsDeleted();
+            var key = attachmentPicker.IsActive ? "POINT_PICKING" : !attached ? "POINT_FREE" : point.anchor is LineAnchor ? "POINT_ON_SEGMENT" : "POINT_ANCHORED";
+            attachmentStatus.SetValue(SM.Get(key));
+            detachPointButton.SetInteractable(attached && !attachmentPicker.IsActive);
+            pointPositionField?.SetInteractable(!FixedPoint() && !attachmentPicker.IsActive);
+            projectPointButton?.SetInteractable(!FixedPoint() && !attachmentPicker.IsActive);
+            SetAllowedAxes();
+        }
+
+        void AttachPoint() {
+            var point = GetProceduralPoint();
+            if (point == null) return;
+            if (CancelAttachment()) return;
+            attachmentPicker.Start(point, () => {
+                if (!ActiveSelf() || GetProceduralPoint() == null) return;
+                point.Select(true);
+                point.SetMoveable(true);
+                Reselect();
+                RefreshAttachmentControls();
+            });
+            RefreshAttachmentControls();
+        }
+
+        void DetachPoint() {
+            var point = GetProceduralPoint();
+            if (point == null) return;
+            Operations.TerrainPoints.Detach(point);
+            point.Select(true);
+            point.SetMoveable(true);
+            builder.NotifyChange();
+            Reselect();
+            RefreshAttachmentControls();
+        }
+
+        public bool CancelAttachment() {
+            var active = attachmentPicker?.IsActive ?? false;
+            attachmentPicker?.Stop();
+            return active;
+        }
+
+        public override void Update() {
+            RefreshAttachmentControls();
+        }
+
         ObjectState GetCurState() {
             if (instance == null) return new ObjectState();
             var mI = GS.Cast<MeshInstance>(instance);
@@ -210,6 +287,7 @@ namespace EditorPanels {
         }
 
         public override void Terminate() {
+            CancelAttachment();
             var handleOwner = OnOwnedHandle() ? parentPanel : null;
             parentPanel = null;
             if (handleOwner != null) {
@@ -226,6 +304,7 @@ namespace EditorPanels {
 
         //back to the editor of the element the control point belongs to, keeping the point selected
         void EndHandleEditing() {
+            CancelAttachment();
             if (!OnOwnedHandle()) {
                 Terminate();
                 return;
@@ -345,6 +424,13 @@ namespace EditorPanels {
         //the axes the object can be moved, rotated and scaled along (the gizmo allows all of them again when its targets
         //are cleared, so this follows each selection of the object)
         void SetAllowedAxes() {
+            if (GetProceduralPoint() != null) {
+                var move = !FixedPoint() && !(attachmentPicker?.IsActive ?? false);
+                builder.gizmo.posAxesAllowed = new bool[] { move, move, move };
+                builder.gizmo.rotAxesAllowed = builder.gizmo.scaleAxesAllowed = new bool[] { false, false, false };
+                builder.gizmo.transformType = move ? RuntimeGizmos.TransformType.Move : RuntimeGizmos.TransformType.None;
+                return;
+            }
             if (!notOnHandle || !onParametricObject) return;
             var objSettings = GetParametricObjectSettings();
             builder.gizmo.posAxesAllowed = objSettings.allowPosition;
@@ -393,6 +479,7 @@ namespace EditorPanels {
                 } else {
                     DisableGizmo();
                     builder.gizmo.transformType = RuntimeGizmos.TransformType.Move;
+                    SetAllowedAxes();
                 }
                 builder.gizmo.allowDeselect = false;
             } else {
@@ -406,6 +493,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!active) CancelAttachment();
             DropDeletedInstance();
             if (active) {
                 UpdateSpaceLabel();
@@ -423,6 +511,7 @@ namespace EditorPanels {
                     ReadCurValues();
                 }
                 Select(true);
+                RefreshAttachmentControls();
             } else {
                 SetMoveable(active);
                 Select(false);
@@ -455,7 +544,10 @@ namespace EditorPanels {
 
         public void Refresh() {
             DropDeletedInstance();
-            if (ActiveSelf() && instance != null) ReadCurValues();
+            if (ActiveSelf() && instance != null) {
+                ReadCurValues();
+                RefreshAttachmentControls();
+            }
         }
 
         Node3D GetCurInstance() {
@@ -468,20 +560,25 @@ namespace EditorPanels {
         }
 
         object GetCurTransform() {
-            return instance != null ? new TransformBinding(instance) : null;
+            return instance != null ? new TransformBinding(instance, GetProceduralPoint()) : null;
         }
 
         //accessor for the "transform.*" field bindings, Godot nodes have no "transform" member
         class TransformBinding {
             readonly Node3D obj;
+            readonly TerrainPoint point;
 
-            public TransformBinding(Node3D obj) {
+            public TransformBinding(Node3D obj, TerrainPoint point) {
                 this.obj = obj;
+                this.point = point;
             }
 
             public TransformBinding transform => this;
             //the owner was recorded by the panel, but a road end on an intersection moves the intersection too
-            public Vector3 position { get => GO.GetPosition(obj); set { History.UndoManager.TouchOwner(obj); GO.SetPosition(obj, value); } }
+            public Vector3 position { get => GO.GetPosition(obj); set {
+                if (point != null) Operations.TerrainPoints.Move(point, value);
+                else { History.UndoManager.TouchOwner(obj); GO.SetPosition(obj, value); }
+            } }
             public Vector3 localPosition { get => GO.GetLocalPosition(obj); set { History.UndoManager.TouchOwner(obj); GO.SetLocalPosition(obj, value); } }
             public Quaternion rotation { get => GO.GetRotationQuaternion(obj); set => GO.SetRotation(obj, value); }
             public Quaternion localRotation { get => GameEngine.Quaternion.Encode(obj.Quaternion); set => GO.SetLocalRotation(obj, value); }

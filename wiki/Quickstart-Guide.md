@@ -129,6 +129,8 @@ Points are kept on the ground by default. Hold Shift while placing them to snap 
 
 Select a point (or a mesh) and drag the gizmo, or press M and enter the new position by hand. To select more than one control point at a time, hold Ctrl while clicking (Ctrl-clicking a selected point unselects it).
 
+For an existing terrain-patch or building-line point, press M and click *Attach to anchor/segment*, then click a road or intersection anchor, or the segment between two anchors. Building points can also follow a terrain-patch corner (including a patch point already attached to an anchor or segment) or slide along a patch edge. The building point stays separate from the patch point; *Detach* leaves the patch unchanged. The point follows its attachment from then on. Escape cancels the pick and keeps the panel open. *Detach* stops following the anchor at the current position (the element's ground projection applies again). A fixed-anchor point can be selected but can't be moved until detached; a point on a segment slides along it. If other elements or border meshes share the point, they follow the attachment change too.
+
 While a road is edited, its ends on intersections are shown as big points in place of the points of the intersections: moving one of them moves the intersection, and the other roads connected to it follow.
 
 ### Rotating road sections

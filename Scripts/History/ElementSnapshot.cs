@@ -120,10 +120,13 @@ namespace History {
                 if (!GO.IsNull(p.anchor) && !p.anchor.IsDeleted()) {
                     Node3D parent = null;
                     TerrainAnchor realAnchor = null;
-                    TerrainPoint realPoint1 = null, realPoint2 = null, columnMaster = null;
-                    if (p.anchor is ColumnAnchor column) {
+                    TerrainPoint realPoint1 = null, realPoint2 = null, masterPoint = null;
+                    if (p.anchor is PointAnchor fixedPoint) {
+                        newElem.linkType = IO.SavedCity.LinkType.Point;
+                        masterPoint = fixedPoint.master;
+                    } else if (p.anchor is ColumnAnchor column) {
                         newElem.linkType = IO.SavedCity.LinkType.Column;
-                        columnMaster = column.master;
+                        masterPoint = column.master;
                     } else if (p.anchor is TerrainAnchor terrainAnchor && !GO.IsNull(terrainAnchor)) {
                         newElem.linkType = IO.SavedCity.LinkType.Point;
                         parent = GO.GetParent(terrainAnchor.GetObject());
@@ -164,8 +167,8 @@ namespace History {
                         } else {
                             newElem.linkType = IO.SavedCity.LinkType.None;
                         }
-                    } else if (columnMaster != null) {
-                        var id = pointId(columnMaster);
+                    } else if (masterPoint != null) {
+                        var id = pointId(masterPoint);
                         if (id >= 0) {
                             newElem.elementId = id;
                             newElem.elementType = IO.SavedCity.LinkElementType.TerrainPoint;
@@ -608,6 +611,9 @@ namespace History {
                         if (inPoint.anchorIndex == -1) anchor = TerrainAnchorLineManager.FindMatching(inPoint.position.GetVector(), anchors);
                         else if (inPoint.anchorIndex < anchors.Count) anchor = anchors[inPoint.anchorIndex];
                     }
+                } else if (inPoint.linkType == IO.SavedCity.LinkType.Point) {
+                    var master = GetAlive<TerrainPoint>(inPoint.elementId);
+                    if (master != null) anchor = new PointAnchor(master);
                 } else if (inPoint.linkType == IO.SavedCity.LinkType.Column) {
                     var master = GetAlive<TerrainPoint>(inPoint.elementId);
                     if (master != null) anchor = new ColumnAnchor(master, inPoint.position.GetVector().Y);

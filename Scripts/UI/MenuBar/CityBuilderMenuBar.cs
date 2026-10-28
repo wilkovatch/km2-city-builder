@@ -1640,7 +1640,10 @@ public partial class CityBuilderMenuBar : Control {
     public void ReselectControlPoint(Node3D point) {
         gizmo.ClearTargets();
         gizmo.AddTarget(point);
-        gizmo.transformType = controlPointOwnerTransformType;
+        //an attachment edited in the transform panel may have changed whether the point can move
+        var terrainPoint = GS.FindRecursive<TerrainPoint>(point);
+        gizmo.transformType = terrainPoint == null ? controlPointOwnerTransformType
+            : GO.GetLayer(terrainPoint.GetObject()) == 10 ? RuntimeGizmos.TransformType.None : RuntimeGizmos.TransformType.Move;
     }
 
     EditorPanel GetActivePanel() {
@@ -1687,9 +1690,9 @@ public partial class CityBuilderMenuBar : Control {
     public override void _Process(double delta) {
         if (Api.ScriptRunner.IsRunning) return; //the editor is locked while a script runs
         if (Input.GetInputStart(KeyCommand.Close)) {
-            //Escape ends the pick of a reference, the panel stays open
+            //Escape ends a picker first, keeping its panel open
             if (referencePicker.IsActive()) referencePicker.Stop();
-            else History.UndoManager.Record(SM.Get("CLOSE"), DeselectAndCloseCurrentPanel);
+            else if (!transformPropertiesEditorPanel.CancelAttachment()) History.UndoManager.Record(SM.Get("CLOSE"), DeselectAndCloseCurrentPanel);
         }
         else if (Input.GetInputStart(KeyCommand.CreateRoad)) {
             History.UndoManager.Record(SM.Get("CREATE_ROAD"), CreateRoad);

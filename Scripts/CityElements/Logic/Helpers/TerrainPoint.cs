@@ -155,7 +155,9 @@ public partial class TerrainPoint : PhysicsScriptable {
     //the points the anchor follows are updated first (e.g. a point on the vertical line of a point on a segment follows it
     //in the same frame)
     void UpdateDependencies() {
-        if (anchor is ColumnAnchor column) {
+        if (anchor is PointAnchor fixedPoint) {
+            if (!fixedPoint.IsDeleted()) fixedPoint.master.UpdatePosition();
+        } else if (anchor is ColumnAnchor column) {
             if (!column.IsDeleted()) column.master.UpdatePosition();
         } else if (anchor is LineAnchor line) {
             line.StartPoint?.UpdatePosition();
@@ -199,12 +201,13 @@ public partial class TerrainPoint : PhysicsScriptable {
                 anchor = null;
                 SetupAnchorMode();
                 return true;
-            } else if (!GeometryHelper.AreVectorsEqual(anchor.GetPoint(), oldPoint)) {
-                if (anchor is LineAnchor lineAnchor && moveable) lineAnchor.UpdatePercent(GetPoint());
-                GO.SetPosition(GetObject(), anchor.GetPoint());
-                return true;
             } else {
-                return false;
+                //Only an actual move of the point slides it along a segment. Moving the source anchors keeps the
+                //percentage, also while the point is selected. Fixed anchors always restore the point's position.
+                if (anchor is LineAnchor lineAnchor && moveable && !GeometryHelper.AreVectorsEqual(GetPoint(), oldPoint)
+                    && !GeometryHelper.AreVectorsEqual(GetPoint(), anchor.GetPoint())) lineAnchor.UpdatePercent(GetPoint());
+                if (!GeometryHelper.AreVectorsEqual(GetPoint(), anchor.GetPoint())) GO.SetPosition(GetObject(), anchor.GetPoint());
+                return !GeometryHelper.AreVectorsEqual(GetPoint(), oldPoint);
             }
         } else {
             if (IsProjectedToGround()) GO.SetPosition(GetObject(), GeometryHelper.ProjectPoint(GetPoint()));
@@ -215,16 +218,7 @@ public partial class TerrainPoint : PhysicsScriptable {
     //detachable: a point on a fixed anchor can be moved too, leaving the anchor
     public void SetMoveable(bool moveable, bool detachable = false) {
         this.detachable = moveable && detachable;
-        if (!isMoveable && !this.detachable) {
-            if (!moveable) GO.SetLayer(GetObject(), 10); //it may have been moveable as a detachable point
-            return;
-        }
-        if (moveable) {
-            GO.SetLayer(GetObject(), 8);
-        }
-        else {
-            GO.SetLayer(GetObject(), 10);
-        }
+        GO.SetLayer(GetObject(), moveable && (isMoveable || this.detachable) ? 8 : 10);
     }
 
     public bool IsProjectedToGround() {

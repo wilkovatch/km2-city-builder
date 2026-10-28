@@ -113,7 +113,7 @@ With `followAnchors`, a point on an anchor adds the anchors between it and the p
 
 `patches.create` and `lines.create` return the id of the element; with `details` they return `{id, points, anchors}`: the id of the terrain point each target gave (the last one when a target gave several, `null` when it gave none, e.g. a point already in it) and, with `autoClose`, the anchors of the loop it was closed with.
 
-The points of terrain patches and building lines (in `elements.get` with `derived`) tell what they are attached to: `anchor` (the anchor they are on) or `segment` (`{anchor, percent}` or `{points, percent}`). `terrainPoints.move` moves them as the gizmo does: a point on a segment slides along it, a point on an anchor can't be moved.
+The points of terrain patches and building lines (in `elements.get` with `derived`) tell what they are attached to: `anchor` (the generated anchor they are on), `pointAnchor` (the terrain point they follow), or `segment` (`{anchor, percent}` or `{points, percent}`). `terrainPoints.move` moves them as the gizmo does: a point on a segment slides along it, a point on a fixed anchor can't be moved. `terrainPoints.attach` attaches an existing point to a road or intersection anchor (`to: {anchor}`) or to a segment between their anchors (`to: {anchorLink}`, with an optional `position`, otherwise its middle). Building-line points can also follow a terrain-patch point (`to: {terrainPoint: id}`), including one already on an anchor or segment, or a patch edge (`to: {link: [pointId, pointId], position: [x, y, z]}`: the existing link between two patch points). It snaps to the anchor or the closest position on the segment, and rejects circular attachments. `terrainPoints.detach` clears the attachment at the current position; the normal ground projection of its elements resumes. Both keep the same point, so all the elements sharing it (including border meshes) follow. Following a patch point keeps the building point separate from its source; detaching leaves the source unchanged. These commands don't split shared points or accept the anchors reserved for low-level elements.
 
 ### Anchors
 
@@ -379,6 +379,8 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
 | `terrainPoints.move` | `point: int`<br>`position: vec3`<br>`onGround: bool = false` | vec3 | Moves a point of terrain patches and building lines, as with the gizmo: a point on a segment slides along it, a point on an anchor can't be moved. Returns the new position |
+| `terrainPoints.attach` | `point: int`<br>`to: point` | int | Attaches an existing point to `{anchor}` or `{anchorLink}` (optional position for the segment). Building points also accept `{terrainPoint}` for a patch corner, or `{link, position}` for a patch edge. Keeps its id and shared references; returns the point id |
+| `terrainPoints.detach` | `point: int` | int | Clears the attachment, keeping the point, its position and shared references; returns the point id |
 
 ### `lines.*`
 

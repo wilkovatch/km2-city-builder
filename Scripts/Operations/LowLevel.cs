@@ -277,23 +277,14 @@ namespace Operations {
                 element.ReplacePoint(point, clicked);
                 return clicked;
             }
-            IAnchorable anchor = obj == null ? null : GameEngine.Scriptable.FindRecursive<TerrainAnchor>(obj);
-            if (anchor == null && obj != null) {
-                var link = GameEngine.Scriptable.Cast<PointLink>(obj);
-                if (link != null) anchor = new LineAnchor(GO.GetParent(link), link.next, position);
-            }
-            if (anchor == null) return null;
-            History.UndoManager.Touch(point);
-            point.anchor = anchor;
-            GO.SetPosition(point.GetObject(), anchor.GetPoint());
-            return point;
+            return TerrainPoints.Attach(point, obj, position, false) ? point : null;
         }
 
         //the point follows the line between two terrain points (where it is closest to it), e.g. a corner between the ends of
         //the side of a building; false if a or b follows the point (directly or not)
         public static bool AttachToLine(TerrainPoint point, TerrainPoint a, TerrainPoint b) {
             if (point == null || a == null || b == null || a == b || a == point || b == point) return false;
-            if (a.IsDeleted() || b.IsDeleted() || DependsOn(a, point) || DependsOn(b, point)) return false;
+            if (a.IsDeleted() || b.IsDeleted() || TerrainPoints.DependsOn(a, point) || TerrainPoints.DependsOn(b, point)) return false;
             History.UndoManager.Touch(point);
             point.anchor = new LineAnchor(a.GetObject(), b.GetObject(), point.GetPoint());
             GO.SetPosition(point.GetObject(), point.anchor.GetPoint());
@@ -304,23 +295,12 @@ namespace Operations {
         //the point follows the vertical line of another terrain point (its master: its x and z, keeping its own height);
         //false if the master follows the point (directly or not)
         public static bool AttachToColumn(TerrainPoint point, TerrainPoint master) {
-            if (point == null || master == null || master == point || master.IsDeleted() || DependsOn(master, point)) return false;
+            if (point == null || master == null || master == point || master.IsDeleted() || TerrainPoints.DependsOn(master, point)) return false;
             History.UndoManager.Touch(point);
             point.anchor = new ColumnAnchor(master, point.GetPoint().Y);
             GO.SetPosition(point.GetObject(), point.anchor.GetPoint());
             point.Select(true);
             return true;
-        }
-
-        //p is the target, or follows it through the anchors between terrain points
-        static bool DependsOn(TerrainPoint p, TerrainPoint target, HashSet<TerrainPoint> visited = null) {
-            if (p == null) return false;
-            if (p == target) return true;
-            visited ??= new HashSet<TerrainPoint>();
-            if (!visited.Add(p) || GO.IsNull(p.anchor) || p.anchor.IsDeleted()) return false;
-            if (p.anchor is ColumnAnchor column) return DependsOn(column.master, target, visited);
-            if (p.anchor is LineAnchor line) return DependsOn(line.StartPoint, target, visited) || DependsOn(line.EndPoint, target, visited);
-            return false;
         }
 
         //the point of the element stops being shared with the other elements (a copy of it takes its place in the element),
@@ -332,8 +312,7 @@ namespace Operations {
                 element.ReplacePoint(point, copy);
                 return copy;
             }
-            History.UndoManager.Touch(point);
-            point.anchor = null;
+            TerrainPoints.Detach(point);
             return point;
         }
 
