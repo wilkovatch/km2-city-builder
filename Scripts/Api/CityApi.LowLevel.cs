@@ -272,6 +272,17 @@ namespace Api {
             });
         }
 
+        [ApiMethod("lowLevel.move", "Moves a low-level element with its contents (and theirs) by an offset, or by the offset from the center of their points to a position, as with the move handle of a container: the points shared with other elements move too, the points on the anchors of roads and intersections stay there (the ones on the anchors of a ghost leave them and move), the points on a line follow its ends. Returns the number of points moved")]
+        public int MoveLowLevel(ElementRef element, Vector3? offset = null, Vector3? position = null) {
+            if (offset.HasValue == position.HasValue) throw ApiException.InvalidParam("give either offset or position");
+            return ApplyChange("move", () => {
+                var e = ResolveLowLevel(element);
+                var center = Operations.LowLevel.CenterWithContents(M, e);
+                if (!center.HasValue) throw ApiException.InvalidOperation("the element has no points");
+                return Operations.LowLevel.Move(M, e, offset ?? position.Value - center.Value);
+            });
+        }
+
         [ApiMethod("lowLevel.attachPoint", "Replaces a control point (path) or a vertex (vertex) of a low-level element with an existing terrain point (to: {terrainPoint}, shared from now on), or attaches it to an anchor or segment (to: {anchor} or {anchorLink}), to the line between two terrain points (line: [id, id], it stays where it is closest to it) or to the vertical line of a terrain point (column: id, it keeps its height and follows the x and z of that point; moved horizontally, that point follows)")]
         public int AttachLowLevelPoint(ElementRef element, PointTarget to = null, string path = null, int? vertex = null, int[] line = null, int? column = null) {
             return ApplyChange("attach point", () => {

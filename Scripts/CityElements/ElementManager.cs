@@ -515,6 +515,7 @@ public partial class ElementManager : Scriptable {
     const int MaxConstraintPasses = 4;
 
     int UpdateLowLevelElements() {
+        MoveByHandles();
         foreach (var element in lowLevelElements) element.RefreshPoints();
         ApplyLowLevelConstraints();
         var derived = false;
@@ -525,7 +526,30 @@ public partial class ElementManager : Scriptable {
         var rebuilt = 0;
         foreach (var element in lowLevelElements) rebuilt += element.UpdateGeometry();
         UpdateLowLevelPlaceholders();
+        PlaceMoveHandles();
         return rebuilt;
+    }
+
+    //the containers whose move handle was moved (with the gizmo or the transform panel) move with their contents, in the
+    //undo step of the drag or of the change in the panel. The other elements sharing their points (updated before them)
+    //follow at the next update
+    void MoveByHandles() {
+        foreach (var element in lowLevelElements) {
+            var offset = element.TakeMoveHandleOffset();
+            if (!offset.HasValue) continue;
+            History.UndoManager.RecordDerived(() => Operations.LowLevel.Move(this, element, offset.Value));
+            worldChanged = true;
+        }
+    }
+
+    //the move handles go to the center of their container and contents, unless selected (e.g. being dragged)
+    void PlaceMoveHandles() {
+        foreach (var element in lowLevelElements) {
+            var handle = element.GetMoveHandle();
+            if (handle == null || GameEngine.Gizmo.IsTarget(handle)) continue;
+            var center = Operations.LowLevel.CenterWithContents(this, element);
+            if (center.HasValue) element.PlaceMoveHandle(center.Value);
+        }
     }
 
     //the placeholder meshes of the containers are shown while none of their contents draws a mesh

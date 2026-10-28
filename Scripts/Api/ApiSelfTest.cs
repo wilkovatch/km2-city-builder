@@ -2969,6 +2969,55 @@ road(-750)
             await Frames(2);
             var contentsShown = M.GetLowLevelChildren(room).All(c => c.IsActive());
             Check("back to the None click mode the room's contents are shown and its points can be moved", PointProblems(room) == null && contentsShown);
+
+            //the move handle of the room: dragged, the room moves with its contents, the points on the anchors of the
+            //intersections stay there, the ones on the anchors of the ghost road leave them and move
+            var moveHandle = room.GetMoveHandle();
+            Check("an edited room has a move handle at the center of its points and of its contents'", moveHandle != null
+                && GO.GetPosition(moveHandle).DistanceTo(Operations.LowLevel.CenterWithContents(M, room).Value) < 1e-3);
+            if (moveHandle == null) return;
+            bool OnGhost(TerrainPoint p) => p.anchor is TerrainAnchor ta && Operations.LowLevel.IsGhost(Operations.Anchors.GetOwner(ta).owner);
+            var movePoints = room.GetAllPoints().Concat(part.GetAllPoints()).Distinct().ToList();
+            var moveGhost = movePoints.Where(OnGhost).ToList();
+            var moveAnchored = movePoints.Where(p => p.anchor is TerrainAnchor && !OnGhost(p)).ToList();
+            var moveFree = movePoints.Where(p => GO.IsNull(p.anchor) || p.anchor.IsDeleted() || OnGhost(p)).ToList();
+            var moveBefore = movePoints.ToDictionary(p => p, p => p.GetPoint());
+            bool MovedBy(Vector3 offset) => moveFree.All(p => p.GetPoint().DistanceTo(moveBefore[p] + offset) < 1e-3)
+                && moveAnchored.All(p => p.GetPoint().DistanceTo(moveBefore[p]) < 1e-3);
+            var beforeDrag = await Snapshot();
+            var dragOffset = new Vector3(2, 0, 1);
+            var dropped = GO.GetPosition(moveHandle) + dragOffset;
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(moveHandle);
+            History.UndoManager.Record("drag", () => {
+                History.UndoManager.TouchOwner(moveHandle);
+                GO.SetPosition(moveHandle, dropped);
+                M.FlagAsChanged();
+            });
+            await Frames(3);
+            Check("dragging the move handle moves the room and its road attribute (" + moveFree.Count + " points), the "
+                + moveAnchored.Count + " points on the anchors of the intersections stay", moveFree.Count > 0 && MovedBy(dragOffset));
+            Check("the " + moveGhost.Count + " points on the anchors of the ghost road leave them", moveGhost.Count > 0 && moveGhost.All(p => GO.IsNull(p.anchor)));
+            Check("the selected move handle stays where it was dropped", GO.GetPosition(moveHandle).DistanceTo(dropped) < 1e-3);
+            builder.gizmo.ClearTargets();
+            M.FlagAsChanged();
+            await Frames(2);
+            Check("deselected, the move handle goes back to the center", GO.GetPosition(moveHandle).DistanceTo(Operations.LowLevel.CenterWithContents(M, room).Value) < 1e-3);
+            await Call("city.flush");
+            var afterDrag = await Snapshot();
+            await Call("history.undo");
+            Same("undo dragging the move handle of a room", beforeDrag, await Snapshot());
+            Check("undone, the points are on the anchors of the ghost road again", moveGhost.All(OnGhost));
+            await Call("history.redo");
+            Same("redo dragging the move handle of a room", afterDrag, await Snapshot());
+            //with the API
+            foreach (var p in movePoints) moveBefore[p] = p.GetPoint();
+            await CheckUndo("moving a room with its contents", async () => {
+                await Call("lowLevel.move", new { element = History.ElementRegistry.GetId(room), offset = new[] { 0, 3, 0 } });
+                await Frames(2);
+            });
+            Check("lowLevel.move moves the room with its contents", MovedBy(new Vector3(0, 3, 0)));
+            await Expect("moving with both an offset and a position", "invalid_param", "lowLevel.move", new { element = History.ElementRegistry.GetId(room), offset = new[] { 1, 0, 0 }, position = new[] { 0, 0, 0 } });
             builder.CloseAllPanels();
             await Frames(2);
 

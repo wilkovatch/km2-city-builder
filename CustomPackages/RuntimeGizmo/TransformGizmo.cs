@@ -562,6 +562,10 @@ namespace RuntimeGizmos {
             SetPivotPoint();
         }
 
+        public bool HasTarget(Node3D target) {
+            return target != null && targetRootsOrdered.Contains(target);
+        }
+
         public void RemoveTarget(Node3D target) {
             if (target == null) return;
             if (!targetRootsOrdered.Contains(target)) return;

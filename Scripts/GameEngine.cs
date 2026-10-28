@@ -931,6 +931,10 @@ public static partial class GameEngine {
             return CityBuilderMenuBar.staticGizmo?.mainTargetRoot;
         }
 
+        public static bool IsTarget(Node3D obj) {
+            return CityBuilderMenuBar.staticGizmo?.HasTarget(obj) ?? false;
+        }
+
         public static bool IsNearAxis() {
             return CityBuilderMenuBar.staticGizmo?.isNearAxis ?? false;
         }

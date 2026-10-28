@@ -93,6 +93,8 @@ The panel has these built-in groups, used by name in `ui.json`:
 | `containerGroup` | The container of the element (and a button to edit it); for a container, its contents (the one picked is highlighted: outlined in cyan, with its points selected) and the merge into another container (its contents move there and it is deleted). |
 | `propsGroup` | The prop rule (types with `propsContainers`): its preset, and for each container a checkbox enabling it and a button editing it, as in the road editor. |
 
+While a container is edited (in the None click mode) a cyan handle at the center of its points and of the points of its contents (and theirs) moves them all together, with the gizmo or the transform panel, as a single undo step. The points shared with other elements move too (the other elements follow), the points on the anchors of roads and intersections stay there (but not the ones on the anchors of a ghost, e.g. the sides of a room converted from a road: they leave them and move), the points on a line follow its ends and the points on a vertical line keep following it (their height changes with the move). The scripting API does the same with `lowLevel.move`.
+
 `convert:<converter>` adds a button converting the element with a converter of the core (shown only if the converter accepts it). It can be used in the `ui.json` of any type, procedural or low-level.
 
 ## Scripts

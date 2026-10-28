@@ -611,6 +611,7 @@
 	"LL_DETACH_POINT": "Detach",
 	"LL_DETACH_POINT_TOOLTIP": "The selected point stops being shared with other elements (or stops following its anchor)",
 	"LL_NO_POINT_SELECTED": "No point selected",
+	"LL_MOVE_HANDLE_SELECTED": "Moving the container with its contents",
 	"LL_POINTS_DERIVED": "The points are computed automatically",
 	"LL_VERTEX": "Vertex",
 	"LL_SHARED": "shared with $NUMBER",

@@ -24,6 +24,8 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     public object source; //the procedural element it replaces (a ghost), null if none
     public LowLevelGenerator generator;
     GameObject pointContainer;
+    Handle moveHandle; //a container being edited: moved, it moves the container with its contents (see ShowMoveHandle)
+    Vector3 moveHandlePosition; //where the last update left it
     bool deleted = false;
     bool active = false;
     bool moveable = false;
@@ -312,6 +314,52 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         this.moveable = moveable;
         foreach (var point in GetAllPoints()) ApplySharedPointState(point);
         generator.ShowLines(active);
+        if (!active || !moveable) ShowMoveHandle(false, Vector3.Zero);
+    }
+
+    // Move handle
+
+    //the handle of a container being edited (shown by its editor, at the center of the container and its contents): moved
+    //with the gizmo or the transform panel, the update moves the container with its contents by the same offset (see
+    //ElementManager.MoveByHandles). A handle already shown stays where it is
+    public void ShowMoveHandle(bool show, Vector3 position) {
+        if (deleted) return;
+        if (GO.IsNull(moveHandle)) {
+            if (!show) return;
+            var obj = (StaticBody3D)GameEngine.Resources.InstantiateObject("Handle", this);
+            moveHandle = GS.Cast<Handle>(obj);
+            moveHandle.SetScale(GameEngine.Vector3.one * 2.0f);
+            moveHandle.SetColor(GameEngine.Color.cyan);
+            GO.SetLayer(obj, 8); //moveable
+            GO.SetEnabled(obj, false);
+        }
+        if (show == IsMoveHandleShown()) return;
+        if (show) PlaceMoveHandle(position);
+        GO.SetEnabled(moveHandle, show);
+    }
+
+    public bool IsMoveHandleShown() {
+        return !GO.IsNull(moveHandle) && GO.GetEnabled(moveHandle);
+    }
+
+    public Handle GetMoveHandle() {
+        return IsMoveHandleShown() ? moveHandle : null;
+    }
+
+    public void PlaceMoveHandle(Vector3 position) {
+        if (GO.IsNull(moveHandle)) return;
+        GO.SetPosition(moveHandle, position);
+        moveHandlePosition = position;
+    }
+
+    //the offset the handle was moved by since the last update, null if it wasn't moved
+    public Vector3? TakeMoveHandleOffset() {
+        if (deleted || !IsMoveHandleShown()) return null;
+        var position = GO.GetPosition(moveHandle);
+        if (GeometryHelper.AreVectorsEqual(position, moveHandlePosition)) return null;
+        var offset = position - moveHandlePosition;
+        moveHandlePosition = position;
+        return offset;
     }
 
     public void Select(bool selected) {

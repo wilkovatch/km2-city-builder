@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using GO = GameEngine.GameObject;
+using GS = GameEngine.Scriptable;
 
 namespace Operations {
     //Editing of the low-level elements (see LowLevelElement), and of the ghosts of the procedural elements they replace
@@ -85,6 +86,68 @@ namespace Operations {
             }
             from.Delete();
             return true;
+        }
+
+        // Moving with the contents
+
+        //the element, the elements it contains, the ones they contain and so on
+        public static List<LowLevelElement> WithContents(ElementManager manager, LowLevelElement element) {
+            var res = new List<LowLevelElement> { element };
+            for (int i = 0; i < res.Count; i++) {
+                foreach (var child in manager.GetLowLevelChildren(res[i])) {
+                    if (!res.Contains(child)) res.Add(child);
+                }
+            }
+            return res;
+        }
+
+        //the points of the element and of its contents, each once
+        public static List<TerrainPoint> PointsWithContents(ElementManager manager, LowLevelElement element) {
+            var res = new List<TerrainPoint>();
+            var seen = new HashSet<TerrainPoint>();
+            foreach (var e in WithContents(manager, element)) {
+                foreach (var p in e.GetAllPoints()) {
+                    if (!p.IsDeleted() && seen.Add(p)) res.Add(p);
+                }
+            }
+            return res;
+        }
+
+        //the center of the points of the element and of its contents (where its move handle is), null without points
+        public static Vector3? CenterWithContents(ElementManager manager, LowLevelElement element) {
+            var points = PointsWithContents(manager, element);
+            if (points.Count == 0) return null;
+            var res = Vector3.Zero;
+            foreach (var p in points) res += p.GetPoint();
+            return res / points.Count;
+        }
+
+        //moves the element with its contents by the offset: their points move (the ones shared with other elements too, which
+        //follow), except the ones on the anchors of roads and intersections, which stay there. The anchors of a ghost don't
+        //count (they are the ones of the element converted, which nothing else shows): the points leave them and move. The
+        //points on a line follow its ends, and the ones on a vertical line move as with the gizmo (their height changes, the
+        //line follows its point). Returns the number of points moved
+        public static int Move(ElementManager manager, LowLevelElement element, Vector3 offset) {
+            if (element == null || element.IsDeleted() || offset.IsZeroApprox()) return 0;
+            var moved = 0;
+            foreach (var p in PointsWithContents(manager, element)) {
+                var onGhost = OnGhostAnchor(p);
+                if (!onGhost && p.anchor is TerrainAnchor ta && !GO.IsNull(ta) && !ta.IsDeleted()) continue;
+                if (!onGhost && p.anchor is LineAnchor line && !line.IsDeleted()) continue;
+                History.UndoManager.Touch(p);
+                if (onGhost) p.anchor = null;
+                GO.SetPosition(p.GetObject(), p.GetPoint() + offset);
+                moved++;
+            }
+            return moved;
+        }
+
+        //the point is on an anchor of a ghost, or on the segment between two of them
+        static bool OnGhostAnchor(TerrainPoint point) {
+            bool OfGhost(Node3D obj) => !GO.IsNull(obj) && IsGhost(Anchors.GetOwner(GS.FindRecursive<TerrainAnchor>(obj)).owner);
+            if (point.anchor is TerrainAnchor ta) return !GO.IsNull(ta) && IsGhost(Anchors.GetOwner(ta).owner);
+            if (point.anchor is LineAnchor line && !line.IsDeleted()) return OfGhost(line.start) && OfGhost(line.end);
+            return false;
         }
 
         // Points from clicks

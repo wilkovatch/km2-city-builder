@@ -610,6 +610,9 @@ public partial class CityBuilderMenuBar : Control {
                 return current != null && index < current.points.Count ? current.points[index] : null;
             };
         }
+        if (owner is LowLevelElement element && element.GetMoveHandle() == node) {
+            return () => (History.UndoManager.GetAliveElement(id) as LowLevelElement)?.GetMoveHandle();
+        }
         return null;
     }
 

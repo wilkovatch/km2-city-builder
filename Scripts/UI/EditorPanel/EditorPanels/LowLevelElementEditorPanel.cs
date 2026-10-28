@@ -28,6 +28,7 @@ namespace EditorPanels {
         TerrainPoint shownPoint = null;
         bool shownAnything = false;
         bool shownDerived = false; //the points were computed (see LowLevelElement.IsDerived) when last shown
+        bool shownHandle = false; //the move handle of the container was selected when last shown
         readonly PropRuleGroup propRule;
         //the content picked in the contents dropdown, outlined (in a colour of its own, on a free render layer) and with
         //its points selected
@@ -246,12 +247,16 @@ namespace EditorPanels {
             var point = GetSelectedPoint();
             var element = GetElement();
             var derived = element?.IsDerived ?? false;
-            if (point == shownPoint && shownAnything && derived == shownDerived) return;
+            var onHandle = element != null && element.GetMoveHandle() != null && builder.gizmo.mainTargetRoot == element.GetMoveHandle();
+            if (point == shownPoint && shownAnything && derived == shownDerived && onHandle == shownHandle) return;
             shownPoint = point;
             shownAnything = true;
             shownDerived = derived;
+            shownHandle = onHandle;
             string text;
-            if (derived) {
+            if (onHandle) {
+                text = SM.Get("LL_MOVE_HANDLE_SELECTED");
+            } else if (derived) {
                 //computed from other elements: they can't be edited
                 text = SM.Get("LL_POINTS_DERIVED");
                 if (GetPlacer() != null && GetPlacer().placementMode != ElementPlacer.LowLevelPlacer.PlacementMode.None) SetPointPlacementMode(0);
@@ -331,6 +336,7 @@ namespace EditorPanels {
             element.Select(true);
             //the anchors shown and hidden again hid the contents too
             if (mode == 0) HighlightContents(element, true);
+            if (mode == 0) ShowMoveHandle(element);
         }
 
         public void SetPointPlacementMode(int mode) {
@@ -565,6 +571,7 @@ namespace EditorPanels {
                     element.Select(true);
                     HighlightContents(element, true);
                     ShowContainerLines(element);
+                    ShowMoveHandle(element);
                 } else {
                     SetTitle(SM.Get("LL_NEW_ELEMENT"));
                 }
@@ -583,6 +590,14 @@ namespace EditorPanels {
                 child.SetActive(show, show);
                 child.Select(show && child == highlighted);
             }
+        }
+
+        //a container gets a handle moving it with its contents, at their center (hidden with the element, or in another
+        //click mode)
+        void ShowMoveHandle(LowLevelElement element) {
+            if (!element.GetLowLevelType()?.IsContainer ?? true) return;
+            var center = Operations.LowLevel.CenterWithContents(builder.helper.elementManager, element);
+            if (center.HasValue) element.ShowMoveHandle(true, center.Value);
         }
 
         //the elements in the container of the element (or in the element, if it's a container) and the container itself show

@@ -450,9 +450,10 @@ namespace History {
             if (intersection != null && GO.GetParent(intersection) == node) return intersection.intersection;
             var mesh = GameEngine.Scriptable.Cast<MeshInstance>(node);
             if (mesh != null && mesh.objectParameter == null) return mesh;
-            //road control points and parametric objects: the first road or city properties among the ancestors
+            //road control points and parametric objects: the first road or city properties among the ancestors (the move
+            //handle of a low-level container: the container)
             for (var cur = node; cur != null; cur = cur.GetParentNode3D()) {
-                if (cur is Road || cur is CityProperties) return cur;
+                if (cur is Road || cur is CityProperties || cur is LowLevelElement) return cur;
             }
             return null;
         }
