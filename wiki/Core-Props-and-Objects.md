@@ -85,13 +85,15 @@ A container state is `{ "type": ..., "name": ..., "<slot>": <element state or li
 | `ifCondition` | bool | Optional: a prop is placed at this step only if true. |
 | `meshIndex` | float | Index into the `meshes` list (clamped), for types with `maxMeshes` other than 1. |
 | `forward` | vec3 | Direction the prop faces (rotation around the vertical axis only). Default `localForward`. |
+| `meshTransform` | bool | Optional: the mesh is placed with the transform the core gives for it (see [Mesh transforms](#mesh-transforms)). Default false. |
+| `autoYOffset` | bool | Optional: if there is no core transform, the mesh is raised so that its lowest point sits on the line. Default true. |
 
 The placement loop, for `i = 0, 1, 2, ...`:
 
 1. set `i`, `lastX`, `lastZ` and evaluate the dynamic definitions;
 2. evaluate `xPos` and `zPos`, find the point and the local frame at that position;
 3. stop if `whileCondition` is false (or after 1000 props);
-4. if `ifCondition` is true (or missing), place the mesh (chosen with `meshIndex`) at the point, with its bottom on the line, facing `forward`;
+4. if `ifCondition` is true (or missing), place the mesh (chosen with `meshIndex`) at the point, facing `forward`, moved from the point as `meshTransform` and `autoYOffset` ask;
 5. `lastX = x`, `lastZ = z`.
 
 Variables of element types:
@@ -109,7 +111,7 @@ Variables of element types:
 
 For random placements use `rnd(min, max, seed)`: its sequences restart each time the road is rebuilt, so the props do not move at every rebuild.
 
-Props are put on layer 13 and exported with the road (`propLines`, see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)).
+Props are put on layer 13 and exported with the road at their placement points (`propLines`, see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)).
 
 ## Mesh instances (`meshInstance.json`)
 
@@ -126,7 +128,8 @@ Settings shared by all hand-placed mesh instances:
     "placementRules": {
         "layer": "if(prop, 13, 11)",
         "placerLayerMask": "-1-2^if(prop, 13, 7)",
-        "autoYOffset": "prop"
+        "autoYOffset": "prop",
+        "meshTransform": "prop"
     }
 }
 ```
@@ -136,10 +139,19 @@ Settings shared by all hand-placed mesh instances:
 | `parametersInfo`, `uiInfo` | Parameters of every mesh instance, shown in the transform panel. Typical use: flags for the exporter (MM2 exports props and buildings to different files). |
 | `placementRules.layer` | Float expression: the [layer](Architecture-Overview#layers-collision-and-render) of the instance. |
 | `placementRules.placerLayerMask` | Float expression: the collision mask (bit *n* = layer *n*) used when placing the instance with the mouse. `-1-2^13` means "everything except layer 13". |
-| `placementRules.autoYOffset` | Boolean expression: if true, the mesh is raised so that its lowest point sits on the placement point. |
+| `placementRules.autoYOffset` | Boolean expression: if true, the mesh is raised so that its lowest point sits on the placement point (unless `meshTransform` gives a transform). |
+| `placementRules.meshTransform` | Optional boolean expression: if true, the mesh is placed with the transform the core gives for it (see [Mesh transforms](#mesh-transforms)); if the core gives none, `autoYOffset` applies. |
 | `placementRules.snapToSurface` | Optional boolean expression, for parametric objects (`props/parametric/`): if true, the object goes back on the surface under it (the layers of `placerLayerMask`) after being moved with the gizmo, after `objects.projectToGround`, and when placed by clicking (array points). A road or another surface less than 0.5 m under the terrain wins over the terrain, so that a point on an MM2 road (15 cm under the sidewalks) isn't put on a terrain covering it. Used with `allowPosition` `[true, false, true]` it keeps the objects on the ground (for example the points of the MM2 decals). |
 
 The first three rules are required. They can use the parameters and static definitions.
+
+In both cases the position of the instance (the one that is exported) stays the placement point: only the mesh under it is moved.
+
+## Mesh transforms
+
+A game may draw a mesh away from the point where it is placed: for example MM2 draws a prop (a banger) with the origin of its mesh at its centre of gravity, which is in the game's tuning files, not in the mesh. A core gives these transforms with an optional module, `server/mesh_transforms.py` (see [Core Python Integration](Core-Python-Integration#mesh-transforms)), and the placement rules of the mesh instances, parametric objects and props elements turn them on with `meshTransform`.
+
+The transform (position, rotation, scale, in the program's coordinates) goes from the placement point to the origin of the mesh, in the frame of the placed object: it moves and turns with it. It is asked once per mesh file and cached until the city is reloaded. Without one (no module, or the module returns `None`), `autoYOffset` applies.
 
 ## Parametric objects
 

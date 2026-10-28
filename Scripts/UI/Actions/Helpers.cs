@@ -66,13 +66,5 @@ namespace Actions {
                 if (child != null) SetLayerRecursively(child, layer);
             }
         }
-
-        public static void OffsetChildren(GameObject obj, float yOffset) {
-            for (int i = 0; i < GO.GetChildCount(obj); i++) {
-                var child = GO.GetChildI(obj, i);
-                var newPos = GO.GetPosition(child) + GameEngine.Vector3.up * yOffset * GO.GetGlobalScale(child).Y;
-                GO.SetPosition(child, newPos);
-            }
-        }
     }
 }

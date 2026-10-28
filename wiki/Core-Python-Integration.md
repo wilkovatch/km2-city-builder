@@ -25,14 +25,15 @@ List the extensions (without dot) in the core's `settings.json`:
 "customMeshFormats": ["pkg"]
 ```
 
-Files with these extensions appear in the texture and mesh selectors, and are loaded by asking the Python server. The server (`Files/python/server.py`) is started when a city of the core is loaded; it adds the core's `server/` folder to the module path and imports two modules from it:
+Files with these extensions appear in the texture and mesh selectors, and are loaded by asking the Python server. The server (`Files/python/server.py`) is started when a city of the core is loaded (if the core has custom formats or mesh transforms); it adds the core's `server/` folder to the module path and imports these modules from it, each optional:
 
 | Module | Function |
 |---|---|
 | `server/texture_formats.py` | `read_file(path)` |
 | `server/mesh_formats.py` | `read_file(path)` |
+| `server/mesh_transforms.py` | `read_transform(path)`, see [Mesh transforms](#mesh-transforms) |
 
-Both modules must exist when either list is not empty (create a stub if the core only needs one of them). `path` is an absolute path. The function returns a `bytearray` whose **first 4 bytes are a placeholder**: the server overwrites them with the length of the rest. All values are little-endian.
+The format modules must exist when their list is not empty. `path` is an absolute path. The function returns a `bytearray` whose **first 4 bytes are a placeholder**: the server overwrites them with the length of the rest. All values are little-endian.
 
 ### Texture response
 
@@ -116,6 +117,29 @@ Mesh:
 | per submesh | uint32 material index, uint32 index count, uint32 × count triangle indices |
 
 If the file cannot be read, return an empty object rather than raising (the MM2 core returns `bytearray(4 + 58)`, an object with no meshes); an exception in the server breaks the connection and the program falls back to a placeholder cube.
+
+### Mesh transforms
+
+`read_transform(path)` gives the transform of a mesh from its placement point, used where the placement rules have `meshTransform` (see [Core Props and Objects](Core-Props-and-Objects#mesh-transforms)). `path` is the absolute path of the mesh file. It returns `None` if the core has no transform for the mesh (`autoYOffset` applies then), or a dict:
+
+| Key | Content |
+|---|---|
+| `position` | `[x, y, z]`, in the program's left-handed coordinates (default `[0, 0, 0]`) |
+| `rotation` | quaternion `[x, y, z, w]` (default `[0, 0, 0, 1]`) |
+| `scale` | `[x, y, z]` (default `[1, 1, 1]`) |
+| `warning` | optional message, shown once in the log (e.g. game files missing from the common folder); a dict with only a warning gives no transform |
+
+The server encodes it (uint8 1 if there is a transform, 10 float32, then the warning as a uint16 length and ASCII bytes). An exception in the function becomes a warning, with no transform.
+
+Example (the MM2 core: the props are drawn from their centre of gravity, the `CG` of `tune/banger/<pkg>.dgBangerData`):
+
+```python
+def read_transform(path):
+    cg = read_cg(find_banger_data(path))
+    if cg is None:
+        return None
+    return {'position': [-cg[0], cg[1], cg[2]]}  # MM2 mirrors x
+```
 
 ## Exporters
 

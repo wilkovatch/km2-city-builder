@@ -32,8 +32,9 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   ├── _common/                 copied into every new city
 │   └── <TemplateName>/          one folder per template (presets.json, cityProperties.json...)
 ├── baseCommon/                  initial content of Files/common/<CoreName>/
-├── server/                      Python modules for custom mesh/texture formats
+├── server/                      Python modules for custom mesh/texture formats and mesh transforms
 │   ├── mesh_formats.py
+│   ├── mesh_transforms.py       optional
 │   └── texture_formats.py
 ├── exporters/<exporter>/        one folder per export format
 │   ├── settings.json

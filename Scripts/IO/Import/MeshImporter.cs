@@ -319,6 +319,27 @@ public static class MeshImporter {
         return res;
     }
 
+    //the transform of a mesh from its placement point given by the core (server/mesh_transforms.py), null if it gives none,
+    //and a warning to show (empty if none)
+    public static (MeshManager.MeshTransform? transform, string warning) LoadTransform(string name) {
+        if (!PythonManager.CoreHasServerModule("mesh_transforms")) return (null, "");
+        name = PathHelper.FindInFolders(name);
+        if (name.EndsWith("@handle") || !File.Exists(name)) return (null, "");
+        var bytes = PythonManager.SendRequest("meshTransform|" + name);
+        //uint8 1 if there is a transform, position (3 floats), rotation (4), scale (3), warning (uint16 length + ASCII)
+        if (bytes == null || bytes.Length < 43) return (null, "");
+        float F(int i) => System.BitConverter.ToSingle(bytes, 1 + i * 4);
+        var warningLength = System.BitConverter.ToUInt16(bytes, 41);
+        var warning = System.Text.Encoding.ASCII.GetString(bytes, 43, System.Math.Min(warningLength, bytes.Length - 43));
+        if (bytes[0] == 0) return (null, warning);
+        var res = new MeshManager.MeshTransform {
+            position = new Vector3(F(0), F(1), F(2)),
+            rotation = new Quaternion(F(3), F(4), F(5), F(6)).Normalized(),
+            scale = new Vector3(F(7), F(8), F(9))
+        };
+        return (res, warning);
+    }
+
     static GameObject GetFallbackObject(bool handle = false) {
         Material mat;
         if (handle) {

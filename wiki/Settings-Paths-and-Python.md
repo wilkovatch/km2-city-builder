@@ -99,6 +99,6 @@ Runs the Python interpreter for three purposes: one-shot scripts (migrations, ex
 
 ### Mesh and texture server
 
-`StartServer` runs `Files/python/server.py <port> <program pid> <core>/server` if the current core declares custom mesh or texture formats. The server imports the core's `mesh_formats` and `texture_formats` modules and shuts itself down when the program exits. The server is restarted whenever a city is loaded, so that it always serves the modules of the current core.
+`StartServer` runs `Files/python/server.py <port> <program pid> <core>/server` if the current core declares custom mesh or texture formats or has `server/mesh_transforms.py`. The server imports the core's `mesh_formats`, `texture_formats` and `mesh_transforms` modules (those it has) and shuts itself down when the program exits. The server is restarted whenever a city is loaded, so that it always serves the modules of the current core.
 
 `SendRequest(message)` sends `mesh|<path>` or `texture|<path>` over TCP and returns the response payload (the 4-byte length prefix is removed). It connects on demand, waits up to one second for the server, and retries once on error. The payload formats are described in [Core Python Integration](Core-Python-Integration#custom-mesh-and-texture-formats).

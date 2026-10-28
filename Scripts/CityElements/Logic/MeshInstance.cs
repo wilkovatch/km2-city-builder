@@ -14,7 +14,7 @@ public partial class MeshInstance : PhysicsScriptable
     public ObjectState settings = null;
     public CityElements.Types.Parameter objectParameter = null;
     bool initialized = false;
-    float yOffset = 0.0f;
+    MeshManager.MeshTransform meshTransform = MeshManager.MeshTransform.identity; //of the mesh from the placement point
 
     public static MeshInstance Create(string meshPath, Vector3 curPoint, GameObject container, ObjectState settings) {
         MeshInstance mesh = GS.Create<MeshInstance>(null, container);
@@ -27,7 +27,6 @@ public partial class MeshInstance : PhysicsScriptable
         if (mesh.AutoOffsetActive()) {
             var newObjName = "Prop " + Actions.Helpers.GetLatestObjectNumber(container, "Prop ") + " (" + meshPath + ")"; //todo: get name from config
             GO.SetName(obj, newObjName);
-            mesh.yOffset = -GameEngine.Bounds.GetMin(MeshManager.GetBounds(meshPath))[1];
         }
         else {
             var newObjName = "Mesh " + Actions.Helpers.GetLatestObjectNumber(container, "Mesh ") + " (" + meshPath + ")";
@@ -47,9 +46,6 @@ public partial class MeshInstance : PhysicsScriptable
         mesh.meshPath = meshPath;
         mesh.settings = (ObjectState)settings.Clone();
         GO.SetName(obj, GO.GetName(this));
-        if (mesh.AutoOffsetActive()) {
-            mesh.yOffset = -GameEngine.Bounds.GetMin(MeshManager.GetBounds(meshPath))[1];
-        }
         return mesh;
     }
 
@@ -72,9 +68,6 @@ public partial class MeshInstance : PhysicsScriptable
         mesh.settings.SetStr("meshPath", meshPath);
         mesh.objectParameter = objectParameter;
         GO.SetName(obj, name);
-        if (mesh.AutoOffsetActive()) {
-            mesh.yOffset = -GameEngine.Bounds.GetMin(MeshManager.GetBounds(meshPath))[1];
-        }
 
         //custom additive values
         GO.SetLocalPosition(mesh, settings.Vector3("localPosition"));
@@ -127,8 +120,13 @@ public partial class MeshInstance : PhysicsScriptable
         return meshSettings.rules.autoYOffset.GetValue(meshSettings.variableContainer);
     }
 
-    public float GetYOffset() {
-        return yOffset;
+    MeshManager.MeshTransform GetMeshTransform() {
+        var meshSettings = GetMeshInstanceSettings();
+        var vc = meshSettings.variableContainer;
+        meshSettings.FillInitialVariables(vc, settings);
+        var rules = meshSettings.rules;
+        var useCoreTransform = rules.meshTransform != null && rules.meshTransform.GetValue(vc);
+        return MeshManager.GetPlacementTransform(meshPath, useCoreTransform, rules.autoYOffset.GetValue(vc));
     }
 
     //puts the object on the layers it is placed on, if its placement rules ask for it (snapToSurface),
@@ -154,7 +152,7 @@ public partial class MeshInstance : PhysicsScriptable
         if (index < 0) return;
         
         History.UndoManager.Touch(instance);
-        var newInstance = Create(newMesh, GO.GetPosition(instance) - GameEngine.Vector3.up * instance.GetYOffset(), GO.GetParent(instance), instance.settings);
+        var newInstance = Create(newMesh, GO.GetPosition(instance), GO.GetParent(instance), instance.settings);
         GO.SetRotation(newInstance, GO.GetRotation(instance));
         GO.SetLocalScale(newInstance, GO.GetLocalScale(instance));
         GO.Destroy(instance);
@@ -163,10 +161,9 @@ public partial class MeshInstance : PhysicsScriptable
     }
 
     public void Initialize() {
-        ReloadYOffset();
-        InitCollider();
+        ReloadMeshTransform();
+        InitCollider(); //after the mesh is moved, the bounds are those of the moved mesh
         Actions.Helpers.SetLayerRecursively(GO.GetObject(this), GetLayer());
-        if (yOffset != 0) Actions.Helpers.OffsetChildren(GO.GetObject(this), yOffset);
         initialized = true;
     }
 
@@ -174,27 +171,31 @@ public partial class MeshInstance : PhysicsScriptable
         var bounds = GameEngine.Mesh.GetEncapsulatingBoundsForChildMeshes(GO.GetObject(this));
         var size = GameEngine.Bounds.GetSize(bounds);
         if (GameEngine.Vector3.Magnitude(size) > 0) {
-            GameEngine.Mesh.CreateBoxCollider(GO.GetObject(this), size, GameEngine.Bounds.GetCenter(bounds) + GameEngine.Vector3.up * GetYOffset());
+            GameEngine.Mesh.CreateBoxCollider(GO.GetObject(this), size, GameEngine.Bounds.GetCenter(bounds));
         }
     }
 
     public int ManualUpdate() {
         if (settings.HasChanged()) {
-            ReloadYOffset();
+            ReloadMeshTransform();
             settings.FlagAsUnchanged();
             return 1;
         }
         return 0;
     }
 
-    void ReloadYOffset() {
-        var oldOffset = yOffset;
-        if (AutoOffsetActive()) {
-            yOffset = -GameEngine.Bounds.GetMin(MeshManager.GetBounds(meshPath))[1];
-        } else {
-            yOffset = 0;
+    //moves the children (the mesh, and the collider once created) from the placement point as the placement rules ask
+    //(e.g. after the prop flag changed): the position of the instance stays the placement point, which is exported
+    void ReloadMeshTransform() {
+        var newTransform = GetMeshTransform();
+        var obj = GO.GetObject(this);
+        for (int i = 0; i < GO.GetChildCount(obj); i++) {
+            var child = GO.GetChildI(obj, i);
+            if (child == null) continue;
+            meshTransform.ApplyTo(child, true);
+            newTransform.ApplyTo(child);
         }
-        Actions.Helpers.OffsetChildren(GO.GetObject(this), -oldOffset + yOffset);
+        meshTransform = newTransform;
     }
 
     public Vector3 GetRealPosition() {

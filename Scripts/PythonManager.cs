@@ -458,7 +458,7 @@ class PythonManager {
         if (halt || !PathHelper.CoreAvailable()) return;
         var customMeshFormats = CoreManager.GetList("customMeshFormats", new List<string>());
         var customTextureFormats = CoreManager.GetList("customTextureFormats", new List<string>());
-        if (customMeshFormats.Count == 0 && customTextureFormats.Count == 0) return;
+        if (customMeshFormats.Count == 0 && customTextureFormats.Count == 0 && !CoreHasServerModule("mesh_transforms")) return;
         if (serverProcess != null && serverProcess.HasExited) {
             GetProcessData(serverProcess);
         } else if (serverProcess != null && !serverProcess.HasExited) {
@@ -533,6 +533,11 @@ class PythonManager {
         }
     }
 
+
+    //whether the current core has a module in its server folder (server/<name>.py)
+    public static bool CoreHasServerModule(string name) {
+        return PathHelper.CoreAvailable() && File.Exists(Path.Combine(PathHelper.FilesPath(), "server", name + ".py"));
+    }
 
     public static byte[] SendRequest(string message) {
         return SendRequestAux(message);

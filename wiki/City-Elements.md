@@ -127,7 +127,7 @@ The elements of the low-level types of the core (see [Core Low-Level Elements](C
 A mesh loaded from a file and placed freely in the city (a building, a prop, a parametric object).
 
 * `meshPath` is the relative path of the mesh file; `settings` holds the mesh instance parameters of the core (`props/meshInstance.json`), for example the MM2 `prop` flag.
-* The core's placement rules give the layer of the instance and whether its children are raised so that the bottom of the mesh sits on the placement point (`autoYOffset`).
+* The core's placement rules give the layer of the instance and how its mesh is moved from the placement point, which stays the position of the instance: by the transform the core gives (`meshTransform`, e.g. the MM2 props, drawn from their centre of gravity) or raised so that its bottom sits on the point (`autoYOffset`).
 * A box collider around the mesh bounds makes it selectable.
 * **Parametric instances** (`CreateParametric`) are created by a `ParametricObjectContainer` for an `objectInstance` parameter: their position, rotation and scale are relative to a container node placed by the parent element, and the user's offsets are stored in the parameter's state (`localPosition`, `localRotation`, `localScale`, `meshPath`).
 * `ReplaceMesh`/`SetNewMesh` swap the mesh, keeping the transform.

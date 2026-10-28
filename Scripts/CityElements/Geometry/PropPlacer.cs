@@ -94,15 +94,21 @@ public static class PropPlacer {
                     if (meshName != null && meshName != "") {
                         var forward = type.rules.forward.GetValue(varSet);
                         try {
-                            var propObj = MeshManager.GetMesh(meshName, propsContainer);
-                            GO.SetName(propObj, containerType + ";" + meshName);
-                            Actions.Helpers.SetLayerRecursively(propObj, 13);
+                            //the prop is at the placement point (which is exported), its mesh is moved from it as the rules ask
+                            var propObj = GO.Create(containerType + ";" + meshName);
                             GO.SetParent(propObj, propsContainer);
-                            var newPos = posDir.pos + new Vector3(0, -GameEngine.Bounds.GetMin(MeshManager.GetBounds(meshName))[1], 0); //TODO: make customizable
-                            GO.SetPosition(propObj, newPos);
+                            GO.SetPosition(propObj, posDir.pos);
                             var rot = GameEngine.Vector3.SignedAngle(GameEngine.Vector3.forward, forward, GameEngine.Vector3.up);
                             GO.SetRotation(propObj, new Vector3(0, rot, 0));
-                            props.Add((containerType, meshName, propObj));
+                            var meshObj = MeshManager.GetMesh(meshName, propObj);
+                            if (meshObj != null) {
+                                var useCoreTransform = type.rules.meshTransform != null && type.rules.meshTransform.GetValue(varSet);
+                                MeshManager.GetPlacementTransform(meshName, useCoreTransform, type.rules.autoYOffset.GetValue(varSet)).ApplyTo(meshObj);
+                                Actions.Helpers.SetLayerRecursively(propObj, 13);
+                                props.Add((containerType, meshName, propObj));
+                            } else {
+                                GO.Destroy(propObj);
+                            }
                         }
                         catch (System.Exception e) {
                             GameEngine.Print(e.ToString());

@@ -12,6 +12,8 @@ namespace CityElements.Types.Runtime {
             public RC.Numbers.Number xPos;
             public RC.Numbers.Number zPos;
             public RC.Vector3s.Vector forward;
+            public RC.Booleans.Boolean autoYOffset;
+            public RC.Booleans.Boolean meshTransform = null;
 
             public PlacementRules(PropsElementPlacementRules type) {
                 if (type.meshIndex != null) meshIndex = RC.Parsers.FloatParser.ParseExpression(type.meshIndex);
@@ -20,6 +22,8 @@ namespace CityElements.Types.Runtime {
                 xPos = RC.Parsers.FloatParser.ParseExpression(type.xPos);
                 zPos = RC.Parsers.FloatParser.ParseExpression(type.zPos);
                 forward = RC.Parsers.Vector3Parser.ParseExpression(type.forward != null ? type.forward : "localForward");
+                autoYOffset = RC.Parsers.BooleanParser.ParseExpression(type.autoYOffset != null ? type.autoYOffset : "true");
+                if (type.meshTransform != null) meshTransform = RC.Parsers.BooleanParser.ParseExpression(type.meshTransform);
             }
 
             public void SetIndices(RC.VariableContainer vc) {
@@ -29,6 +33,8 @@ namespace CityElements.Types.Runtime {
                 xPos.SetIndices(vc);
                 zPos.SetIndices(vc);
                 forward.SetIndices(vc);
+                autoYOffset.SetIndices(vc);
+                meshTransform?.SetIndices(vc);
             }
         }
 

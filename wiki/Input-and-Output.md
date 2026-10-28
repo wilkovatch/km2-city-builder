@@ -89,7 +89,7 @@ Top-level structure (`ExportedCity`):
 | `fields` | The public fields of the element's generator, converted with `States.Utils.GetFieldsAsState`: in particular `state`, `instanceState`, `runtimeState` where present, plus scalar fields. For roads it also contains `lanes`: the traffic lanes and props line bounds, each with `name` and `b64v3a_points`. |
 | `mesh` | `MeshData`: vertices, normals, UVs and `submeshes` (`materialId` into `materialDict` and the triangle indices). |
 | `collider` | Same format, when the element has a separate collider mesh. |
-| `propLines` | Props placed by the road's prop rule, grouped by container name, each a `MeshReference`. |
+| `propLines` | Props placed by the road's prop rule, grouped by container name, each a `MeshReference` (at its placement point, as the mesh instances). |
 
 ## Meshes and textures
 

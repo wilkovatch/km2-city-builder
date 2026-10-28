@@ -397,6 +397,13 @@ public static partial class GameEngine {
             return obj.GlobalTransform.Basis.Scale; //TODO: check Z axis effect
         }
 
+        //applies a transform (in program coordinates) before the local one of obj, as if obj were the child of a node with that
+        //transform (e.g. the mesh of an instance from its placement point), or removes it (inverse)
+        public static void PreTransformLocal(Node3D obj, Godot.Vector3 position, Godot.Quaternion rotation, Godot.Vector3 scale, bool inverse = false) {
+            var t = new Transform3D(new Godot.Basis(Quaternion.Decode(rotation)) * Godot.Basis.FromScale(Vector3.DecodeScale(scale)), Vector3.DecodePosition(position));
+            obj.Transform = (inverse ? t.AffineInverse() : t) * obj.Transform;
+        }
+
         public static void SetParent(Node3D obj, Node3D newParent) {
             if (obj == null || newParent == null || obj == newParent) return;
             var oldParent = obj.GetParent();

@@ -10,6 +10,8 @@ namespace CityElements.Types {
         public string xPos;
         public string zPos;
         public string forward;
+        public string autoYOffset; //put the lowest point of the mesh on the line (optional, default true)
+        public string meshTransform; //place the mesh with the transform given by the core (optional, default false)
     }
 
     public class PropsElementType {
@@ -36,6 +38,7 @@ namespace CityElements.Types {
         public string layer;
         public string placerLayerMask;
         public string snapToSurface; //put back on the placer layers after being moved with the gizmo (optional)
+        public string meshTransform; //place the mesh with the transform given by the core, instead of autoYOffset (optional)
     }
 
     public class MeshInstanceSettings {

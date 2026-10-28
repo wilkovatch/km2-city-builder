@@ -4,7 +4,7 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>km2CityBuilder</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>0.5.5</Version>
+    <Version>0.5.6</Version>
   </PropertyGroup>
   <!-- embeds the short hash of the current commit, shown in the About dialog -->
   <Target Name="AddCommitHash" BeforeTargets="GetAssemblyAttributes">
