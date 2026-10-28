@@ -43,6 +43,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
     public List<List<Vector3>> sidePoints = new List<List<Vector3>>();
     public List<object> sidePointStartRoads = new List<object>();
     public List<object> sidePointEndRoads = new List<object>();
+    public int roadEndLinesStart = 0; //the side point lines from this one on are the ends of the roads (see AddRoadEndLines)
 
     public List<string> partsInfo = new List<string>(); //TODO: implement for roads too (along with separated meshes)
     public CityElements.Types.Runtime.IntersectionType curType;
@@ -196,6 +197,30 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         genState.srManager.MergeSubroadsIfNeeded();
         RebuildRoadsThrough(roadsThrough, throughDirections, isThroughRoad, startRoads, endRoad);
         GenerateMesh();
+        AddRoadEndLines();
+    }
+
+    //a line across the end of each road, with the endAnchors of its type (for the low-level elements only), after the other
+    //lines so that the indices of their anchors don't change; not connected to the anchors of the roads
+    void AddRoadEndLines() {
+        roadEndLinesStart = sidePoints.Count;
+        var done = new HashSet<Road>();
+        foreach (var road in parentIntersection.roads) {
+            if (road == null || !done.Add(road) || road.generator == null) continue;
+            if (road.startIntersection == parentIntersection) AddRoadEndLine(road.generator.startEndAnchors);
+            if (road.endIntersection == parentIntersection) AddRoadEndLine(road.generator.endEndAnchors);
+        }
+    }
+
+    void AddRoadEndLine(List<Vector3> points) {
+        var line = new List<Vector3>();
+        foreach (var p in points) {
+            if (line.Count == 0 || GameEngine.Vector3.Distance(line[line.Count - 1], p) >= 0.01f) line.Add(p);
+        }
+        if (line.Count == 0) return;
+        sidePoints.Add(line);
+        sidePointStartRoads.Add(null);
+        sidePointEndRoads.Add(null);
     }
 
     //a seamless intersection has no surface: only the terrain anchor lines joining the edges of its two roads, from the
@@ -219,6 +244,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             sidePointStartRoads.Add(roads[0]);
             sidePointEndRoads.Add(roads[1]);
         }
+        AddRoadEndLines();
         GameEngine.Mesh.AssignData(m, new Material[0], new List<int[]>(), new List<Vector3>(), new List<Vector2>(), GO.GetName(parentIntersection.geo));
         GameEngine.Mesh.RefreshCollider(m, mc, false);
     }
@@ -263,6 +289,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         sidePoints.Clear();
         sidePointStartRoads.Clear();
         sidePointEndRoads.Clear();
+        roadEndLinesStart = 0;
 
         partsInfo.Clear();
     }

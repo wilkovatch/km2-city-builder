@@ -10,6 +10,7 @@ using GS = GameEngine.Scriptable;
 public partial class TerrainAnchor : Scriptable, IAnchorable {
     public TerrainAnchor prev, next;
     public Vector3 insideDirection;
+    public bool lowLevelOnly = false; //only for the points of the low-level elements (e.g. across a road end): not for terrain patches and building lines
     bool moveable = false;
     bool deleted = false;
 

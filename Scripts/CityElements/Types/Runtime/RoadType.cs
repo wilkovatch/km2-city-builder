@@ -7,6 +7,7 @@ using Godot;
 namespace CityElements.Types.Runtime {
     public class RoadType: RoadLikeType<Types.RoadType> {
         public List<string> widths;
+        public Vector3Array endAnchorsCalculators;
 
         static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists(Types.RoadType type) {
             var floatVars = new List<string>() {
@@ -58,6 +59,7 @@ namespace CityElements.Types.Runtime {
         public RoadType(Types.RoadType type, string name) : base(type, type.parameters, GetComponents(type.components, type.settings.components), GetVarLists(type), name) {
             AddBuiltInBools("throughIntersection", "hasStartIntersection", "hasEndIntersection");
             anchorsCalculators = new Vector3Array(type.settings.anchors ?? new object[0]);
+            endAnchorsCalculators = new Vector3Array(type.settings.endAnchors ?? new object[0]);
             if (type.settings.trafficTypes != null) trafficTypes = RoadLikeType.TrafficType.GetArray(type.settings.trafficTypes);
             if (type.settings.trafficLanes != null) trafficLanes = TrafficLaneContainer.GetArray(type.settings.trafficLanes);
             if (type.settings.propsLines != null) propLines = RoadLikeType.PropLine.GetArray(type.settings.propsLines);
@@ -86,6 +88,7 @@ namespace CityElements.Types.Runtime {
             var vc = variableContainer;
             segmentVerticesCalculators.SetIndices(vc);
             anchorsCalculators.SetIndices(vc);
+            endAnchorsCalculators.SetIndices(vc);
             if (trafficLanes != null) foreach (var tl in trafficLanes) tl.SetIndices(vc);
             if (propLines != null) foreach (var pl in propLines) pl.SetIndices(vc);
             for (int c = 0; c < typeData.components.Length; c++) {

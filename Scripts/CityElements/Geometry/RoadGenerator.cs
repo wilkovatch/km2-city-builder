@@ -61,6 +61,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     public Vector3? startTangent, endTangent; //imposed to the ends of the curve, their directions to their sections (seamless intersections)
 
     public List<List<Vector3>> sidePoints = new List<List<Vector3>>();
+    public List<Vector3> startEndAnchors = new List<Vector3>(), endEndAnchors = new List<Vector3>(); //the endAnchors of the type at the first and last section
 
     public ElementPlacer.RoadPlacer placer = null;
     public bool valid = false;
@@ -425,6 +426,8 @@ public partial class RoadGenerator : PhysicsScriptable {
             points.Clear();
         }
         sidePoints.Clear();
+        startEndAnchors.Clear();
+        endEndAnchors.Clear();
         var anchors = curType.anchorsCalculators.GetValues(subGen.variableContainer);
         foreach (var a in anchors) {
             sidePoints.Add(new List<Vector3>());
@@ -481,6 +484,9 @@ public partial class RoadGenerator : PhysicsScriptable {
             if (p.component >= 0) curType.FillComponentVariables(subGen.variableContainer, p.component);
             lanes[j].Add(GameEngine.Vector3.Lerp(p.startBound.GetValue(p.vars), p.endBound.GetValue(p.vars), p.pos));
         }
+
+        if (i == 0) startEndAnchors.AddRange(curType.endAnchorsCalculators.GetValues(subGen.variableContainer));
+        if (i == segments - 1) endEndAnchors.AddRange(curType.endAnchorsCalculators.GetValues(subGen.variableContainer));
 
         subGen.AddSection(i, sidePoints);
     }

@@ -616,7 +616,7 @@ public partial class Intersection: IObjectWithState {
             }
         }
 
-        anchorManager.Update(geo, generator.sidePoints, generator.sidePointStartRoads, generator.sidePointEndRoads, centers);
+        anchorManager.Update(geo, generator.sidePoints, generator.sidePointStartRoads, generator.sidePointEndRoads, centers, generator.roadEndLinesStart);
         ApplyGhost();
 
         foreach(var road in roads) {

@@ -69,6 +69,8 @@ Each node of `controlPoints` is a point, or a group of points if it has `childre
 
 The points are **terrain points**: like the points of the terrain patches and building lines they can be attached to the anchors of roads and intersections, to the segment between two points, or shared with other elements (the same point used by a terrain patch and by two low-level elements moves all of them). Unlike the points of the patches, a point on an anchor can still be moved with the gizmo: it then leaves the anchor (and stays shared). The vertices of the mesh are terrain points too.
 
+Besides the anchors along their edges, the intersections have an anchor line across the end of each road whose type has `endAnchors` (see [Core Roads](Core-Roads#settingsjson)), only for the points of the low-level elements: a low-level road converted from a road keeps all the points of its end section on the intersection, and they follow it when it moves or changes. These anchors are shown only by the click modes of the low-level editor, and come after the other anchors of the intersection, so the indices of those don't change.
+
 Two more anchors keep points of different elements in place with each other (e.g. the parts of a building):
 - **on a line**: the point follows the line between two other terrain points (at the same fraction of it); moved, it slides along it.
 - **on a vertical line**: the point follows the x and z of another terrain point (its master) and keeps its own height (also when the constraints of an element change it). Moved horizontally, it moves the master, and so every point on the same vertical line; moved vertically, only its height changes.

@@ -88,7 +88,7 @@ Creates an MM2 SF city and drives it only through JSON API commands. It covers e
 <godot console exe> --headless --path . -- selftest api "<scratch>/api/city"               # headless (skips the view checks)
 ```
 
-**Baseline (2026-10-27): 565 OK windowed / 550 headless, 0 failures, ~50 s windowed.** Known and accepted: the full `city.export` reports an `export_failed` error on "Intersection 1" (PSDL perimeter infinite loop at the 3-road origin intersection). The test checks that the error names it and that PSDL/INST/BAI are still written.
+**Baseline (2026-10-28): 568 OK windowed / 553 headless, 0 failures, ~50 s windowed.** Known and accepted: the full `city.export` reports an `export_failed` error on "Intersection 1" (PSDL perimeter infinite loop at the 3-road origin intersection). The test checks that the error names it and that PSDL/INST/BAI are still written.
 
 - `InheritedTypes` temporarily creates `Files/cores/MidtownMadness2/elements/roads/zzInheritTest`. If a run is killed, delete that folder by hand.
 - A run with failures has exited with 132 (SIGILL) during Godot's shutdown finalizers. Clean runs exit 0.

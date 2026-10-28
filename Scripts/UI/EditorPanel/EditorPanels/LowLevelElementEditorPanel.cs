@@ -324,7 +324,7 @@ namespace EditorPanels {
             } else {
                 placer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.AttachToColumn;
             }
-            builder.helper.elementManager.ShowAnchors(mode > 0);
+            builder.helper.elementManager.ShowAnchors(mode > 0, true);
             var element = GetElement();
             if (element == null) return;
             element.SetActive(true, mode == 0);

@@ -119,7 +119,7 @@ The points of terrain patches and building lines (in `elements.get` with `derive
 
 The anchors are the points along the edges of the roads and intersections where terrain patches and building lines attach. They are referenced as `{"of": <road or intersection>, "index": i}`, the index among the anchors of the element. The anchors of a road or intersection can be created again when it changes (e.g. its points or its width), so a script reads them again after changing roads. Each anchor is linked to the previous and next one (`prev`, `next`), across the elements too: around a block they form a closed loop, which is what the automatic closing follows.
 
-- `anchors.list` gives every anchor of the city, in the order of the whole city generators, with its position, `insideDirection`, `prev`, `next` and `usedBy` (the patch and line points on it, or on its segment with `segment: true`). With `unusedBy` (`terrainPatch` or `buildingLine`), only the anchors with no point of that kind on them: the anchors the generators start from.
+- `anchors.list` gives every anchor of the city, in the order of the whole city generators, with its position, `insideDirection`, `prev`, `next` and `usedBy` (the patch and line points on it, or on its segment with `segment: true`). With `unusedBy` (`terrainPatch` or `buildingLine`), only the anchors with no point of that kind on them: the anchors the generators start from. The anchors across the road ends, only for the low-level elements (`lowLevelOnly`, see [Core Low-Level Elements](Core-Low-Level-Elements#control-points)), are listed only with `lowLevel: true` (and never with `unusedBy`).
 - `anchors.loop` gives the anchors from one to another along the edges (without `to`: the loop around the block, ending with the anchor itself).
 - `anchors.segment` gives the segment from an anchor to the next one (null at the end of an edge), where `anchorLink` points go.
 - `patches.autoClose` and `lines.autoClose` return the anchors of the loop.
@@ -309,7 +309,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
-| `anchors.list` | `unusedBy: string = null` | list | Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on |
+| `anchors.list` | `unusedBy: string = null`<br>`lowLevel: bool = false` | list | Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it, lowLevelOnly; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on; lowLevel: also the anchors only for the low-level elements (lowLevelOnly: across the road ends, not for terrain patches and building lines) |
 | `anchors.loop` | `anchor: anchor`<br>`to: anchor = null`<br>`invert: bool = false` | list | The anchors from an anchor to another one (to: none for the loop around the block, ending with the anchor itself), along the shorter way (invert: the longer one), as followed when adding points between two anchors |
 | `anchors.segment` | `anchor: anchor` | object | The segment from an anchor to the next one along the same edge (where a point can be placed with anchorLink), null at the end of the edge |
 

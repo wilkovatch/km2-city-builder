@@ -336,14 +336,15 @@ public partial class ElementManager : Scriptable {
         return true;
     }
 
-    public void ShowAnchors(bool active) {
+    //lowLevel: also the anchors only for the low-level elements
+    public void ShowAnchors(bool active, bool lowLevel = false) {
         foreach (var road in roads) {
             if (active) road.SetActive(false, false);
-            road.anchorManager.ShowTerrainAnchors(active);
+            road.anchorManager.ShowTerrainAnchors(active, lowLevel);
         }
         foreach (var intersection in intersections) {
             if (active) intersection.SetActive(false, false);
-            intersection.anchorManager.ShowTerrainAnchors(active);
+            intersection.anchorManager.ShowTerrainAnchors(active, lowLevel);
         }
         foreach (var patch in patches) {
             patch.SetActive(active, false);
@@ -622,6 +623,7 @@ public partial class ElementManager : Scriptable {
         var anchors = new List<TerrainAnchor>();
         var doneAnchors = new List<TerrainAnchor>();
         foreach (var anchor in Operations.Anchors.GetAll(this)) {
+            if (anchor.lowLevelOnly) continue;
             var notUsed = true;
             foreach (var elem in list) {
                 foreach (var point in pointGetter.Invoke(elem)) {

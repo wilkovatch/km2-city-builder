@@ -2178,6 +2178,36 @@ road(-750)
             foreach (var id in created) createdTypes.Add((await Derived(id.Value<int>()))["type"].Value<string>());
             Check("the road is converted to a room, a road attribute and a BAI road (" + string.Join(", ", createdTypes) + ")",
                 createdTypes.Contains("room") && createdTypes.Contains("baiRoad") && createdTypes.Count >= 3);
+
+            //the points of the road ends are on the anchors across them (endAnchors of the road type), and follow the intersection
+            var cityRoadElem = History.UndoManager.GetAliveElement(cityRoad) as Road;
+            var endIntersections = new[] { cityRoadElem.startIntersection, cityRoadElem.endIntersection }.Select(i => History.ElementRegistry.GetId(i)).ToList();
+            async Task<List<Vector3>> RoadEndAnchors() => ((JArray)await Call("anchors.list", new { lowLevel = true }))
+                .Where(a => a["lowLevelOnly"].Value<bool>() && endIntersections.Contains(a["of"].Value<int>())).Select(a => Pos(a)).ToList();
+            async Task<List<(Vector3 pos, bool anchored)>> CreatedRoadPoints() {
+                var res = new List<(Vector3, bool)>();
+                foreach (var id in created) {
+                    var der = await Derived(id.Value<int>());
+                    if (der["points"]?["sections"] is not JArray sections || der["type"].Value<string>() == "baiRoad") continue;
+                    foreach (var s in sections) foreach (var p in ((JObject)s).Properties()) {
+                        if (p.Value is JObject o && o["position"] != null) res.Add((Pos(o), o["anchored"].Value<bool>()));
+                    }
+                }
+                return res;
+            }
+            List<(Vector3 pos, bool anchored)> OnRoadEndAnchors(List<Vector3> anchors, List<(Vector3 pos, bool anchored)> points)
+                => points.Where(p => anchors.Any(a => a.DistanceTo(p.pos) < 0.01f)).ToList();
+            var onEnds = OnRoadEndAnchors(await RoadEndAnchors(), await CreatedRoadPoints());
+            Check("anchors.list lists the road end anchors only with lowLevel", ((JArray)await Call("anchors.list")).All(x => !x["lowLevelOnly"].Value<bool>()));
+            Check("the road end points of the converted road are on the road end anchors (" + onEnds.Count + ")", onEnds.Count >= 8 && onEnds.All(p => p.anchored));
+            var movedIntersection = GO.GetPosition(cityRoadElem.startIntersection.point) + new Vector3(4, 0, 3);
+            await Call("intersections.move", new { intersection = endIntersections[0], position = new[] { movedIntersection.X, movedIntersection.Y, movedIntersection.Z } });
+            await Frames(2);
+            var onEndsMoved = OnRoadEndAnchors(await RoadEndAnchors(), await CreatedRoadPoints());
+            Check("the road end points follow the intersection moved (" + onEndsMoved.Count + ")", onEndsMoved.Count == onEnds.Count
+                && onEndsMoved.Count(p => !onEnds.Any(q => q.pos.DistanceTo(p.pos) < 0.01f)) >= 4);
+            await Call("history.undo");
+
             await Call("history.undo");
             Same("undoing the conversion", before, await Snapshot());
             await Call("history.redo");

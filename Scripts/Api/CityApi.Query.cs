@@ -95,6 +95,7 @@ namespace Api {
                 insideDirection = anchor.insideDirection,
                 prev = GO.IsNull(anchor.prev) ? null : AnchorRef(anchor.prev),
                 next = GO.IsNull(anchor.next) ? null : AnchorRef(anchor.next),
+                lowLevelOnly = anchor.lowLevelOnly,
                 usedBy
             };
         }
@@ -110,8 +111,8 @@ namespace Api {
             return res;
         }
 
-        [ApiMethod("anchors.list", "Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on")]
-        public List<object> ListAnchors(string unusedBy = null) {
+        [ApiMethod("anchors.list", "Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it, lowLevelOnly; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on; lowLevel: also the anchors only for the low-level elements (lowLevelOnly: across the road ends, not for terrain patches and building lines)")]
+        public List<object> ListAnchors(string unusedBy = null, bool lowLevel = false) {
             RequireCity();
             if (unusedBy != null && unusedBy != "terrainPatch" && unusedBy != "buildingLine") throw ApiException.InvalidValue("unusedBy must be terrainPatch or buildingLine");
             var users = Operations.Anchors.GetUsers(M);
@@ -121,6 +122,7 @@ namespace Api {
                 var (owner, index) = Operations.Anchors.GetOwner(anchor);
                 if (owner == null || index < 0) continue;
                 users.TryGetValue(anchor, out var list);
+                if (anchor.lowLevelOnly && (!lowLevel || unusedBy != null)) continue;
                 if (unusedBy == "terrainPatch" && Operations.Anchors.IsUsedBy<TerrainPatch>(list)) continue;
                 if (unusedBy == "buildingLine" && Operations.Anchors.IsUsedBy<BuildingLine>(list)) continue;
                 res.Add(AnchorInfo(anchor, index, users));

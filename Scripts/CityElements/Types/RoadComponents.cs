@@ -28,6 +28,7 @@ namespace CityElements.Types {
         public bool allowRoll = true; //whether the control points can bank the sections
         public object[] sectionVertices;
         public object anchors;
+        public object endAnchors; //the points of the end section given to its intersection as anchors for the low-level elements
         public string[] propsContainers;
         public PropLine[] propsLines;
         public TrafficType[] trafficTypes;
