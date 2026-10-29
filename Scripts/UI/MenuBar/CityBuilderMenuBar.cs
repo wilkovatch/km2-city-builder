@@ -660,6 +660,9 @@ public partial class CityBuilderMenuBar : Control {
             ToggleWireframe,
             ResetWindow
         });
+        //camera moves are not undo steps
+        entries.Add(SM.Get("ZOOM_TO_SELECTION"));
+        actions.Add(ZoomToSelection);
         //the visibility toggles of the core (not undo steps: they're view settings)
         var toggles = noCity ? new List<Rendering.ViewToggles.Toggle>() : Rendering.ViewToggles.List();
         if (toggles.Count > 0) {
@@ -1616,6 +1619,21 @@ public partial class CityBuilderMenuBar : Control {
         return gizmo.mainTargetRoot;
     }
 
+    //moves the camera to show the selection: the selected control point or mesh, else the edited element, else the highlighted object
+    public void ZoomToSelection() {
+        if (noCity) return;
+        object target = null;
+        if (gizmo.mainTargetRoot != null && GodotObject.IsInstanceValid(gizmo.mainTargetRoot)) target = gizmo.mainTargetRoot;
+        if (target == null) {
+            target = GetActivePanel()?.GetUndoTarget();
+            if (target != null && !History.ElementSnapshot.IsAlive(target)) target = null;
+        }
+        if (target == null && selectedObject != null && GodotObject.IsInstanceValid(selectedObject)) target = selectedObject;
+        var bounds = target != null ? Api.CityApi.BoundsOf(target) : null;
+        if (bounds == null) return;
+        GetCameraController()?.ZoomIn(bounds.Value.GetCenter(), Mathf.Max(bounds.Value.Size.Length(), 10));
+    }
+
     void EditCurSelectedObjectTransform() {
         var obj = GetCurSelectedObject();
         if (obj == null || transformPropertiesEditorPanel.ActiveSelf()) return;
@@ -1741,6 +1759,9 @@ public partial class CityBuilderMenuBar : Control {
             }
             else if (Input.GetInputStart(KeyCommand.Edit)) {
                 EditCurSelectedObjectTransform();
+            }
+            else if (Input.GetInputStart(KeyCommand.ZoomToSelection)) {
+                ZoomToSelection();
             }
         }
     }

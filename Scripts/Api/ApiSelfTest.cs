@@ -2431,11 +2431,12 @@ road(-750)
             //ghost intersection (which follow the road), the dividers too (no point of the intersection there to weld to)
             var startIntersection = History.ElementRegistry.GetId((History.UndoManager.GetAliveElement(cityRoad) as Road).startIntersection);
             var beforeDivided = await Snapshot();
+            var luaErrors = RuntimeCalculator.Scripting.LuaScriptHost.Get().ErrorCount;
             await Call("history.begin", new { label = "intersection converted before its road" });
             await Call("state.setParam", new { @ref = cityRoad, name = "isDouble", value = true });
             await Call("state.setParam", new { @ref = cityRoad, name = "divider", value = 1 });
             await Call("state.setParam", new { @ref = cityRoad, name = "dividerWidth", value = 2 });
-            await Call("elements.convert", new { elements = new[] { startIntersection }, converter = "toPsdl" });
+            var intersectionElements = (JArray)await Call("elements.convert", new { elements = new[] { startIntersection }, converter = "toPsdl" });
             var dividedRoad = (JArray)await Call("elements.convert", new { elements = new[] { cityRoad }, converter = "toPsdl" });
             await Call("history.commit");
             var startEndAnchors = ((JArray)await Call("anchors.list", new { lowLevel = true }))
@@ -2451,6 +2452,51 @@ road(-750)
             var dividersOnEnd = dividers.Where(p => startEndAnchors.Any(a => a.DistanceTo(p.pos) < 0.01f)).ToList();
             Check("the dividers of a road converted after its intersection are on its road end anchors (" + dividersOnEnd.Count + ")",
                 dividersOnEnd.Count == 2 && dividersOnEnd.All(p => p.anchored));
+
+            //the road surface of a divided road: half of the texture on each side, from the curb (v 0) to the divider (v 1)
+            async Task<List<(Vector3 left, Vector3 leftDivider, Vector3 rightDivider, Vector3 right)>> EndSections(int id) {
+                var res = new List<(Vector3, Vector3, Vector3, Vector3)>();
+                var sections = (JArray)(await Derived(id))["points"]["sections"];
+                foreach (var s in new[] { sections.First, sections.Last }) res.Add((Pos(s["leftRoad"]), Pos(s["leftDivider"]), Pos(s["rightDivider"]), Pos(s["rightRoad"])));
+                return res;
+            }
+            var dividedElement = dividedRoad.Select(id => id.Value<int>()).First(id => (History.UndoManager.GetAliveElement(id) as LowLevelElement)?.TypeName == "dividedRoad");
+            var dividedSections = (JArray)(await Derived(dividedElement))["points"]["sections"];
+            var dividerPoints = dividedSections.SelectMany(s => new[] { Pos(s["leftDivider"]), Pos(s["rightDivider"]) }).ToList();
+            var curbPoints = dividedSections.SelectMany(s => new[] { Pos(s["leftRoad"]), Pos(s["rightRoad"]) }).ToList();
+            var roadSurface = (History.UndoManager.GetAliveElement(dividedElement) as LowLevelElement).generator.m.SurfaceGetArrays(0);
+            var surfaceVertices = (Vector3[])roadSurface[(int)Mesh.ArrayType.Vertex];
+            var surfaceUVs = (Vector2[])roadSurface[(int)Mesh.ArrayType.TexUV];
+            //the surfaces share the vertices: only the ones of the road surface (the first)
+            var surfaceIndices = ((int[])roadSurface[(int)Mesh.ArrayType.Index]).Distinct().ToList();
+            bool Near(Vector3 v, List<Vector3> points) => points.Any(p => new Vector2(p.X - v.X, p.Z - v.Z).Length() < 0.01f);
+            var wrongUVs = surfaceIndices.Count(i => {
+                var v = GameEngine.Vector3.EncodePosition(surfaceVertices[i]);
+                return surfaceUVs[i].Y > 0.99f ? !Near(v, dividerPoints) : surfaceUVs[i].Y < 0.01f ? !Near(v, curbPoints) : true;
+            });
+            Check("the road surface of a divided road goes from the curbs (v 0) to the divider (v 1) (" + wrongUVs + " of "
+                + surfaceIndices.Count + " vertices elsewhere)", surfaceIndices.Count > 0 && wrongUVs == 0);
+
+            //moving the room of the intersection: the dividers at the end of the road keep their places across it
+            var intersectionRoom = intersectionElements.Select(id => id.Value<int>()).First(id => (History.UndoManager.GetAliveElement(id) as LowLevelElement)?.TypeName == "room");
+            var endsBefore = await EndSections(dividedElement);
+            await Call("lowLevel.move", new { element = intersectionRoom, offset = new[] { 2, 0, 1 } });
+            await Frames(2);
+            var endsAfter = await EndSections(dividedElement);
+            int movedEnds = 0;
+            bool dividersFollow = true;
+            for (int i = 0; i < endsBefore.Count; i++) {
+                var (l0, ld0, rd0, r0) = endsBefore[i];
+                var (l1, ld1, rd1, r1) = endsAfter[i];
+                if (l1.DistanceTo(l0) < 1e-3 && r1.DistanceTo(r0) < 1e-3) continue;
+                movedEnds++;
+                float Factor(Vector3 p, Vector3 a, Vector3 b) => (p - a).Dot(b - a) / (b - a).LengthSquared();
+                dividersFollow &= ld1.DistanceTo(l1.Lerp(r1, Factor(ld0, l0, r0))) < 0.01f && rd1.DistanceTo(l1.Lerp(r1, Factor(rd0, l0, r0))) < 0.01f;
+            }
+            Check("moving the room of the intersection, the dividers at the end of the divided road follow its edges (" + movedEnds + " end moved)",
+                movedEnds == 1 && dividersFollow);
+            Check("the BAI road of the divided road gets its points from it without Lua errors", RuntimeCalculator.Scripting.LuaScriptHost.Get().ErrorCount == luaErrors);
+            await Call("history.undo");
             await Call("history.undo");
             Same("undoing the conversion of the intersection and of the divided road", beforeDivided, await Snapshot());
 

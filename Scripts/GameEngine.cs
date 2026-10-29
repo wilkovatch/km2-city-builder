@@ -671,6 +671,7 @@ public static partial class GameEngine {
             ZoomIn2,
             ZoomOut2,
             ZoomInAndPan2,
+            ZoomToSelection,
             Down,
             Up,
             Select,
@@ -693,6 +694,7 @@ public static partial class GameEngine {
             { KeyCommand.ZoomIn, (Key.Pageup, Key.None) },
             { KeyCommand.ZoomOut, (Key.Pagedown, Key.None) },
             { KeyCommand.ZoomInAndPan, (Key.Home, Key.None) },
+            { KeyCommand.ZoomToSelection, (Key.F, Key.None) },
             { KeyCommand.Down, (Key.Down, Key.None) },
             { KeyCommand.Up, (Key.Up, Key.None) },
         };

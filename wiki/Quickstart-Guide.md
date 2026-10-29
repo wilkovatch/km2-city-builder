@@ -88,6 +88,7 @@ There are two camera control schemes, selectable in *Settings→Preferences→Co
 | Rotate | Drag with the right button | |
 | Zoom | Scroll wheel | Page Up / Page Down |
 | Zoom in on a point | Click the middle button without dragging | |
+| Zoom to the selection | | F |
 
 **Scheme B**:
 
@@ -97,12 +98,13 @@ There are two camera control schemes, selectable in *Settings→Preferences→Co
 | Pan | Drag with the middle button holding Shift, or Ctrl/Shift + scroll wheel | Hold Home and move the mouse |
 | Zoom | Scroll wheel, or drag with the middle button holding Ctrl | Page Up / Page Down |
 | Zoom in on a point | Click the middle button without dragging | |
+| Zoom to the selection | | F |
 
 In scheme B the camera orbits around the point in the center of the view, and zooms toward it.
 
 If your mouse has no middle button (e.g. on a laptop), enable *Emulate 3-button mouse* in the same tab: holding Alt while pressing the left button then acts as the middle button, in both schemes.
 
-You can also jump to an object with *Zoom to object* in the object list (*Edit→View object list*).
+To show the selected object (or its selected control point), press F or use *View→Zoom to selection*. You can also jump to an object with *Zoom to object* in the object list (*Edit→View object list*).
 
 ### Selecting and deleting objects
 

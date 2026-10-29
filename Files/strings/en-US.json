@@ -77,6 +77,7 @@
 	"TOGGLE_GROUND_OVERLAY": "Toggle ground overlay",
 	"CHANGE_OVERLAY_TRANSPARENCY": "Change overlay transparency",
 	"RESET_WINDOW": "Reset window",
+	"ZOOM_TO_SELECTION": "Zoom to selection\t\t(F)",
 	"CREATE_ROAD": "Road\t\t\t\t\t\t(Ctrl+R)",
 	"CREATE_TERRAIN_PATCH": "Terrain patch\t\t\t(Ctrl+T)",
 	"CREATE_BUILDING_LINE": "Building line\t\t\t\t(Ctrl+E)",
