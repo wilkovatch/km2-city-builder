@@ -27,7 +27,7 @@ namespace ElementPlacer {
         }
 
         public void SetTerrainPatch(TerrainPatch patch) {
-            curTerrain = GO.IsNull(patch) ? null : patch;
+            curTerrain = GO.IsNull(patch) || patch.IsDeleted() ? null : patch;
         }
 
         void CreateTerrain() {
@@ -35,7 +35,8 @@ namespace ElementPlacer {
         }
 
         public TerrainPatch GetPatch(bool createIfNull = true) {
-            if (GO.IsNull(curTerrain)) curTerrain = null;
+            //a deleted patch stays valid until the end of the frame (e.g. the empty patch cleared when the editor opens)
+            if (GO.IsNull(curTerrain) || curTerrain.IsDeleted()) curTerrain = null;
             if (createIfNull && curTerrain == null) CreateTerrain();
             return curTerrain;
         }
@@ -56,8 +57,7 @@ namespace ElementPlacer {
             if (!Guards(hits)) return;
             manager.worldChanged = true;
             var hit = GetHit(hits);
-            if (GO.IsNull(curTerrain)) CreateTerrain();
-            var patch = curTerrain;
+            var patch = GetPatch();
             switch (placementMode) {
                 case PlacementMode.Perimeter:
                     var pointOnly = !Input.GetInputPressed(KeyCommand.Modifier2);

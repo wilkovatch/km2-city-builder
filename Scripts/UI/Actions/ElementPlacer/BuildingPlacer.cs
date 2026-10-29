@@ -34,7 +34,7 @@ namespace ElementPlacer {
         }
 
         public BuildingLine GetLine(bool createIfNull = true) {
-            if (GO.IsNull(curBuilding)) curBuilding = null;
+            if (GO.IsNull(curBuilding) || curBuilding.IsDeleted()) curBuilding = null; //a deleted line stays valid until the end of the frame
             if (createIfNull && curBuilding == null) CreateBuilding();
             return curBuilding;
         }
@@ -55,9 +55,8 @@ namespace ElementPlacer {
             if (!Guards(hits)) return;
             manager.worldChanged = true;
             var hit = GetHit(hits);
-            if (GO.IsNull(curBuilding)) CreateBuilding();
             var pointOnly = !Input.GetInputPressed(KeyCommand.Modifier2);
-            Operations.BuildingLines.AddPoint(curBuilding, (Node3D)hit.collider, hit.point, pointOnly, placementMode == PlacementMode.DividingPoint);
+            Operations.BuildingLines.AddPoint(GetLine(), (Node3D)hit.collider, hit.point, pointOnly, placementMode == PlacementMode.DividingPoint);
         }
 
         public override void ShowOnMap(List<RaycastHit?> hits) {

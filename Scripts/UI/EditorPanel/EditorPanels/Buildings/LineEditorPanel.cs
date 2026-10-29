@@ -326,8 +326,8 @@ namespace EditorPanels {
                 var pS = GetComplexElement<PresetSelector>();
                 bool noLine = false;
                 if (active) {
+                    ClearEmptyLine(); //first, as an empty line is cleared and then edited as a new one
                     noLine = GetCurLine(false) == null;
-                    ClearEmptyLine();
                 } else {
                     if (ActiveSelf() && !keepActive) Terminate(true);
                 }

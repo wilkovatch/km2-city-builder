@@ -1224,10 +1224,16 @@ namespace Api {
             }
             Check("road points like the editor", samePoints);
 
-            //terrain patch: the terrain tool
+            //terrain patch: the terrain tool. The first opening of the editor after a load builds the panel, whose
+            //conversion button creates a patch that is deleted at once: the placer must not keep it (mode reset to none)
+            bool PanelInitialized(string field) => ((EditorPanel)typeof(CityBuilderMenuBar).GetField(field,
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder)).IsInitialized;
+            var firstTerrainOpening = !PanelInitialized("terrainPatchEditorPanel");
             UndoManagerRecord("create terrain", () => CallBuilder<object>("CreateTerrain"));
             await Frames(3);
             var terrainPlacer = (ElementPlacer.TerrainPlacer)builder.terrainClick.modifier;
+            Check("the terrain tool places perimeter points" + (firstTerrainOpening ? " at the first opening" : ""),
+                terrainPlacer.placementMode == ElementPlacer.TerrainPlacer.PlacementMode.Perimeter && terrainPlacer.GetPatch(false) != null);
             var corners = new[] { new Vector3(700, 0, 600), new Vector3(800, 0, 600), new Vector3(800, 0, 700) };
             foreach (var p in corners) {
                 UndoManagerRecord("click", () => Operations.TerrainPatches.AddPerimeterPoint(terrainPlacer.GetPatch(), null, GeometryHelper.ProjectPoint(p), true));
@@ -1240,6 +1246,16 @@ namespace Api {
             Same("terrain patch state like the editor",
                 (await Call("elements.get", new { @ref = History.ElementRegistry.GetId(uiPatch) }))["data"]["state"],
                 (await Call("elements.get", new { @ref = apiPatch }))["data"]["state"]);
+
+            //building line: the same with the building line tool
+            var firstLineOpening = !PanelInitialized("buildingLineEditorPanel");
+            UndoManagerRecord("create building line", () => CallBuilder<object>("CreateBuildingLine"));
+            await Frames(3);
+            var buildingPlacer = (ElementPlacer.BuildingPlacer)builder.terrainClick.modifier;
+            Check("the building line tool places points" + (firstLineOpening ? " at the first opening" : ""),
+                buildingPlacer.placementMode == ElementPlacer.BuildingPlacer.PlacementMode.Point && buildingPlacer.GetLine(false) != null);
+            CallBuilder<object>("DeselectAndCloseCurrentPanel");
+            await Frames(3);
         }
 
         static void UndoManagerRecord(string label, System.Action action) {

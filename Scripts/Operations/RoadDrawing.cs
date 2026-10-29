@@ -34,7 +34,7 @@ namespace Operations {
         }
 
         public Road GetRoad(bool createIfNull = true) {
-            if (GO.IsNull(curRoad)) curRoad = null;
+            if (GO.IsNull(curRoad) || curRoad.deleted) curRoad = null; //a deleted road stays valid until the end of the frame
             if (createIfNull && curRoad == null) CreateRoad();
             return curRoad;
         }
