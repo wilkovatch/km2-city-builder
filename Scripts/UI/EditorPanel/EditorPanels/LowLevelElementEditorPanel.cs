@@ -9,8 +9,9 @@ namespace EditorPanels {
     //The editor of a low-level element (also used to create one: the type is chosen, then the element is placed with a
     //click). Its panel is the ui.json of the type, with these built-in groups:
     //mainGroup (end editing, delete, type), pointsGroup (selected point, point placement, array elements),
-    //meshGroup (texture coordinates of the selected vertex), containerGroup (container and contents), propsGroup (the prop
-    //rule, for the types with props containers)
+    //meshGroup (texture coordinates of the selected vertex), containerGroup (the container, changed from a list, the
+    //contents and the merge into another container, chosen from a list), propsGroup (the prop rule, for the types with
+    //props containers)
     public class LowLevelElementEditorPanel : EditorPanel, IPropRuleEditor {
         string creationTypeValue;
         public string creationType {
@@ -20,9 +21,11 @@ namespace EditorPanels {
         int selectedRibbon;
         string builtType = null; //the type the panel was built for
         LowLevelElement builtElement = null; //and the element (its arrays, container and contents are listed)
-        EditorPanelElements.Dropdown createTypeDropdown, placementDropdown, containerDropdown, contentsDropdown, mergeDropdown;
+        EditorPanelElements.Dropdown createTypeDropdown, placementDropdown;
         EditorPanelElements.Label selectedLabel;
-        EditorPanelElements.Button insertBeforeButton, insertAfterButton, removeButton, detachButton, addInnerButton, removeInnerButton;
+        EditorPanelElements.ScrollList contentsList;
+        EditorPanelElements.Button insertBeforeButton, insertAfterButton, removeButton, detachButton, addInnerButton, removeInnerButton, editContentButton,
+            changeContainerButton, mergeButton;
         EditorPanelElements.InputField uField, vField;
         List<string> creatableTypes = new List<string>();
         //the arrays the placement modes add to: arrays of points get points at the end, arrays of groups get elements at
@@ -44,6 +47,8 @@ namespace EditorPanels {
         List<GeometryInstance3D> outlinedRenderers = new List<GeometryInstance3D>();
         //the container whose elements (and itself) show their lines shown with the container (e.g. the BAI lanes of a room)
         LowLevelElement linesContainer = null;
+        //the list of containers to change the container to, or to merge into
+        LowLevelElementPickerPanel picker;
 
         public LowLevelElementEditorPanel() {
             AddComplexElement(new PresetSelector(this)); //for the presets of the prop rule (the element itself has none)
@@ -59,9 +64,10 @@ namespace EditorPanels {
             builtType = element?.TypeName;
             builtElement = element;
             //the fields of the previous build are freed, and the groups of this type may not create them again
-            createTypeDropdown = placementDropdown = containerDropdown = contentsDropdown = mergeDropdown = null;
+            createTypeDropdown = placementDropdown = null;
             selectedLabel = null;
-            insertBeforeButton = insertAfterButton = removeButton = detachButton = addInnerButton = removeInnerButton = null;
+            contentsList = null;
+            insertBeforeButton = insertAfterButton = removeButton = detachButton = addInnerButton = removeInnerButton = editContentButton = changeContainerButton = mergeButton = null;
             uField = vField = null;
             appendArrays.Clear();
             possibleContainers.Clear();
@@ -76,6 +82,7 @@ namespace EditorPanels {
             }
             InitializeWithCustomParameters<CityElements.Types.Runtime.LowLevelType, CityElements.Types.LowLevelType>(canvas, GetElementState, null,
                 builtType, CityElements.Types.Parsers.TypeParser.GetLowLevelTypes, ProcessCustomParts, false);
+            picker = AddChildPanel<LowLevelElementPickerPanel>(canvas);
         }
 
         IObjectWithState GetElementState() {
@@ -227,23 +234,19 @@ namespace EditorPanels {
                 possibleContainers = Operations.LowLevel.GetPossibleContainers(builder.helper.elementManager, element);
                 possibleContainers.Sort((a, b) => string.Compare(GO.GetName(a), GO.GetName(b), System.StringComparison.Ordinal));
                 if (possibleContainers.Count > 0 || element.container != null) {
-                    var names = new List<string> { SM.Get("NONE") };
-                    foreach (var c in possibleContainers) names.Add(GO.GetName(c));
-                    containerDropdown = p.AddDropdown(SM.Get("LL_CONTAINER"), names, SetContainer, w * 0.75f);
-                    containerDropdown.actionEnabled = false; //showing the current container is not a change
-                    containerDropdown.SetValue(possibleContainers.IndexOf(element.container) + 1);
-                    containerDropdown.actionEnabled = true;
-                    p.AddButton(SM.Get("LL_EDIT_CONTAINER"), EditContainer, w * 0.25f);
+                    p.AddLabel(SM.Get("LL_CONTAINER") + ": " + ContainerName(element), w * 0.5f);
+                    p.AddButton(SM.Get("LL_EDIT_CONTAINER"), EditContainer, w * 0.25f).SetInteractable(element.container != null);
+                    changeContainerButton = p.AddButton(SM.Get("LL_CHANGE_CONTAINER"), OpenContainerChange, w * 0.25f);
                     p.IncreaseRow();
                 }
                 if (type.IsContainer) {
                     contents = builder.helper.elementManager.GetLowLevelChildren(element);
                     var names = new List<string>();
                     foreach (var c in contents) names.Add(GO.GetName(c));
-                    if (names.Count == 0) names.Add(SM.Get("NONE"));
-                    contentsDropdown = p.AddDropdown(SM.Get("LL_CONTENTS").Replace("$NUMBER", contents.Count.ToString()), names, PickContent, w * 0.75f);
-                    contentsDropdown.SetAllowReselect(true); //the first one is shown before being picked
-                    p.AddButton(SM.Get("EDIT"), EditContent, w * 0.25f);
+                    contentsList = p.AddScrollList(SM.Get("LL_CONTENTS").Replace("$NUMBER", contents.Count.ToString()), names, PickContent, w);
+                    p.IncreaseRow(5.0f);
+                    editContentButton = p.AddButton(SM.Get("EDIT"), EditContent, w);
+                    editContentButton.SetInteractable(false); //until a content is picked
                     p.IncreaseRow();
                     mergeTargets = new List<LowLevelElement>();
                     foreach (var other in builder.helper.elementManager.lowLevelElements) {
@@ -253,10 +256,7 @@ namespace EditorPanels {
                     }
                     mergeTargets.Sort((a, b) => string.Compare(GO.GetName(a), GO.GetName(b), System.StringComparison.Ordinal));
                     if (mergeTargets.Count > 0) {
-                        var targetNames = new List<string>();
-                        foreach (var t in mergeTargets) targetNames.Add(GO.GetName(t));
-                        mergeDropdown = p.AddDropdown(SM.Get("LL_MERGE_INTO"), targetNames, null, w * 0.75f);
-                        p.AddButton(SM.Get("LL_MERGE"), Merge, w * 0.25f, SM.Get("LL_MERGE_TOOLTIP"));
+                        mergeButton = p.AddButton(SM.Get("LL_MERGE_INTO"), OpenMerge, w, SM.Get("LL_MERGE_TOOLTIP"));
                         p.IncreaseRow();
                     }
                 }
@@ -491,11 +491,35 @@ namespace EditorPanels {
 
         // Containers
 
-        void SetContainer(int i) {
+        string ContainerName(LowLevelElement element) {
+            return element.container != null ? GO.GetName(element.container) : SM.Get("NONE");
+        }
+
+        //the containers the element can be moved to (none first, if it has one), in a list replacing the panel
+        void OpenContainerChange() {
+            var element = GetElement();
+            if (element == null || picker == null) return;
+            var targets = new List<LowLevelElement>();
+            if (element.container != null) targets.Add(null);
+            foreach (var c in possibleContainers) {
+                if (c != element.container) targets.Add(c);
+            }
+            picker.Open(SM.Get("LL_CHANGE_CONTAINER_TITLE").Replace("$ELEMENT", GO.GetName(element)),
+                SM.Get("LL_CONTAINERS").Replace("$NUMBER", targets.FindAll(c => c != null).Count.ToString()), targets,
+                SM.Get("LL_CURRENT_CONTAINER").Replace("$CONTAINER", ContainerName(element)), SM.Get("LL_CHANGE_TO"), SetContainer);
+        }
+
+        void SetContainer(LowLevelElement container) {
             var element = GetElement();
             if (element == null) return;
-            element.SetContainer(i <= 0 || i > possibleContainers.Count ? null : possibleContainers[i - 1]);
+            element.SetContainer(container);
             builder.NotifyChange();
+            //built again to show the new container (and its merge targets), on the same page (the pages built are not
+            //active until shown)
+            var page = ActivePage();
+            Initialize(lastCanvas);
+            SetActive(true);
+            ShowPage(page);
         }
 
         void EditContainer() {
@@ -506,6 +530,7 @@ namespace EditorPanels {
 
         void PickContent(int i) {
             HighlightContent(i >= 0 && i < contents.Count ? contents[i] : null);
+            editContentButton?.SetInteractable(highlighted != null);
         }
 
         void HighlightContent(LowLevelElement content) {
@@ -535,9 +560,8 @@ namespace EditorPanels {
         }
 
         void EditContent() {
-            var i = contentsDropdown?.GetIndex() ?? -1;
-            if (i < 0 || i >= contents.Count) return;
-            Edit(contents[i]);
+            if (highlighted == null || GO.IsNull(highlighted) || highlighted.IsDeleted()) return;
+            Edit(highlighted);
         }
 
         void Edit(LowLevelElement other) {
@@ -545,11 +569,18 @@ namespace EditorPanels {
             builder.SelectObject(other, true, null);
         }
 
-        void Merge() {
+        //the containers that can hold all the contents, in a list replacing the panel
+        void OpenMerge() {
             var element = GetElement();
-            var i = mergeDropdown?.GetIndex() ?? -1;
-            if (element == null || i < 0 || i >= mergeTargets.Count) return;
-            var target = mergeTargets[i];
+            if (element == null || picker == null) return;
+            picker.Open(SM.Get("LL_MERGE_TITLE").Replace("$ELEMENT", GO.GetName(element)),
+                SM.Get("LL_CONTAINERS").Replace("$NUMBER", mergeTargets.Count.ToString()), new List<LowLevelElement>(mergeTargets),
+                null, SM.Get("LL_MERGE"), Merge);
+        }
+
+        void Merge(LowLevelElement target) {
+            var element = GetElement();
+            if (element == null || target == null || GO.IsNull(target) || target.IsDeleted()) return;
             if (!Operations.LowLevel.Merge(builder.helper.elementManager, element, target)) {
                 builder.CreateAlert(SM.Get("ERROR"), SM.Get("LL_MERGE_ERROR"), SM.Get("OK"));
                 return;

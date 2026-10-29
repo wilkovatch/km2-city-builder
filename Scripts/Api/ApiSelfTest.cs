@@ -2553,10 +2553,12 @@ road(-750)
             }
             Check("the editor of the container opens from an element in it" + (frameError != null ? " (" + frameError + ")" : ""),
                 CallBuilder<EditorPanel>("FindShownPanel") == builder.lowLevelEditorPanel && builder.lowLevelEditorPanel.GetElement() == roomElement && frameError == null);
-            //the content picked in the contents dropdown is outlined (on a layer of its own) with its points selected
+            //the content picked in the contents list is outlined (on a layer of its own) with its points selected
             var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var contentsDropdown = builder.lowLevelEditorPanel.GetType().GetField("contentsDropdown", flags).GetValue(builder.lowLevelEditorPanel) as EditorPanelElements.Dropdown;
-            var contentsOption = typeof(EditorPanelElements.Dropdown).GetField("dropdown", flags).GetValue(contentsDropdown) as OptionButton;
+            T PanelField<T>(object panel, string name) where T : class => panel.GetType().GetField(name, flags).GetValue(panel) as T;
+            Godot.Button ButtonControl(EditorPanelElements.Button button) => typeof(EditorPanelElements.Button).GetField("button", flags).GetValue(button) as Godot.Button;
+            var contentsList = PanelField<EditorPanelElements.ScrollList>(builder.lowLevelEditorPanel, "contentsList");
+            var editContentButton = ButtonControl(PanelField<EditorPanelElements.Button>(builder.lowLevelEditorPanel, "editContentButton"));
             var roomContents = builder.helper.elementManager.GetLowLevelChildren(roomElement);
             const uint contentLayer = 1u << 16;
             bool Outlined(LowLevelElement e) {
@@ -2567,7 +2569,8 @@ road(-750)
             bool HighlightOnly(LowLevelElement picked) => Outlined(picked) && picked.IsSelected()
                 && roomContents.Where(c => c != picked).All(c => !c.IsSelected() && !Outlined(c));
             Check("nothing in the room is highlighted before a content is picked", NoneOutlined() && roomContents.All(c => !c.IsSelected()));
-            contentsOption.EmitSignal(OptionButton.SignalName.ItemSelected, 0); //the first one, shown already
+            var editDisabledBefore = editContentButton.Disabled;
+            contentsList.SetValue(0);
             await Frames(2);
             var firstHighlighted = HighlightOnly(roomContents[0]);
             async Task HighlightScreenshot(string name) {
@@ -2584,19 +2587,87 @@ road(-750)
             await HighlightScreenshot("contents_highlight_1.png");
             var secondHighlighted = roomContents.Count > 1;
             if (roomContents.Count > 1) {
-                contentsOption.Select(1);
-                contentsOption.EmitSignal(OptionButton.SignalName.ItemSelected, 1);
+                contentsList.SetValue(1);
                 await Frames(2);
                 secondHighlighted = HighlightOnly(roomContents[1]);
                 await HighlightScreenshot("contents_highlight_2.png");
             }
-            Check("picking a content in the contents dropdown highlights it (first " + firstHighlighted + ", second of " + roomContents.Count + " " + secondHighlighted + ")",
+            Check("picking a content in the contents list highlights it (first " + firstHighlighted + ", second of " + roomContents.Count + " " + secondHighlighted + ")",
                 firstHighlighted && secondHighlighted);
+            Check("the Edit button of the contents is enabled once a content is picked", editDisabledBefore && !editContentButton.Disabled);
             builder.CloseAllPanels();
             await Frames(2);
             Check("the highlight is removed when the editor is closed", NoneOutlined() && roomContents.All(c => !c.IsSelected())
                 && !builder.gizmo.GetNode<Node3D>("ContentOutline").GetChildren().OfType<MeshInstance3D>().Any(q => q.Visible));
-            Operations.LowLevel.Delete(M, extraContent);
+
+            //the container changed from the list of the other possible ones (with none first), shown in place of the editor,
+            //here a second room (deleted after)
+            var roomId = History.ElementRegistry.GetId(roomElement);
+            var extraId = History.ElementRegistry.GetId(extraContent);
+            var extraRoomId = (await Call("lowLevel.create", new {
+                type = "room", position = GameEngine.Vector3.EncodePosition(inRoom.GetAllPoints()[0].GetPoint() + new Vector3(60, 0, 0)) })).Value<int>();
+            await Frames(2);
+            EditorPanels.LowLevelElementPickerPanel Picker() => builder.lowLevelEditorPanel.childPanels.OfType<EditorPanels.LowLevelElementPickerPanel>().FirstOrDefault();
+            var beforeChange = await Snapshot();
+            builder.SelectObject(extraContent, true, null);
+            await Frames(3);
+            ButtonControl(PanelField<EditorPanelElements.Button>(builder.lowLevelEditorPanel, "changeContainerButton")).EmitSignal(BaseButton.SignalName.Pressed);
+            await Frames(2);
+            var picker = Picker();
+            var pickerItems = picker != null ? PanelField<List<LowLevelElement>>(picker, "items") : null;
+            Check("Change opens the list of the other containers in place of the editor (" + pickerItems?.Count + " entries)",
+                picker != null && picker.ActiveSelf() && !builder.lowLevelEditorPanel.ActiveSelf() && builder.lowLevelEditorPanel.IsOpen()
+                && pickerItems != null && pickerItems.Count > 1 && pickerItems[0] == null && !pickerItems.Contains(roomElement)
+                && pickerItems.Contains(History.UndoManager.GetAliveElement(extraRoomId) as LowLevelElement));
+            Screenshot("container_change_list.png");
+            if (picker != null && pickerItems != null && pickerItems.Count > 0) {
+                var actionButton = ButtonControl(PanelField<EditorPanelElements.Button>(picker, "actionButton"));
+                var disabledBefore = actionButton.Disabled;
+                var newIndex = pickerItems.Count > 1 ? 1 : 0; //another room, or none
+                var newContainer = pickerItems[newIndex];
+                PanelField<EditorPanelElements.ScrollList>(picker, "lst").SetValue(newIndex);
+                var enabledAfter = !actionButton.Disabled;
+                actionButton.EmitSignal(BaseButton.SignalName.Pressed);
+                await Frames(3);
+                Check("Change to (enabled once a container is picked: " + disabledBefore + " " + enabledAfter + ") moves the element there and shows its editor again",
+                    disabledBefore && enabledAfter && extraContent.container == newContainer && !picker.ActiveSelf()
+                    && builder.lowLevelEditorPanel.ActiveSelf() && builder.lowLevelEditorPanel.GetElement() == extraContent);
+                await Call("city.flush");
+                var afterChange = await Snapshot();
+                await Call("history.undo");
+                Same("undo changing the container from the list", beforeChange, await Snapshot());
+                var undoneContainer = (History.UndoManager.GetAliveElement(extraId) as LowLevelElement)?.container;
+                Check("undo puts the element back in its container", undoneContainer != null && History.ElementRegistry.GetId(undoneContainer) == roomId);
+                await Call("history.redo");
+                Same("redo changing the container from the list", afterChange, await Snapshot());
+            }
+            builder.CloseAllPanels();
+            await Frames(2);
+
+            //the merge into another container, chosen from the list of the ones that can hold the contents (cancelled)
+            var mergedRoom = History.UndoManager.GetAliveElement(roomId) as LowLevelElement;
+            builder.SelectObject(mergedRoom, true, null);
+            await Frames(3);
+            var mergeButton = PanelField<EditorPanelElements.Button>(builder.lowLevelEditorPanel, "mergeButton");
+            var mergeTargets = PanelField<List<LowLevelElement>>(builder.lowLevelEditorPanel, "mergeTargets");
+            if (mergeButton != null) ButtonControl(mergeButton).EmitSignal(BaseButton.SignalName.Pressed);
+            await Frames(2);
+            picker = Picker();
+            pickerItems = picker != null ? PanelField<List<LowLevelElement>>(picker, "items") : null;
+            Check("Merge into... opens the list of the merge targets (" + mergeTargets?.Count + ")", mergeButton != null && picker != null
+                && picker.ActiveSelf() && !builder.lowLevelEditorPanel.ActiveSelf() && pickerItems != null && pickerItems.SequenceEqual(mergeTargets)
+                && ButtonControl(PanelField<EditorPanelElements.Button>(picker, "actionButton")).Disabled);
+            Screenshot("merge_list.png");
+            if (picker != null) {
+                ButtonControl(PanelField<EditorPanelElements.Button>(picker, "cancelButton")).EmitSignal(BaseButton.SignalName.Pressed);
+                await Frames(2);
+                Check("Cancel goes back to the editor without merging", !picker.ActiveSelf() && builder.lowLevelEditorPanel.ActiveSelf()
+                    && builder.lowLevelEditorPanel.GetElement() == mergedRoom && !mergedRoom.IsDeleted());
+            }
+            builder.CloseAllPanels();
+            await Frames(2);
+            Operations.LowLevel.Delete(M, History.UndoManager.GetAliveElement(extraId) as LowLevelElement);
+            Operations.LowLevel.Delete(M, History.UndoManager.GetAliveElement(extraRoomId) as LowLevelElement);
             await Frames(2);
         }
 
