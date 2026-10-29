@@ -36,6 +36,29 @@ public abstract partial class EditorPanel {
     protected System.Func<IObjectWithState> getObject = null;
     private EditorPanels.ArrayElemEditorPanel arrayElemPanel = null;
     private Dictionary<string, CityElements.Types.Parameter> parameterMap = new Dictionary<string, CityElements.Types.Parameter>();
+    bool initializationPending = true;
+    bool initializedForActivation = false;
+    internal bool IsInitialized => !initializationPending;
+
+    //discard controls for the previous city without constructing the hidden panel for the next one
+    public void DeferInitialize(UIObject canvas) {
+        Destroy();
+        lastCanvas = canvas;
+        builder = canvas as CityBuilderMenuBar;
+        initializationPending = true;
+        initializedForActivation = false;
+        keepActive = false;
+        lastPage = -1;
+    }
+
+    //activation overrides often use their fields before base.SetActive, so they call this first
+    protected bool PrepareActivation(bool active) {
+        if (!initializationPending) return true;
+        if (!active) return false;
+        Initialize(lastCanvas);
+        initializedForActivation = true;
+        return true;
+    }
 
     public abstract void Initialize(UIObject canvas);
 
@@ -278,6 +301,7 @@ public abstract partial class EditorPanel {
         if (canvas == null) return;
         lastCanvas = canvas;
         Destroy();
+        initializationPending = false;
         builder = canvas as CityBuilderMenuBar; //TODO: check if correct
         var total = 0;
         foreach (var row in numPages) total += row;
@@ -314,6 +338,7 @@ public abstract partial class EditorPanel {
     }
 
     public virtual void Destroy() {
+        initializationPending = true;
         foreach (var page in pages) {
             page.Destroy();
         }
@@ -384,13 +409,15 @@ public abstract partial class EditorPanel {
     }
 
     public virtual void SetActive(bool active) {
+        if (!PrepareActivation(active)) return;
         var disabled = ActiveSelf() && !active;
         if (!active && builder?.arrayPointPlacer != null && builder.arrayPointPlacer.IsPlacingFrom(this)) builder.arrayPointPlacer.Stop();
         if (!active && builder?.referencePicker != null && builder.referencePicker.IsPickingFrom(this)) builder.referencePicker.Stop();
         foreach (var elem in complexElements.Values) {
             elem.SetActive(active);
         }
-        if (needsReloading && active) Initialize(lastCanvas);
+        if (needsReloading && active && !initializedForActivation) Initialize(lastCanvas);
+        initializedForActivation = false;
         if (active) ReadCurValues();
         for (int i = 0; i < pages.Count; i++) {
             pages[i].SetActive(i == 0 ? active : false);

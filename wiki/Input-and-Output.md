@@ -36,10 +36,16 @@ Loads a city:
 1. Erases the current city and checks the versions (`CheckVersion`): no core in the preferences, or a core version different from the installed one, means a migration is needed; a city saved with a newer core feature version or an unknown core is an error.
 2. Runs the migration if accepted (`Files/python/migrate.py`, see [Core Python Integration](Core-Python-Integration#migrations)).
 3. Checks the Python modules of the core.
-4. Loads the preferences (strings, formats, Python server), reads the file and creates the terrain (from the saved heights or flat), then sets the city properties and recreates mesh instances, roads, intersections, terrain patches (with their terrain points, resolving the anchors they are attached to) and building lines. Presets are reloaded from the city folder on first use.
+4. Loads the preferences (strings, formats, Python server), decompresses and deserializes the save and decodes its heightmap on a worker thread, then creates the terrain (from the saved heights or flat) on the main thread. Sets the city properties and recreates mesh instances, roads, intersections, terrain patches (with their terrain points, resolving the anchors they are attached to), building lines and low-level elements. Presets are reloaded from the city folder on first use.
 5. Stores the file in the `LastCity` setting (unless `LoadOptions.rememberAsLastCity` is false).
 
 `DecodeCityAsync(manager, filename, options)` returns a `LoadResult` (`success`, or an `error` code and message); if the city can't be loaded it is closed. The questions (migration, missing Python modules) and the errors go through `options.interaction` (`Operations.IInteraction`): the editor's popups by default (`UiInteraction`), the answers given in advance for scripts (`FixedInteraction`). The progress is reported to `options.progress` as well as shown on the progress bar.
+
+The worker reads plain managed data only; Godot nodes, meshes, textures and colliders stay on the main thread. Element creation yields after about 50 ms of work per batch, so the batch size follows the cost of the elements. Mesh instances use their saved names directly, avoiding a search through the existing instances for a temporary automatic name. Automatic `ElementManager` updates are suspended while loading; the loader explicitly rebuilds the roads and intersections before resolving their terrain anchors, and the complete city is updated after loading.
+
+Loaded terrain points start with a hidden handle containing only their transform and logic. Its mesh and collision shape are created when the point is first shown, with the color, scale and movement layer already set. Large low-level geometry rebuilds then use the isolated Lua workers described in [Geometry Generation](Geometry-Generation#low-level-elements).
+
+The type and Lua caches are cleared once after loading the preferences, before recreating elements. The final UI refresh invalidates panel controls for the new city without constructing hidden editors or reloading the types a second time; panels initialize when opened.
 
 ### `CityExporter` and `CityImporter` (`IO/Export/CityExporter.cs`, `IO/Import/CityImporter.cs`)
 

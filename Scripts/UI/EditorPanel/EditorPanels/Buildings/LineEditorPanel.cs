@@ -322,6 +322,7 @@ namespace EditorPanels {
             }
 
             public override void SetActive(bool active) {
+                if (!PrepareActivation(active)) return;
                 var pS = GetComplexElement<PresetSelector>();
                 bool noLine = false;
                 if (active) {

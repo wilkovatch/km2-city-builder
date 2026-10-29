@@ -104,6 +104,7 @@ namespace EditorPanels {
             }
 
             public override void SetActive(bool active) {
+                if (!PrepareActivation(active)) return;
                 var pS = GetComplexElement<PresetSelector>();
                 if (active) {
                     System.Func<ObjectState, ObjectState> setter = x => { Operations.BuildingLines.SetBuildingState(GetBuilding(), x); return GetBuilding().State; };

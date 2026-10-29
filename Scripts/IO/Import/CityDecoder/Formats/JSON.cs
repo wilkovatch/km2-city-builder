@@ -40,6 +40,7 @@ namespace CityDecoder {
         Dictionary<int, (Intersection, IO.SavedCity.Intersection)> loadedIntersections = new Dictionary<int, (Intersection, IO.SavedCity.Intersection)>();
         Dictionary<int, (Road, IO.SavedCity.Road)> loadedRoads = new Dictionary<int, (Road, IO.SavedCity.Road)>();
         Operations.ProgressReporter progressBar;
+        const int LoadBatchMilliseconds = 50;
 
         public void DecodeCity(ElementManager manager, string filename) {
             Run(manager, filename, new LoadOptions());
@@ -172,26 +173,20 @@ namespace CityDecoder {
 
             //load
             LoadPreferences();
+            CityElements.Types.Parsers.TypeParser.Reset();
             await caller.ToSignal(caller.GetTree(), "process_frame");
-            var json = "";
-            using (Stream fS = File.OpenRead(filename), zS = new GZipStream(fS, CompressionMode.Decompress)) {
-                using (var r = new StreamReader(zS)) {
-                    var readTask = r.ReadToEndAsync();
-                    while (!readTask.IsCompleted) {
-                        var pos = (float)fS.Position / fS.Length;
-                        progressBar.SetProgress(pos * 0.1f);
-                        await caller.ToSignal(caller.GetTree(), "process_frame");
-                    }
-                    json = readTask.Result;
-                }
-            }
-            loadedCity = Newtonsoft.Json.JsonConvert.DeserializeObject<IO.SavedCity.SavedCity>(json);
+            //only managed data on the worker; the terrain and scene nodes are still created on the main thread
+            var readTask = Task.Run(() => ReadCity(filename));
+            while (!readTask.IsCompleted) await caller.ToSignal(caller.GetTree(), "process_frame");
+            var decoded = await readTask;
+            loadedCity = decoded.city;
+            progressBar.SetProgress(0.1f);
             if (loadedCity.maxHeight == 0.0f) loadedCity.maxHeight = 1000.0f; //default value
 
             CityGroundHelper.heightmapResolution = loadedCity.heightmapResolution;
             CityGroundHelper.terrainSize = loadedCity.terrainSize;
-            if (loadedCity.heightMap != "") {
-                await manager.builder.helper.SetHeightsAsync(GetDecodedHeights(loadedCity.heightMap), loadedCity.maxHeight, progressBar);
+            if (decoded.heights != null) {
+                await manager.builder.helper.SetHeightsAsync(decoded.heights, loadedCity.maxHeight, progressBar);
             }
             else {
                 await manager.builder.helper.SetDefaultHeightsAsync(loadedCity.maxHeight, progressBar);
@@ -220,6 +215,7 @@ namespace CityDecoder {
 
             int reachedNum = 0;
             int n = 0;
+            var batchWatch = System.Diagnostics.Stopwatch.StartNew(); //yield by time: inexpensive elements can share a larger batch
 
             loadedCity.cityProperties.FlagAsChanged();
             manager.GetDummy<CityProperties>().SetState(loadedCity.cityProperties);
@@ -227,15 +223,15 @@ namespace CityDecoder {
             foreach (var mesh in loadedCity.meshes) {
                 n++;
                 var cont = manager.GetMeshContainer();
-                var newMesh = MeshInstance.Create(mesh.mesh, mesh.position.GetVector(), cont, mesh.settings);
-                if (mesh.name != null && mesh.name != "") GO.SetName(newMesh, mesh.name);
+                var newMesh = MeshInstance.Create(mesh.mesh, mesh.position.GetVector(), cont, mesh.settings, mesh.name);
                 newMesh.Initialize();
                 GO.SetRotation(newMesh, mesh.rotation.GetQuaternion());
                 GO.SetLocalScale(newMesh, mesh.scale.GetVector());
                 manager.AddMesh(newMesh);
-                if (reachedNum % 50 == 0) {
+                if (batchWatch.ElapsedMilliseconds >= LoadBatchMilliseconds) {
                     progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
+                    batchWatch.Restart();
                 }
                 reachedNum++;
             }
@@ -256,9 +252,10 @@ namespace CityDecoder {
                 roadComp.instanceState = road.instanceState;
                 roadComp.ghost = road.ghost;
                 loadedRoads.Add(road.id, (roadComp, road));
-                if (reachedNum % 50 == 0) {
+                if (batchWatch.ElapsedMilliseconds >= LoadBatchMilliseconds) {
                     progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
+                    batchWatch.Restart();
                 }
                 reachedNum++;
             }
@@ -290,9 +287,10 @@ namespace CityDecoder {
                     }
                 }
                 loadedIntersections.Add(intersection.id, (intersectionElem, intersection));
-                if (reachedNum % 50 == 0) {
+                if (batchWatch.ElapsedMilliseconds >= LoadBatchMilliseconds) {
                     progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
+                    batchWatch.Restart();
                 }
                 reachedNum++;
             }
@@ -332,9 +330,10 @@ namespace CityDecoder {
                 }
                 newPatch.state = patch.state;
                 manager.AddPatch(newPatch);
-                if (reachedNum % 50 == 0) {
+                if (batchWatch.ElapsedMilliseconds >= LoadBatchMilliseconds) {
                     progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
+                    batchWatch.Restart();
                 }
                 reachedNum++;
             }
@@ -364,9 +363,10 @@ namespace CityDecoder {
                 }
 
                 manager.AddBuildingLine(newLine);
-                if (reachedNum % 50 == 0) {
+                if (batchWatch.ElapsedMilliseconds >= LoadBatchMilliseconds) {
                     progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
+                    batchWatch.Restart();
                 }
                 reachedNum++;
             }
@@ -389,9 +389,10 @@ namespace CityDecoder {
                     element.SetMesh(vertices, new List<int>(e.triangles ?? new int[0]), e.uvs != null ? States.SerializableVector2.GetRuntimeList(e.uvs) : null);
                 }
                 loadedLowLevel[e.id] = element;
-                if (reachedNum % 50 == 0) {
+                if (batchWatch.ElapsedMilliseconds >= LoadBatchMilliseconds) {
                     progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
+                    batchWatch.Restart();
                 }
                 reachedNum++;
             }
@@ -464,7 +465,7 @@ namespace CityDecoder {
             if (inPoint.linkType == IO.SavedCity.LinkType.Line && anchor != null && anchor is TerrainAnchor ta) {
                 anchor = new LineAnchor(ta.GetObject(), ta.next.GetObject(), inPoint.percent);
             }
-            var newPoint = TerrainPoint.Create(inPoint.position.GetVector(), null, manager.GetTerrainPointContainer(), anchor);
+            var newPoint = TerrainPoint.Create(inPoint.position.GetVector(), null, manager.GetTerrainPointContainer(), anchor, active: false);
             newPoint.dividing = inPoint.dividing;
             if (inPoint.rotation.HasValue) newPoint.SetRotation(inPoint.rotation.Value.GetVector());
             dict[inPoint.id] = newPoint;
@@ -477,19 +478,29 @@ namespace CityDecoder {
             return dict[inPoint.id];
         }
 
-        byte[] Decompress(byte[] data) {
-            var inData = new MemoryStream(data);
-            var res = new MemoryStream();
+        static (IO.SavedCity.SavedCity city, float[,] heights) ReadCity(string filename) {
+            using var file = File.OpenRead(filename);
+            using var gzip = new GZipStream(file, CompressionMode.Decompress);
+            using var reader = new StreamReader(gzip);
+            using var json = new Newtonsoft.Json.JsonTextReader(reader);
+            var city = Newtonsoft.Json.JsonSerializer.CreateDefault().Deserialize<IO.SavedCity.SavedCity>(json);
+            var heights = string.IsNullOrEmpty(city.heightMap) ? null : GetDecodedHeights(city.heightMap, city.heightmapResolution);
+            return (city, heights);
+        }
+
+        static byte[] Decompress(byte[] data) {
+            using var inData = new MemoryStream(data);
+            using var res = new MemoryStream();
             using (var stream = new DeflateStream(inData, CompressionMode.Decompress)) {
                 stream.CopyTo(res);
             }
             return res.ToArray();
         }
 
-        float[,] GetDecodedHeights(string str) {
+        static float[,] GetDecodedHeights(string str, int resolution) {
             var compressedHeights = System.Convert.FromBase64String(str);
             var heights1D = Decompress(compressedHeights);
-            var tRes = CityGroundHelper.heightmapResolution + 1;
+            var tRes = resolution + 1;
             var heights = new float[tRes, tRes];
             System.Buffer.BlockCopy(heights1D, 0, heights, 0, heights.Length * 4);
             return heights;

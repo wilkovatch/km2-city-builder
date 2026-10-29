@@ -71,6 +71,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             var cores = CoreManager.GetCores();
             coreList = cores.folders;
             if (coreList.Count == 0) {

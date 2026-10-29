@@ -11,6 +11,8 @@ The JSON format itself is documented from the core author's point of view in the
 
 Static entry point. Every getter reads its folder of the current core (`Files/cores/<core>/elements/...`) the first time it is called, caches the result and returns the cache afterwards (pass `reload: true` to force a reload). The dictionary keys are the folder or file names, which are also the type names stored in the elements' state (`"type"` property).
 
+`Reset()` clears all type dictionaries, the stored ancestries and the Lua host. Loading or closing a city calls it; the getters also detect a change of core and invalidate the previous core's caches. Rebuilding or opening an editor panel reuses the loaded types, so it does not recompile expressions or reset the scripts. The parametric mesh settings and custom element getters keep their dictionaries in the same way as the other categories.
+
 | Getter | Source | Result |
 |---|---|---|
 | `GetRoadTypes` | `roads/<name>/` (+ `sharedComponents/`) | `Runtime.RoadType` |

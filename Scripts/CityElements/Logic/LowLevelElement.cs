@@ -706,12 +706,78 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         if (!DidChange(all)) return 0;
         ReloadType();
         Rebuild();
+        FinishGeometryUpdate(all);
+        return 1;
+    }
+
+    void FinishGeometryUpdate(List<TerrainPoint> all) {
         foreach (var p in all) p.UpdateOlds();
         oldPositions.Clear();
         oldPositions.AddRange(GetInputPositions(all));
         state.FlagAsUnchanged();
         oldStructureVersion = structureVersion;
-        return 1;
+    }
+
+    //captured on the main thread after constraints and derived points; the worker only sees Lua tables and numbers
+    internal GeometryUpdate PrepareGeometryUpdate() {
+        var all = GetAllPoints();
+        if (deleted || !DidChange(all)) return null;
+        ReloadType();
+        return new GeometryUpdate {
+            element = this, all = all, type = curType,
+            variables = curType?.geometryFunction != null ? RC.Scripting.LuaVariableView.Get(variableContainer) : LuaValue.Nil,
+            context = curType?.geometryFunction != null ? CreateScriptContext(null) : LuaValue.Nil
+        };
+    }
+
+    internal sealed class GeometryUpdate {
+        internal LowLevelElement element;
+        internal List<TerrainPoint> all;
+        internal CityElements.Types.Runtime.LowLevelType type;
+        internal LuaValue variables, context;
+        internal LowLevel.GeometryResult geometry;
+        internal bool retryOnMainThread;
+        internal readonly List<string> prints = new List<string>();
+        internal readonly List<(string definition, string message)> errors = new List<(string, string)>();
+
+        internal void Calculate(RC.Scripting.LuaScriptHost host) {
+            host.BeginWork();
+            var name = type.name + " (geometry)";
+            LuaFunction function;
+            try {
+                function = host.Resolve(type.typeData.settings.geometry);
+            } catch (System.Exception) {
+                retryOnMainThread = true; //the original host may still have a working module if the files changed meanwhile
+                return;
+            }
+            try {
+                var result = host.Call(function, variables, context, name);
+                geometry = LowLevelScripting.ReadGeometry(result);
+            } catch (System.Exception e) {
+                host.ReportError(name, e.Message);
+            }
+            retryOnMainThread = host.needsMainThread;
+            prints.AddRange(host.prints);
+            errors.AddRange(host.errors);
+        }
+
+        internal void Apply() {
+            if (retryOnMainThread || type?.geometryFunction == null) {
+                element.Rebuild();
+            } else {
+                foreach (var message in prints) GameEngine.Print(message);
+                foreach (var error in errors) type.scriptHost.ReportError(error.definition, error.message);
+                try {
+                    element.scriptUVs = geometry?.uvs;
+                    if (geometry == null) element.generator.Clear();
+                    else element.generator.Rebuild(geometry, element.state, type.typeData.settings.propsContainers);
+                } catch (System.Exception e) {
+                    type.scriptHost.ReportError(element.TypeName + " (geometry)", e.Message);
+                    element.generator.Clear();
+                }
+            }
+            element.FinishGeometryUpdate(all);
+        }
     }
 
     protected virtual void Rebuild() {

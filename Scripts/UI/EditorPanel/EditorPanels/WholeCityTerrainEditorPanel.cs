@@ -44,6 +44,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             texField.SetValue(PreferencesManager.Get("curTerrainTexture", ""));
             base.SetActive(active);
         }

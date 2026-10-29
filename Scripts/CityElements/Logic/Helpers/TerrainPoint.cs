@@ -25,8 +25,8 @@ public partial class TerrainPoint : PhysicsScriptable {
     int updatedCount;
     bool updating = false; //in UpdatePosition (the points it depends on are updated first, see UpdateDependencies)
 
-    public static TerrainPoint Create(Vector3 point, IGroundable patch, GameObject parent, IAnchorable anchor = null, int registryId = -1) {
-        var obj = (PhysicsGameObject)GameEngine.Resources.InstantiateObject("Handle", GO.GetObject(parent));
+    public static TerrainPoint Create(Vector3 point, IGroundable patch, GameObject parent, IAnchorable anchor = null, int registryId = -1, bool active = true) {
+        var obj = GameEngine.Resources.CreatePointHandle(GO.GetObject(parent), active);
         var comp = GS.Create<TerrainPoint>("TerrainPoint", obj);
         comp.Setup(point, patch, anchor);
         //the points of the elements excluded from undo (the preset dummies) are excluded too

@@ -586,6 +586,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             if (active && !keepActive) {
                 var element = GetElement();
                 //the panel is built for the type of the element (or for the creation)

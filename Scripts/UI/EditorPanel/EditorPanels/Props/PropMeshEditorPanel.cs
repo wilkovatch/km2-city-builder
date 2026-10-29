@@ -76,6 +76,7 @@ namespace EditorPanels.Props {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             if (active) {
                 placer = builder.meshPlacer;
                 placer.settings = tmpState;

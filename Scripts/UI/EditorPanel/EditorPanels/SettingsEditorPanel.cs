@@ -331,6 +331,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             if (active) {
                 pythonPath.SetValue(SettingsManager.Get<string>("pythonPath", null));
                 pythonPort.SetValue("" + SettingsManager.Get("pythonPort", 5005));

@@ -96,6 +96,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             if (active) {
                 ReloadPathList(ref curGlobalPathI, delegate { return SettingsManager.GetList<string>("extraFolders", null); }, globalPaths, true);
                 ReloadPathList(ref curLocalPathI, delegate { return PreferencesManager.GetList<string>("extraFolders", null); }, localPaths, true);

@@ -96,6 +96,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             if (active) {
                 blockSearch = true;
                 searchBar.SetValue("");

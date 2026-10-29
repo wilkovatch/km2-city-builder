@@ -15,6 +15,8 @@ The script of the `Editor` control and the central coordinator of the editor.
 
 `helper` is the `CityGroundHelper`; through it the menu bar reaches the `ElementManager`.
 
+`Reload()` refreshes the strings, menu availability and view settings, and invalidates the panels with `DeferInitialize(canvas)`. It destroys the previous controls without rebuilding hidden panels or reloading core types. Each panel's `PrepareActivation(active)` builds pending controls before its activation logic uses them; closing a panel that has not been built does nothing. Panels whose layout depends on the selected element can still rebuild when that element or its type changes. Core definitions are invalidated by city loading and core changes, separately from the UI (see [Type System](Type-System)).
+
 ## Menu bar: `MenuBar`, `MenuBarElement` (`UI/MenuBar`)
 
 `MenuBar` is the white strip at the top of the window. `AddElement(title, entries, actions, color)` adds a `MenuBarElement`: a button that opens a popup menu with the given entries.

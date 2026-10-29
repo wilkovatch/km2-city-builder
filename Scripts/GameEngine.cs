@@ -458,6 +458,7 @@ public static partial class GameEngine {
         }
 
         public static void SetEnabled(Node3D obj, bool enabled) {
+            if (enabled && obj is Handle handle) handle.EnsureVisuals();
             obj.Visible = enabled;
             // Like an inactive object, a disabled node (and its inheriting children) must not
             // collide: hidden bodies would otherwise still intercept editor raycasts. Disabled
@@ -1266,7 +1267,7 @@ public static partial class GameEngine {
         }
 
         public static CollisionShape3D CreateShapeCollider(Node3D obj, Shape3D shape) {
-            var c = new CollisionShape3D { Shape = shape };
+            var c = new CollisionShape3D { Shape = shape, Disabled = shape == null };
             obj.AddChild(c);
             return c;
         }
@@ -1503,6 +1504,21 @@ public static partial class GameEngine {
                 }
             }
 
+            SetColliderFaces(mc, faces);
+        }
+
+        //collision geometry already has its triangles: avoid an ArrayMesh upload, normal calculation and readback
+        public static void RefreshCollider(CollisionShape3D mc, IReadOnlyList<Godot.Vector3> vertices, IReadOnlyList<int> indices) {
+            if (mc == null) return;
+            var faces = new List<Godot.Vector3>(indices.Count);
+            for (int i = 0; i + 2 < indices.Count; i += 3) {
+                if (indices[i] == indices[i + 1] && indices[i] == indices[i + 2]) continue;
+                for (int j = 0; j < 3; j++) faces.Add(Vector3.DecodePosition(vertices[indices[i + j]]));
+            }
+            SetColliderFaces(mc, faces);
+        }
+
+        static void SetColliderFaces(CollisionShape3D mc, List<Godot.Vector3> faces) {
             if (faces.Count == 0) {
                 mc.Disabled = true;
                 mc.Shape = null;
@@ -1944,6 +1960,27 @@ public static partial class GameEngine {
     }
 
     public static class Resources {
+        static readonly Dictionary<string, PackedScene> objectScenes = new Dictionary<string, PackedScene>();
+
+        //saved terrain points start hidden: their transform and links need no mesh or physics shape yet
+        public static Handle CreatePointHandle(Node3D parent, bool active) {
+            var handle = new Handle { Name = "Handle", deferredVisuals = true, Visible = false, ProcessMode = Node.ProcessModeEnum.Disabled };
+            parent?.AddChild(handle);
+            if (active) GameObject.SetEnabled(handle, true);
+            return handle;
+        }
+
+        public static void InitializeHandleVisuals(Handle handle) {
+            var template = InstantiateObject("Handle");
+            foreach (var child in template.GetChildren()) {
+                child.Owner = null;
+                template.RemoveChild(child);
+                handle.AddChild(child);
+            }
+            GameObject.SetLayer(handle, GameObject.GetLayer(handle));
+            template.Free();
+        }
+
         public static ShaderMaterial LoadMaterial(string path) {
             var resourcePath = "res://" + path.TrimStart('/').Replace('\\', '/') + ".tres";
             var material = GD.Load<ShaderMaterial>(resourcePath);
@@ -1955,7 +1992,10 @@ public static partial class GameEngine {
             var normalizedPath = path.TrimStart('/').Replace('\\', '/');
             if (!normalizedPath.Contains('/')) normalizedPath = "Scenes/" + normalizedPath;
             var resourcePath = "res://" + normalizedPath + ".tscn";
-            var scene = GD.Load<PackedScene>(resourcePath);
+            if (!objectScenes.TryGetValue(resourcePath, out var scene)) {
+                scene = GD.Load<PackedScene>(resourcePath);
+                if (scene != null) objectScenes[resourcePath] = scene;
+            }
             if (scene == null) {
                 LogError("Could not load scene resource: " + resourcePath);
                 return null;

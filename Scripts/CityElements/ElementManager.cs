@@ -434,6 +434,7 @@ public partial class ElementManager : Scriptable {
     }
 
     void LateUpdate() {
+        if (History.UndoManager.IsLoading) return; //the loader updates explicitly when the road anchors are ready
         ProcessUpdate();
         History.UndoManager.FinalizePending(); //after the update, so that the recorded state includes what it derived
     }
@@ -523,8 +524,7 @@ public partial class ElementManager : Scriptable {
             if (element.UpdateDerivedPoints(lowLevelElements)) derived = true;
         }
         if (derived) ApplyLowLevelConstraints();
-        var rebuilt = 0;
-        foreach (var element in lowLevelElements) rebuilt += element.UpdateGeometry();
+        var rebuilt = LowLevelGeometryBatch.Rebuild(lowLevelElements);
         UpdateLowLevelPlaceholders();
         PlaceMoveHandles();
         return rebuilt;
@@ -578,6 +578,7 @@ public partial class ElementManager : Scriptable {
         PreferencesManager.Unload();
         CoreManager.Reset();
         EraseCity();
+        CityElements.Types.Parsers.TypeParser.Reset();
     }
 
     public void EraseCity() {

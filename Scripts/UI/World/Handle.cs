@@ -22,11 +22,26 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
     public Quaternion? curveOrientation = null;
     MeshInstance3D meshInstance;
     CollisionShape3D collisionShape;
+    internal bool deferredVisuals = false;
+    Color handleColor = GameEngine.Color.green;
+    bool handleActive = true;
+
+    internal void EnsureVisuals() {
+        if (!deferredVisuals) return;
+        GameEngine.Resources.InitializeHandleVisuals(this);
+        deferredVisuals = false;
+        meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
+        collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
+        UpdateColor(handleColor);
+        SetHandleActive(handleActive);
+        visualScale = null;
+        transformChanged = true;
+    }
 
     public override void _Ready() {
         meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
         collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
-        UpdateColor(GameEngine.Color.green);
+        UpdateColor(handleColor);
     }
 
     public int UpdaterIndex { get; set; } = -1;
@@ -63,6 +78,7 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
 
     //called every frame by the HandleUpdater while enabled
     public void UpdateFrame() {
+        EnsureVisuals();
         if (hideIfUnusedMode) {
             // Like deactivating the object: ShowHandle re-enables the whole object, while
             // SetHandleActive(false) would hide the mesh with nothing to show it again.
@@ -73,6 +89,8 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
     }
 
     void UpdateColor(Color color) {
+        handleColor = color;
+        if (deferredVisuals) return;
         if (meshInstance == null) meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
         if (meshInstance?.Mesh == null) return;
         meshInstance.MaterialOverride = MaterialManager.GetHandleMaterial(color);
@@ -91,6 +109,7 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
 
     //shown and clickable (see SetHandleActive)
     public bool IsHandleActive() {
+        if (deferredVisuals) return handleActive;
         if (collisionShape == null) collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
         return collisionShape == null || !collisionShape.Disabled;
     }
@@ -171,6 +190,11 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
     }
 
     public void SetHandleActive(bool active) {
+        handleActive = active;
+        if (deferredVisuals) {
+            if (active && ProcessMode != ProcessModeEnum.Disabled) EnsureVisuals();
+            else return;
+        }
         //it can be called before _Ready (e.g. right after instancing, before entering the tree)
         if (meshInstance == null) meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
         if (collisionShape == null) collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);

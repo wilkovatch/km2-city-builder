@@ -33,6 +33,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             base.SetActive(active);
             dropdown.SetValue(0);
             curRotation = 0;

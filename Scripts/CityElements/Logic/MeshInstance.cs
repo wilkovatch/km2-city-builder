@@ -16,14 +16,15 @@ public partial class MeshInstance : PhysicsScriptable
     bool initialized = false;
     MeshManager.MeshTransform meshTransform = MeshManager.MeshTransform.identity; //of the mesh from the placement point
 
-    public static MeshInstance Create(string meshPath, Vector3 curPoint, GameObject container, ObjectState settings) {
-        MeshInstance mesh = GS.Create<MeshInstance>(null, container);
+    public static MeshInstance Create(string meshPath, Vector3 curPoint, GameObject container, ObjectState settings, string name = null) {
+        MeshInstance mesh = GS.Create<MeshInstance>(name, container);
         var obj = GO.GetObject(mesh);
         var subObj = MeshManager.GetMesh(meshPath, container);
         GO.SetParent(subObj, obj);
         GO.SetPosition(mesh, curPoint);
         mesh.meshPath = meshPath;
         mesh.settings = (ObjectState)settings.Clone();
+        if (!string.IsNullOrEmpty(name)) return mesh; //loading: the saved name needs no search through the container
         if (mesh.AutoOffsetActive()) {
             var newObjName = "Prop " + Actions.Helpers.GetLatestObjectNumber(container, "Prop ") + " (" + meshPath + ")"; //todo: get name from config
             GO.SetName(obj, newObjName);

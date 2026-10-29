@@ -7,6 +7,7 @@ namespace CityElements.Types.Runtime {
         //the functions of the Lua scripts of the core (null if the type has none)
         public readonly Lua.LuaFunction geometryFunction, constraintsFunction, derivedFunction;
         public readonly RC.Scripting.LuaScriptHost scriptHost;
+        public readonly bool canBatchGeometryPreparation;
 
         static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists() {
             return (new List<string>(), new List<string>(), new List<string>());
@@ -14,6 +15,11 @@ namespace CityElements.Types.Runtime {
 
         //scriptHost: the host of the scripts (by default the one of the core; the tests use their own)
         public LowLevelType(Types.LowLevelType type, string name, RC.Scripting.LuaScriptHost scriptHost = null) : base(type, type.parameters, null, GetVarLists(), name) {
+            //preparing a later element must not advance the shared random sequence or print ahead of an earlier one
+            canBatchGeometryPreparation = true;
+            foreach (var definition in type.parameters.staticDefinitions ?? new Definition[0]) {
+                if (definition.script != null || (definition.value != null && definition.value.Contains("rnd"))) canBatchGeometryPreparation = false;
+            }
             var settings = type.settings;
             if (settings.geometry != null || settings.constraints != null || settings.derivedPoints != null) {
                 this.scriptHost = scriptHost ?? RC.Scripting.LuaScriptHost.Get();

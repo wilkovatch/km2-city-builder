@@ -36,6 +36,10 @@ namespace CityElements.Types.Parsers {
             ancestries[category] = types;
         }
 
+        internal static void ClearAncestries() {
+            ancestries.Clear();
+        }
+
         //the type followed by its ancestors, nearest first (only the type if it is not known)
         public static string[] GetAncestry(string category, string name) {
             if (name != null && ancestries.TryGetValue(category, out var types) && types.TryGetValue(name, out var res)) return res;

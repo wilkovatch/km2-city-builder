@@ -14,8 +14,8 @@ namespace RuntimeCalculator.Scripting {
     }
 
     //Runs the Lua scripts of the core (its "lua" folder). The scripts are pure functions of the variables of an element:
-    //no access to files, the operating system or the scene. Everything runs on the main thread.
-    public class LuaScriptHost {
+    //no access to files, the operating system or the scene. Geometry batches use isolated worker hosts.
+    public class LuaScriptHost : IDisposable {
         const int hookInterval = 100000;
         const int maxHookTicks = 200; //a call is stopped after about 20 million instructions
 
@@ -28,6 +28,24 @@ namespace RuntimeCalculator.Scripting {
         public int ErrorCount => reportedErrors.Count;
         readonly LuaValue[] callArgs = new LuaValue[2];
         int hookTicks = 0;
+        readonly bool worker;
+        internal readonly List<string> prints = new List<string>();
+        internal readonly List<(string definition, string message)> errors = new List<(string, string)>();
+        internal bool needsMainThread;
+
+        internal static LuaScriptHost CreateWorker(string folder) {
+            return new LuaScriptHost(folder, true);
+        }
+
+        internal void BeginWork() {
+            prints.Clear();
+            errors.Clear();
+            needsMainThread = false;
+        }
+
+        public void Dispose() {
+            state.Dispose();
+        }
 
         //The host of the current core, created when first needed
         public static LuaScriptHost Get() {
@@ -46,8 +64,9 @@ namespace RuntimeCalculator.Scripting {
             instance = null;
         }
 
-        LuaScriptHost(string folder) {
+        LuaScriptHost(string folder, bool worker = false) {
             this.folder = folder;
+            this.worker = worker;
             state = LuaState.Create();
             state.OpenBasicLibrary();
             state.OpenMathLibrary();
@@ -68,10 +87,16 @@ namespace RuntimeCalculator.Scripting {
             env["print"] = new LuaFunction("print", (context, ct) => {
                 var parts = new List<string>();
                 for (int i = 0; i < context.ArgumentCount; i++) parts.Add(ToDisplayString(context.GetArgument(i)));
-                GameEngine.Print("[lua] " + string.Join("\t", parts));
+                var message = "[lua] " + string.Join("\t", parts);
+                if (worker) prints.Add(message);
+                else GameEngine.Print(message);
                 return new ValueTask<int>(context.Return());
             });
-            LuaVectors.Register(state);
+            LuaVectors.Register(state, worker ? () => {
+                //rnd shares a sequence with the expressions: retry this job on the main thread, in element order
+                needsMainThread = true;
+                throw new InvalidOperationException("random sequence requires the main thread");
+            } : null);
 
             state.SetHook(new LuaFunction("budget", (context, ct) => {
                 if (++hookTicks > maxHookTicks) throw new LuaRuntimeException(context.State, "the script is taking too long (infinite loop?)");
@@ -136,6 +161,10 @@ namespace RuntimeCalculator.Scripting {
         }
 
         public void ReportError(string definitionName, string message) {
+            if (worker) {
+                errors.Add((definitionName, message));
+                return;
+            }
             if (reportedErrors.Add(definitionName + "\n" + message)) {
                 GameEngine.LogError("Script of the definition '" + definitionName + "': " + message);
             }

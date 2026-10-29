@@ -19,7 +19,6 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     public MeshRenderer mr;
     public Mesh m;
     MeshCollider mc;
-    Mesh colliderMesh;
     readonly List<(LineRenderer lr, LowLevel.GeometryLine line)> lines = new List<(LineRenderer, LowLevel.GeometryLine)>();
     bool linesShown = false;
     bool containerShown = false; //the container of the element, or an element in it, is being edited (see ShowContainerLines)
@@ -43,10 +42,12 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     public void Initialize() {
         GO.SetLayer(this, 7);
         (mr, m) = GameEngine.Mesh.CreateMesh(GO.GetObject(this), new Material[] { MaterialManager.GetMaterial("") });
-        colliderMesh = new Mesh();
-        mc = GameEngine.Mesh.CreateCollider(GO.GetObject(this), colliderMesh);
-        propsContainer = GO.Create("PropsContainer");
-        GO.SetParent(propsContainer, this);
+        mc = GameEngine.Mesh.CreateShapeCollider(GO.GetObject(this), null);
+    }
+
+    //most elements have neither placeholders nor props; create those nodes only when the geometry uses them
+    void EnsurePlaceholder() {
+        if (placeholderContainer != null) return;
         placeholderContainer = GO.Create("Placeholder");
         GO.SetParent(placeholderContainer, this);
         (placeholderMr, placeholderM) = GameEngine.Mesh.CreateMesh(placeholderContainer, new Material[] { MaterialManager.GetMaterial("") });
@@ -57,7 +58,9 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     //the props of the prop rule of the state, for the containers of the type
     void PlaceProps(List<LowLevel.GeometryPropLine> propLines, ObjectState state, string[] containers) {
         GO.Destroy(propsContainer);
+        propsContainer = null;
         props.Clear();
+        if (state.State("propRule") == null) return;
         propsContainer = GO.Create("PropsContainer");
         GO.SetParent(propsContainer, this);
         if (GetParent() is PropPath) {
@@ -127,6 +130,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
         if (phIndices.Count == 0) {
             GameEngine.Mesh.Clear(placeholderM);
         } else {
+            EnsurePlaceholder();
             GameEngine.Mesh.AssignMaterials(placeholderMr, phMaterials.ToArray());
             GameEngine.Mesh.AssignData(placeholderM, phMaterials.ToArray(), phIndices, phVertices, phUVs, GO.GetName(this) + " placeholder");
         }
@@ -217,7 +221,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     public void ShowPlaceholder(bool show) {
         if (placeholderShown == show) return;
         placeholderShown = show;
-        placeholderMr.Visible = show;
+        if (placeholderMr != null) placeholderMr.Visible = show;
         RebuildCollider(lines.ConvertAll(l => l.line));
     }
 
@@ -256,13 +260,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
                 cIndices.AddRange(new[] { n, n + 2, n + 1, n + 1, n + 2, n + 3 });
             }
         }
-        if (cIndices.Count == 0) {
-            GameEngine.Mesh.Clear(colliderMesh);
-            GameEngine.Mesh.RefreshCollider(colliderMesh, mc, false);
-            return;
-        }
-        GameEngine.Mesh.AssignData(colliderMesh, cIndices, cVertices);
-        GameEngine.Mesh.RefreshCollider(colliderMesh, mc, true);
+        GameEngine.Mesh.RefreshCollider(mc, cVertices, cIndices);
     }
 
     public void Clear() {
@@ -275,8 +273,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
         GameEngine.Mesh.Clear(placeholderM);
         placeholderVertices = new List<Vector3>();
         placeholderIndices = new List<int>();
-        GameEngine.Mesh.Clear(colliderMesh);
-        GameEngine.Mesh.RefreshCollider(colliderMesh, mc, false);
+        GameEngine.Mesh.RefreshCollider(null, mc, false);
         PlaceProps(new List<LowLevel.GeometryPropLine>(), new ObjectState(), null);
     }
 }

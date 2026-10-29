@@ -233,6 +233,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             int curPlacementMode = 0;
             if (active && !keepActive) {
                 ClearEmptyPatch();

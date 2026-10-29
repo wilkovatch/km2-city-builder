@@ -180,6 +180,7 @@ namespace EditorPanels {
         }
 
         public void SetActive(bool active, bool withIntersections) {
+            if (!PrepareActivation(active)) return;
             string lastPreset = null;
             bool noRoad = false;
             var pS = GetComplexElement<PresetSelector>();
@@ -243,6 +244,7 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            if (!PrepareActivation(active)) return;
             SetActive(active, false);
         }
 

@@ -108,6 +108,14 @@ Evaluates a parametric building block type: fills the block's parameters and sta
 
 `SubMeshData` is an engine-independent mesh (vertices, UVs, one index array and one material name per submesh, plus a position and scale). `MergeSubmeshes` combines several of them (merging submeshes with the same material) with an optional transform, and `GetMesh`/`SetMeshData` convert them to engine meshes.
 
+## Low-level elements
+
+Low-level geometry (`LowLevelGenerator`) creates the placeholder nodes and mesh only when the geometry script returns placeholder surfaces, and the props container only when the state has a prop rule. Elements without those features keep their main mesh and selection collider without allocating the unused child nodes.
+
+`LowLevelGeometryBatch` processes large rebuilds in batches of up to 256 elements, using at most eight workers (and leaving one CPU available on machines with more than one CPU). After constraints and derived points finish on the main thread, each job captures the element's Lua context and private variables. Isolated Lua hosts compute and decode the geometry on the workers; meshes, colliders, props, messages and errors are applied in element order on the main thread. Small rebuilds and subclasses with their own rebuild logic use the serial path. Types whose static definitions can advance a random sequence or call a script also stay serial, and a geometry script calling `rnd` is retried on the main thread without consuming random numbers on the worker.
+
+The selection collider is built directly from its triangles (including pick-only surfaces, visible placeholders and the always-shown lines). No intermediate rendering mesh is uploaded or read back for the collider.
+
 ## Parametric objects
 
 ### `ParametricObjectContainer<T>` (`Geometry/Helpers/ParametricObjectContainer.cs`)

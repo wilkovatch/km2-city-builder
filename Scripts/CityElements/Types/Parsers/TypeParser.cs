@@ -5,6 +5,34 @@ using TI = CityElements.Types.Parsers.TypeInheritance;
 
 namespace CityElements.Types.Parsers {
     public class TypeParser {
+        static string cachedCore;
+
+        //loading a city rereads the core files once; panel rebuilds reuse the same runtime types
+        public static void Reset() {
+            cachedCore = null;
+            roadTypes = null;
+            propsTypes = null;
+            propsContainersTypes = null;
+            terrainPatchBorderMeshTypes = null;
+            terrainPatchTypes = null;
+            intersectionTypes = null;
+            buildingTypes = null;
+            buildingBlockTypes = null;
+            meshInstanceSettings = null;
+            parametricMeshInstanceSettings = null;
+            citySettings = null;
+            customTypes = null;
+            lowLevelTypes = null;
+            TI.ClearAncestries();
+            RuntimeCalculator.Scripting.LuaScriptHost.Reset();
+        }
+
+        static void EnsureCore() {
+            var core = PreferencesManager.workingDirectory == "" ? "" : PreferencesManager.Get("core", "");
+            if (cachedCore == core) return;
+            Reset();
+            cachedCore = core;
+        }
 
         //Common methods
         static string GetElementsDir() {
@@ -21,6 +49,7 @@ namespace CityElements.Types.Parsers {
         static Dictionary<string, T> GetTypes<T>(ref Dictionary<string, T> res, string category,
             System.Func<string, Dictionary<string, string[]>, Dictionary<string, T>> load, bool reload = false) {
 
+            EnsureCore();
             if (res != null && !reload) return res;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return new Dictionary<string, T>();
@@ -56,6 +85,7 @@ namespace CityElements.Types.Parsers {
 
         //the type followed by its ancestors, nearest first (category: one of the constants of TypeInheritance)
         public static string[] GetAncestry(string category, string name) {
+            EnsureCore();
             return TI.GetAncestry(category, name);
         }
 
@@ -184,6 +214,7 @@ namespace CityElements.Types.Parsers {
         //MeshInstance (just one)
         static Runtime.MeshInstanceSettings meshInstanceSettings = null;
         public static Runtime.MeshInstanceSettings GetMeshInstanceSettings(bool reload = false) {
+            EnsureCore();
             if (meshInstanceSettings != null && !reload) return meshInstanceSettings;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return null;
@@ -197,13 +228,14 @@ namespace CityElements.Types.Parsers {
         //Parametric MeshInstances
         static Dictionary<string, Runtime.MeshInstanceSettings> parametricMeshInstanceSettings = null;
         public static Dictionary<string, Runtime.MeshInstanceSettings> GetParametricMeshInstanceSettings(bool reload = false) {
+            EnsureCore();
             if (parametricMeshInstanceSettings != null && !reload) return parametricMeshInstanceSettings;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return null;
             var ancestries = new Dictionary<string, string[]>();
-            var res = LoadParametricMeshInstanceSettings(elementsDir, ancestries);
+            parametricMeshInstanceSettings = LoadParametricMeshInstanceSettings(elementsDir, ancestries);
             TI.SetAncestries(TI.ParametricObjects, ancestries);
-            return res;
+            return parametricMeshInstanceSettings;
         }
 
         public static Dictionary<string, Runtime.MeshInstanceSettings> LoadParametricMeshInstanceSettings(string elementsDir, Dictionary<string, string[]> ancestries = null) {
@@ -213,6 +245,7 @@ namespace CityElements.Types.Parsers {
         //City (only one type, dictionary here for compatibility with the InitializeWithCustomParameters method)
         static Dictionary<string, Runtime.CitySettings> citySettings = null;
         public static Dictionary<string, Runtime.CitySettings> GetCitySettings(bool reload = false) {
+            EnsureCore();
             if (citySettings != null && !reload) return citySettings;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return new Dictionary<string, Runtime.CitySettings>();
@@ -224,13 +257,14 @@ namespace CityElements.Types.Parsers {
 
         static Dictionary<string, CustomElement> customTypes = null;
         public static Dictionary<string, CustomElement> GetCustomTypes(bool reload = false) {
+            EnsureCore();
             if (customTypes != null && !reload) return customTypes;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return null;
             var ancestries = new Dictionary<string, string[]>();
-            var res = LoadCustomTypes(elementsDir, ancestries);
+            customTypes = LoadCustomTypes(elementsDir, ancestries);
             TI.SetAncestries(TI.CustomTypes, ancestries);
-            return res;
+            return customTypes;
         }
 
         public static Dictionary<string, CustomElement> LoadCustomTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {

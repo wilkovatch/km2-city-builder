@@ -268,16 +268,10 @@ public partial class CityBuilderMenuBar : Control {
             lowLevelEditorPanel
         };
 
-        foreach (var panel in panels) {
-            panel.Initialize(this);
-        }
-
-        DisableAllPanels(null);
-        SetSelectObjectMode();
-
         menuBar.SetAsLastSibling();
 
         Reload();
+        SetSelectObjectMode();
         Api.ApiHost.Create(this);
         Cli.CliRunner.Start(this); //only when started with a command on the command line
         if (!Cli.CommandLine.IsCliSession) Mcp.McpHttp.ApplySettings(); //if enabled in the settings
@@ -746,11 +740,11 @@ public partial class CityBuilderMenuBar : Control {
 
     public void Reload() {
         SM.Reload();
+        DisableAllPanels(null);
         foreach (var panel in panels) {
-            panel.Initialize(this);
+            panel.DeferInitialize(this);
         }
         var menuBar = GetMenuBar();
-        DisableAllPanels(null);
         if (PreferencesManager.workingDirectory == "") {
             for (int i = 1; i < menuBar.GetElementCount() - 3; i++) {
                 menuBar.EnableElement(i, false);
@@ -772,11 +766,6 @@ public partial class CityBuilderMenuBar : Control {
         meshListEditorPanel.ResetEntries(); //otherwise when opened for the first time it would have broken paths due to prefs not being loaded at first load
         SetCameraRenderingMode(PreferencesManager.Get("renderingMode", 0), false);
         SetShadows(PreferencesManager.Get("shadowsEnabled", true), false);
-        RuntimeCalculator.Scripting.LuaScriptHost.Reset(); //the scripts are read again with the types
-        CityElements.Types.Parsers.TypeParser.GetRoadTypes(true);
-        CityElements.Types.Parsers.TypeParser.GetPropsElementTypes(true);
-        CityElements.Types.Parsers.TypeParser.GetPropsContainersTypes(true);
-        CityElements.Types.Parsers.TypeParser.GetLowLevelTypes(true); //their scripts are resolved with the new host
     }
 
     public void SetCameraRenderingMode(int mode) {

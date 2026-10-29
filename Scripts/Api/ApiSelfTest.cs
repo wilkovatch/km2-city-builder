@@ -200,8 +200,12 @@ namespace Api {
                 } else {
                     await Basics();
                     LuaScripts();
+                    ParallelLuaGeometry();
                     TypeMerging();
                     await NewCity();
+                    await LazyEditorInitialization();
+                    DeferredPointVisuals();
+                    DirectColliderGeometry();
                     InheritedTypeFiles();
                     await Roads();
                     await TrafficLights();

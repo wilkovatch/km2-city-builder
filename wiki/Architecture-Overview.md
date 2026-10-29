@@ -53,7 +53,7 @@ Three autoloads are registered in `project.godot`: `IngameDebugConsole` (`DebugL
 Startup sequence:
 
 1. `CityGroundHelper._Ready` finds the `Editor` node (`CityBuilderMenuBar`), loads the terrain materials, creates the `ElementManager` node and the progress bar, then calls `CityBuilderMenuBar.ManualStart`.
-2. `ManualStart` sets the invariant culture, registers the key bindings (`GameEngine.Input.ReloadKeys`), creates the file browser, transform gizmo, placers and terrain tools, fills the menu bar, initializes every editor panel and creates the `ApiHost` (see [Scripting API](Scripting-API)).
+2. `ManualStart` sets the invariant culture, registers the key bindings (`GameEngine.Input.ReloadKeys`), creates the file browser, transform gizmo, placers and terrain tools, fills the menu bar, binds the editor panels to their canvas and creates the `ApiHost` (see [Scripting API](Scripting-API)). Hidden panels build their controls when first opened.
 3. `PythonManager.CheckPython` verifies that a usable Python interpreter is available and offers to install it otherwise.
 4. If the setting `LastCity` points to an existing city, it is loaded with `CityImporter.LoadCity`.
 
@@ -65,7 +65,7 @@ A city is a folder (the *working directory*, `PreferencesManager.workingDirector
 
 1. Reads `preferences.json` and checks the core it refers to and the versions it was saved with. If needed, it runs the core's migration scripts through `Files/python/migrate.py` (after asking the user, or as the options of a script say).
 2. Checks that the Python modules required by the core are installed (`PythonManager.CheckPythonForCore`, or the options of a script).
-3. Loads the preferences fully: string tables, texture formats, Python server (restarted for the current core) and the per-core common folder.
+3. Loads the preferences fully: string tables, texture formats, Python server (restarted for the current core) and the per-core common folder. Clears the type, ancestry and Lua caches so the city uses fresh core definitions, loaded on demand.
 4. Recreates every element from `city.json.gz` and flags the world as changed, so that everything is generated on the next frame.
 
 If the city can't be loaded (declined migration, missing core or Python modules, unreadable file), it is closed.
