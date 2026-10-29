@@ -286,7 +286,7 @@ public partial class ElementManager : Scriptable {
             res.Add(GO.GetObject(building));
         }
         foreach (var element in lowLevelElements) {
-            res.Add(element);
+            if (element.container == null) res.Add(element);
         }
         res.Sort((x, y) => Actions.Helpers.PadInts(GO.GetName(x)).CompareTo(Actions.Helpers.PadInts(GO.GetName(y))));
         return res;
