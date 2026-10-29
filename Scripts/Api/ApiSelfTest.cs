@@ -2397,6 +2397,34 @@ road(-750)
             //a road of the city converted: it becomes a ghost replaced by a room with its PSDL attributes and BAI road
             var cityRoad = ((JArray)await Call("elements.list", new { kind = "road" })).First(r => History.UndoManager.GetAliveElement(r["id"].Value<int>()) is Road rd
                 && rd.startIntersection != null && rd.endIntersection != null && rd.state.Str("type", "") == "psdl")["id"].Value<int>();
+
+            //the intersection converted first: the points of the divided road across its end are on the road end anchors of the
+            //ghost intersection (which follow the road), the dividers too (no point of the intersection there to weld to)
+            var startIntersection = History.ElementRegistry.GetId((History.UndoManager.GetAliveElement(cityRoad) as Road).startIntersection);
+            var beforeDivided = await Snapshot();
+            await Call("history.begin", new { label = "intersection converted before its road" });
+            await Call("state.setParam", new { @ref = cityRoad, name = "isDouble", value = true });
+            await Call("state.setParam", new { @ref = cityRoad, name = "divider", value = 1 });
+            await Call("state.setParam", new { @ref = cityRoad, name = "dividerWidth", value = 2 });
+            await Call("elements.convert", new { elements = new[] { startIntersection }, converter = "toPsdl" });
+            var dividedRoad = (JArray)await Call("elements.convert", new { elements = new[] { cityRoad }, converter = "toPsdl" });
+            await Call("history.commit");
+            var startEndAnchors = ((JArray)await Call("anchors.list", new { lowLevel = true }))
+                .Where(a => a["lowLevelOnly"].Value<bool>() && a["of"].Value<int>() == startIntersection).Select(a => Pos(a)).ToList();
+            var dividers = new List<(Vector3 pos, bool anchored)>();
+            foreach (var id in dividedRoad) {
+                var der = await Derived(id.Value<int>());
+                if (der["type"].Value<string>() != "dividedRoad") continue;
+                foreach (var s in (JArray)der["points"]["sections"]) foreach (var name in new[] { "leftDivider", "rightDivider" }) {
+                    if (s[name] is JObject o) dividers.Add((Pos(o), o["anchored"].Value<bool>()));
+                }
+            }
+            var dividersOnEnd = dividers.Where(p => startEndAnchors.Any(a => a.DistanceTo(p.pos) < 0.01f)).ToList();
+            Check("the dividers of a road converted after its intersection are on its road end anchors (" + dividersOnEnd.Count + ")",
+                dividersOnEnd.Count == 2 && dividersOnEnd.All(p => p.anchored));
+            await Call("history.undo");
+            Same("undoing the conversion of the intersection and of the divided road", beforeDivided, await Snapshot());
+
             var before = await Snapshot();
             var created = (JArray)await Call("elements.convert", new { elements = new[] { cityRoad }, converter = "toPsdl" });
             var ghosts = (JArray)await Call("ghosts.list");

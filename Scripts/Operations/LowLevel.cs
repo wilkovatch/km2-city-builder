@@ -144,8 +144,8 @@ namespace Operations {
 
         //the point is on an anchor of a ghost, or on the segment between two of them
         static bool OnGhostAnchor(TerrainPoint point) {
-            bool OfGhost(Node3D obj) => !GO.IsNull(obj) && IsGhost(Anchors.GetOwner(GS.FindRecursive<TerrainAnchor>(obj)).owner);
-            if (point.anchor is TerrainAnchor ta) return !GO.IsNull(ta) && IsGhost(Anchors.GetOwner(ta).owner);
+            bool OfGhost(Node3D obj) => !GO.IsNull(obj) && IsGhostAnchor(GS.FindRecursive<TerrainAnchor>(obj));
+            if (point.anchor is TerrainAnchor ta) return !GO.IsNull(ta) && IsGhostAnchor(ta);
             if (point.anchor is LineAnchor line && !line.IsDeleted()) return OfGhost(line.start) && OfGhost(line.end);
             return false;
         }
@@ -358,11 +358,27 @@ namespace Operations {
         public static TerrainAnchor FindAnchorAt(ElementManager manager, Vector3 position) {
             foreach (var anchor in Anchors.GetAll(manager)) {
                 if (anchor.IsDeleted() || GameEngine.Vector3.Distance(anchor.GetPoint(), position) >= WeldDistance) continue;
-                var owner = Anchors.GetOwner(anchor).owner;
-                if (IsGhost(owner)) continue;
+                if (IsGhostAnchor(anchor)) continue;
                 return anchor;
             }
             return null;
+        }
+
+        //the anchor is of a ghost, which nothing else shows; the anchors across the end of a road (low-level only) of a ghost
+        //intersection are not, while the road isn't a ghost: they follow its end (e.g. for the road converted after the
+        //intersection, whose points there, as the ones of its dividers, are put on them)
+        public static bool IsGhostAnchor(TerrainAnchor anchor) {
+            var owner = Anchors.GetOwner(anchor).owner;
+            if (!IsGhost(owner)) return false;
+            if (!anchor.lowLevelOnly || owner is not Intersection intersection) return true;
+            var position = anchor.GetPoint();
+            bool OnEnd(List<Vector3> ends) => ends.Exists(p => GameEngine.Vector3.Distance(p, position) < WeldDistance);
+            foreach (var road in intersection.roads) {
+                if (road == null || road.ghost || road.generator == null) continue;
+                if (road.startIntersection == intersection && OnEnd(road.generator.startEndAnchors)) return false;
+                if (road.endIntersection == intersection && OnEnd(road.generator.endEndAnchors)) return false;
+            }
+            return true;
         }
     }
 }
