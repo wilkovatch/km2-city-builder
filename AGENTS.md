@@ -88,14 +88,15 @@ Creates an MM2 SF city and drives it only through JSON API commands. It covers e
 <godot console exe> --headless --path . -- selftest api "<scratch>/api/city"               # headless (skips the view checks)
 ```
 
-**Baseline (2026-10-28): 580 OK windowed / 565 headless, 0 failures, ~55 s windowed.** Known and accepted: the full `city.export` reports an `export_failed` error on "Intersection 1" (PSDL perimeter infinite loop at the 3-road origin intersection). The test checks that the error names it and that PSDL/INST/BAI are still written.
+**Baseline (2026-10-29): 783 OK windowed / 768 headless, 0 failures, ~75 s windowed.** Known and accepted: the full `city.export` reports an `export_failed` error on "Intersection 1" (PSDL perimeter infinite loop at the 3-road origin intersection). The test checks that the error names it and that PSDL/INST/BAI are still written.
 
 - `InheritedTypes` temporarily creates `Files/cores/MidtownMadness2/elements/roads/zzInheritTest`. If a run is killed, delete that folder by hand.
 - A run with failures has exited with 132 (SIGILL) during Godot's shutdown finalizers. Clean runs exit 0.
+- A run that stops without an error (no log, the window idle) is an API reply that never comes: `SettleProjectedSplines` (awaited by the dispatcher after each command while projected splines exist) waits until an update rebuilds no road, intersection or patch, so an element reporting a change at every update stalls it (e.g. a border mesh state never flagged unchanged). Run without `--quiet` to see the `[api-selftest]` lines up to the stuck step.
 - Empty ObjectState arrays vanish on JSON re-read, so compare `[]` and missing as equal.
 - `city.exportJson` ids are indices in the manager lists, not API ids. Ids change after a reload, so re-list (or compare by name).
 - An API `Call` flushes and resets the elements' editing state, and a change closes the open editors (as before an undo). To test a GUI action with undo, run the GUI steps first, then `city.flush`, then take the snapshots (`CheckGuiUndo` in `BaiConnections`), not `CheckUndo` around them.
-- The low-level panel gets its element from the click mode (`GetPlacer()` is `terrainClick.modifier as LowLevelPlacer`): a temporary click mode (e.g. `ReferencePicker`) must restore the previous one before changing the element.
+- The low-level panel gets its element from the click mode (`GetPlacer()` is `terrainClick.modifier as LowLevelPlacer`): a temporary click mode (e.g. `ReferencePicker`) must restore the previous one before changing the element. While the point transform panel (M) is open the modifier is null; `CityBuilderMenuBar.ControlPointOwnerLowLevel` gives the element.
 - Every menu entry and panel button runs inside `UndoManager.Record` (`IsBusy` is true), so a `RunLong` API call made synchronously from a GUI action fails with "another operation is running". GUI code must yield a frame first, and tests of GUI actions should go through `UndoManager.Record` like the menu does.
 - Panel checks: call `panel.Update()`, not `placer.onFrame` (which returns early when nothing changed).
 - Read core settings like `allowYaw`/`allowRoll` from the type instead of hardcoding them; the maintainer toggles them locally.

@@ -201,9 +201,6 @@ namespace EditorPanels {
                         }
                     }
                 }
-                modes.Add(SM.Get("LL_PM_ATTACH"));
-                modes.Add(SM.Get("LL_PM_ATTACH_LINE"));
-                modes.Add(SM.Get("LL_PM_ATTACH_COLUMN"));
                 placementDropdown = p.AddDropdown(SM.Get("LL_POINT_PLACEMENT_MODE"), modes, SetPlacementMode, w);
                 p.IncreaseRow();
                 insertBeforeButton = p.AddButton(SM.Get("LL_INSERT_BEFORE"), () => InsertArrayElement(false), w * 0.5f, SM.Get("LL_INSERT_TOOLTIP"));
@@ -349,7 +346,8 @@ namespace EditorPanels {
                 var shared = point.GetLinks().Count - 1;
                 if (shared > 0) text += " (" + SM.Get("LL_SHARED").Replace("$NUMBER", shared.ToString()) + ")";
                 if (!GO.IsNull(point.anchor) && !point.anchor.IsDeleted()) {
-                    var anchorText = point.anchor is ColumnAnchor ? "LL_ON_COLUMN" : point.anchor is LineAnchor ? "LL_ON_LINE" : "LL_ANCHORED";
+                    var anchorText = point.anchor is ColumnAnchor ? "LL_ON_COLUMN" : point.anchor is LineAnchor ? "LL_ON_LINE"
+                        : point.anchor is PointAnchor ? "LL_ON_POINT" : "LL_ANCHORED";
                     text += " (" + SM.Get(anchorText) + ")";
                 }
             }
@@ -391,8 +389,6 @@ namespace EditorPanels {
         void SetPlacementMode(int mode) {
             var placer = GetPlacer();
             if (placer == null) return;
-            placer.EndAttaching();
-            shownAnything = false; //the selected point may have been attached
             if (mode == 0) {
                 placer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.None;
             } else if (mode <= appendArrays.Count) {
@@ -402,12 +398,6 @@ namespace EditorPanels {
                     : ElementPlacer.LowLevelPlacer.PlacementMode.AppendPoint;
                 placer.arrayPath = path;
                 placer.atStart = atStart;
-            } else if (mode == appendArrays.Count + 1) {
-                placer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.AttachSelected;
-            } else if (mode == appendArrays.Count + 2) {
-                placer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.AttachToLine;
-            } else {
-                placer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.AttachToColumn;
             }
             builder.helper.elementManager.ShowAnchors(mode > 0, true);
             var element = GetElement();
@@ -452,9 +442,6 @@ namespace EditorPanels {
             switch (placer.placementMode) {
                 case ElementPlacer.LowLevelPlacer.PlacementMode.AppendPoint: return appendArrays.IndexOf((placer.arrayPath, false)) + 1;
                 case ElementPlacer.LowLevelPlacer.PlacementMode.AppendElement: return appendArrays.IndexOf((placer.arrayPath, placer.atStart)) + 1;
-                case ElementPlacer.LowLevelPlacer.PlacementMode.AttachSelected: return appendArrays.Count + 1;
-                case ElementPlacer.LowLevelPlacer.PlacementMode.AttachToLine: return appendArrays.Count + 2;
-                case ElementPlacer.LowLevelPlacer.PlacementMode.AttachToColumn: return appendArrays.Count + 3;
                 default: return 0;
             }
         }
@@ -695,15 +682,22 @@ namespace EditorPanels {
                 var element = GetElement();
                 if (element != null) {
                     SetTitle(GO.GetName(element));
-                    element.SetActive(true, true);
-                    element.Select(true);
-                    HighlightContents(element, true);
-                    ShowContainerLines(element);
-                    ShowMoveHandle(element);
+                    ShowElement(element);
                 } else {
                     SetTitle(creationType != null ? Operations.LowLevel.GetTypeLabel(creationType) : SM.Get(creationGroup));
                 }
             }
+        }
+
+        //the element is shown as while edited: its points (and the ones of its contents) moveable, its lines, its move
+        //handle (also after the point transform panel showed the anchors to attach a point)
+        public void ShowElement(LowLevelElement element) {
+            if (element == null || GO.IsNull(element) || element.IsDeleted()) return;
+            element.SetActive(true, true);
+            element.Select(true);
+            HighlightContents(element, true);
+            ShowContainerLines(element);
+            ShowMoveHandle(element);
         }
 
         void OnFrame() {

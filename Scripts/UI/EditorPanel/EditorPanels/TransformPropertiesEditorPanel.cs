@@ -5,6 +5,7 @@ using Godot;
 using SM = StringManager;
 using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
+using Target = ElementPlacer.TerrainPointAttachmentPicker.Target;
 
 namespace EditorPanels {
     public class TransformPropertiesEditorPanel : EditorPanel {
@@ -14,7 +15,7 @@ namespace EditorPanels {
         bool onParametricObject;
         ElementPlacer.TerrainPointAttachmentPicker attachmentPicker;
         EditorPanelElements.Label attachmentStatus;
-        EditorPanelElements.Button attachPointButton, detachPointButton, projectPointButton;
+        EditorPanelElements.Button attachPointButton, attachLineButton, attachColumnButton, detachPointButton, projectPointButton;
         EditorPanelElement pointPositionField;
 
         public override void Initialize(Control canvas) {
@@ -28,7 +29,7 @@ namespace EditorPanels {
             Initialize(canvas, 1, w);
             var p0 = GetPage(0);
             attachmentStatus = null;
-            detachPointButton = null;
+            attachPointButton = attachLineButton = attachColumnButton = detachPointButton = null;
             pointPositionField = null;
             projectPointButton = null;
             CityElements.Types.ObjectInstanceSettings objSettings = null;
@@ -72,13 +73,22 @@ namespace EditorPanels {
                     rotBtn.SetInteractable(axes[1] || axes[2]);
                 }
             }
-            if (GetProceduralPoint() != null) {
+            var attachable = GetProceduralPoint();
+            if (attachable != null) {
                 attachmentPicker ??= new ElementPlacer.TerrainPointAttachmentPicker(builder);
+                var lowLevel = LowLevelPoint(attachable);
                 p0.IncreaseRow();
                 attachmentStatus = p0.AddLabel("", w);
                 p0.IncreaseRow();
-                attachPointButton = p0.AddButton(SM.Get("POINT_ATTACH"), AttachPoint, w * 0.65f, SM.Get("POINT_ATTACH_TOOLTIP"));
+                attachPointButton = p0.AddButton(SM.Get(lowLevel ? "POINT_ATTACH_LOW_LEVEL" : "POINT_ATTACH"), () => AttachPoint(Target.Anchor), w * 0.65f,
+                    SM.Get(lowLevel ? "POINT_ATTACH_LOW_LEVEL_TOOLTIP" : "POINT_ATTACH_TOOLTIP"));
                 detachPointButton = p0.AddButton(SM.Get("POINT_DETACH"), DetachPoint, w * 0.35f, SM.Get("POINT_DETACH_TOOLTIP"));
+                if (lowLevel) {
+                    //the anchors between points (see Operations.LowLevel.AttachToLine and AttachToColumn)
+                    p0.IncreaseRow();
+                    attachLineButton = p0.AddButton(SM.Get("POINT_ATTACH_LINE"), () => AttachPoint(Target.Line), w * 0.5f, SM.Get("POINT_ATTACH_LINE_TOOLTIP"));
+                    attachColumnButton = p0.AddButton(SM.Get("POINT_ATTACH_COLUMN"), () => AttachPoint(Target.Column), w * 0.5f, SM.Get("POINT_ATTACH_COLUMN_TOOLTIP"));
+                }
             }
             p0.IncreaseRow();
             p0.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), GetGizmo, "snapToGrid", null, w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
@@ -177,39 +187,80 @@ namespace EditorPanels {
         TerrainPoint GetProceduralPoint() {
             DropDeletedInstance();
             var point = instance == null || notOnHandle ? null : GS.FindRecursive<TerrainPoint>(instance);
-            return point != null && !point.IsDeleted() && point.GetLinks().Exists(e => e is TerrainPatch || e is BuildingLine) ? point : null;
+            return point != null && !point.IsDeleted() && point.GetLinks().Exists(e => e is TerrainPatch || e is BuildingLine || e is LowLevelElement) ? point : null;
+        }
+
+        //a point of the low-level elements only: it can also be attached to any point, to the line between two points or to
+        //the vertical line of a point, and it can still be moved on an anchor (it leaves it)
+        static bool LowLevelPoint(TerrainPoint point) {
+            var links = point.GetLinks();
+            return !links.Exists(e => e is TerrainPatch || e is BuildingLine) && links.Exists(e => e is LowLevelElement);
         }
 
         bool FixedPoint() {
             var point = GetProceduralPoint();
-            return point != null && !GO.IsNull(point.anchor) && !point.anchor.IsDeleted() && !point.anchor.IsMoveable();
+            return point != null && !LowLevelPoint(point) && !GO.IsNull(point.anchor) && !point.anchor.IsDeleted() && !point.anchor.IsMoveable();
+        }
+
+        bool Picking() {
+            return attachmentPicker?.IsActive ?? false;
         }
 
         void RefreshAttachmentControls() {
             var point = GetProceduralPoint();
             if (point == null || attachmentStatus == null) return;
+            var lowLevel = LowLevelPoint(point);
             point.Select(true);
-            point.SetMoveable(true);
+            point.SetMoveable(true, lowLevel);
             var attached = !GO.IsNull(point.anchor) && !point.anchor.IsDeleted();
-            var key = attachmentPicker.IsActive ? "POINT_PICKING" : !attached ? "POINT_FREE" : point.anchor is LineAnchor ? "POINT_ON_SEGMENT" : "POINT_ANCHORED";
+            var picking = Picking();
+            string key;
+            if (picking) {
+                key = !lowLevel ? "POINT_PICKING" : attachmentPicker.CurrentTarget switch {
+                    Target.Line => attachmentPicker.LineStart == null ? "POINT_PICKING_LINE_START" : "POINT_PICKING_LINE_END",
+                    Target.Column => "POINT_PICKING_COLUMN",
+                    _ => "POINT_PICKING_LOW_LEVEL"
+                };
+            } else {
+                key = !attached ? "POINT_FREE" : point.anchor is LineAnchor ? "POINT_ON_SEGMENT" : point.anchor is ColumnAnchor ? "POINT_ON_COLUMN"
+                    : point.anchor is PointAnchor ? "POINT_ON_POINT" : "POINT_ANCHORED";
+            }
             attachmentStatus.SetValue(SM.Get(key));
-            detachPointButton.SetInteractable(attached && !attachmentPicker.IsActive);
-            pointPositionField?.SetInteractable(!FixedPoint() && !attachmentPicker.IsActive);
-            projectPointButton?.SetInteractable(!FixedPoint() && !attachmentPicker.IsActive);
+            detachPointButton.SetInteractable(attached && !picking);
+            //while picking, only the button that started it (to cancel)
+            attachPointButton?.SetInteractable(!picking || attachmentPicker.CurrentTarget == Target.Anchor);
+            attachLineButton?.SetInteractable(!picking || attachmentPicker.CurrentTarget == Target.Line);
+            attachColumnButton?.SetInteractable(!picking || attachmentPicker.CurrentTarget == Target.Column);
+            pointPositionField?.SetInteractable(!FixedPoint() && !picking);
+            projectPointButton?.SetInteractable(!FixedPoint() && !picking);
             SetAllowedAxes();
         }
 
-        void AttachPoint() {
+        void AttachPoint(Target target) {
             var point = GetProceduralPoint();
             if (point == null) return;
             if (CancelAttachment()) return;
+            var lowLevel = LowLevelPoint(point);
+            var owner = lowLevel ? builder.ControlPointOwnerLowLevel : null;
+            if (lowLevel) {
+                //the anchors (also the ones only for the low-level elements) and the points of the other elements are shown,
+                //and the points of the element can be clicked (they can't be moved meanwhile), as in the click modes
+                builder.helper.elementManager.ShowAnchors(true, true);
+                owner?.SetActive(true, false);
+                owner?.Select(true);
+            }
             attachmentPicker.Start(point, () => {
+                if (lowLevel) {
+                    builder.helper.elementManager.ShowAnchors(false, true);
+                    builder.lowLevelEditorPanel.ShowElement(owner);
+                }
                 if (!ActiveSelf() || GetProceduralPoint() == null) return;
                 point.Select(true);
-                point.SetMoveable(true);
+                point.SetMoveable(true, lowLevel);
                 Reselect();
                 RefreshAttachmentControls();
-            });
+            }, target, !lowLevel);
+            if (lowLevel) attachmentPicker.onFrame = RefreshAttachmentControls; //the end of the line to click
             RefreshAttachmentControls();
         }
 
@@ -218,7 +269,7 @@ namespace EditorPanels {
             if (point == null) return;
             Operations.TerrainPoints.Detach(point);
             point.Select(true);
-            point.SetMoveable(true);
+            point.SetMoveable(true, LowLevelPoint(point));
             builder.NotifyChange();
             Reselect();
             RefreshAttachmentControls();
@@ -425,7 +476,7 @@ namespace EditorPanels {
         //are cleared, so this follows each selection of the object)
         void SetAllowedAxes() {
             if (GetProceduralPoint() != null) {
-                var move = !FixedPoint() && !(attachmentPicker?.IsActive ?? false);
+                var move = !FixedPoint() && !Picking();
                 builder.gizmo.posAxesAllowed = new bool[] { move, move, move };
                 builder.gizmo.rotAxesAllowed = builder.gizmo.scaleAxesAllowed = new bool[] { false, false, false };
                 builder.gizmo.transformType = move ? RuntimeGizmos.TransformType.Move : RuntimeGizmos.TransformType.None;
@@ -562,23 +613,26 @@ namespace EditorPanels {
         }
 
         object GetCurTransform() {
-            return instance != null ? new TransformBinding(instance, GetProceduralPoint()) : null;
+            var point = GetProceduralPoint();
+            return instance != null ? new TransformBinding(instance, point, point != null && LowLevelPoint(point)) : null;
         }
 
         //accessor for the "transform.*" field bindings, Godot nodes have no "transform" member
         class TransformBinding {
             readonly Node3D obj;
             readonly TerrainPoint point;
+            readonly bool leaveAnchor; //a point of the low-level elements leaves its anchor when moved
 
-            public TransformBinding(Node3D obj, TerrainPoint point) {
+            public TransformBinding(Node3D obj, TerrainPoint point, bool leaveAnchor) {
                 this.obj = obj;
                 this.point = point;
+                this.leaveAnchor = leaveAnchor;
             }
 
             public TransformBinding transform => this;
             //the owner was recorded by the panel, but a road end on an intersection moves the intersection too
             public Vector3 position { get => GO.GetPosition(obj); set {
-                if (point != null) Operations.TerrainPoints.Move(point, value);
+                if (point != null) Operations.TerrainPoints.Move(point, value, leaveAnchor);
                 else { History.UndoManager.TouchOwner(obj); GO.SetPosition(obj, value); }
             } }
             public Vector3 localPosition { get => GO.GetLocalPosition(obj); set { History.UndoManager.TouchOwner(obj); GO.SetLocalPosition(obj, value); } }

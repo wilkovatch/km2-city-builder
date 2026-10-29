@@ -7,11 +7,12 @@ namespace Operations {
     //The points of the terrain patches and building lines
     public static class TerrainPoints {
         //Procedural points use ordinary generated anchors; building points can also follow patch corners and edges.
+        //Without generatedOnly (the points of the low-level elements) any anchor, segment or terrain point.
         public static IAnchorable AttachmentFromClick(Node3D obj, Vector3 position, bool generatedOnly = true, TerrainPoint point = null) {
             if (obj == null) return null;
             var buildingPoint = generatedOnly && point != null && point.GetLinks().Exists(e => e is BuildingLine);
             var clicked = GS.FindRecursive<TerrainPoint>(obj);
-            if (buildingPoint && clicked != null && !clicked.IsDeleted() && clicked.GetLinks().Exists(e => e is TerrainPatch)) {
+            if (clicked != null && !clicked.IsDeleted() && (!generatedOnly || (buildingPoint && clicked.GetLinks().Exists(e => e is TerrainPatch)))) {
                 return DependsOn(clicked, point) ? null : new PointAnchor(clicked);
             }
             var anchor = GS.FindRecursive<TerrainAnchor>(obj);

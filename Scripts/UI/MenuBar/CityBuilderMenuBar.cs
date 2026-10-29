@@ -1686,6 +1686,9 @@ public partial class CityBuilderMenuBar : Control {
         return null;
     }
 
+    //the low-level element whose editor the transform panel was opened from (on one of its points), null otherwise
+    public LowLevelElement ControlPointOwnerLowLevel => (controlPointOwnerModifier as ElementPlacer.LowLevelPlacer)?.GetElement();
+
     //called by the transform panel before returning to (or terminating) the editor owning the control point
     public void RestoreControlPointOwner() {
         terrainClick.modifier = controlPointOwnerModifier;

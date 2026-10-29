@@ -7,11 +7,13 @@ public class TerrainBorderMesh {
     public List<TerrainPoint> segment = new List<TerrainPoint>();
     public List<Vector3> oldSegment = new List<Vector3>();
 
+    //(the state too: changed once, it would rebuild the patch at every update)
     public void UpdateOlds() {
         oldSegment = new List<Vector3>();
         foreach (var point in segment) {
             oldSegment.Add(point.GetPoint());
         }
+        state.FlagAsUnchanged();
     }
 
     public bool DidChange() {

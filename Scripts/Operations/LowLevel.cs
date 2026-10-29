@@ -125,8 +125,8 @@ namespace Operations {
         //moves the element with its contents by the offset: their points move (the ones shared with other elements too, which
         //follow), except the ones on the anchors of roads and intersections, which stay there. The anchors of a ghost don't
         //count (they are the ones of the element converted, which nothing else shows): the points leave them and move. The
-        //points on a line follow its ends, and the ones on a vertical line move as with the gizmo (their height changes, the
-        //line follows its point). Returns the number of points moved
+        //points on a line follow its ends, the ones on another point follow it, and the ones on a vertical line move as with
+        //the gizmo (their height changes, the line follows its point). Returns the number of points moved
         public static int Move(ElementManager manager, LowLevelElement element, Vector3 offset) {
             if (element == null || element.IsDeleted() || offset.IsZeroApprox()) return 0;
             var moved = 0;
@@ -134,6 +134,7 @@ namespace Operations {
                 var onGhost = OnGhostAnchor(p);
                 if (!onGhost && p.anchor is TerrainAnchor ta && !GO.IsNull(ta) && !ta.IsDeleted()) continue;
                 if (!onGhost && p.anchor is LineAnchor line && !line.IsDeleted()) continue;
+                if (p.anchor is PointAnchor fixedPoint && !fixedPoint.IsDeleted()) continue;
                 History.UndoManager.Touch(p);
                 if (onGhost) p.anchor = null;
                 GO.SetPosition(p.GetObject(), p.GetPoint() + offset);

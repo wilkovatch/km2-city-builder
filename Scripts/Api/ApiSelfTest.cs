@@ -3014,9 +3014,98 @@ road(-750)
             builder.CloseAllPanels();
             await Frames(2);
             await Expect("a point following itself", "invalid_operation", "lowLevel.attachPoint", new { element = fanA, vertex = 0, column = History.ElementRegistry.GetId(onColumn) });
+            //with the point transform panel (M on the selected point), as for the points of the patches and building lines
+            var fanC = (await Call("lowLevel.create", Fan(1060))).Value<int>();
+            var transformPanel = (EditorPanels.TransformPropertiesEditorPanel)typeof(CityBuilderMenuBar).GetField("transformPropertiesEditorPanel", flags).GetValue(builder);
+            T PanelField<T>(string name) => (T)typeof(EditorPanels.TransformPropertiesEditorPanel).GetField(name, flags).GetValue(transformPanel);
+            ElementPlacer.TerrainPointAttachmentPicker Picker() => PanelField<ElementPlacer.TerrainPointAttachmentPicker>("attachmentPicker");
+            void PressButton(string name) {
+                var button = PanelField<EditorPanelElements.Button>(name);
+                ((Godot.Button)typeof(EditorPanelElements.Button).GetField("button", flags).GetValue(button)).EmitSignal(Godot.Button.SignalName.Pressed);
+            }
+            //(the points are got before: an API call resets the editing state)
+            async Task EditFanPoint(int fan, TerrainPoint p) {
+                builder.SelectObject(Element(fan), true, null);
+                await Frames(3);
+                builder.gizmo.ClearTargets();
+                builder.gizmo.AddTarget(p.GetObject());
+                CallBuilder<object>("EditCurSelectedObjectTransform");
+                await Frames(2);
+            }
+            async Task EndPointEditing() {
+                transformPanel.GetType().GetMethod("EndHandleEditing", flags).Invoke(transformPanel, null);
+                await Frames(2);
+            }
+            bool Moveable(int fan) => Element(fan).GetAllPoints().All(p => GO.GetEnabled(p.GetObject()) && GO.GetLayer(p.GetObject()) == 8);
+            var c0 = await V(fanC, 0);
+            var a2 = await V(fanA, 2);
+            var beforeAttach = await Snapshot();
+            await EditFanPoint(fanC, c0);
+            Check("M on a low-level point opens its transform panel with the attach buttons", transformPanel.ActiveSelf() && transformPanel.instance == c0.GetObject()
+                && PanelField<EditorPanelElements.Button>("attachPointButton") != null && PanelField<EditorPanelElements.Button>("attachLineButton") != null
+                && PanelField<EditorPanelElements.Button>("attachColumnButton") != null);
+            PressButton("attachPointButton");
+            Check("the attach button of a low-level point starts a temporary picker", Picker().IsActive && builder.terrainClick.modifier == Picker());
+            Check("the low-level picker rejects attaching a point to itself", !Picker().Pick(c0.GetObject(), c0.GetPoint()) && Picker().IsActive);
+            Godot.Input.ParseInputEvent(new InputEventKey { PhysicalKeycode = Godot.Key.Escape, Pressed = true });
+            await Frames(2);
+            Godot.Input.ParseInputEvent(new InputEventKey { PhysicalKeycode = Godot.Key.Escape, Pressed = false });
+            await Frames(1);
+            Check("Escape ends the low-level picker and keeps the point transform panel", !Picker().IsActive && transformPanel.ActiveSelf()
+                && builder.gizmo.mainTargetRoot == c0.GetObject());
+            PressButton("attachPointButton");
+            History.UndoManager.Record("attach point", () => Picker().Pick(a2.GetObject(), a2.GetPoint()));
+            await Frames(2);
+            Check("a clicked point is followed: the point keeps its identity, isn't shared and is selected again", c0.anchor is PointAnchor followed
+                && followed.master == a2 && c0.GetLinks().Count == 1 && c0.GetPoint().DistanceTo(a2.GetPoint()) < 1e-3 && !Picker().IsActive
+                && transformPanel.ActiveSelf() && builder.gizmo.mainTargetRoot == c0.GetObject());
+            await EndPointEditing();
+            Check("ending the point editing gives the low-level editor back, with the point selected and the points moveable",
+                builder.lowLevelEditorPanel.GetElement() == Element(fanC) && builder.terrainClick.modifier == builder.lowLevelPlacer
+                && builder.gizmo.mainTargetRoot == c0.GetObject() && Moveable(fanC));
+            await Call("city.flush");
+            var afterAttach = await Snapshot();
+            await Call("history.undo");
+            Same("undo attaching a low-level point with the picker", beforeAttach, await Snapshot());
+            await Call("history.redo");
+            Same("redo attaching a low-level point with the picker", afterAttach, await Snapshot());
+            var c1 = await V(fanC, 1);
+            var c2 = await V(fanC, 2);
+            var lineA = await V(fanA, 0);
+            var lineB = await V(fanA, 1);
+            await EditFanPoint(fanC, c1);
+            PressButton("attachLineButton");
+            History.UndoManager.Record("line start", () => Picker().Pick(lineA.GetObject(), lineA.GetPoint()));
+            await Frames(1);
+            Check("the first end of a line keeps the picker active, and isn't picked again", Picker().IsActive && Picker().LineStart == lineA
+                && !Picker().Pick(lineA.GetObject(), lineA.GetPoint()));
+            Screenshot("low_level_attach_line.png");
+            History.UndoManager.Record("line end", () => Picker().Pick(lineB.GetObject(), lineB.GetPoint()));
+            await Frames(2);
+            Check("the two points clicked give the line the point follows", c1.anchor is LineAnchor pickedLine && pickedLine.StartPoint == lineA
+                && pickedLine.EndPoint == lineB && !Picker().IsActive && transformPanel.ActiveSelf());
+            await EndPointEditing();
+            await EditFanPoint(fanC, c2);
+            PressButton("attachColumnButton");
+            History.UndoManager.Record("column", () => Picker().Pick(lineA.GetObject(), lineA.GetPoint()));
+            await Frames(2);
+            Check("the point clicked gives the vertical line the point follows", c2.anchor is ColumnAnchor pickedColumn && pickedColumn.master == lineA
+                && !Picker().IsActive);
+            await EndPointEditing();
+            //lineA can't follow c1, which follows it
+            await EditFanPoint(fanA, lineA);
+            PressButton("attachColumnButton");
+            Check("a point following the selected one is not picked", Picker().IsActive && !Picker().Pick(c1.GetObject(), c1.GetPoint()) && GO.IsNull(lineA.anchor));
+            PressButton("attachColumnButton");
+            Check("pressed again, the attach button cancels the picking", !Picker().IsActive && transformPanel.ActiveSelf());
+            await EndPointEditing();
+            Check("the low-level editor is back with its points moveable after the cancelled picking", builder.lowLevelEditorPanel.GetElement() == Element(fanA) && Moveable(fanA));
+            builder.CloseAllPanels();
+            await Frames(2);
             //saved and loaded
             GO.SetName(Element(fanA), "anchor fan A");
             GO.SetName(Element(fanB), "anchor fan B");
+            GO.SetName(Element(fanC), "anchor fan C");
             await Call("city.save");
             await Call("city.reload");
             var fans = (JArray)await Call("elements.list", new { kind = "lowLevel", type = "triangleFan" });
@@ -3026,6 +3115,9 @@ road(-750)
             var loadedB1 = await V(Named("anchor fan B"), 1);
             Check("the anchors between points are saved and loaded", loadedB1.anchor is ColumnAnchor column && column.master == loadedA0
                 && loadedB0.anchor is LineAnchor line && line.StartPoint == loadedA0 && Mathf.Abs(loadedB1.GetPoint().Y - 8) < 1e-3);
+            var loadedC0 = await V(Named("anchor fan C"), 0);
+            var loadedA2 = await V(Named("anchor fan A"), 2);
+            Check("a point following another point is saved and loaded", loadedC0.anchor is PointAnchor loadedFollowed && loadedFollowed.master == loadedA2);
 
             //a building converted: its points keep their places when one is moved
             var lines = (JArray)await Call("elements.list", new { kind = "buildingLine" });
