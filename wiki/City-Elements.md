@@ -40,6 +40,10 @@ The node that owns every element of the open city, in the lists `roads`, `inters
 * Visibility helpers: `ShowIntersections`, `ShowAnchors`, `ShowAllTrafficLanes`, `GetObjectList`.
 * Creation helpers: `CreateRoad` (a new road with the default preset, numbered after the existing ones) and `CreateIntersection` (a new intersection with no roads at a position), used by the road placer and the road splitter.
 
+An edit still checks the city for changed inputs, including points following anchors, but only changed meshes are rebuilt. Projected road control points reuse their last projection until they move or the terrain heightmap changes. Low-level elements share point-tree snapshots within one update; when their inputs and membership are unchanged, the later constraint, derived-point and geometry passes are skipped. Derived elements look for siblings within their source group. The edit loop leaves garbage collection to the runtime.
+
+For a short synthetic editing benchmark and dependency checks, set `KM2_SELFTEST_INCREMENTAL=1` and run `selftest api <new folder>`. It measures unchanged updates and isolated road control-point edits in a city with 64 roads and 1,024 low-level elements, then checks local mesh rebuilds, anchored followers and terrain projection invalidation.
+
 ## Roads
 
 ### `Road` (`Logic/Road.cs`)

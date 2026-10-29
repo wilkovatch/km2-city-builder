@@ -40,6 +40,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     public bool cityPropertiesInjected = false; //the parameters injected by the city properties are in runtimeState
     bool activeSelf = true;
     RoadScriptContext scriptContext;
+    readonly Dictionary<PhysicsGameObject, Vector3> projectedPoints = new Dictionary<PhysicsGameObject, Vector3>();
+    ulong projectedTerrainVersion = ulong.MaxValue;
 
     public void Initialize() {
         state = PresetManager.GetPreset("road", 0);
@@ -454,12 +456,22 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         MarkEditedEnd();
     }
 
-    void UpdateCurve() { //TODO: detect actual point/terrain update, instead of every frame
+    void UpdateCurve() {
         if (points.Count == 0) return;
         if (state.Bool("project") || state.Bool("projectAll")) {
-            foreach (var point in points) {
-                GO.SetPosition(point, GeometryHelper.ProjectPoint(GO.GetPosition(point)));
+            if (projectedTerrainVersion != GameEngine.Terrain.HeightmapVersion || projectedPoints.Count != points.Count) {
+                projectedPoints.Clear();
+                projectedTerrainVersion = GameEngine.Terrain.HeightmapVersion;
             }
+            foreach (var point in points) {
+                var position = GO.GetPosition(point);
+                if (projectedPoints.TryGetValue(point, out var projected) && position == projected) continue;
+                projected = GeometryHelper.ProjectPoint(position);
+                if (position != projected) GO.SetPosition(point, projected);
+                projectedPoints[point] = projected;
+            }
+        } else {
+            projectedPoints.Clear();
         }
         cps.Clear();
         start = GO.GetPosition(points[0]);

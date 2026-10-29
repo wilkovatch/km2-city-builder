@@ -44,6 +44,56 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     int pointStateVersion = -1; //visibility and selection last applied to this structure
     CityElements.Types.Runtime.LowLevelType curType;
     RC.VariableContainer variableContainer;
+    object updatedSource;
+    LowLevelElement updatedContainer;
+    bool updatingGeometry;
+    int updatePointVersion = -1;
+    List<TerrainPoint> updatePoints;
+    List<(string path, PointLeaf leaf)> updateLeaves;
+
+    internal void BeginUpdate() {
+        updatingGeometry = true;
+    }
+
+    internal void EndUpdate() {
+        updatingGeometry = false;
+        updatePoints = null;
+        updateLeaves = null;
+        updatePointVersion = -1;
+    }
+
+    internal void RecordUpdate() {
+        updatedSource = source;
+        updatedContainer = container;
+    }
+
+    //Snapshots live for one manager update only: constraints and derived scripts invalidate them
+    //when they replace the point tree. Public callers still get their own lists.
+    void PrepareUpdatePoints() {
+        if (updatePointVersion == structureVersion) return;
+        updateLeaves = GetLeaves();
+        updatePoints = new List<TerrainPoint>();
+        var seen = new HashSet<TerrainPoint>();
+        foreach (var (_, leaf) in updateLeaves) {
+            if (leaf.point != null && seen.Add(leaf.point)) updatePoints.Add(leaf.point);
+        }
+        foreach (var point in meshVertices) {
+            if (point != null && seen.Add(point)) updatePoints.Add(point);
+        }
+        updatePointVersion = structureVersion;
+    }
+
+    List<TerrainPoint> GetUpdatePoints() {
+        if (!updatingGeometry) return GetAllPoints();
+        PrepareUpdatePoints();
+        return updatePoints;
+    }
+
+    List<(string path, PointLeaf leaf)> GetUpdateLeaves() {
+        if (!updatingGeometry) return GetLeaves();
+        PrepareUpdatePoints();
+        return updateLeaves;
+    }
 
     public string TypeName => state.Str("type", null);
 
@@ -456,7 +506,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     //the points follow their anchors (removing the points deleted meanwhile)
     public void RefreshPoints() {
         if (deleted) return;
-        foreach (var (_, leaf) in GetLeaves()) {
+        foreach (var (_, leaf) in GetUpdateLeaves()) {
             if (leaf.point != null && leaf.point.IsDeleted()) {
                 leaf.point = CreatePoint(leaf.point.GetPointSafe());
                 structureVersion++;
@@ -468,18 +518,22 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
                 structureVersion++;
             }
         }
-        foreach (var p in GetAllPoints()) p.UpdatePosition();
+        foreach (var p in GetUpdatePoints()) p.UpdatePosition();
     }
 
     //runs the constraints of the type if points moved since they last ran; returns true if they moved other points
     public bool ApplyConstraints() {
         if (deleted) return false;
-        var all = GetAllPoints();
+        var type = GetLowLevelType();
+        if (type?.constraintsFunction == null) {
+            constraintPositions = null;
+            return false;
+        }
+        var all = GetUpdatePoints();
         if (constraintPositions == null) {
             RecordConstraintPositions(all);
             return false;
         }
-        var type = GetLowLevelType();
         var moved = new HashSet<TerrainPoint>();
         foreach (var p in all) {
             if (!constraintPositions.TryGetValue(p, out var old) || !GeometryHelper.AreVectorsEqual(old, p.GetPoint())) moved.Add(p);
@@ -545,7 +599,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     List<float> GetDerivedInputs(List<LowLevelElement> siblings) {
         var res = new List<float>();
         void Add(LowLevelElement element) {
-            var all = element.GetAllPoints();
+            var all = element.GetUpdatePoints();
             res.Add(History.ElementRegistry.GetId(element));
             res.Add(all.Count);
             foreach (var p in all) {
@@ -584,7 +638,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         derivedAppliedVersion = History.UndoManager.AppliedVersion;
         if (flag != derivedFlag) {
             derivedFlag = flag;
-            foreach (var p in GetAllPoints()) ApplyPointState(p);
+            foreach (var p in GetUpdatePoints()) ApplyPointState(p);
         }
         if (!flag) {
             derivedInputs = null;
@@ -628,10 +682,10 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     bool ApplyDerivedPoints(PointGroup tree, Dictionary<PointLeaf, Vector3> positions, List<LowLevelElement> siblings) {
         History.UndoManager.Touch(this);
         var siblingPoints = new HashSet<TerrainPoint>();
-        foreach (var sibling in siblings) siblingPoints.UnionWith(sibling.GetAllPoints());
+        foreach (var sibling in siblings) siblingPoints.UnionWith(sibling.GetUpdatePoints());
         var used = new HashSet<TerrainPoint>();
         var newLeaves = PointTree.Leaves(tree);
-        var changed = newLeaves.Count != GetLeaves().Count;
+        var changed = newLeaves.Count != GetUpdateLeaves().Count;
         foreach (var (path, leaf) in newLeaves) {
             var position = positions[leaf];
             var old = (PointTree.Find(points, path) as PointLeaf)?.point;
@@ -680,7 +734,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         var res = new List<Vector3>();
         foreach (var p in all) res.Add(p.GetPoint());
         foreach (var (_, element) in GetReferencedElements()) {
-            foreach (var p in element.GetAllPoints()) res.Add(p.GetPoint());
+            foreach (var p in element.GetUpdatePoints()) res.Add(p.GetPoint());
         }
         return res;
     }
@@ -693,16 +747,20 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
             if (!GeometryHelper.AreVectorsEqual(positions[i], oldPositions[i])) return true;
         }
         //the rotations of the rotatable points
-        foreach (var (_, leaf) in GetLeaves()) {
+        foreach (var (_, leaf) in GetUpdateLeaves()) {
             if (leaf.def.rotatable && leaf.point != null && leaf.point.RotationChanged()) return true;
         }
         return false;
     }
 
+    internal bool NeedsUpdate() {
+        return !deleted && (source != updatedSource || container != updatedContainer || DidChange(GetUpdatePoints()));
+    }
+
     //rebuilds the geometry if anything changed, returns 1 if it did
     public int UpdateGeometry() {
         if (deleted) return 0;
-        var all = GetAllPoints();
+        var all = GetUpdatePoints();
         if (!DidChange(all)) return 0;
         ReloadType();
         Rebuild();
@@ -720,7 +778,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     //captured on the main thread after constraints and derived points; the worker only sees Lua tables and numbers
     internal GeometryUpdate PrepareGeometryUpdate() {
-        var all = GetAllPoints();
+        var all = GetUpdatePoints();
         if (deleted || !DidChange(all)) return null;
         ReloadType();
         return new GeometryUpdate {

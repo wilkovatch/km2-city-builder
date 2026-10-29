@@ -28,9 +28,11 @@ public partial class ElementManager : Scriptable {
     GameObject activeDummyContainer = null;
     Dictionary<System.Type, GameObject> dummies = new Dictionary<System.Type, GameObject>();
     public CityBuilderMenuBar builder;
-    float lastGCTime = 0.0f;
     //the parts of the roads split by the last action, finished at the next update (see RoadSplitter.FinishPart)
     readonly Dictionary<Road, RoadSplitter.Part> splitParts = new Dictionary<Road, RoadSplitter.Part>();
+    readonly List<LowLevelElement> updatedLowLevelElements = new List<LowLevelElement>();
+    int lowLevelAppliedVersion = -1;
+    internal (int roads, int intersections, int lowLevel) lastRebuildCounts;
 
     public GameObject GetDummyContainer<T>() {
         if (typeof(T) == typeof(CityProperties)) {
@@ -503,6 +505,7 @@ public partial class ElementManager : Scriptable {
             objectsUpdated += road.UpdateObjects();
         }
         objectsUpdated += GetDummy<CityProperties>().UpdateObjects();
+        lastRebuildCounts = (roadsRebuilt, intersectionsRebuilt, lowLevelRebuilt);
         if (GameEngine.IsEditor()) GameEngine.Print(
             "rebuilt " + roadsRebuilt + " roads, "
             + intersectionsRebuilt + " intersections, "
@@ -513,10 +516,6 @@ public partial class ElementManager : Scriptable {
             + objectsUpdated + " parametric objects"
         );
         if (builder != null) builder.NotifyUpdateCompleted();
-        if (GameEngine.GetTime() > lastGCTime + 10.0f) {
-            lastGCTime = GameEngine.GetTime();
-            System.GC.Collect();
-        }
     }
 
     //the points follow their anchors, then the constraints of the elements run (a few passes, since moving a point shared
@@ -526,17 +525,48 @@ public partial class ElementManager : Scriptable {
     const int MaxConstraintPasses = 4;
 
     int UpdateLowLevelElements() {
+        foreach (var element in lowLevelElements) element.BeginUpdate();
+        try {
+            return UpdateLowLevelGeometry();
+        } finally {
+            foreach (var element in lowLevelElements) element.EndUpdate();
+        }
+    }
+
+    int UpdateLowLevelGeometry() {
         MoveByHandles();
         foreach (var element in lowLevelElements) element.RefreshPoints();
+        //Check actual inputs before starting the constraint/derived/geometry passes. Membership changes
+        //and undo also invalidate sibling inputs even when the surviving elements didn't move.
+        var changed = lowLevelAppliedVersion != History.UndoManager.AppliedVersion
+            || updatedLowLevelElements.Count != lowLevelElements.Count;
+        for (int i = 0; i < lowLevelElements.Count && !changed; i++) {
+            changed = updatedLowLevelElements[i] != lowLevelElements[i] || lowLevelElements[i].NeedsUpdate();
+        }
+        if (!changed) {
+            PlaceMoveHandles();
+            return 0;
+        }
         ApplyLowLevelConstraints();
         var derived = false;
+        var sources = new Dictionary<object, List<LowLevelElement>>();
         foreach (var element in lowLevelElements) {
-            if (element.UpdateDerivedPoints(lowLevelElements)) derived = true;
+            if (element.source == null) continue;
+            if (!sources.TryGetValue(element.source, out var siblings)) sources[element.source] = siblings = new List<LowLevelElement>();
+            siblings.Add(element);
+        }
+        foreach (var element in lowLevelElements) {
+            var siblings = element.source != null ? sources[element.source] : null;
+            if (element.UpdateDerivedPoints(siblings ?? lowLevelElements)) derived = true;
         }
         if (derived) ApplyLowLevelConstraints();
         var rebuilt = LowLevelGeometryBatch.Rebuild(lowLevelElements);
         UpdateLowLevelPlaceholders();
         PlaceMoveHandles();
+        updatedLowLevelElements.Clear();
+        updatedLowLevelElements.AddRange(lowLevelElements);
+        foreach (var element in lowLevelElements) element.RecordUpdate();
+        lowLevelAppliedVersion = History.UndoManager.AppliedVersion;
         return rebuilt;
     }
 
@@ -628,6 +658,8 @@ public partial class ElementManager : Scriptable {
             elem.Delete();
         }
         lowLevelElements.Clear();
+        updatedLowLevelElements.Clear();
+        lowLevelAppliedVersion = -1;
 
         GetDummy<CityProperties>().Delete();
 

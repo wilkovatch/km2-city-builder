@@ -2267,6 +2267,7 @@ public static partial class GameEngine {
     }
 
     public static class Terrain {
+        public static ulong HeightmapVersion { get; private set; }
         sealed class HeightmapState {
             public float[,] Heights;
             public float MaxHeight;
@@ -2392,6 +2393,7 @@ public static partial class GameEngine {
         }
 
         static void ApplyHeightmap(Node3D terrainObj, HeightmapState state, float[,] heights, float maxHeight) {
+            HeightmapVersion++;
             if (terrainObj is not Terrain3D terrain || state.Data == null) return;
             var regions = state.Data.GetRegionsActive();
             foreach (var regionVariant in regions) {
@@ -2485,6 +2487,7 @@ public static partial class GameEngine {
             int height = heights.GetLength(0);
             int width = heights.GetLength(1);
             if (width == 0 || height == 0) return;
+            HeightmapVersion++;
             for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
                     state.Heights[yBase + y, xBase + x] = Mathf.Clamp(heights[y, x], 0f, 1f);

@@ -193,7 +193,10 @@ namespace Api {
             try {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
-                if (!string.IsNullOrEmpty(selectionMode)) {
+                if (System.Environment.GetEnvironmentVariable("KM2_SELFTEST_INCREMENTAL") == "1") {
+                    await NewCity();
+                    IncrementalUpdates();
+                } else if (!string.IsNullOrEmpty(selectionMode)) {
                     await NewCity();
                     if (selectionMode == "benchmark") await MeshSelectionBenchmark();
                     else await MeshSelection();
@@ -250,6 +253,80 @@ namespace Api {
             Log("finished in " + watch.Elapsed.TotalSeconds.ToString("0.0") + " s with " + failures + " failures");
             File.WriteAllLines(Path.Combine(folder, "..", "api_selftest.log"), log);
             GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        //A local edit in a larger city must leave unrelated meshes alone. Run separately with
+        //KM2_SELFTEST_INCREMENTAL=1 to include timings without the rest of the API suite.
+        void IncrementalUpdates() {
+            var samples = new List<Road>();
+            for (int i = 0; i < 64; i++) {
+                var road = M.CreateRoad();
+                road.AddPoint(new Vector3(i * 24 - 800, 0, -800));
+                road.AddPoint(new Vector3(i * 24 - 790, 0, -700));
+                road.AddPoint(new Vector3(i * 24 - 800, 0, -600));
+                samples.Add(road);
+            }
+            for (int i = 0; i < 1024; i++) {
+                Operations.LowLevel.Create(M, "roadWithSidewalks", new Vector3(i % 32 * 24 - 400, 0, i / 32 * 24 - 400));
+            }
+            M.FlagAsChanged();
+            M.ProcessUpdate();
+            var unchanged = samples[1].generator.mr.Mesh;
+            var lowLevelMesh = M.lowLevelElements[0].generator.mr.Mesh;
+            for (int i = 0; i < 16; i++) {
+                M.FlagAsChanged();
+                M.ProcessUpdate();
+            }
+            void Measure(string label, bool move) {
+                var timings = new List<double>();
+                for (int i = 0; i < 24; i++) {
+                    if (move) GO.SetPosition(samples[0].points[1], GO.GetPosition(samples[0].points[1]) + new Vector3(1, 0, 0));
+                    M.FlagAsChanged();
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    M.ProcessUpdate();
+                    timings.Add(watch.Elapsed.TotalMilliseconds);
+                }
+                timings.Sort();
+                Log(label + ": " + timings[timings.Count / 2].ToString("F2") + " ms/update (median)");
+            }
+            Measure("unchanged city", false);
+            Check("unchanged updates rebuild no road or low-level meshes", M.lastRebuildCounts == (0, 0, 0));
+            Measure("isolated road control point", true);
+            Check("isolated edit rebuilds only the edited road", M.lastRebuildCounts == (1, 0, 0));
+            Check("isolated edit keeps unrelated road mesh", samples[1].generator.mr.Mesh == unchanged);
+            Check("isolated edit keeps unrelated low-level mesh", M.lowLevelElements[0].generator.mr.Mesh == lowLevelMesh);
+
+            var element = M.lowLevelElements[0];
+            var point = element.GetAllPoints()[0];
+            var bounds = element.generator.mr.Mesh.GetAabb();
+            GO.SetPosition(point.GetObject(), point.GetPoint() + new Vector3(2, 1, 0));
+            M.FlagAsChanged();
+            M.ProcessUpdate();
+            Check("moving a low-level point updates its mesh bounds", element.generator.mr.Mesh.GetAabb() != bounds);
+            Check("low-level point edit leaves road meshes alone", M.lastRebuildCounts.roads == 0 && M.lastRebuildCounts.lowLevel > 0);
+
+            var anchor = samples[0].anchorManager.GetTerrainAnchors()[0];
+            point.anchor = anchor;
+            M.FlagAsChanged();
+            M.ProcessUpdate();
+            var before = point.GetPoint();
+            GO.SetPosition(samples[0].points[0], GO.GetPosition(samples[0].points[0]) + new Vector3(10, 0, 0));
+            M.FlagAsChanged();
+            M.ProcessUpdate();
+            Check("road edits still move anchored low-level points", point.GetPoint().DistanceTo(before) > 1
+                && point.GetPoint().DistanceTo(anchor.GetPoint()) < 0.001f);
+
+            var terrain = builder.helper.terrainObj;
+            var terrainPoint = GO.GetPosition(samples[1].points[1]);
+            var pixelSize = GameEngine.Terrain.GetPixelSize(terrain);
+            var half = GameEngine.Terrain.GetSize(terrain) * 0.5f;
+            int x = (int)((terrainPoint.X + half) / pixelSize), y = (int)((terrainPoint.Z + half) / pixelSize);
+            var heights = GameEngine.Terrain.GetHeights(terrain, x - 1, y - 1, 4, 4);
+            for (int j = 0; j < 4; j++) for (int i = 0; i < 4; i++) heights[j, i] += 0.001f;
+            GameEngine.Terrain.SetHeightsDelayLOD(terrain, x - 1, y - 1, heights);
+            M.FlagAsChanged();
+            M.ProcessUpdate();
+            Check("terrain edits invalidate cached road projections", GO.GetPosition(samples[1].points[1]).Y > terrainPoint.Y + 1);
         }
 
         async Task Basics() {
