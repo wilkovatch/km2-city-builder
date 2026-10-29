@@ -121,6 +121,8 @@ The elements of the low-level types of the core (see [Core Low-Level Elements](C
 | `LowLevel.LowLevelScripting` (`Logic/LowLevel/LowLevelScripting.cs`) | The Lua tables of the points and the reading of the geometry (`GeometryResult`) and constraints (`ConstraintsResult`) returned by the scripts. |
 | `LowLevelGenerator` (`Geometry/LowLevelGenerator.cs`) | The geometry of the element (layer 7): one submesh per mesh of the script, the lines (shown while the element is edited, unless `always`), and a collider of the meshes, the pick-only meshes and the `always` lines. |
 
+`LowLevelElement.SetActive` and `Select` skip unchanged handle state, so closing an editor doesn't update every terrain point in a large city several times. A changed point structure or a direct handle change by another user of a shared point invalidates that cache. The shared point still takes its visibility, selection and movability from all the low-level elements using it.
+
 ### Ghosts
 
 `Road.ghost` and `Intersection.ghost` (saved with them): a road or intersection replaced by low-level elements. `ApplyGhost` hides its generated meshes (and the roads through an intersection, and the props of a road) and removes them from the collision layer; the intersection handle is hidden; the split line and the free ends of a ghost road are not offered to other roads; ghosts are left out of the object list. Everything else (curves, sizes, anchors, the parametric objects) works as usual, so the elements around keep their geometry. `Operations.LowLevel` sets, lists and restores them.

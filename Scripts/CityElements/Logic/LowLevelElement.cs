@@ -41,6 +41,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     //the inputs of the last rebuild
     readonly List<Vector3> oldPositions = new List<Vector3>();
     int structureVersion = 0, oldStructureVersion = -1;
+    int pointStateVersion = -1; //visibility and selection last applied to this structure
     CityElements.Types.Runtime.LowLevelType curType;
     RC.VariableContainer variableContainer;
 
@@ -95,9 +96,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
             moveable |= e.active && e.moveable && !e.derivedFlag;
         }
         if (!any) return; //only used by other kinds of elements, which set it
-        p.SetActive(active);
-        p.Select(selected);
-        p.SetMoveable(moveable, true);
+        p.ApplyLowLevelState(active, selected, moveable);
     }
 
     TerrainPoint CreatePoint(CityElements.Types.LowLevelPointNode def, Vector3 position) {
@@ -308,11 +307,20 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     // Visibility and selection
 
+    //Other users of a shared terrain point can change its handle directly (e.g. a terrain patch).
+    internal void InvalidatePointState() {
+        pointStateVersion = -1;
+    }
+
     public void SetActive(bool active, bool moveable) {
         if (deleted) return;
+        //Global editor resets visit every element, often several times. Only changed elements need to walk their
+        //shared points and update the handles. A changed structure still needs its new points initialized.
+        if (this.active == active && this.moveable == moveable && pointStateVersion == structureVersion) return;
         this.active = active;
         this.moveable = moveable;
         foreach (var point in GetAllPoints()) ApplySharedPointState(point);
+        pointStateVersion = structureVersion;
         generator.ShowLines(active);
         if (!active || !moveable) ShowMoveHandle(false, Vector3.Zero);
     }
@@ -364,8 +372,10 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     public void Select(bool selected) {
         if (deleted) return;
+        if (this.selected == selected && pointStateVersion == structureVersion) return;
         this.selected = selected;
         foreach (var point in GetAllPoints()) ApplySharedPointState(point);
+        pointStateVersion = structureVersion;
     }
 
     public bool IsActive() {

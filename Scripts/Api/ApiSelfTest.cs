@@ -3150,6 +3150,16 @@ road(-750)
             var why = PointProblems(part);
             Check("the points of a road attribute shared with an auto-calculated BAI road can be moved (" + (why ?? "ok") + ")", why == null);
             Check("the BAI lanes are shown while a road attribute of their room is edited", LanesShown(bai));
+            //Other users of shared terrain points can change their handles directly. Reapplying an unchanged
+            //low-level element state must restore its visible, selected and moveable points.
+            foreach (var point in part.GetAllPoints()) {
+                point.SetActive(false);
+                point.Select(false);
+                point.SetMoveable(false);
+            }
+            part.SetActive(true, true);
+            part.Select(true);
+            Check("a shared point's direct handle changes don't leave its edited element hidden or locked", PointProblems(part) == null);
             var curbName = part.TypeName == "roadWithoutSidewalks" ? "left" : "leftRoad";
             var curb = (global::LowLevel.PointTree.Find(part.points, "sections.1." + curbName) as global::LowLevel.PointLeaf)?.point;
             var baiBefore = bai.GetAllPoints().Select(p => p.GetPoint()).ToList();

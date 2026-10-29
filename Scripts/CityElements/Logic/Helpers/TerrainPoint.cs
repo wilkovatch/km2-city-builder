@@ -21,6 +21,7 @@ public partial class TerrainPoint : PhysicsScriptable {
     List<IGroundable> links = new List<IGroundable>();
     bool deleted = false;
     bool selected = true;
+    bool applyingLowLevelState = false;
     int updatedCount;
     bool updating = false; //in UpdatePosition (the points it depends on are updated first, see UpdateDependencies)
 
@@ -96,8 +97,28 @@ public partial class TerrainPoint : PhysicsScriptable {
 
     public void Select(bool selected) {
         if (deleted) return;
+        InvalidateLowLevelState();
         this.selected = selected;
         SetupAnchorMode();
+    }
+
+    //Direct changes by other users of a shared point must invalidate the low-level elements' cached handle state.
+    void InvalidateLowLevelState() {
+        if (applyingLowLevelState) return;
+        foreach (var link in links) {
+            if (link is LowLevelElement element) element.InvalidatePointState();
+        }
+    }
+
+    internal void ApplyLowLevelState(bool active, bool selected, bool moveable) {
+        applyingLowLevelState = true;
+        try {
+            SetActive(active);
+            Select(selected);
+            SetMoveable(moveable, true);
+        } finally {
+            applyingLowLevelState = false;
+        }
     }
 
     public void UpdateOlds() {
@@ -217,6 +238,7 @@ public partial class TerrainPoint : PhysicsScriptable {
 
     //detachable: a point on a fixed anchor can be moved too, leaving the anchor
     public void SetMoveable(bool moveable, bool detachable = false) {
+        InvalidateLowLevelState();
         this.detachable = moveable && detachable;
         GO.SetLayer(GetObject(), moveable && (isMoveable || this.detachable) ? 8 : 10);
     }
@@ -233,6 +255,7 @@ public partial class TerrainPoint : PhysicsScriptable {
     }
 
     public void SetActive(bool active) {
+        InvalidateLowLevelState();
         GO.SetEnabled(GetObject(), active);
     }
 

@@ -23,14 +23,15 @@ namespace History {
         //existing city, the editors open before undo/redo must be reopened after it; split: only the tests of the roads
         //connected to the middle of other roads, on a new city; load: a copy of an existing city, the terrain under its
         //intersections is edited, undone and redone; drag: the middle mouse drag of the numeric fields, on a new city;
-        //dropdown: the keyboard navigation of the dropdown lists and the camera under them, on a new city
-        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown" };
+        //dropdown: the keyboard navigation of the dropdown lists and the camera under them, on a new city;
+        //selection: selection and deselection timings and handle cleanup, on a copy of an existing city
+        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection" };
 
         public static void Start(CityBuilderMenuBar builder, string folder, string mode) {
             builder.AddChild(new UndoSelfTest {
                 builder = builder, folder = folder, Name = "UndoSelfTest",
                 propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", loadExisting = mode == "load",
-                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown"
+                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown", selectionOnly = mode == "selection"
             });
         }
 
@@ -38,6 +39,67 @@ namespace History {
         bool splitOnly = false;
         bool dragOnly = false;
         bool dropdownOnly = false;
+        bool selectionOnly = false;
+
+        //Selection on a copy of a large city, including cities with no procedural roads. Times the synchronous work
+        //separately from the next frame, which includes the renderer and physics server processing the handle changes.
+        async void RunSelection() {
+            var lastCity = SettingsManager.Get("LastCity", "");
+            try {
+                await Frames(2);
+                PreferencesManager.workingDirectory = folder;
+                CoreManager.Reset();
+                var loaded = await CityImporter.LoadCityAsync(M, folder, new CityDecoder.LoadOptions {
+                    interaction = new Operations.FixedInteraction(), rememberAsLastCity = false
+                });
+                if (!loaded.success) throw new System.Exception(loaded.message);
+                await Frames(3);
+                UndoManager.Clear();
+                Log("city loaded: " + M.lowLevelElements.Count + " low-level elements, " + M.meshes.Count + " meshes");
+                void Time(string label, System.Action action) {
+                    var timer = System.Diagnostics.Stopwatch.StartNew();
+                    action();
+                    Log(label + ": " + timer.Elapsed.TotalMilliseconds.ToString("F1") + " ms");
+                }
+                Time("hide anchors (already hidden)", () => M.ShowAnchors(false));
+                Time("hide intersections (already hidden)", () => M.ShowIntersections(false));
+                Time("deselect meshes (already deselected)", () => M.DeselectMeshes());
+                var samples = new List<Node3D>();
+                if (M.meshes.Count > 0) samples.Add(M.meshes[0]);
+                var element = M.lowLevelElements.Find(e => e.GetAllPoints().Count > 0 && !(e.GetLowLevelType()?.IsContainer ?? false));
+                if (element != null) samples.Add(element);
+                var container = M.lowLevelElements.Find(e => e.GetLowLevelType()?.IsContainer ?? false);
+                if (container != null) samples.Add(container);
+                foreach (var sample in samples) {
+                    for (int i = 0; i < 2; i++) {
+                        Time("select " + GO.GetName(sample), () => UndoManager.Record("select", () => builder.SelectObject(sample, true, null)));
+                        await Frames(2);
+                        Time("deselect " + GO.GetName(sample), () => UndoManager.Record("close", () => InvokeBuilder("DeselectAndCloseCurrentPanel")));
+                        var timer = System.Diagnostics.Stopwatch.StartNew();
+                        await Frames(2);
+                        Log("frames after deselection: " + timer.Elapsed.TotalMilliseconds.ToString("F1") + " ms");
+                        Check("closing leaves no editor open", Shown() == null);
+                        Check("selection records no undo steps", UndoCount() == 0);
+                    }
+                }
+                var allHidden = true;
+                var seen = new HashSet<TerrainPoint>();
+                foreach (var e in M.lowLevelElements) {
+                    allHidden &= !e.IsActive() && !e.IsSelected() && !e.IsMoveHandleShown();
+                    foreach (var p in e.GetAllPoints()) {
+                        if (seen.Add(p)) allHidden &= !GO.GetEnabled(p.GetObject());
+                    }
+                }
+                Check("all low-level handles are hidden after closing", allHidden);
+            } catch (System.Exception e) {
+                Log("exception: " + e);
+                failures++;
+            }
+            SettingsManager.Set("LastCity", lastCity);
+            Log("finished with " + failures + " failures");
+            File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
+            GetTree().Quit(failures == 0 ? 0 : 1);
+        }
 
         static object Invoke(object obj, string name, params object[] args) {
             for (var type = obj.GetType(); type != null; type = type.BaseType) {
@@ -690,7 +752,8 @@ namespace History {
         }
 
         public override void _Ready() {
-            if (uiRestore) RunUIRestore();
+            if (selectionOnly) RunSelection();
+            else if (uiRestore) RunUIRestore();
             else if (propsSelection) RunPropsSelection();
             else if (loadExisting) RunOnExistingCity();
             else if (splitOnly) RunSplit();

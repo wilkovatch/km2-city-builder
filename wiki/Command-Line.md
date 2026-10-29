@@ -36,7 +36,7 @@ When a command is given, the last city is not loaded at startup and nothing is a
 | `generate buildings <city> --line-preset <preset> --building-presets <a,b,...>` | Creates building lines around the blocks (`city.generateBuildings`) |
 | `script <.py file or script folder>` | Runs a Python script (see [Python Scripts](Python-Scripts#command-line)) and exits with its exit code |
 | `selftest api <new folder>` | Self-test of the scripting API (development, see [Scripting API](Scripting-API#self-test)) |
-| `selftest undo <folder> [--mode <mode>]` | Self-test of undo and redo (development). Modes: `new` (default) and `split` create a city in the folder, `props`, `ui` and `load` work on a copy of an existing city |
+| `selftest undo <folder> [--mode <mode>]` | Self-test of undo and redo (development). Modes: `new` (default), `split`, `drag` and `dropdown` create a city in the folder; `props`, `ui`, `load` and `selection` work on a copy of an existing city. `selection` measures selecting and closing mesh and low-level element editors, checks that closing hides the handles and records no undo steps, and works on cities without procedural roads. Use a window to include renderer and physics costs in its timings |
 | `screenshots <city folder>` | Takes the screenshots of the quickstart guide on a copy of a city (development, needs the window) |
 
 `<city>` is the folder of a city (the one containing `city.json.gz`).
