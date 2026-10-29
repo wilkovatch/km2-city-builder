@@ -419,6 +419,8 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 
 ### `lowLevel.*`
 
+Spline-driven low-level elements keep kind `lowLevel`. Their point array is `spline`: for example `lowLevel.create(type="decal", points={"spline":[{"position":[0,0,0]},{"position":[0,0,10]}]})` in a core defining that type. Set curve parameters through `state.setParam`; allowed curve modes come from the core. Derived element data and export JSON include evaluated `spline.sections` and `spline.pieces`.
+
 | Method | Parameters | Result | Description |
 |---|---|---|---|
 | `lowLevel.attachPoint` | `element: ref`<br>`to: point = null`<br>`path: string = null`<br>`vertex: int = null`<br>`line: int[] = null`<br>`column: int = null` | int | Replaces a control point (path) or a vertex (vertex) of a low-level element with an existing terrain point (to: {terrainPoint}, shared from now on), or attaches it to an anchor or segment (to: {anchor} or {anchorLink}), to the line between two terrain points (line: [id, id], it stays where it is closest to it) or to the vertical line of a terrain point (column: id, it keeps its height and follows the x and z of that point; moved horizontally, that point follows) |
@@ -563,5 +565,3 @@ See [Images](#images).
 |---|---|---|---|
 | `batch` | `commands: [{method, params}]`<br>`atomic: bool = true` | list | Runs the commands as a single undo step (see [Batches](#batches)) |
 | `api.methods` | - | list | Every method with its parameters |
-
-Spline-driven low-level elements keep kind `lowLevel`. Their point array is `spline`: for example `lowLevel.create(type="decal", points={"spline":[{"position":[0,0,0]},{"position":[0,0,10]}]})` in a core defining that type. Set curve parameters through `state.setParam`; allowed curve modes come from the core. Derived element data and export JSON include evaluated `spline.sections` and `spline.pieces`.

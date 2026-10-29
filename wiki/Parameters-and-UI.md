@@ -159,12 +159,12 @@ Built-in groups insert the program's own controls (type and preset selectors, pl
 | Building | `mainGroup` (enabled sides, height, depth, roof texture, acute angle fix, side selection) |
 | Building side | `mainGroup` (floors), `blocksGroup` (block dictionary) |
 | Building block | `mainGroup` (block type) |
-| Low-level element | `mainGroup` (end editing, delete, type, restoring the ghost it replaces), `pointsGroup` (selected point, click mode, array elements), `meshGroup` (texture coordinates of the selected vertex), `containerGroup` (container, contents, merge); see [Core Low-Level Elements](Core-Low-Level-Elements#parametersjson-and-uijson) |
+| Low-level element | `mainGroup` (end editing, delete, type, restoring the ghost it replaces), `pointsGroup` (selected point, click mode, array elements), `splineGroup` (curve mode, resolution and Hermite controls for spline-driven types), `meshGroup` (texture coordinates of the selected vertex), `containerGroup` (container, contents, merge); see [Core Low-Level Elements](Core-Low-Level-Elements#parametersjson-and-uijson) |
+
+Spline-driven low-level types use `splineGroup` for curve mode, resolution and Hermite controls, and `pointsGroup` for road-style point placement. Low-level type `createMenu` settings choose direct Create entries or a localized group; see [Core Low-Level Elements](Core-Low-Level-Elements#spline-driven-elements).
 
 Props elements, mesh instance settings and parametric objects have no groups: their `uiInfo` is a flat list of elements (see [Core Props and Objects](Core-Props-and-Objects)).
 
 ## Strings
 
 All labels are string keys, resolved in the core's `strings/<language>.json` first and then in the program's base strings. A key that is not found anywhere is displayed as is (and logged), which makes missing strings easy to find. Set a string to `""` to show nothing (for example an unused tooltip). Some keys are built by the program from names in the core; they are listed in [Core Structure](Core-Structure#strings).
-
-Spline-driven low-level types use `splineGroup` for curve mode, resolution and Hermite controls, and `pointsGroup` for road-style point placement. Low-level type `createMenu` settings choose direct Create entries or a localized group; see [Core Low-Level Elements](Core-Low-Level-Elements#spline-driven-elements).

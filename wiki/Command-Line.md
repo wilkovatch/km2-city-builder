@@ -43,6 +43,8 @@ When a command is given, the last city is not loaded at startup and nothing is a
 
 `render` and `mcp` render images, and with `--headless` the program has no renderer (`view.render` then fails with `no_renderer`). Run them without `--headless` (keep `--quiet`): the window is made small, borderless and without focus, and moved outside of the screens (`CliRunner.HideWindow`). The images are rendered offscreen, at the size asked, whatever the size of the window.
 
+For short spline/decal integration checks, set `KM2_SELFTEST_FOCUS=splines` before `selftest api <new folder>` (a window also checks rendering). This covers spline placement, curve modes, core components, rail generation, history and save/reload. `KM2_SELFTEST_FOCUS=propPaths` runs the standalone prop-rule checks in a fresh city. Unset the variable for the full API suite.
+
 ### Parameters as options
 
 The options of `new`, `export`, `export-json` and `generate` are the parameters of their API method, written in lowercase with dashes: `terrainSize` is `--terrain-size`, `heightmapResolution` is `--heightmap-resolution`. `help <command>` lists them with their types and defaults, and new API parameters show up there by themselves. The boolean parameters are flags: `--null-only` sets `nullOnly` to true, `--subdivide=false` sets `subdivide` to false. `export` takes the output path as `--out` (the `path` of `city.export`), and its flags as `--flag id=true` or `--flag id=false`, repeated for each flag (`info` lists the flags of the exporters).
@@ -188,5 +190,3 @@ The classes are in `Scripts/Cli`:
 `serve` reads the standard input on a thread and queues each line to `CommandDispatcher` with `Enqueue`, like `ScriptRunner` does with the output of the Python scripts. `mcp` reads it on a thread too, and passes each message to `Mcp.McpServer` one at a time, in order (the commands of a tool still run on the main thread).
 
 A command with `needsWindow` (`render`, `mcp`) keeps the window, out of the way (`CliRunner.HideWindow`).
-
-For short spline/decal integration checks, set `KM2_SELFTEST_FOCUS=splines` before `selftest api <new folder>` (a window also checks rendering). This covers spline placement, curve modes, core components, rail generation, history and save/reload. `KM2_SELFTEST_FOCUS=propPaths` runs the standalone prop-rule checks in a fresh city. Unset the variable for the full API suite.
