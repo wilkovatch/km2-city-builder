@@ -1265,6 +1265,50 @@ public static partial class GameEngine {
             return c;
         }
 
+        public static CollisionShape3D CreateShapeCollider(Node3D obj, Shape3D shape) {
+            var c = new CollisionShape3D { Shape = shape };
+            obj.AddChild(c);
+            return c;
+        }
+
+        //The template lives outside the scene tree. Include its root transform, but not its pool parent,
+        //to express every face relative to the placed instance. All data here is already in Godot coordinates.
+        public static Shape3D CreateSelectionShape(Node3D template) {
+            if (template == null) return null;
+            var faces = new List<Godot.Vector3>();
+            void Collect(Node node, Transform3D transform) {
+                if (node is Node3D spatial) transform *= spatial.Transform;
+                if (node is MeshInstance3D renderer && node is not LineRenderer && renderer.Mesh is ArrayMesh mesh && LODGroup.IsHighestDetailRenderer(renderer)) {
+                    for (int s = 0; s < mesh.GetSurfaceCount(); s++) {
+                        if (mesh.SurfaceGetPrimitiveType(s) != Godot.Mesh.PrimitiveType.Triangles) continue;
+                        var arrays = mesh.SurfaceGetArrays(s);
+                        var vertices = (Godot.Vector3[])arrays[(int)Godot.Mesh.ArrayType.Vertex];
+                        var indexArray = arrays[(int)Godot.Mesh.ArrayType.Index];
+                        var indices = indexArray.VariantType == Variant.Type.Nil ? null : (int[])indexArray;
+                        var indexed = indices != null && indices.Length > 0;
+                        var count = indexed ? indices.Length : vertices.Length;
+                        for (int i = 0; i + 2 < count; i += 3) {
+                            var a = indexed ? indices[i] : i;
+                            var b = indexed ? indices[i + 1] : i + 1;
+                            var c = indexed ? indices[i + 2] : i + 2;
+                            if (a < 0 || b < 0 || c < 0 || a >= vertices.Length || b >= vertices.Length || c >= vertices.Length) continue;
+                            var v0 = transform * vertices[a];
+                            var v1 = transform * vertices[b];
+                            var v2 = transform * vertices[c];
+                            if (!v0.IsFinite() || !v1.IsFinite() || !v2.IsFinite() || (v1 - v0).Cross(v2 - v0).LengthSquared() == 0) continue;
+                            faces.Add(v0); faces.Add(v1); faces.Add(v2);
+                        }
+                    }
+                }
+                foreach (var child in node.GetChildren()) Collect(child, transform);
+            }
+            Collect(template, Transform3D.Identity);
+            if (faces.Count == 0) return null;
+            var shape = new ConcavePolygonShape3D { BackfaceCollision = true };
+            shape.SetFaces(faces.ToArray());
+            return shape;
+        }
+
         public static MeshInstance3D RetrieveMeshRenderer(Node3D obj) {
             //Components are direct children here: look only at the object and its direct children
             //(not deeper, e.g. lanes/props containers), and skip line renderers, which are MeshInstance3Ds too

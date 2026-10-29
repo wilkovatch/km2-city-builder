@@ -53,6 +53,7 @@ Everything related to meshes and colliders:
 * `AssignData` uploads vertices, normals (computed with `CalculateNormals` when not provided), UVs, vertex colors and one index list per submesh. Empty submeshes are stored as a single degenerate triangle, because Godot cannot have empty surfaces and removing them would shift the following materials; `GetIndices` skips them when reading back.
 * `GetVertices`, `GetNormals`, `GetUVs`, `GetIndices`, `GetSubmeshCount` read mesh data back (in program coordinates), used by the exporter.
 * `CreateCollider`/`RefreshCollider` create and update a concave collision shape (double-sided, so that rays hit generated meshes from above), `CreateBoxCollider`, `CreateCapsuleCollider`, `AdjustCapsuleCollider`.
+* `CreateSelectionShape` combines an imported asset's indexed and non-indexed triangle surfaces in Godot coordinates, including its root and child transforms, into a double-sided shape. It uses the LOD metadata to include level 0 and untagged meshes, ignores current visibility, and skips degenerate triangles, non-triangle surfaces and line renderers. An asset without usable triangles returns null. `CreateShapeCollider` attaches an existing shape as a direct child of a physics body, allowing mesh instances to share the cached resource.
 * `CombineMeshes`, `GetEncapsulatingBoundsForChildMeshes`, `SetShadowsTwoSidedRecursive`.
 
 ### `Raycast`
@@ -94,6 +95,8 @@ The heightmap terrain is a [Terrain3D](https://github.com/TokisanGames/Terrain3D
 ## `LODGroup` (`Scripts/LODGroup.cs`)
 
 Level of detail group, used for meshes loaded from files that contain several levels of detail. Godot's visibility ranges are measured per instance and ignore the camera FOV, and the visibility range end is already taken by the per-layer cull distances, so this node picks the LOD itself from the screen-relative height of the group's bounds (with an LOD bias) and hides the renderers of the other levels. Its configuration is kept in exported properties and node metadata, so that it survives `Node.Duplicate` (meshes are cloned from a pool by `MeshManager`).
+
+`IsHighestDetailRenderer` reads that metadata for selection colliders: renderers belonging to level 0 and untagged renderers are included, with nested groups evaluated by their own metadata. Picking keeps this fixed geometry when the displayed LOD changes.
 
 ## `PostprocessBuild` (`Scripts/PostprocessBuild.cs`)
 

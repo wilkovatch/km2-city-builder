@@ -168,6 +168,13 @@ public partial class MeshInstance : PhysicsScriptable
     }
 
     void InitCollider() {
+        var shape = MeshManager.GetSelectionShape(meshPath);
+        if (shape != null) {
+            var collider = GameEngine.Mesh.CreateShapeCollider(GO.GetObject(this), shape);
+            meshTransform.ApplyTo(collider);
+            return;
+        }
+        //Empty or non-triangle assets keep the bounds fallback. Missing files have a placeholder mesh.
         var bounds = GameEngine.Mesh.GetEncapsulatingBoundsForChildMeshes(GO.GetObject(this));
         var size = GameEngine.Bounds.GetSize(bounds);
         if (GameEngine.Vector3.Magnitude(size) > 0) {

@@ -28,6 +28,8 @@ Reads and writes `presets.json` in the city folder (deserialized into a `PresetC
 
 Caches every mesh file loaded by the city (props, mesh instances, parametric objects) in a hidden pool node, loading it through `MeshImporter` the first time. `GetMesh(name, parent)` returns a duplicate of the cached template. `GetBounds(name)` gives the bounds used to put props on the ground. `GetAllMeshes` is used by the exporter to build the mesh dictionary.
 
+`GetSelectionShape(name)` lazily builds one double-sided triangle collider from the cached template, including its hierarchy's local transforms and level-0 meshes of each LOD group. Instances share this immutable resource and apply their own placement transforms. Empty results are cached too; the cache is cleared when the assets are unloaded or the program shuts down, without disposing shapes still referenced by instances. Generated props that only use `GetMesh` do not acquire individual colliders.
+
 ## `ElementManager` (`ElementManager.cs`)
 
 The node that owns every element of the open city, in the lists `roads`, `intersections`, `patches`, `meshes` and `buildings`, and creates the container nodes they live in. Its main responsibilities:
@@ -129,7 +131,7 @@ A mesh loaded from a file and placed freely in the city (a building, a prop, a p
 
 * `meshPath` is the relative path of the mesh file; `settings` holds the mesh instance parameters of the core (`props/meshInstance.json`), for example the MM2 `prop` flag.
 * The core's placement rules give the layer of the instance and how its mesh is moved from the placement point, which stays the position of the instance: by the transform the core gives (`meshTransform`, e.g. the MM2 props, drawn from their centre of gravity) or raised so that its bottom sits on the point (`autoYOffset`).
-* A box collider around the mesh bounds makes it selectable.
+* One double-sided triangle collider makes it selectable, using the shared shape from `MeshManager`. Geometric gaps let clicks reach the objects behind them. The shape always uses the highest-detail LOD (level 0), independently of camera distance; placement offsets, rotation and scale follow the mesh without rebuilding the shape. Texture transparency is not considered: transparent pixels inside a triangle still intercept clicks. Assets without usable triangles retain a bounds-based box fallback, and missing files use the importer's placeholder mesh.
 * **Parametric instances** (`CreateParametric`) are created by a `ParametricObjectContainer` for an `objectInstance` parameter: their position, rotation and scale are relative to a container node placed by the parent element, and the user's offsets are stored in the parameter's state (`localPosition`, `localRotation`, `localScale`, `meshPath`).
 * `ReplaceMesh`/`SetNewMesh` swap the mesh, keeping the transform.
 

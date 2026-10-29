@@ -21,6 +21,11 @@ public partial class LODGroup : Node3D {
     List<(GeometryInstance3D renderer, long mask)> renderers;
     int currentLod = int.MinValue;
 
+    //Picking is independent of the camera's current LOD, including for nested groups.
+    public static bool IsHighestDetailRenderer(GeometryInstance3D renderer) {
+        return !renderer.HasMeta(LodMaskMeta) || (renderer.GetMeta(LodMaskMeta).AsInt64() & 1L) != 0;
+    }
+
     public void SetLODs(float[] transitions, List<GeometryInstance3D>[] lodRenderers) {
         Transitions = transitions;
         var masks = new Dictionary<GeometryInstance3D, long>();

@@ -7,7 +7,7 @@ The editor knows nothing about any game by itself. Everything game specific (whi
 This program is made with Godot 4.7 (.NET), with scripts written in C#.
 
 > [!NOTE]
-> Claude Code was used during the development of this project and for writing its documentation, including this README and the wiki.
+> Claude Code and other AI agents were used during the development of this project and for writing its documentation, including this README and the wiki.
 
 ## Documentation
 

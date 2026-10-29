@@ -33,6 +33,7 @@ public class MeshManager {
 
     Dictionary<string, GameObject> meshes = new Dictionary<string, GameObject>();
     Dictionary<string, Bounds> bounds = new Dictionary<string, Bounds>();
+    Dictionary<string, Shape3D> selectionShapes = new Dictionary<string, Shape3D>();
     Dictionary<string, MeshTransform?> coreTransforms = new Dictionary<string, MeshTransform?>();
     HashSet<string> coreTransformWarnings = new HashSet<string>();
 
@@ -64,6 +65,18 @@ public class MeshManager {
         return GetInstance().GetBounds_instance(mesh);
     }
 
+    //The template is loaded by GetMesh before an instance asks for its collider. Shapes (including null)
+    //are cached in asset coordinates, without any instance's placement transform, and never modified.
+    public static Shape3D GetSelectionShape(string mesh) {
+        var manager = GetInstance();
+        if (mesh == null || !manager.meshes.TryGetValue(mesh, out var template)) return null;
+        if (!manager.selectionShapes.TryGetValue(mesh, out var shape)) {
+            shape = GameEngine.Mesh.CreateSelectionShape(template);
+            manager.selectionShapes.Add(mesh, shape);
+        }
+        return shape;
+    }
+
     //the transform of a mesh from its placement point: the one given by the core (server/mesh_transforms.py) if useCoreTransform
     //and the core gives one (e.g. the MM2 props, drawn from their centre of gravity), otherwise, if autoYOffset, a vertical offset
     //that puts the lowest point of the mesh on the placement point
@@ -81,6 +94,7 @@ public class MeshManager {
     // loaded templates never get ready/process callbacks), which must be freed explicitly or it leaks at exit
     public static void Shutdown() {
         if (instance == null) return;
+        instance.selectionShapes.Clear();
         GO.Destroy(instance.parent);
         instance = null;
     }
@@ -91,6 +105,7 @@ public class MeshManager {
         }
         meshes.Clear();
         bounds.Clear();
+        selectionShapes.Clear();
         coreTransforms.Clear();
         coreTransformWarnings.Clear();
     }
