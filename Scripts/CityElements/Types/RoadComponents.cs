@@ -62,6 +62,8 @@ namespace CityElements.Types {
         public RoadSettings settings;
         public RoadComponent[] components;
 
+        public RoadType() { }
+
         public RoadType(string folder, string commonFolder) {
             ui = TypeInheritance.Load<Panel>(folder, "ui.json");
             parameters = TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");

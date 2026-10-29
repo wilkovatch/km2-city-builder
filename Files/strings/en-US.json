@@ -654,5 +654,6 @@
 	"EDIT_PROP_CONTAINER_RIBBON1": "Edit ribbon props",
 	"PROP_PATH_NAME": "Ribbon name",
 	"PROP_PATH_REMOVE_RIBBON": "Remove ribbon",
-	"PROP_PATH_EDIT_RIBBON": "Edit $RIBBON props"
+	"PROP_PATH_EDIT_RIBBON": "Edit $RIBBON props",
+	"LL_SPLINE_POINTS": "Spline points"
 }

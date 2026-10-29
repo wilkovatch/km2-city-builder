@@ -16,7 +16,9 @@ namespace ElementPlacer {
             AppendElement, //a new element at the start (atStart) or end of the array at arrayPath, centered where clicked
             AttachSelected, //the selected point is replaced with the clicked point (shared), or attached to the clicked anchor
             AttachToLine, //the selected point follows the line between the two terrain points clicked next
-            AttachToColumn //the selected point follows the vertical line of the terrain point clicked
+            AttachToColumn, //the selected point follows the vertical line of the terrain point clicked
+            InsertPoint,
+            PrependPoint
         }
 
         public LowLevelElement curElement = null;
@@ -46,6 +48,9 @@ namespace ElementPlacer {
         bool Guards(List<RaycastHit?> hits) {
             onFrame?.Invoke();
             if (placementMode == PlacementMode.None) return false;
+            if (GetElement()?.Settings?.spline != null && placementMode != PlacementMode.Create &&
+                (GameEngine.Gizmo.IsNearAxis() || (hits[0].HasValue &&
+                GS.FindRecursive<TerrainPoint>((Node3D)hits[0].Value.collider) is TerrainPoint p && curElement.HasPoint(p)))) return false;
             if (!hits[0].HasValue && !hits[1].HasValue && !hits[2].HasValue) return false;
             ShowOnMap(hits);
             if (!Input.GetInputStart(KeyCommand.Select)) return false;
@@ -58,14 +63,22 @@ namespace ElementPlacer {
 
         public override void Apply(List<RaycastHit?> hits) {
             if (!Guards(hits)) return;
+            PlaceAt(GetHit(hits));
+        }
+
+        public void PlaceAt(RaycastHit hit) {
             manager.worldChanged = true;
-            var hit = GetHit(hits);
             var obj = (Node3D)hit.collider;
             switch (placementMode) {
                 case PlacementMode.Create:
                     if (createType == null) return;
                     curElement = Operations.LowLevel.Create(manager, createType, hit.point);
                     placementMode = PlacementMode.None;
+                    if (curElement.Settings?.spline != null) {
+                        arrayPath = "spline";
+                        Operations.LowLevel.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
+                        placementMode = PlacementMode.AppendPoint;
+                    }
                     curElement.SetActive(true, true);
                     curElement.Select(true);
                     onElementCreated?.Invoke();
@@ -79,6 +92,16 @@ namespace ElementPlacer {
                     }
                     var point = Operations.LowLevel.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
                     point?.Select(true);
+                    break;
+                case PlacementMode.PrependPoint:
+                case PlacementMode.InsertPoint:
+                    if (GetElement() == null) return;
+                    var list = LowLevel.PointTree.Find(curElement.points, "spline") as LowLevel.PointList;
+                    var selectedPoint = manager.builder.gizmo.mainTargetRoot == null ? null : GS.FindRecursive<TerrainPoint>(manager.builder.gizmo.mainTargetRoot);
+                    var index = placementMode == PlacementMode.PrependPoint ? 0 : list.items.FindIndex(n => ((LowLevel.PointLeaf)n).point == selectedPoint);
+                    if (index < 0) return;
+                    if (placementMode == PlacementMode.InsertPoint && !atStart) index++;
+                    Operations.LowLevel.InsertPointAt(manager, curElement, "spline", index, obj, hit.point);
                     break;
                 case PlacementMode.AppendElement:
                     if (GetElement() == null) return;

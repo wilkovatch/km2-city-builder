@@ -107,7 +107,7 @@ public class RoadLikeGenerator<T> {
         return i < sectionUps.Count ? sectionUps[i] : GameEngine.Vector3.up;
     }
 
-    public void AddSection(int i, List<List<Vector3>> sidePoints, int curAnchorLine = 0) {
+    public void AddSection(int i, List<List<Vector3>> sidePoints, int curAnchorLine = 0, bool startCap = true, bool endCap = true) {
         //anchor lines
         if (sidePoints != null) {
             var anchors = curType.anchorsCalculators.GetValues(variableContainer);
@@ -145,7 +145,7 @@ public class RoadLikeGenerator<T> {
                 var comp = components[c];
                 var compMesh = curType.componentMeshes[c];
                 var vars = variableContainer;
-                if (comp.endMesh != null && (curType.subConditions[c] == null || curType.subConditions[c].GetValue(variableContainer))) {
+                if (endCap && comp.endMesh != null && (curType.subConditions[c] == null || curType.subConditions[c].GetValue(variableContainer))) {
                     curType.FillComponentVariables(variableContainer, c);
                     AddMesh(i, compMesh.name, false, compMesh.endMesh, vars);
                 }
@@ -157,7 +157,7 @@ public class RoadLikeGenerator<T> {
                 var comp = components[c];
                 var compMesh = curType.componentMeshes[c];
                 var vars = variableContainer;
-                if (comp.startMesh != null && (curType.subConditions[c] == null || curType.subConditions[c].GetValue(variableContainer))) {
+                if (startCap && comp.startMesh != null && (curType.subConditions[c] == null || curType.subConditions[c].GetValue(variableContainer))) {
                     curType.FillComponentVariables(variableContainer, c);
                     AddMesh(i, compMesh.name, false, compMesh.startMesh, vars);
                 }

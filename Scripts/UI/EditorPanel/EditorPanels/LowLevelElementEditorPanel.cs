@@ -14,6 +14,7 @@ namespace EditorPanels {
     //props containers)
     public class LowLevelElementEditorPanel : EditorPanel, IPropRuleEditor {
         string creationTypeValue;
+        public string creationGroup = "CREATE_LOW_LEVEL_ELEMENT";
         public string creationType {
             get => creationTypeValue;
             set { creationTypeValue = value; builtType = "\0"; }
@@ -97,13 +98,15 @@ namespace EditorPanels {
             p.AddButton(SM.Get("END_EDITING"), Terminate, 1.5f);
             p.IncreaseRow();
             if (creationType != null) {
-                p.AddLabel(SM.Get("CREATE_PROP_RULE") + ": " + SM.Get("LL_CLICK_TO_CREATE"), 1.5f);
+                p.AddLabel(Operations.LowLevel.GetTypeLabel(creationType) + ": " + SM.Get("LL_CLICK_TO_CREATE"), 1.5f);
                 return;
             }
             creatableTypes.Clear();
             var names = new List<string>();
             foreach (var type in CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()) {
                 if (!type.Value.typeData.settings.creatable) continue;
+                var menu = type.Value.typeData.settings.createMenu;
+                if (menu?.direct == true || (menu?.group ?? "CREATE_LOW_LEVEL_ELEMENT") != creationGroup) continue;
                 creatableTypes.Add(type.Key);
                 names.Add(Operations.LowLevel.GetTypeLabel(type.Key));
             }
@@ -130,6 +133,36 @@ namespace EditorPanels {
 
             var w = elem.width;
             var settings = type.typeData.settings;
+            if (elem.name == "splineGroup" && settings.spline != null) {
+                p.IncreaseRow();
+                var allowed = settings.spline.curveTypes;
+                var labels = new[] { "RD_SP_T_BEZIER", "RD_SP_T_HERMITE", "RD_SP_T_LOWPOLY" };
+                var dropdown = p.AddDropdown(SM.Get("RD_SPLINE_TYPE"), new List<int>(allowed).ConvertAll(i => SM.Get(labels[i])), i => {
+                    GetElement().state.SetInt("curveType", allowed[i]); builder.NotifyChange();
+                }, w);
+                dropdown.actionEnabled = false;
+                dropdown.SetValue(System.Array.IndexOf(allowed, GetElement().state.Int("curveType", settings.spline.defaultCurveType)));
+                dropdown.actionEnabled = true;
+                p.IncreaseRow();
+                p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetElement,
+                    "state.properties.segments", null, w / 2, null);
+                p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetElement, "state.properties.segmentsPer100m", null, w / 2, null);
+                p.IncreaseRow();
+                p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElement, "state.properties.subdivideEqually", null, w / 2, null);
+                p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal,
+                    GetElement, "state.properties.hermiteTension", null, w / 2, null);
+                p.IncreaseRow();
+                return true;
+            }
+            if (elem.name == "pointsGroup" && settings.spline != null) {
+                selectedLabel = p.AddLabel("", w); p.IncreaseRow();
+                placementDropdown = p.AddDropdown(SM.Get("RD_POINT_PLACEMENT_MODE"), new List<string> {
+                    SM.Get("RD_PM_NONE"), SM.Get("RD_PM_ADD"), SM.Get("RD_PM_ADD_BEFORE_FIRST"),
+                    SM.Get("RD_PM_INSERT"), SM.Get("RD_PM_INSERT_BEFORE") }, SetSplinePlacementMode, w);
+                p.IncreaseRow();
+                removeButton = p.AddButton(SM.Get("RD_REMOVE_POINT"), RemoveArrayElement, w); p.IncreaseRow();
+                return true;
+            }
             var builtIn = elem.name == "mainGroup" || elem.name == "pointsGroup" || elem.name == "meshGroup" || elem.name == "containerGroup"
                 || elem.name == "propsGroup";
             if (builtIn) p.EnsureNewRow(); //after a parameter sharing its row
@@ -386,15 +419,36 @@ namespace EditorPanels {
             if (mode == 0) ShowMoveHandle(element);
         }
 
+        void SetSplinePlacementMode(int mode) {
+            var placer = GetPlacer();
+            if (placer == null) return;
+            placer.arrayPath = "spline";
+            placer.atStart = mode == 4;
+            placer.placementMode = mode switch {
+                1 => ElementPlacer.LowLevelPlacer.PlacementMode.AppendPoint,
+                2 => ElementPlacer.LowLevelPlacer.PlacementMode.PrependPoint,
+                3 or 4 => ElementPlacer.LowLevelPlacer.PlacementMode.InsertPoint,
+                _ => ElementPlacer.LowLevelPlacer.PlacementMode.None
+            };
+            GetElement()?.SetActive(true, true);
+        }
+
         public void SetPointPlacementMode(int mode) {
             if (placementDropdown == null) return;
             placementDropdown.SetValue(mode);
-            SetPlacementMode(mode);
+            if (GetElement()?.Settings?.spline != null) SetSplinePlacementMode(mode);
+            else SetPlacementMode(mode);
         }
 
         public int GetPointPlacementMode() {
             var placer = GetPlacer();
             if (placer == null) return 0;
+            if (GetElement()?.Settings?.spline != null) return placer.placementMode switch {
+                ElementPlacer.LowLevelPlacer.PlacementMode.AppendPoint => 1,
+                ElementPlacer.LowLevelPlacer.PlacementMode.PrependPoint => 2,
+                ElementPlacer.LowLevelPlacer.PlacementMode.InsertPoint => placer.atStart ? 4 : 3,
+                _ => 0
+            };
             switch (placer.placementMode) {
                 case ElementPlacer.LowLevelPlacer.PlacementMode.AppendPoint: return appendArrays.IndexOf((placer.arrayPath, false)) + 1;
                 case ElementPlacer.LowLevelPlacer.PlacementMode.AppendElement: return appendArrays.IndexOf((placer.arrayPath, placer.atStart)) + 1;
@@ -647,7 +701,7 @@ namespace EditorPanels {
                     ShowContainerLines(element);
                     ShowMoveHandle(element);
                 } else {
-                    SetTitle(SM.Get(creationType == PropPath.TypeId ? "CREATE_PROP_RULE" : "LL_NEW_ELEMENT"));
+                    SetTitle(creationType != null ? Operations.LowLevel.GetTypeLabel(creationType) : SM.Get(creationGroup));
                 }
             }
         }
@@ -711,6 +765,7 @@ namespace EditorPanels {
         void OnElementCreated() {
             builder.NotifyChange();
             SetActive(true);
+            if (GetElement()?.Settings?.spline != null) SetPointPlacementMode(1);
         }
 
         protected override void ReplaceTitle(string value) {

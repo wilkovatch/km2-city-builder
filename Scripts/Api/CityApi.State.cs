@@ -137,6 +137,10 @@ namespace Api {
                 var target = GetStateTarget(@ref);
                 var incoming = values.ToObject<ObjectState>();
                 Operations.States.Normalize(incoming, target.parameters);
+                if (target.owner is LowLevelElement spline && spline.Settings?.spline != null && incoming.properties.ContainsKey("curveType") &&
+                    System.Array.IndexOf(spline.Settings.spline.curveTypes, incoming.Int("curveType")) < 0) {
+                    throw ApiException.InvalidValue("curve type is not allowed by this spline type");
+                }
                 foreach (var property in incoming.properties) {
                     if (target.FindParameter(property.Key) == null) throw ApiException.NotFound("parameter '" + property.Key + "'");
                 }
@@ -191,6 +195,10 @@ namespace Api {
                 var p = t.FindParameter(name);
                 if (p == null) throw ApiException.NotFound("parameter '" + name + "' of " + t.kind + (t.parameters.Length == 0 ? " (it has none)" : ""));
                 var v = ConvertValue(p.type, value, p.enumLabels, name);
+                if (t.owner is LowLevelElement spline && name == "curveType" && spline.Settings?.spline != null &&
+                    System.Array.IndexOf(spline.Settings.spline.curveTypes, System.Convert.ToInt32(v)) < 0) {
+                    throw ApiException.InvalidValue("curve type is not allowed by this spline type");
+                }
                 if (v is ObjectState reference && p.type == "reference" && !Operations.States.AcceptsReference(p, t.owner, Operations.States.ResolveReference(reference))) {
                     throw ApiException.InvalidValue("'" + name + "' can't reference element " + reference.Int("id", -1)
                         + (p.referenceTypes != null ? " (" + string.Join(", ", p.referenceTypes) + ")" : ""));

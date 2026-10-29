@@ -246,6 +246,7 @@ namespace Api {
                 if (!known.Contains(prop.Name)) throw ApiException.InvalidParam("unknown parameter '" + prop.Name + "' of " + name);
             }
             object res;
+            await api.SettleProjectedGeometry(name == "city.flush");
             try {
                 res = method.info.Invoke(api, args);
             } catch (TargetInvocationException e) {
@@ -255,8 +256,9 @@ namespace Api {
             if (res is Task task) {
                 await task;
                 var resultProperty = task.GetType().GetProperty("Result");
-                return method.info.ReturnType.IsGenericType ? resultProperty?.GetValue(task) : null;
+                res = method.info.ReturnType.IsGenericType ? resultProperty?.GetValue(task) : null;
             }
+            await api.SettleProjectedGeometry(name == "city.flush");
             return res;
         }
     }

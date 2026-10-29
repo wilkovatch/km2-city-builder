@@ -38,6 +38,7 @@ public abstract partial class EditorPanel {
     private Dictionary<string, CityElements.Types.Parameter> parameterMap = new Dictionary<string, CityElements.Types.Parameter>();
     bool initializationPending = true;
     bool initializedForActivation = false;
+    readonly List<(EditorPanelElements.Button button, ConverterCatalog.ConverterInfo converter)> conversionButtons = new();
     internal bool IsInitialized => !initializationPending;
 
     //discard controls for the previous city without constructing the hidden panel for the next one
@@ -150,8 +151,11 @@ public abstract partial class EditorPanel {
             p.IncreaseRow();
             curW = elem.width;
         }
-        p.AddButton(GetString(converter.label ?? converterName), delegate { builder.StartConversion(getObject?.Invoke(), converterName); },
-            elem.width, converter.tooltip != null ? GetString(converter.tooltip) : null);
+        var button = p.AddButton(GetString(converter.label ?? converterName), delegate {
+            builder.DoDelayed(() => builder.StartConversion(getObject?.Invoke(), converterName));
+        }, elem.width, converter.tooltip != null ? GetString(converter.tooltip) : null);
+        conversionButtons.Add((button, converter));
+        button.SetInteractable(converter.IsEnabled(element));
     }
 
     //the text of a string key of the parameters (the child panels use the strings of their parent)
@@ -338,6 +342,7 @@ public abstract partial class EditorPanel {
     }
 
     public virtual void Destroy() {
+        conversionButtons.Clear();
         initializationPending = true;
         foreach (var page in pages) {
             page.Destroy();
@@ -399,7 +404,10 @@ public abstract partial class EditorPanel {
     }
 
     public virtual void Update() {
+    }
 
+    public void UpdateConversionButtons() {
+        foreach (var (button, converter) in conversionButtons) button.SetInteractable(converter.IsEnabled(getObject?.Invoke()));
     }
 
     //the city element edited from the panel, recorded before each change made from it for undo/redo

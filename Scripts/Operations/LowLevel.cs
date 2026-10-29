@@ -250,6 +250,14 @@ namespace Operations {
             return point.IsDeleted() ? null : point;
         }
 
+        public static TerrainPoint InsertPointAt(ElementManager manager, LowLevelElement element, string path, int index, Node3D obj, Vector3 position) {
+            if (!element.InsertArrayElement(path, index)) return null;
+            var list = (global::LowLevel.PointList)global::LowLevel.PointTree.Find(element.points, path);
+            var point = PointFromClick(manager, obj, position);
+            element.ReplacePoint(((global::LowLevel.PointLeaf)list.items[index]).point, point);
+            return point;
+        }
+
         //the instances of a uniform array in the elements of another array (none otherwise), with the center of the node
         //holding each one and its horizontal direction across (from its first to its last point)
         static List<(global::LowLevel.PointList list, Vector3 center, Vector3 across)> UniformHolders(LowLevelElement element, string arrayPath) {

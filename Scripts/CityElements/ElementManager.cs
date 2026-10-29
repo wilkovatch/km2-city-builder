@@ -16,6 +16,8 @@ public partial class ElementManager : Scriptable {
     public List<BuildingLine> buildings = new List<BuildingLine>();
     public List<LowLevelElement> lowLevelElements = new List<LowLevelElement>();
     public bool worldChanged = false;
+    ulong splineTerrainVersion = ulong.MaxValue;
+    bool splineProjectionPending, splinePhysicsReady;
     public bool propsChanged = false;
     public bool visibilityChanged = false;
     GameObject terrainPointContainer = null;
@@ -445,6 +447,23 @@ public partial class ElementManager : Scriptable {
         LateUpdate();
     }
 
+    public override void _PhysicsProcess(double delta) {
+        if (!splineProjectionPending || splinePhysicsReady || History.UndoManager.IsLoading) return;
+        splinePhysicsReady = true;
+        foreach (var element in lowLevelElements) element.InvalidateSplineSurface();
+        worldChanged = true;
+    }
+
+    //New/replaced collision shapes enter the physics world at its next synchronization. API replies and exports
+    //wait for that step so their evaluated spline geometry agrees with the editor's following frame.
+    public async System.Threading.Tasks.Task SettleProjectedSplines() {
+        while (splineProjectionPending && PreferencesManager.workingDirectory != "" && IsInsideTree()) {
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            ProcessUpdate();
+        }
+    }
+
     void LateUpdate() {
         if (History.UndoManager.IsLoading) return; //the loader updates explicitly when the road anchors are ready
         ProcessUpdate();
@@ -495,6 +514,15 @@ public partial class ElementManager : Scriptable {
         foreach (var building in buildings) {
             buildingsRebuilt += building.UpdateLine();
         }
+        if (roadsRebuilt + intersectionsRebuilt + patchesRebuilt > 0 || splineTerrainVersion != GameEngine.Terrain.HeightmapVersion) {
+            foreach (var element in lowLevelElements) {
+                if (element.Settings?.spline?.projectSections != true) continue;
+                element.InvalidateSplineSurface();
+                splineProjectionPending = true;
+                splinePhysicsReady = false;
+            }
+        }
+        splineTerrainVersion = GameEngine.Terrain.HeightmapVersion;
         var lowLevelRebuilt = UpdateLowLevelElements();
         var instancesUpdated = 0;
         foreach (var mesh in meshes) {
@@ -560,7 +588,21 @@ public partial class ElementManager : Scriptable {
             if (element.UpdateDerivedPoints(siblings ?? lowLevelElements)) derived = true;
         }
         if (derived) ApplyLowLevelConstraints();
-        var rebuilt = LowLevelGeometryBatch.Rebuild(lowLevelElements);
+        //Projected splines read generated colliders: rebuild those surfaces first, regardless of creation order.
+        var surfaces = new List<LowLevelElement>();
+        var projected = new List<LowLevelElement>();
+        foreach (var element in lowLevelElements) {
+            if (element.Settings?.spline?.projectSections == true) projected.Add(element);
+            else surfaces.Add(element);
+        }
+        var rebuilt = LowLevelGeometryBatch.Rebuild(surfaces);
+        if (rebuilt > 0 && projected.Count > 0) {
+            foreach (var element in projected) element.InvalidateSplineSurface();
+            splineProjectionPending = true;
+            splinePhysicsReady = false;
+        }
+        rebuilt += LowLevelGeometryBatch.Rebuild(projected);
+        if (splinePhysicsReady || projected.Count == 0) splineProjectionPending = false;
         UpdateLowLevelPlaceholders();
         PlaceMoveHandles();
         updatedLowLevelElements.Clear();

@@ -15,8 +15,59 @@ public static class ConverterCatalog {
         public string script = "convert.py";
         //the converted elements are replaced: the roads and intersections become ghosts, the others are deleted
         public bool replace = true;
+        public string enabledWhen; //optional Lua predicate, given detached snapshots of the element and its neighbors
 
         public string ScriptPath => Path.Combine(folder, script);
+
+        public bool IsEnabled(object element) {
+            if (element == null || !History.ElementSnapshot.IsAlive(element) || !Accepts(element)) return false;
+            if (enabledWhen == null) return true;
+            Lua.LuaValue Snapshot(object value) {
+                var result = new Lua.LuaTable();
+                result["kind"] = History.ElementSnapshot.ReferenceKind(value) ?? "";
+                result["id"] = History.ElementRegistry.GetId(value);
+                result["state"] = JsonValue(Newtonsoft.Json.Linq.JToken.FromObject(((IObjectWithState)value).GetState()));
+                return result;
+            }
+            var ctx = new Lua.LuaTable();
+            ctx["element"] = Snapshot(element);
+            var neighbors = new Lua.LuaTable();
+            if (element is Intersection intersection) {
+                int i = 0;
+                foreach (var connected in intersection.roads) if (!connected.deleted) neighbors[++i] = Snapshot(connected);
+            } else if (element is Road road) {
+                if (road.startIntersection != null) neighbors[1] = Snapshot(road.startIntersection);
+                if (road.endIntersection != null) neighbors[2] = Snapshot(road.endIntersection);
+            }
+            ctx["neighbors"] = neighbors;
+            var host = RuntimeCalculator.Scripting.LuaScriptHost.Get();
+            try {
+                var value = host.Call(host.Resolve(enabledWhen), Lua.LuaValue.Nil, ctx, name + " (availability)");
+                return value.TryRead<bool>(out var enabled) && enabled;
+            } catch (System.Exception e) {
+                host.ReportError(name + " (availability)", e.Message);
+                return false;
+            }
+        }
+
+        static Lua.LuaValue JsonValue(Newtonsoft.Json.Linq.JToken token) {
+            if (token is Newtonsoft.Json.Linq.JObject obj) {
+                var table = new Lua.LuaTable();
+                foreach (var p in obj.Properties()) table[p.Name] = JsonValue(p.Value);
+                return table;
+            }
+            if (token is Newtonsoft.Json.Linq.JArray array) {
+                var table = new Lua.LuaTable();
+                for (int i = 0; i < array.Count; i++) table[i + 1] = JsonValue(array[i]);
+                return table;
+            }
+            return token.Type switch {
+                Newtonsoft.Json.Linq.JTokenType.Boolean => new Lua.LuaValue((bool)token),
+                Newtonsoft.Json.Linq.JTokenType.Integer or Newtonsoft.Json.Linq.JTokenType.Float => new Lua.LuaValue((double)token),
+                Newtonsoft.Json.Linq.JTokenType.String => new Lua.LuaValue((string)token),
+                _ => Lua.LuaValue.Nil
+            };
+        }
 
         public bool Accepts(object element) {
             if (sources == null) return false;

@@ -563,3 +563,5 @@ See [Images](#images).
 |---|---|---|---|
 | `batch` | `commands: [{method, params}]`<br>`atomic: bool = true` | list | Runs the commands as a single undo step (see [Batches](#batches)) |
 | `api.methods` | - | list | Every method with its parameters |
+
+Spline-driven low-level elements keep kind `lowLevel`. Their point array is `spline`: for example `lowLevel.create(type="decal", points={"spline":[{"position":[0,0,0]},{"position":[0,0,10]}]})` in a core defining that type. Set curve parameters through `state.setParam`; allowed curve modes come from the core. Derived element data and export JSON include evaluated `spline.sections` and `spline.pieces`.

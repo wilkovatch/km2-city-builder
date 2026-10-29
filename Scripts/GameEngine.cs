@@ -1561,7 +1561,7 @@ public static partial class GameEngine {
             public Node collider;
             public CollisionShape3D shape;
         }
-        public static Godot.Vector3 ProjectPoint(Godot.Vector3 pos, int collisionMask = 1 << 3) {
+        public static Godot.Vector3 ProjectPoint(Godot.Vector3 pos, int collisionMask = 1 << 3, CollisionObject3D exclude = null) {
             var godotPos = Vector3.DecodePosition(pos);
             var from = godotPos + Godot.Vector3.Up * 1000000;
             var to = godotPos + Godot.Vector3.Down * 1000000;
@@ -1575,6 +1575,7 @@ public static partial class GameEngine {
                 To = to,
                 CollisionMask = (uint)collisionMask
             };
+            if (exclude != null) rayParams.Exclude = new Godot.Collections.Array<Rid> { exclude.GetRid() };
 
             var result = spaceState.IntersectRay(rayParams);
             if (result.Count > 0 && result.ContainsKey("position")) {

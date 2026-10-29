@@ -42,6 +42,9 @@ namespace CityElements.Types {
     }
 
     public class LowLevelSettings {
+        public LowLevelSplineSettings spline;
+        public LowLevelCreateMenu createMenu;
+        public int geometryLayer = 7;
         public LowLevelPointNode[] controlPoints;
         public LowLevelMeshSettings mesh; //null: no mesh
         public LowLevelContainerSettings container; //null: not a container
@@ -53,10 +56,33 @@ namespace CityElements.Types {
         public string propsPresetType; //the prop rule presets listed: the ones of this type (e.g. a road type with the same containers), all if not set
     }
 
+    public class LowLevelCreateMenu {
+        public bool direct;
+        public string group = "CREATE_LOW_LEVEL_ELEMENT";
+    }
+
+    //Road component geometry without road connections or traffic. Curve ids match GeometryHelper.CurveType.
+    public class LowLevelSplineSettings : RoadSettings {
+        public int[] curveTypes = new[] { 0, 1, 2 };
+        public int defaultCurveType = 2;
+        public int segments = 20;
+        public bool segmentsPer100m;
+        public bool projectPoints;
+        public bool projectSections;
+        public int projectionMask = (1 << 3) | (1 << 7);
+        public float maxSectionLength;
+        public float maxMiter = 2;
+        public bool independentSegments;
+        //Optional expressions to subdivide pieces (e.g. a texture's quantized tile length).
+        public string splitCondition;
+        public int maxSplits = 3;
+    }
+
     public class LowLevelType: ITypeWithUI {
         public Panel ui;
         public ParameterContainer parameters;
         public LowLevelSettings settings;
+        public RoadComponent[] splineComponents;
 
         public LowLevelType() { }
 
@@ -64,7 +90,36 @@ namespace CityElements.Types {
             ui = Parsers.TypeInheritance.Load<Panel>(folder, "ui.json");
             parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
             settings = Parsers.TypeInheritance.Load<LowLevelSettings>(folder, "settings.json");
+            if (settings.spline != null) {
+                var builtins = new[] {
+                    new Parameter { name = "curveType", type = "int" },
+                    new Parameter { name = "segments", type = "int" },
+                    new Parameter { name = "segmentsPer100m", type = "bool" },
+                    new Parameter { name = "hermiteTension", type = "float" },
+                    new Parameter { name = "subdivideEqually", type = "bool" }
+                };
+                var parametersList = new List<Parameter>(parameters.parameters ?? new Parameter[0]);
+                foreach (var builtin in builtins) {
+                    if (!parametersList.Exists(p => p.fullName() == builtin.name)) parametersList.Add(builtin);
+                }
+                parameters.parameters = parametersList.ToArray();
+                if (settings.mesh != null || (settings.controlPoints?.Length ?? 0) > 0 || settings.geometry != null) {
+                    throw new System.Exception("Spline low-level types cannot also define mesh, controlPoints or geometry");
+                }
+                settings.controlPoints = SplinePoints();
+                var components = settings.spline.components ?? new ComponentInfo[0];
+                splineComponents = new RoadComponent[components.Length];
+                var common = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(folder)), "sharedComponents");
+                for (int i = 0; i < components.Length; i++) {
+                    splineComponents[i] = Parsers.TypeInheritance.LoadComponent<RoadComponent>(folder, components[i].name, common);
+                }
+            }
             if (settings.controlPoints == null) settings.controlPoints = new LowLevelPointNode[0];
+        }
+
+        public static LowLevelPointNode[] SplinePoints() {
+            return new[] { new LowLevelPointNode { name = "spline", label = "LL_SPLINE_POINTS",
+                array = new LowLevelArraySettings { min = 0, defaultCount = 0 } } };
         }
 
         public ParameterContainer GetParameters() {

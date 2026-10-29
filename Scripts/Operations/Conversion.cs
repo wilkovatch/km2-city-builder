@@ -119,7 +119,7 @@ namespace Operations {
             if (converter == null) return Result.Fail("unknown_converter", "unknown converter " + converterName);
             if (elements.Count == 0) return Result.Fail("not_accepted", "no elements to convert");
             foreach (var e in elements) {
-                if (!converter.Accepts(e)) return Result.Fail("not_accepted", "the converter " + converterName + " can't convert " + ElementKind(e) + " " + Id(e));
+                if (!converter.IsEnabled(e)) return Result.Fail("not_accepted", "the converter " + converterName + " can't convert " + ElementKind(e) + " " + Id(e));
             }
             var tempDir = Path.Combine(Path.GetTempPath(), "km2cb_convert_" + System.Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempDir);
@@ -139,6 +139,7 @@ namespace Operations {
                 }
                 foreach (var e in elements) {
                     if (!History.ElementSnapshot.IsAlive(e)) return Result.Fail("not_accepted", "an element was deleted during the conversion");
+                    if (!converter.IsEnabled(e)) return Result.Fail("not_accepted", "the converter is no longer enabled");
                 }
                 Result res = null;
                 History.UndoManager.Record(StringManager.Get("CONVERT"), () => res = Apply(manager, converter, elements, output));
@@ -216,6 +217,10 @@ namespace Operations {
                 if (id == null) return "an element has no id";
                 var type = Key(e["type"]);
                 if (type == null || !types.ContainsKey(type)) return "the element " + id + " has an unknown type " + type;
+                if (types[type].typeData.settings.spline is CityElements.Types.LowLevelSplineSettings spline) {
+                    if (e["mesh"] != null) return "a spline element cannot have an editable mesh";
+                    if (e["state"]?["curveType"] is JToken mode && System.Array.IndexOf(spline.curveTypes, mode.Value<int>()) < 0) return "curve type is not allowed by " + type;
+                }
                 if (!elementIds.Add(id)) return "the element " + id + " is defined twice";
                 var missing = MissingPoint(e["points"], false) ?? MissingPoint(e["mesh"]?["vertices"], false);
                 if (missing != null) return "the element " + id + " uses the undefined point " + missing;
@@ -323,7 +328,8 @@ namespace Operations {
             var outputElements = output["elements"] as JArray ?? new JArray();
             //by default the elements replace the converted element (a low-level element: they take its place, its container and
             //the procedural element it replaces)
-            object defaultSource = elements.Count == 1 ? elements[0] : null;
+            var replaces = output["replace"] != null ? (bool)output["replace"] : converter?.replace ?? false;
+            object defaultSource = replaces && elements.Count == 1 ? elements[0] : null;
             LowLevelElement defaultContainer = null;
             if (defaultSource is LowLevelElement lowLevelSource) {
                 defaultContainer = lowLevelSource.container;

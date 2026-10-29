@@ -8,25 +8,45 @@ using GO = GameEngine.GameObject;
 namespace Api {
     public partial class ApiSelfTest {
         async Task StandalonePropRules() {
+            const string mesh = "prop_selection.obj";
+            SelectionObj(System.IO.Path.Combine(folder, mesh), new[] {
+                new Vector3(1, -2, 0.2f), new Vector3(2, -2, 0.2f), new Vector3(2, -2, 0.8f), new Vector3(1, -2, 0.8f)
+            }, new[] { new[] { 0, 1, 2, 0, 2, 3 } });
             object P(float x, float z) => new { position = new[] { x, 0, z } };
             var ribbons = new Dictionary<string, object> { ["main"] = new[] {
-                new[] { new { start = P(-710, 700), end = P(-708, 700) }, new { start = P(-710, 710), end = P(-708, 710) } },
-                new[] { new { start = P(-710, 720), end = P(-708, 720) }, new { start = P(-710, 730), end = P(-708, 730) } }
+                new[] { new { start = P(-710, -700), end = P(-708, -700) }, new { start = P(-710, -710), end = P(-708, -710) } },
+                new[] { new { start = P(-710, -720), end = P(-708, -720) }, new { start = P(-710, -730), end = P(-708, -730) } }
             } };
             var id = (await Call("propPaths.create", new { ribbons, name = "Standalone prop test", rule = new {
-                main = new { type = "line", element = new { type = "line", mesh = "missing.obj", start = 2, elemDistance = 5, maxNumber = 10, xPos = 0.5 } }
+                main = new { type = "line", element = new { type = "line", mesh, start = 2, elemDistance = 5, maxNumber = 10, xPos = 0.5 } }
             } })).Value<int>();
             PropPath Element() => History.UndoManager.GetAliveElement(id) as PropPath;
             var element = Element();
             Check("standalone prop paths have their own API kind", (await Call("elements.get", new { @ref = id }))["kind"].Value<string>() == "propPath");
             Check("generic prop expressions continue across disconnected ribbons", element.generator.props.Count == 4
-                && element.generator.props.Select(p => GO.GetPosition(p.obj).Z).SequenceEqual(new[] { 702f, 707f, 722f, 727f }));
+                && element.generator.props.Select(p => GO.GetPosition(p.obj).Z).SequenceEqual(new[] { -702f, -707f, -722f, -727f }));
             await CheckUndo("moving a standalone prop rule", () => Call("propPaths.move", new { element = id, offset = new[] { 3, 0, 0 } }));
             await CheckUndo("inserting a paired prop section", () => Call("propPaths.insert", new { element = id, array = "ribbons.0.segments.0.sections", index = 1 }));
             await Call("propPaths.remove", new { element = id, array = "ribbons.0.segments.0.sections", index = 1 });
             element = Element();
-            builder.SelectObject(element.generator.props[0].obj, true, null);
             await Frames(3);
+            foreach (var prop in element.generator.props.ToArray()) {
+                builder.CloseAllPanels();
+                builder.SetSelectObjectMode();
+                var selector = (TerrainModifier.Null)builder.terrainClick.modifier;
+                await Frames(2);
+                var point = prop.obj.GlobalTransform * GameEngine.Vector3.DecodePosition(new Vector3(1.5f, 0, 0.5f));
+                var found = GameEngine.Raycast.DoRaycast(builder.helper, GameEngine.Vector3.EncodePosition(point) + Vector3.Up * 20,
+                    Vector3.Down, out var hit, 40, selector.GetLayerMasks()[0]);
+                Check("clicking a generated prop hits its mesh and resolves its rule owner", found && hit.collider == prop.obj
+                    && ElementPlacer.ReferencePicker.ElementOf(hit.collider) == element);
+                if (found) History.UndoManager.Record("select generated prop", () => selector.Select(hit));
+                await Frames(2);
+                Check("clicking each generated prop opens its rule editor", builder.lowLevelEditorPanel.IsOpen()
+                    && builder.lowLevelEditorPanel.GetElement() == element && builder.lowLevelPlacer.GetElement() == element);
+            }
+            Check("generated props share their asset selection shape", element.generator.props.All(p =>
+                p.obj.GetChildren().OfType<CollisionShape3D>().SingleOrDefault()?.Shape == MeshManager.GetSelectionShape(mesh)));
             builder.lowLevelEditorPanel.Update();
             Check("selecting a generated prop opens its rule owner", builder.lowLevelEditorPanel.GetElement() == element);
             Check("standalone rule editing exposes a move handle", element.IsMoveHandleShown());

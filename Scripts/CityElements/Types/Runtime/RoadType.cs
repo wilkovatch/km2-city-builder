@@ -9,7 +9,7 @@ namespace CityElements.Types.Runtime {
         public List<string> widths;
         public Vector3Array endAnchorsCalculators;
 
-        static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists(Types.RoadType type) {
+        internal static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists(Types.RoadType type) {
             var floatVars = new List<string>() {
                 "z", "totalLength", "segment", "segments",
                 "throughIntersection", "startCrosswalkSize", "endCrosswalkSize",
@@ -139,7 +139,7 @@ namespace CityElements.Types.Runtime {
             return (GeometryHelper.CurveType)state.Int("curveType");
         }
 
-        public bool NeedsLowPolyFix(ObjectState state, int segments) {
+        public virtual bool NeedsLowPolyFix(ObjectState state, int segments) {
             return segments > 2 && (GetCurveType(state) == GeometryHelper.CurveType.LowPoly || state.Bool("adjustLowPolyWidth"));
         }
 

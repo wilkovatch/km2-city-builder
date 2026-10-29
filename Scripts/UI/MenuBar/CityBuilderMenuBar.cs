@@ -60,6 +60,7 @@ public partial class CityBuilderMenuBar : Control {
     int selectedEntityMenuItemIndex = -1;
     int scriptsMenuIndex = -1;
     int viewMenuIndex = -1;
+    int createMenuIndex = -1;
     List<ScriptCatalog.ScriptInfo> menuScripts = new List<ScriptCatalog.ScriptInfo>();
 
     Node3D selectedObject = null;
@@ -183,30 +184,10 @@ public partial class CityBuilderMenuBar : Control {
         ReloadViewMenu();
         menuBar.SetOnOpen(viewMenuIndex, ReloadViewMenu);
 
-        //Create
-        entries = new List<string> {
-            SM.Get("CREATE_ROAD"),
-            SM.Get("CREATE_TERRAIN_PATCH"),
-            SM.Get("CREATE_BUILDING_LINE"),
-            SM.Get("CREATE_MESH_INSTANCE"),
-            SM.Get("CREATE_LOW_LEVEL_ELEMENT"),
-            SM.Get("CREATE_PROP_RULE"),
-            MenuBar.Divider,
-            SM.Get("CREATE_WHOLE_CITY_TERRAIN"),
-            SM.Get("CREATE_WHOLE_CITY_BUILDINGS"),
-        };
-        actions = new List<System.Action> {
-            CreateRoad,
-            CreateTerrain,
-            CreateBuildingLine,
-            CreateMeshInstance,
-            CreateLowLevelElement,
-            CreatePropPath,
-            null,
-            CreateCityTerrain,
-            CreateCityBuildings
-        };
-        menuBar.AddElement(SM.Get("CREATE"), entries, Recorded(entries, actions), GameEngine.Color.black);
+        //Create (core entries are resolved only after a city has been loaded)
+        menuBar.AddElement(SM.Get("CREATE"), new List<string>(), new List<System.Action>(), GameEngine.Color.black);
+        createMenuIndex = menuBar.GetElementCount() - 1;
+        menuBar.SetOnOpen(createMenuIndex, ReloadCreateMenu);
 
         //Scripts (the entries are listed when it opens, the runs are undo steps of their own)
         menuBar.AddElement(SM.Get("SCRIPTS"), new List<string>(), new List<System.Action>(), GameEngine.Color.black);
@@ -470,7 +451,11 @@ public partial class CityBuilderMenuBar : Control {
         }
         if (root == lowLevelEditorPanel) {
             var element = (modifier as ElementPlacer.LowLevelPlacer)?.GetElement();
-            if (element == null) return _ => { CreateLowLevelElement(); return lowLevelEditorPanel; };
+            if (element == null) {
+                var type = lowLevelEditorPanel.creationType;
+                var group = lowLevelEditorPanel.creationGroup;
+                return _ => { StartLowLevelCreation(type, group); return lowLevelEditorPanel; };
+            }
             var mode = lowLevelEditorPanel.GetPointPlacementMode();
             return CaptureElementReopen(element, lowLevelEditorPanel, () => lowLevelEditorPanel.SetPointPlacementMode(mode));
         }
@@ -678,6 +663,31 @@ public partial class CityBuilderMenuBar : Control {
         var menuBar = GetMenuBar();
         menuBar.SetEntries(viewMenuIndex, entries, actions);
         for (int i = 0; i < toggles.Count; i++) menuBar.SetEntryChecked(viewMenuIndex, firstToggle + i, Rendering.ViewToggles.IsOn(toggles[i].name));
+    }
+
+    public void ReloadCreateMenu() {
+        var entries = new List<string> { SM.Get("CREATE_ROAD"), SM.Get("CREATE_TERRAIN_PATCH"),
+            SM.Get("CREATE_BUILDING_LINE"), SM.Get("CREATE_MESH_INSTANCE") };
+        var actions = new List<System.Action> { CreateRoad, CreateTerrain, CreateBuildingLine, CreateMeshInstance };
+        var groups = new HashSet<string>();
+        if (!noCity && PathHelper.CoreAvailable()) {
+            foreach (var pair in CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()) {
+                var settings = pair.Value.typeData.settings;
+                if (!settings.creatable) continue;
+                var type = pair.Key;
+                var group = settings.createMenu?.group ?? "CREATE_LOW_LEVEL_ELEMENT";
+                if (settings.createMenu?.direct == true) {
+                    entries.Add(Operations.LowLevel.GetTypeLabel(type));
+                    actions.Add(() => StartLowLevelCreation(type));
+                } else if (groups.Add(group)) {
+                    entries.Add(SM.Get(group));
+                    actions.Add(() => StartLowLevelCreation(null, group));
+                }
+            }
+        }
+        entries.AddRange(new[] { SM.Get("CREATE_PROP_RULE"), MenuBar.Divider, SM.Get("CREATE_WHOLE_CITY_TERRAIN"), SM.Get("CREATE_WHOLE_CITY_BUILDINGS") });
+        actions.AddRange(new System.Action[] { CreatePropPath, null, CreateCityTerrain, CreateCityBuildings });
+        GetMenuBar().SetEntries(createMenuIndex, entries, Recorded(entries, actions));
     }
 
     // Scripts
@@ -889,7 +899,10 @@ public partial class CityBuilderMenuBar : Control {
 
     public void NotifyUpdateCompleted() {
         foreach (var panel in panels) {
-            if (panel.ActiveSelf()) panel.Update();
+            if (panel.ActiveSelf()) {
+                panel.UpdateConversionButtons();
+                panel.Update();
+            }
         }
     }
 
@@ -1165,9 +1178,10 @@ public partial class CityBuilderMenuBar : Control {
         StartLowLevelCreation(null);
     }
 
-    void StartLowLevelCreation(string type) {
+    void StartLowLevelCreation(string type, string group = "CREATE_LOW_LEVEL_ELEMENT") {
         DisableAllPanels(lowLevelEditorPanel);
         lowLevelEditorPanel.creationType = type;
+        lowLevelEditorPanel.creationGroup = group;
         lowLevelPlacer.createType = type;
         lowLevelPlacer.SetElement(null);
         lowLevelPlacer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.Create;

@@ -44,13 +44,16 @@ The types can extend each other as the other folder types (see [Core Type Inheri
 
 | Key | Description |
 |---|---|
-| `controlPoints` | The control points (see below). |
+| `controlPoints` | The control points (see below); omitted for spline-driven types. |
+| `spline` | Optional road-style spline settings (see [Spline-driven elements](#spline-driven-elements)); cannot be combined with `controlPoints`, `mesh` or a Lua `geometry` function. |
+| `createMenu` | `{ "direct": true }` lists the type directly using its `ui.json` label. Otherwise `{ "group": "STRING_KEY" }` groups it with types using the same localized group key. Missing: the generic Low-level element group. The creation panel lists only types in the selected group. |
+| `geometryLayer` | Collision layer index for generated geometry (default `7`). A projected overlay can use another layer and omit that layer from its projection mask, so overlays do not project onto each other. |
 | `mesh` | Set if the element has a mesh: `uvs` (`"none"`, `"editable"`: stored with the element and edited in its panel, `"script"`: given by the geometry script), `defaultVertices` (offsets from where a new element is created) and `defaultTriangles`. |
 | `container` | Set if the elements of the type can contain other low-level elements: `contains`, the types they can contain. |
 | `geometry` | `<module>.<function>` of the `lua` folder: builds the geometry shown in the editor (see [Scripts](#scripts)). |
 | `constraints` | `<module>.<function>`: moves points after others were moved (see [Scripts](#scripts)). |
 | `derivedPoints` | `{flag, function}`: while the bool parameter `flag` is on, the control points are computed by `function` (`<module>.<function>`) from the other low-level elements converted from the same element, and can't be edited (see [Derived points](#derived-points)). |
-| `creatable` | Listed in Create > Low-level element (default `true`). |
+| `creatable` | Listed in Create (default `true`); `createMenu` selects a direct entry or a group. |
 | `propsContainers` | The props containers of the prop rule of the elements (`propRule` in their state, as the prop rules of the roads, see [Core Props and Objects](Core-Props-and-Objects)): the props are placed along the `propLines` of the geometry (see [Geometry](#geometry)) and exported with the element. |
 | `propsPresetType` | The prop rule presets listed in the panel: the ones of this type (e.g. a road type with the same containers); all if not set. |
 
@@ -166,6 +169,44 @@ function M.copy(v, ctx)
 end
 ```
 
+## Spline-driven elements
+
+A type can define `spline` instead of a point tree or an editable mesh. The user places individual points, as for roads: the first click creates one point and drawing continues. The editor supports adding at either end, inserting before or after a selected point, moving and removing points. Splines have no road intersections, splitting or merging.
+
+```json
+{
+    "createMenu": { "direct": true },
+    "spline": {
+        "curveTypes": [0, 1, 2],
+        "defaultCurveType": 2,
+        "segments": 20,
+        "projectPoints": false,
+        "projectSections": false,
+        "sectionVertices": ["-width/2", "width/2"],
+        "components": [{ "name": "strip" }],
+        "textures": ["texture"],
+        "texturesMapping": { "strip": [0] }
+    }
+}
+```
+
+Geometry uses the [road component format](Core-Roads), including local definitions, conditions, UV expressions, shared/inherited components and end caps. It does not need road getters, junctions or traffic settings. Put `splineGroup` and `pointsGroup` in the type's UI for the curve controls and point placement.
+
+| Setting | Meaning |
+|---|---|
+| `curveTypes`, `defaultCurveType` | Allowed curve IDs and the initial mode: `0` Bézier, `1` Hermite, `2` low-poly. The list must be nonempty and contain the default. |
+| `segments`, `segmentsPer100m` | Initial smooth-curve resolution, fixed or per 100 m. Low-poly uses the control points directly. |
+| `projectPoints`, `projectSections` | Project placed/moved control points and/or evaluated sections onto surfaces. Point projection preserves recorded heights during undo and redo. |
+| `projectionMask` | Surface collision mask, default terrain and generated geometry (`136`). The element's own collider is excluded. |
+| `maxMiter` | Corner width multiplier limit, default `2`. |
+| `maxSectionLength` | Split evaluated spans longer than this distance; `0` disables the limit. |
+| `independentSegments` | Evaluate components separately for each span. `z` starts at zero and `totalLength` is that span's length; caps remain at the whole spline's ends. Default `false`: continuous component geometry. |
+| `splitCondition`, `maxSplits` | Optional boolean expression evaluated on each span with its `totalLength` and endpoint vertices (`v<n>_0`, `v<n>_1`). True halves the span, up to `maxSplits` (default `3`, at most `8`). Useful for quantized texture mapping. |
+
+Control points use the existing point tree as `points.spline`; curve parameters (`curveType`, `segments`, `segmentsPer100m`, `hermiteTension`, `subdivideEqually`) use element state. The API kind remains `lowLevel`, so existing creation, point-editing, attachment, import and history commands apply. Empty, one-point and coincident-point splines are editable and produce no invalid mesh.
+
+Exported spline elements additionally have `spline.sections` and `spline.pieces`. Sections contain `center`, `right`, `up`, `vertices` (all in builder coordinates) and cumulative `distance`. Pieces are pairs of evaluated sections, including subdivision, so exporters can use the same edges as the editor. This derived geometry is rebuilt on load rather than saved in the city. Projected splines rebuild after generated surfaces; API replies and export snapshots wait for the physics synchronization needed by newly replaced colliders.
+
 ## Converters
 
 ```json
@@ -185,6 +226,7 @@ end
 | `sources` | What it converts: `road`, `intersection`, `terrainPatch`, `buildingLine`, `lowLevel` or `lowLevel/<type>`. |
 | `types` | Only the procedural elements of these types (all if missing). |
 | `script` | The Python script, in the folder of the converter (default `convert.py`). |
+| `enabledWhen` | Optional `<module>.<function>` Lua predicate. Called as `function(_, ctx)`: `ctx.element` and `ctx.neighbors` contain detached `{kind, id, state}` snapshots (roads of an intersection, intersections of a road). Returning false disables an accepted button; availability is rechecked before and after running the converter. |
 | `replace` | The converted elements are replaced (default `true`): the roads and intersections become ghosts, the other elements are deleted. |
 
 The script runs with the Python of the program and gets three arguments: the `Files/python` folder (to import `DecodeExportedJson`), the input file and the output file. It fails with a non-zero exit code; the last line of its error output is shown to the user (a string key is translated, e.g. `sys.exit("MY_CONVERSION_ERROR")`).
@@ -222,7 +264,7 @@ The script runs with the Python of the program and gets three arguments: the `Fi
 | `updates` | Changes of existing low-level elements (`elements` can then be missing): `element` (a reference `{"kind": "lowLevel", "id"}`, or a local element id), `points` (top-level nodes of the control points, replacing the ones of the element with the same names; a point is a local point id, or the id of an existing terrain point) and `state` (merged into the state of the element). The elements changed are reopened in the editor after a conversion started from it. |
 | `replace` | Overrides the `replace` of `converter.json`. |
 
-By default the elements replace the converted element: their `source` is the converted element (when a single one is converted) and, when a low-level element is converted, they take its container and its source. The whole conversion is a single undo step.
+By default the elements replace the converted element: their `source` is the converted element (when a single one is converted) and, when a low-level element is converted, they take its container and its source. The whole conversion is a single undo step. With `replace: false`, generated elements have no implicit source or container; the converter can still give explicit references.
 
 ## Ghosts
 

@@ -137,6 +137,8 @@ namespace IO.ExportedCity {
     //point shared with other elements
     [System.Serializable]
     public class LowLevelElement {
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public LowLevelSplineGeometry.Data spline;
         public int id;
         public string type;
         public BaseData data;

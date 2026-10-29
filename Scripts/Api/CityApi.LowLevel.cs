@@ -92,6 +92,7 @@ namespace Api {
                 container = element.container != null ? IdOf(element.container) : (int?)null,
                 contents,
                 source = element.source != null && History.ElementSnapshot.IsAlive(element.source) ? IdOf(element.source) : (int?)null,
+                spline = element.splineData,
                 problems = LowLevel.PointTree.Validate(element.points)
             };
         }
@@ -133,6 +134,8 @@ namespace Api {
 
         void SetLowLevelParam(LowLevelElement element, string name, JToken value) {
             var type = element.GetLowLevelType();
+            if (name == "curveType" && element.Settings?.spline != null &&
+                System.Array.IndexOf(element.Settings.spline.curveTypes, value.Value<int>()) < 0) throw ApiException.InvalidValue("curve type is not allowed by this spline type");
             if (name == "propRule") {
                 SetLowLevelPropRule(element, value);
                 return;
@@ -146,6 +149,7 @@ namespace Api {
         }
 
         void SetLowLevelMesh(LowLevelElement element, JObject mesh) {
+            if (element.Settings?.spline != null) throw ApiException.InvalidOperation("a spline element cannot have an editable mesh");
             var vertices = new List<TerrainPoint>();
             if (mesh["vertices"] is JArray vs) {
                 foreach (var v in vs) vertices.Add(LowLevelPoint(v.ToObject<PointTarget>(Newtonsoft.Json.JsonSerializer.Create(Json.Settings))));

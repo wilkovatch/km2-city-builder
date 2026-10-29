@@ -23,6 +23,9 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     public LowLevelElement container;
     public object source; //the procedural element it replaces (a ghost), null if none
     public LowLevelGenerator generator;
+    public LowLevelSplineGeometry.Data splineData;
+    readonly Dictionary<TerrainPoint, Vector3> splineProjectedPoints = new();
+    int splineProjectionUndoVersion = -1;
     GameObject pointContainer;
     Handle moveHandle; //a container being edited: moved, it moves the container with its contents (see ShowMoveHandle)
     Vector3 moveHandlePosition; //where the last update left it
@@ -101,10 +104,18 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         this.pointContainer = pointContainer;
         state = new ObjectState();
         state.SetStr("type", type);
+        splineProjectionUndoVersion = History.UndoManager.AppliedVersion;
+        if (Settings?.spline is CityElements.Types.LowLevelSplineSettings spline) {
+            state.SetInt("curveType", spline.defaultCurveType);
+            state.SetInt("segments", spline.segments);
+            state.SetBool("segmentsPer100m", spline.segmentsPer100m);
+            state.SetFloat("hermiteTension", 0.5f);
+        }
         points = new PointGroup(PointTree.RootDef(GetLowLevelType()?.typeData.settings.controlPoints));
         var generatorObj = GS.Create<LowLevelGenerator>("Geometry", this);
         generator = GS.Cast<LowLevelGenerator>(generatorObj);
         generator.Initialize();
+        GO.SetLayer(generator, Settings?.geometryLayer ?? 7);
     }
 
     public ObjectState GetState() {
@@ -298,6 +309,9 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
             ApplyPointState(p);
         }
         foreach (var p in old) ReleasePoint(p);
+        if (History.UndoManager.IsLoading && Settings?.spline != null) {
+            foreach (var p in GetAllPoints()) splineProjectedPoints[p] = p.GetPoint();
+        }
         structureVersion++;
     }
 
@@ -496,11 +510,17 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     void ReloadType() {
         var type = GetLowLevelType();
+        if (type?.typeData.settings.spline is CityElements.Types.LowLevelSplineSettings spline) {
+            if (!state.properties.ContainsKey("curveType")) state.SetInt("curveType", spline.defaultCurveType);
+            if (!state.properties.ContainsKey("segments")) state.SetInt("segments", spline.segments);
+            if (!state.properties.ContainsKey("segmentsPer100m")) state.SetBool("segmentsPer100m", spline.segmentsPer100m);
+            if (!state.properties.ContainsKey("hermiteTension")) state.SetFloat("hermiteTension", 0.5f);
+        }
         if (type != curType) {
             variableContainer = type?.variableContainer.GetClone();
             curType = type;
         }
-        if (type != null) type.FillInitialVariables(variableContainer, state);
+        if (type != null && type.splineType == null) type.FillInitialVariables(variableContainer, state);
     }
 
     //the points follow their anchors (removing the points deleted meanwhile)
@@ -519,6 +539,28 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
             }
         }
         foreach (var p in GetUpdatePoints()) p.UpdatePosition();
+        if (Settings?.spline?.projectPoints == true) {
+            //Projection is a placement/move rule. Unrelated edits must not reproject saved points onto transient
+            //colliders (e.g. while a road is replaced); undo/redo restores the recorded heights exactly.
+            var restored = splineProjectionUndoVersion != History.UndoManager.AppliedVersion;
+            splineProjectionUndoVersion = History.UndoManager.AppliedVersion;
+            foreach (var p in GetUpdatePoints()) {
+                var position = p.GetPoint();
+                if (!restored && !History.UndoManager.IsLoading && GO.IsNull(p.anchor) &&
+                    (!splineProjectedPoints.TryGetValue(p, out var old) || !GeometryHelper.AreVectorsEqual(old, position))) {
+                    var projected = GeometryHelper.ProjectOnSurface(position, Settings.spline.projectionMask, generator);
+                    if (!GeometryHelper.AreVectorsEqual(projected, position)) {
+                        History.UndoManager.Touch(p);
+                        GO.SetPosition(p.GetObject(), projected);
+                    }
+                }
+                splineProjectedPoints[p] = p.GetPoint();
+            }
+            if (splineProjectedPoints.Count > GetUpdatePoints().Count) {
+                var used = new HashSet<TerrainPoint>(GetUpdatePoints());
+                foreach (var p in new List<TerrainPoint>(splineProjectedPoints.Keys)) if (!used.Contains(p)) splineProjectedPoints.Remove(p);
+            }
+        }
     }
 
     //runs the constraints of the type if points moved since they last ran; returns true if they moved other points
@@ -757,6 +799,10 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         return !deleted && (source != updatedSource || container != updatedContainer || DidChange(GetUpdatePoints()));
     }
 
+    internal void InvalidateSplineSurface() {
+        if (Settings?.spline?.projectSections == true) structureVersion++;
+    }
+
     //rebuilds the geometry if anything changed, returns 1 if it did
     public int UpdateGeometry() {
         if (deleted) return 0;
@@ -840,6 +886,18 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     protected virtual void Rebuild() {
         var type = curType;
+        if (type?.splineType != null) {
+            try {
+                var geometry = LowLevelSplineGeometry.Build(this, out splineData);
+                generator.Rebuild(geometry, state, type.typeData.settings.propsContainers);
+            } catch (System.Exception e) {
+                splineData = new LowLevelSplineGeometry.Data();
+                generator.Clear();
+                GameEngine.LogError("Spline type '" + TypeName + "': " + e.Message);
+            }
+            return;
+        }
+        splineData = null;
         if (type?.geometryFunction == null) {
             generator.Clear();
             scriptUVs = null;

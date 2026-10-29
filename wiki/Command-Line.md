@@ -188,3 +188,5 @@ The classes are in `Scripts/Cli`:
 `serve` reads the standard input on a thread and queues each line to `CommandDispatcher` with `Enqueue`, like `ScriptRunner` does with the output of the Python scripts. `mcp` reads it on a thread too, and passes each message to `Mcp.McpServer` one at a time, in order (the commands of a tool still run on the main thread).
 
 A command with `needsWindow` (`render`, `mcp`) keeps the window, out of the way (`CliRunner.HideWindow`).
+
+For short spline/decal integration checks, set `KM2_SELFTEST_FOCUS=splines` before `selftest api <new folder>` (a window also checks rendering). This covers spline placement, curve modes, core components, rail generation, history and save/reload. `KM2_SELFTEST_FOCUS=propPaths` runs the standalone prop-rule checks in a fresh city. Unset the variable for the full API suite.

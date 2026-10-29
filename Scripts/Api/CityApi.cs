@@ -63,6 +63,10 @@ namespace Api {
             History.UndoManager.FinalizePending();
         }
 
+        internal Task SettleProjectedGeometry(bool force = false) {
+            return autoFlush || force ? M.SettleProjectedSplines() : Task.CompletedTask;
+        }
+
         //runs a change of the city as an undo step: the editors open in the GUI are closed first (like before an undo),
         //and on errors the partial change is undone (when recorded in the history)
         T ApplyChange<T>(string label, System.Func<T> action) {

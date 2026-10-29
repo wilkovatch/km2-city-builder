@@ -181,7 +181,7 @@ public static class PropPlacer {
                         var forward = type.rules.forward.GetValue(varSet);
                         try {
                             //the prop is at the placement point (which is exported), its mesh is moved from it as the rules ask
-                            var propObj = GO.Create(containerType + ";" + meshName);
+                            var propObj = GO.CreateStaticBody(containerType + ";" + meshName);
                             GO.SetParent(propObj, propsContainer);
                             GO.SetPosition(propObj, posDir.pos);
                             var rot = GameEngine.Vector3.SignedAngle(GameEngine.Vector3.forward, forward, GameEngine.Vector3.up);
@@ -189,7 +189,17 @@ public static class PropPlacer {
                             var meshObj = MeshManager.GetMesh(meshName, propObj);
                             if (meshObj != null) {
                                 var useCoreTransform = type.rules.meshTransform != null && type.rules.meshTransform.GetValue(varSet);
-                                MeshManager.GetPlacementTransform(meshName, useCoreTransform, type.rules.autoYOffset.GetValue(varSet)).ApplyTo(meshObj);
+                                var meshTransform = MeshManager.GetPlacementTransform(meshName, useCoreTransform, type.rules.autoYOffset.GetValue(varSet));
+                                meshTransform.ApplyTo(meshObj);
+                                //Share the asset's picking shape, with the same placement offset as its mesh.
+                                var shape = MeshManager.GetSelectionShape(meshName);
+                                if (shape != null) {
+                                    meshTransform.ApplyTo(GameEngine.Mesh.CreateShapeCollider(propObj, shape));
+                                } else {
+                                    var bounds = GameEngine.Mesh.GetEncapsulatingBoundsForChildMeshes(propObj);
+                                    var size = GameEngine.Bounds.GetSize(bounds);
+                                    if (size.LengthSquared() > 0) GameEngine.Mesh.CreateBoxCollider(propObj, size, GameEngine.Bounds.GetCenter(bounds));
+                                }
                                 Actions.Helpers.SetLayerRecursively(propObj, 13);
                                 props.Add((containerType, meshName, propObj));
                             } else {

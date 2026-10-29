@@ -166,3 +166,5 @@ Props elements, mesh instance settings and parametric objects have no groups: th
 ## Strings
 
 All labels are string keys, resolved in the core's `strings/<language>.json` first and then in the program's base strings. A key that is not found anywhere is displayed as is (and logged), which makes missing strings easy to find. Set a string to `""` to show nothing (for example an unused tooltip). Some keys are built by the program from names in the core; they are listed in [Core Structure](Core-Structure#strings).
+
+Spline-driven low-level types use `splineGroup` for curve mode, resolution and Hermite controls, and `pointsGroup` for road-style point placement. Low-level type `createMenu` settings choose direct Create entries or a localized group; see [Core Low-Level Elements](Core-Low-Level-Elements#spline-driven-elements).

@@ -193,7 +193,18 @@ namespace Api {
             try {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
-                if (System.Environment.GetEnvironmentVariable("KM2_SELFTEST_INCREMENTAL") == "1") {
+                var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
+                if (focus == "splines") {
+                    await NewCity();
+                    await Roads();
+                    await Decals();
+                    await SplineComponents();
+                    await ReloadSplines();
+                    await ExportDecalNames("psdl");
+                } else if (focus == "propPaths") {
+                    await NewCity();
+                    await StandalonePropRules();
+                } else if (System.Environment.GetEnvironmentVariable("KM2_SELFTEST_INCREMENTAL") == "1") {
                     await NewCity();
                     IncrementalUpdates();
                 } else if (!string.IsNullOrEmpty(selectionMode)) {
@@ -218,6 +229,7 @@ namespace Api {
                     await States();
                     await ArrayPoints();
                     await Decals();
+                    await SplineComponents();
                     await Props();
                     await Meshes();
                     await Batches();
@@ -1060,148 +1072,6 @@ namespace Api {
 
         //a line drawn with the width and texture of its element, and objects put back on the surface after a move (the decals
         //of the MM2 core); the decal is kept for the export (see ExportDecals)
-        async Task Decals() {
-            var cityId = 0;
-            var citySchema = await Call("state.schema", new { @ref = cityId });
-            if (!citySchema["parameters"].Any(p => p["name"].Value<string>() == "decals")) {
-                Log("     no decals parameter in the core, decals skipped");
-                return;
-            }
-            var di = (await Call("state.array.add", new { @ref = cityId, param = "decals" })).Value<int>();
-            var decalRef = new { parent = cityId, param = "decals", index = di };
-            object PointRef(int pi) => new { owner = cityId, @object = "point", path = new[] { "decals." + di, "points." + pi } };
-            const string texture = "texture/decal_zigzag_l.tex";
-            await Call("state.setParam", new { @ref = decalRef, name = "texture", value = texture });
-            await Call("state.setParam", new { @ref = decalRef, name = "width", value = 3.0f });
-            //along road A, which is above the terrain
-            var positions = new[] { new Vector3(-560, 0, 0), new Vector3(-500, 0, 2), new Vector3(-450, 0, -3) };
-            foreach (var pos in positions) {
-                var pi = (await Call("state.array.add", new { @ref = decalRef, param = "points" })).Value<int>();
-                await Call("objects.setTransform", new { @object = PointRef(pi), localPosition = new[] { pos.X, pos.Y, pos.Z } });
-                await Call("objects.projectToGround", new { @object = PointRef(pi) });
-            }
-            await Call("city.flush");
-            await Frames(3);
-            var roadY = GeometryHelper.ProjectPoint(positions[0], 1 << 7).Y;
-            var obj = await Call("objects.get", new { @object = PointRef(0) });
-            Check("objects.projectToGround puts a decal point on the road", Mathf.Abs(Vec(obj["localPosition"]).Y - roadY) < 1e-3f);
-
-            var cityProperties = M.GetDummy<CityProperties>();
-            var decalObject = cityProperties.arrayObjects["decals"][di];
-            var lr = GO.GetObject(decalObject).GetChildren().OfType<GameEngine.LineRenderer>().FirstOrDefault();
-            //the line settings of the core: the width and the texture tiles from the width parameter
-            Check("a decal is drawn textured with its width", lr != null && lr.uvs.HasValue && lr.positionCount == 3
-                && Mathf.IsEqualApprox(lr.startWidth, 3) && Mathf.IsEqualApprox(lr.uvs.Value.vLength, 3)
-                && lr.material == MaterialManager.GetMaterial(texture) && lr.heightOffset > 0);
-            await Call("state.setParam", new { @ref = decalRef, name = "width", value = 4.0f });
-            await Call("city.flush");
-            await Frames(3);
-            Check("the decal line follows the width", lr != null && Mathf.IsEqualApprox(lr.startWidth, 4) && Mathf.IsEqualApprox(lr.endWidth, 4)
-                && Mathf.IsEqualApprox(lr.uvs.Value.vLength, 4));
-
-            //exclusive editing keeping the lines: the points only show while the decal is edited
-            var category = CityElements.Types.Parsers.TypeParser.GetCustomTypes()["decal"].exclusiveEditing?.category;
-            var keepsLines = CityElements.Types.Parsers.TypeParser.GetCustomTypes()["decal"].exclusiveEditing?.keepLinesVisible ?? false;
-            if (category != null && keepsLines) {
-                var pointHolder = GO.GetObject(decalObject.arrayObjects["points"][0]);
-                ArrayObject.activeElements[category] = null;
-                builder.NotifyVisibilityChange();
-                await Frames(3);
-                var hidden = !GO.GetEnabled(pointHolder) && GO.GetEnabled(lr) && lr.IsVisibleInTree();
-                ArrayObject.activeElements[category] = decalObject.state;
-                builder.NotifyVisibilityChange();
-                await Frames(3);
-                Check("the points of a decal show only while it is edited, its line always", hidden && GO.GetEnabled(pointHolder));
-                ArrayObject.activeElements[category] = null;
-                builder.NotifyVisibilityChange();
-            }
-            if (DisplayServer.GetName() != "headless") {
-                //from above the decal, to see it (windowed runs only)
-                var cam = builder.GetViewport().GetCamera3D();
-                var camTransform = cam.GlobalTransform;
-                var target = GameEngine.Vector3.DecodePosition(positions[1]);
-                cam.GlobalPosition = target + new Vector3(0, 25, 25);
-                cam.LookAt(target);
-                await Frames(10);
-                Screenshot("decal_preview.png");
-                cam.GlobalTransform = camTransform;
-            }
-
-            //clicking the line of a decal opens its editor from the city properties, clicking one of its points the transform
-            //panel on it, with the editor of the decal as its parent
-            if (category != null) {
-                T BuilderField<T>(string name) => (T)typeof(CityBuilderMenuBar).GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder);
-                var nullModifier = BuilderField<TerrainModifier.Null>("nullModifier");
-                var transformPanel = BuilderField<EditorPanels.TransformPropertiesEditorPanel>("transformPropertiesEditorPanel");
-                builder.CloseAllPanels();
-                ArrayObject.activeElements[category] = null;
-                builder.NotifyVisibilityChange();
-                await Frames(3);
-                var middle = (lr.GetPosition(0) + lr.GetPosition(1)) * 0.5f;
-                var found = GameEngine.Raycast.DoRaycast(builder.helper, middle + GameEngine.Vector3.up * 50, GameEngine.Vector3.down, out var lineHit, 100, ~(1 << 3));
-                var onLine = found && lineHit.collider.GetParent() == lr;
-                if (onLine) History.UndoManager.Record("select decal line", () => nullModifier.Select(lineHit));
-                var decalPanel = CallBuilder<EditorPanel>("GetActivePanel") as EditorPanels.ArrayElemEditorPanel;
-                Check("clicking the line of a decal opens its editor", onLine && decalPanel != null && decalPanel.arrayIndex == di
-                    && ArrayObject.activeElements[category] == decalObject.state);
-                builder.CloseAllPanels();
-                var clickedPoint = (MeshInstance)Operations.Meshes.FindParametricObject(cityProperties, "point", new[] { "decals." + di, "points.1" });
-                History.UndoManager.Record("select decal point", () => nullModifier.Select(new GameEngine.Raycast.RaycastHit { collider = clickedPoint }));
-                var pointParent = transformPanel.parentPanel as EditorPanels.ArrayElemEditorPanel;
-                Check("clicking a decal point opens the transform panel on it, from the editor of the decal",
-                    CallBuilder<EditorPanel>("GetActivePanel") == transformPanel && transformPanel.instance == clickedPoint
-                    && pointParent != null && pointParent.arrayIndex == di && pointParent.IsOpen());
-                builder.CloseAllPanels();
-                ArrayObject.activeElements[category] = null;
-                builder.NotifyVisibilityChange();
-            }
-
-            //the gizmo with the axes of a decal point (no height): its horizontal plane moves it, and the next targets get
-            //all the axes again
-            var gizmo = builder.gizmo;
-            gizmo.posAxesAllowed = new[] { true, false, true };
-            var nearAxisAllowed = typeof(RuntimeGizmos.TransformGizmo).GetMethod("GetNearAxisAllowed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            bool Allowed(RuntimeGizmos.Axis axis, RuntimeGizmos.Axis plane) {
-                gizmo.SetTranslatingAxis(RuntimeGizmos.TransformType.Move, axis, plane);
-                return (bool)nearAxisAllowed.Invoke(gizmo, new object[] { gizmo.posAxesAllowed });
-            }
-            var planes = Allowed(RuntimeGizmos.Axis.Y, RuntimeGizmos.Axis.Y) && !Allowed(RuntimeGizmos.Axis.X, RuntimeGizmos.Axis.X)
-                && !Allowed(RuntimeGizmos.Axis.Y, RuntimeGizmos.Axis.None) && Allowed(RuntimeGizmos.Axis.X, RuntimeGizmos.Axis.None);
-            gizmo.SetTranslatingAxis(RuntimeGizmos.TransformType.Move, RuntimeGizmos.Axis.None);
-            gizmo.ClearTargets();
-            Check("the gizmo moves along the allowed axes and planes, and allows all of them after", planes && gizmo.posAxesAllowed[1]);
-
-            //a point moved off the road with the gizmo goes back on it at the end of the move
-            var point = (MeshInstance)Operations.Meshes.FindParametricObject(cityProperties, "point", new[] { "decals." + di, "points.1" });
-            var moved = GO.GetPosition(point) + Vector3.Up * 20;
-            GO.SetPosition(point, moved);
-            builder.gizmo.onTransformFinished?.Invoke(new List<Node3D> { point });
-            obj = await Call("objects.get", new { @object = PointRef(1) });
-            Check("a decal point moved with the gizmo snaps back on the road",
-                Mathf.Abs(Vec(obj["localPosition"]).Y - GeometryHelper.ProjectPoint(moved, 1 << 7).Y) < 1e-3f);
-
-        }
-
-        //the decals exported alone (the PATHSET only), with the cable car rail decals of the roads between two intersections
-        //(as cable car lines, undone after the export): the names of the paths of decals.pathset, and whether there are rails
-        async Task<(List<string> names, bool rails)> ExportDecals(string format) {
-            await Call("history.begin", new { label = "cable car rail decals" });
-            var rails = false;
-            await Call("state.setParam", new { @ref = 0, name = "cableCarRailDecals", value = true });
-            foreach (var e in (JArray)await Call("elements.list", new { kind = "road" })) {
-                var derived = await Derived(e["id"].Value<int>());
-                if (derived["startIntersection"].Type == JTokenType.Null || derived["endIntersection"].Type == JTokenType.Null) continue;
-                await Call("state.setParam", new { @ref = e["id"].Value<int>(), name = "cableCarLine", value = true });
-                rails = true;
-            }
-            await Call("history.commit");
-            try {
-                return (await ExportDecalNames(format), rails);
-            } finally {
-                await Call("history.undo");
-            }
-        }
-
         async Task<List<string>> ExportDecalNames(string format) {
             var flags = new Dictionary<string, bool> { ["propRules"] = false, ["psdl"] = false, ["inst"] = false, ["bai"] = false,
                 ["pathset"] = true, ["cinfo_aimap"] = false, ["pkgs"] = false };
@@ -3035,7 +2905,7 @@ road(-750)
             viewMenu.EmitSignal(PopupMenu.SignalName.AboutToPopup);
             var outlinesItem = viewMenu.ItemCount - 1;
             Check("the View menu ends with a separator and the checked room outlines toggle",
-                viewMenu.GetItemText(outlinesItem - 2) == StringManager.Get("RESET_WINDOW") && viewMenu.IsItemSeparator(outlinesItem - 1)
+                viewMenu.GetItemText(outlinesItem - 2) == StringManager.Get("ZOOM_TO_SELECTION").Split('\t')[0].TrimEnd() && viewMenu.IsItemSeparator(outlinesItem - 1)
                 && viewMenu.GetItemText(outlinesItem) == StringManager.Get("VIEW_ROOM_OUTLINES") && viewMenu.IsItemCheckable(outlinesItem) && viewMenu.IsItemChecked(outlinesItem));
             async Task MenuScreenshot(string name) {
                 if (DisplayServer.GetName() == "headless") return;
@@ -3777,10 +3647,10 @@ road(-750)
                     Check("city.export runs the exporter (exit code " + export["result"]["exitCode"] + ")", export["result"]["exitCode"].Value<int>() == 0 && File.Exists(path));
                 }
                 Check("the export JSON is deleted after the export", !File.Exists(Path.ChangeExtension(psdl, ".json")));
-                if (M.GetDummy<CityProperties>().GetState().Array<ObjectState>("decals")?.Length > 0) {
-                    var (decalNames, rails) = await ExportDecals(format);
+                if (M.lowLevelElements.Any(e => e.TypeName == "decal" && !e.IsDeleted())) {
+                    var decalNames = await ExportDecalNames(format);
                     Check("the decals are exported", decalNames != null && decalNames.Contains("decal_zigzag_l"));
-                    if (rails) Check("the cable car rail decals are exported", decalNames != null && decalNames.Contains("r4i_rails_f"));
+                    Check("the generated rail decals are exported", decalNames != null && decalNames.Contains("r4i_rails_f"));
                 }
                 foreach (var flag in exporters[0]["flags"]) {
                     if (flag["format"]?.Type != JTokenType.String) continue;

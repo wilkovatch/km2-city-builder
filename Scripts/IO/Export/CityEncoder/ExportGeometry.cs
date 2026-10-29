@@ -398,6 +398,7 @@ namespace CityEncoder {
 
         public IO.ExportedCity.LowLevelElement GetLowLevelElement(LowLevelElement element, int id) {
             var elem = new IO.ExportedCity.LowLevelElement();
+            elem.spline = element.splineData;
             elem.id = id;
             elem.type = element.TypeName;
             var baseData = new IO.ExportedCity.BaseData();
