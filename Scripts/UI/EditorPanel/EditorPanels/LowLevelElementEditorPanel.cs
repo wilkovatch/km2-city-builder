@@ -242,7 +242,11 @@ namespace EditorPanels {
                 if (type.IsContainer) {
                     contents = builder.helper.elementManager.GetLowLevelChildren(element);
                     var names = new List<string>();
-                    foreach (var c in contents) names.Add(GO.GetName(c));
+                    var prefix = GO.GetName(element) + " "; //not repeated in the contents named after the container
+                    foreach (var c in contents) {
+                        var name = GO.GetName(c);
+                        names.Add(name.Length > prefix.Length && name.StartsWith(prefix, System.StringComparison.Ordinal) ? name.Substring(prefix.Length) : name);
+                    }
                     contentsList = p.AddScrollList(SM.Get("LL_CONTENTS").Replace("$NUMBER", contents.Count.ToString()), names, PickContent, w);
                     p.IncreaseRow(5.0f);
                     editContentButton = p.AddButton(SM.Get("EDIT"), EditContent, w);
