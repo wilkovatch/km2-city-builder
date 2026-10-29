@@ -339,16 +339,18 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
     }
 
     //follows the objects (moved with the gizmo without regenerating the container), with a width growing with the camera distance
-    //(unless it is the width of the element)
+    //(unless it is the width of the element); clicking it selects the element, so it is on the layer of the objects
     void UpdateArrayLine(string key) {
         if (!arrayLines.TryGetValue(key, out var lr) || !lr.IsVisibleInTree()) return;
         var points = new List<Vector3>();
+        MeshInstance firstInst = null;
         if (arrayObjects.TryGetValue(key, out var list)) {
             foreach (var elem in list) {
                 if (elem == null || !IsInstanceValid(elem)) continue;
                 foreach (var holder in elem.objectInstances.Values) {
                     if (holder == null || !IsInstanceValid(holder)) continue;
                     var inst = GS.FindRecursive<MeshInstance>(holder);
+                    if (firstInst == null) firstInst = inst;
                     points.Add(GO.GetPosition(inst != null ? inst : holder));
                     break;
                 }
@@ -358,7 +360,10 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
         for (int i = 0; i < points.Count && !changed; i++) {
             changed = points[i] != lr.GetPosition(i);
         }
-        if (changed) lr.SetPositions(points.ToArray());
+        if (changed) {
+            lr.SetPositions(points.ToArray());
+            if (firstInst != null) lr.colliderLayer = firstInst.GetLayer();
+        }
         if (fixedWidthArrayLines.Contains(key)) return;
         var cam = GameEngine.Camera.Get(this);
         if (cam != null && points.Count >= 2) {

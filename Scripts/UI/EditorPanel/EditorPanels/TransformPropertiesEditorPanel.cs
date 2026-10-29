@@ -514,7 +514,8 @@ namespace EditorPanels {
                 Select(true);
                 RefreshAttachmentControls();
             } else {
-                SetMoveable(active);
+                //only if shown: once closed, the object it was on may be gone with the core of its city
+                if (ActiveSelf()) SetMoveable(active);
                 Select(false);
             }
             base.SetActive(active);

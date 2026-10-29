@@ -102,7 +102,7 @@ public partial class CityBuilderMenuBar : Control {
         nullModifier = new TerrainModifier.Null(helper, hit => {
             if (HasActivePanels()) return; //otherwise clicks on the transform gizmo reselect the object behind it
             var hitNode = hit.collider as Node3D;
-            if (hitNode != null) SelectObject(hitNode, true, hit.shape);
+            if (hitNode != null && !SelectCityPropertiesObject(hitNode)) SelectObject(hitNode, true, hit.shape);
         });
         helper.elementManager.builder = this;
 
@@ -1292,6 +1292,28 @@ public partial class CityBuilderMenuBar : Control {
         SelectObject(obj, true, null);
     }
 
+    //a parametric object of the city properties (e.g. a checkpoint) is edited from the panels of the elements it belongs to,
+    //opened as if it was chosen from the city properties panel (as when the transform panel is reopened by CaptureTransformChildReopen);
+    //returns false if the node is not one
+    bool SelectCityPropertiesObject(Node3D node) {
+        MeshInstance mesh = null;
+        var stack = new Stack<Node3D>(); //the array elements containing it, the outermost on top (as in SelectObject)
+        for (; node != null; node = node.GetParent() as Node3D) {
+            if (GS.Cast<CityProperties>(node) != null) break;
+            if (mesh != null) stack.Push(node);
+            else mesh = GS.Cast<MeshInstance>(node);
+        }
+        if (node == null || mesh?.objectParameter == null) return false;
+        SelectObject(node, true, null, stack);
+        var parent = GetActivePanel();
+        if (parent == null || parent == transformPropertiesEditorPanel) return true;
+        SetTransformPanelParent(parent);
+        parent.Hide(true);
+        SelectObject(mesh);
+        if (!parent.IsOpen()) parent.Hide(true);
+        return true;
+    }
+
     public void DeselectObject() {
         SetSelectObjectMode();
         if (selectedObject != null && !GodotObject.IsInstanceValid(selectedObject)) selectedObject = null;
@@ -1505,7 +1527,7 @@ public partial class CityBuilderMenuBar : Control {
                 stack = new Stack<GameObject>();
             }
             stack.Push(obj);
-            SelectObject(obj.GetParentNode3D(), withEditor, c, stack);
+            SelectObject(obj.GetParent() as Node3D, withEditor, c, stack); //not GetParentNode3D, null for a top level node (e.g. a line)
         }
     }
 

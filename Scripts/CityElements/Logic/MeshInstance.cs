@@ -108,7 +108,7 @@ public partial class MeshInstance : PhysicsScriptable
         }
     }
 
-    int GetLayer() {
+    public int GetLayer() {
         var meshSettings = GetMeshInstanceSettings();
         meshSettings.FillInitialVariables(meshSettings.variableContainer, settings);
         var layer = (int)meshSettings.rules.layer.GetValue(meshSettings.variableContainer);

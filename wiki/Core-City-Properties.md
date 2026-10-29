@@ -73,4 +73,6 @@ A custom type (`customTypes/<type>.json`) is a reusable group of parameters, use
 
 `exclusiveEditing` keeps the scene readable when many elements contain objects in the same place, for example the checkpoints of different races (MM2 shows the checkpoints of one race at a time) or the paths of the opponents of a race.
 
+The elements of the city properties can be selected by clicking them in the city, when no panel is open. Clicking a parametric object opens the city properties panel, then the panels of the elements that contain the object, then the transform panel on the object, with the innermost element panel as its parent. This is the same chain the user would open by hand. Clicking a `drawLine` line opens the panel of the element the line belongs to (e.g. a decal of the MM2 core, whose points are hidden until it is edited).
+
 Parametric objects inside custom types are not positioned by definitions (custom types have none): they appear at the origin and the user places them. For points that only mark a position, the special model name `@handle` shows a small handle instead of a mesh (MM2 uses it for opponent waypoints).

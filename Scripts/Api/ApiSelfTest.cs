@@ -1050,6 +1050,35 @@ namespace Api {
                 cam.GlobalTransform = camTransform;
             }
 
+            //clicking the line of a decal opens its editor from the city properties, clicking one of its points the transform
+            //panel on it, with the editor of the decal as its parent
+            if (category != null) {
+                T BuilderField<T>(string name) => (T)typeof(CityBuilderMenuBar).GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder);
+                var nullModifier = BuilderField<TerrainModifier.Null>("nullModifier");
+                var transformPanel = BuilderField<EditorPanels.TransformPropertiesEditorPanel>("transformPropertiesEditorPanel");
+                builder.CloseAllPanels();
+                ArrayObject.activeElements[category] = null;
+                builder.NotifyVisibilityChange();
+                await Frames(3);
+                var middle = (lr.GetPosition(0) + lr.GetPosition(1)) * 0.5f;
+                var found = GameEngine.Raycast.DoRaycast(builder.helper, middle + GameEngine.Vector3.up * 50, GameEngine.Vector3.down, out var lineHit, 100, ~(1 << 3));
+                var onLine = found && lineHit.collider.GetParent() == lr;
+                if (onLine) History.UndoManager.Record("select decal line", () => nullModifier.Select(lineHit));
+                var decalPanel = CallBuilder<EditorPanel>("GetActivePanel") as EditorPanels.ArrayElemEditorPanel;
+                Check("clicking the line of a decal opens its editor", onLine && decalPanel != null && decalPanel.arrayIndex == di
+                    && ArrayObject.activeElements[category] == decalObject.state);
+                builder.CloseAllPanels();
+                var clickedPoint = (MeshInstance)Operations.Meshes.FindParametricObject(cityProperties, "point", new[] { "decals." + di, "points.1" });
+                History.UndoManager.Record("select decal point", () => nullModifier.Select(new GameEngine.Raycast.RaycastHit { collider = clickedPoint }));
+                var pointParent = transformPanel.parentPanel as EditorPanels.ArrayElemEditorPanel;
+                Check("clicking a decal point opens the transform panel on it, from the editor of the decal",
+                    CallBuilder<EditorPanel>("GetActivePanel") == transformPanel && transformPanel.instance == clickedPoint
+                    && pointParent != null && pointParent.arrayIndex == di && pointParent.IsOpen());
+                builder.CloseAllPanels();
+                ArrayObject.activeElements[category] = null;
+                builder.NotifyVisibilityChange();
+            }
+
             //the gizmo with the axes of a decal point (no height): its horizontal plane moves it, and the next targets get
             //all the axes again
             var gizmo = builder.gizmo;

@@ -85,7 +85,7 @@ Values not set yet read as 0, false, an empty string or a zero vector. Default v
 | `elementProperties` | Parameters of each element (any type, including nested arrays, custom elements and object instances). |
 | `customElementType` | Alternative to `elementProperties`: use the parameters of a custom type. |
 | `elementLabel` | Name of the element parameter whose value is shown in the list (with `customElementType`, the custom type's `label` is used instead). Elements without a label are shown as "Element N". |
-| `drawLine` | Draws a line through the parametric objects of the elements, in order (for example the points of a path). By default it is a thin yellow line whose width grows with the camera distance. |
+| `drawLine` | Draws a line through the parametric objects of the elements, in order (for example the points of a path). By default it is a thin yellow line whose width grows with the camera distance. Clicking the line selects the element that owns the array. Its collider is on the layer of the objects, so the placers that skip the objects (their `placerLayerMask`) skip the line too. |
 | `lineSettings` | With `drawLine`, optional: how the line is drawn, see below. |
 
 `lineSettings` turns the line into a strip lying on the points, facing up (e.g. something exported as a textured strip). The expressions can use the parameters of the element owning the array:

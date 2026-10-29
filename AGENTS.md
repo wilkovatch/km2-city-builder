@@ -131,6 +131,7 @@ Simulating input in self-tests:
 
 ## Program internals worth knowing
 
+- **Top-level nodes:** `GetParentNode3D()` returns null for a `TopLevel` node (`LineRenderer`, `RoadSplitLine`), so walk up with `GetParent() as Node3D`.
 - **Update loop:** the UI never regenerates elements directly. Edits change state and mark dirty, and `ElementManager` rebuilds once per frame after every other node.
 - **Renderer** (`Scripts/Rendering/CityRenderer`): a SubViewport sharing the main World3D. Render layer bit 17 (`GameEngine.Camera.RenderOnlyLayer`) is hidden from the editor camera, and bit 18 is the gizmo. During a render it forces the best LOD, suspends cull distances and points Terrain3D at the render camera.
 - **MCP:** the HTTP server is hand-written on a loopback `TcpListener` (HttpListener would need a URL ACL), default port 7810, Bearer token, settings `mcpServerEnabled/Port/Token`. stdio `mcp` handles messages sequentially. `script_run` must not go through the dispatcher (deadlock), so it uses `ApiHost.RunOnMainThread`.

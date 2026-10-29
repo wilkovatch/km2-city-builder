@@ -1746,10 +1746,29 @@ public static partial class GameEngine {
             }
         }
 
+        // Collision layer of a body covering the line (e.g. to select it by clicking), -1 for none.
+        public int colliderLayer {
+            get => _colliderLayer;
+            set {
+                if (_colliderLayer != value) {
+                    _colliderLayer = value;
+                    colliderPoints = null;
+                    rebuilt = false;
+                }
+            }
+        }
+
         private UVs? _uvs = null;
         private bool _miterCorners = false;
         private float _heightOffset = 0;
         const float MaxMiter = 2.0f;
+        private int _colliderLayer = -1;
+        private StaticBody3D colliderBody;
+        private CollisionShape3D colliderShape;
+        // What the collider was built from: a width following the camera distance rebuilds it only when it changes enough.
+        private Godot.Vector3[] colliderPoints;
+        private float colliderWidth;
+        const float ColliderRebuildRatio = 0.3f;
 
         // Called every frame while the line is enabled, before rebuilding it (e.g. to scale the width with the camera distance).
         public System.Action frameUpdate {
@@ -1815,11 +1834,8 @@ public static partial class GameEngine {
         private void Rebuild() {
             if (rebuilt) return;
             immediateMesh.ClearSurfaces();
-            if (!_enabled) {
-                rebuilt = true;
-                return;
-            }
-            if (positions.Count < 2) {
+            if (!_enabled || positions.Count < 2) {
+                UpdateCollider(null, null, null);
                 rebuilt = true;
                 return;
             }
@@ -1854,7 +1870,42 @@ public static partial class GameEngine {
                 immediateMesh.SurfaceAddVertex(a[i]);
             }
             immediateMesh.SurfaceEnd();
+            UpdateCollider(points, a, b);
             rebuilt = true;
+        }
+
+        // The collider is the ribbon (both sides), in a body child of the line (top level, so in world space too).
+        private void UpdateCollider(Godot.Vector3[] points, Godot.Vector3[] a, Godot.Vector3[] b) {
+            if (_colliderLayer < 0 || points == null) {
+                if (colliderBody != null) {
+                    GameObject.Destroy(colliderBody);
+                    colliderBody = null;
+                    colliderShape = null;
+                }
+                colliderPoints = null;
+                return;
+            }
+            if (colliderBody == null) {
+                colliderBody = new StaticBody3D { Name = "Collider" };
+                colliderShape = new CollisionShape3D();
+                colliderBody.AddChild(colliderShape);
+                AddChild(colliderBody);
+            }
+            GameObject.SetLayer(colliderBody, _colliderLayer);
+            var width = Mathf.Max(_startWidth, _endWidth);
+            if (colliderPoints != null && colliderPoints.AsSpan().SequenceEqual(points) && Mathf.Abs(width - colliderWidth) <= colliderWidth * ColliderRebuildRatio) return;
+            colliderPoints = points;
+            colliderWidth = width;
+            var faces = new Godot.Vector3[(points.Length - 1) * 6];
+            for (int i = 0; i < points.Length - 1; i++) {
+                faces[i * 6] = b[i];
+                faces[i * 6 + 1] = a[i];
+                faces[i * 6 + 2] = b[i + 1];
+                faces[i * 6 + 3] = a[i];
+                faces[i * 6 + 4] = a[i + 1];
+                faces[i * 6 + 5] = b[i + 1];
+            }
+            colliderShape.Shape = new ConcavePolygonShape3D { BackfaceCollision = true, Data = faces };
         }
 
         // How much v grows along a segment.
