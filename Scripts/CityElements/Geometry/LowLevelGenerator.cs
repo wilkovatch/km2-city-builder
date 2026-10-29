@@ -22,6 +22,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     readonly List<(LineRenderer lr, LowLevel.GeometryLine line)> lines = new List<(LineRenderer, LowLevel.GeometryLine)>();
     bool linesShown = false;
     bool containerShown = false; //the container of the element, or an element in it, is being edited (see ShowContainerLines)
+    bool trafficShown = false; //all the traffic lanes are shown (see ShowTrafficLines)
     //the placeholder meshes, under a node of their own (so that the export, which takes the first renderer, ignores them)
     GameObject placeholderContainer;
     MeshRenderer placeholderMr;
@@ -176,7 +177,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     }
 
     bool IsShown(LowLevel.GeometryLine line) {
-        return AlwaysShown(line) || linesShown || (line.withContainer && containerShown);
+        return AlwaysShown(line) || linesShown || (line.withContainer && containerShown) || (line.traffic && trafficShown);
     }
 
     //a thin line keeps about the same size on screen
@@ -205,6 +206,13 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     public void ShowContainerLines(bool show) {
         if (containerShown == show) return;
         containerShown = show;
+        ShowLines(linesShown);
+    }
+
+    //the traffic lines are shown by "Show all traffic lanes", until the roads are hidden again (see ElementManager)
+    public void ShowTrafficLines(bool show) {
+        if (trafficShown == show) return;
+        trafficShown = show;
         ShowLines(linesShown);
     }
 

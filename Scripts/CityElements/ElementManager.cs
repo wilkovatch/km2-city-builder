@@ -315,6 +315,7 @@ public partial class ElementManager : Scriptable {
         }
         foreach (var element in lowLevelElements) {
             if (!active) element.SetActive(false, false);
+            ShowLowLevelTraffic(element, false);
         }
     }
 
@@ -325,6 +326,14 @@ public partial class ElementManager : Scriptable {
         foreach (var intersection in intersections) {
             intersection.SetActive(true, false);
         }
+        foreach (var element in lowLevelElements) {
+            ShowLowLevelTraffic(element, true);
+        }
+    }
+
+    //the traffic lines of the low-level elements are shown and hidden with the lanes of the roads
+    void ShowLowLevelTraffic(LowLevelElement element, bool show) {
+        if (!IsDestroyed(element) && !element.IsDeleted()) element.generator.ShowTrafficLines(show);
     }
 
     //sets a view toggle of the core (see Rendering.ViewToggles) and shows or hides the lines it controls
@@ -355,6 +364,7 @@ public partial class ElementManager : Scriptable {
             building.Select(false);
         }
         foreach (var element in lowLevelElements) {
+            if (active) ShowLowLevelTraffic(element, false);
             element.SetActive(active, false);
             element.Select(false);
         }

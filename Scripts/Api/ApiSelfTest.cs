@@ -3263,6 +3263,13 @@ road(-750)
             builder.CloseAllPanels();
             await Frames(2);
             Check("the BAI lanes are hidden when nothing in the room is edited", !LanesShown(bai));
+            //View > Show all traffic lanes shows them with the lanes of the roads, until the roads are hidden again
+            History.UndoManager.Record("SHOW_ALL_TRAFFIC_LANES", M.ShowAllTrafficLanes);
+            await Frames(2);
+            Check("the BAI lanes are shown by Show all traffic lanes", LanesShown(bai));
+            M.ShowIntersections(false);
+            await Frames(1);
+            Check("the BAI lanes are hidden again with the lanes of the roads", !LanesShown(bai));
 
             //the room edited: its perimeter points (shared with its contents) can be moved
             builder.SelectObject(room, true, null);

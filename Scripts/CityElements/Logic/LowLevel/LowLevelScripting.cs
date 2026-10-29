@@ -28,6 +28,7 @@ namespace LowLevel {
         public bool always; //shown also while the element is not being edited
         public string toggle; //a view toggle of the core (see Rendering.ViewToggles) hiding it, when always, while it's off
         public bool withContainer; //shown also while the container of the element, or an element in it, is being edited
+        public bool traffic; //shown also by "Show all traffic lanes" (as the lanes of the roads and the intersections)
     }
 
     //the lines along which the props of a props container of the prop rule are placed (as the propsLines of the roads)
@@ -193,7 +194,8 @@ namespace LowLevel {
                         closed = l["closed"].TryRead<bool>(out var closed) && closed,
                         always = l["always"].TryRead<bool>(out var always) && always,
                         toggle = String(l["toggle"]),
-                        withContainer = l["withContainer"].TryRead<bool>(out var withContainer) && withContainer
+                        withContainer = l["withContainer"].TryRead<bool>(out var withContainer) && withContainer,
+                        traffic = l["traffic"].TryRead<bool>(out var traffic) && traffic
                     };
                     if (l["width"].TryRead<double>(out var w)) line.width = (float)w;
                     if (line.points.Count >= 2) res.lines.Add(line);
