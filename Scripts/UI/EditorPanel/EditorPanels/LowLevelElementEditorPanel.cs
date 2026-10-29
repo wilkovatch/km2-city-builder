@@ -514,12 +514,7 @@ namespace EditorPanels {
             if (element == null) return;
             element.SetContainer(container);
             builder.NotifyChange();
-            //built again to show the new container (and its merge targets), on the same page (the pages built are not
-            //active until shown)
-            var page = ActivePage();
-            Initialize(lastCanvas);
-            SetActive(true);
-            ShowPage(page);
+            Rebuild(); //shows the new container (and its merge targets)
         }
 
         void EditContainer() {
@@ -654,9 +649,26 @@ namespace EditorPanels {
         }
 
         void OnFrame() {
-            if (GetElement() != builtElement && lastCanvas != null) Initialize(lastCanvas);
+            if (GetElement() != builtElement && lastCanvas != null) Rebuild();
             ShowSelectedPoint();
             UpdateContentOutline();
+        }
+
+        //built again while open (for another element, or to list what changed, e.g. the ribbons of a prop path): the new
+        //pages are visible but not active until shown, so they are shown as the old ones were (on the same page), or hidden
+        //while a panel is shown in place of this one (as the editor of a props container), except the list of containers,
+        //which is rebuilt with this panel (its action is lost: this panel is shown again)
+        void Rebuild() {
+            var pickerShown = picker != null && picker.IsOpen();
+            var page = keepActive ? (pickerShown ? System.Math.Max(lastPage, 0) : -1) : ActivePage();
+            Initialize(lastCanvas);
+            if (page >= 0) {
+                keepActive = false;
+                SetActive(true);
+                ShowPage(page);
+            } else {
+                base.SetActive(false);
+            }
         }
 
         //the points of the elements in a container are shown with it
@@ -708,7 +720,7 @@ namespace EditorPanels {
         }
 
         public override void Update() {
-            if (GetElement() != builtElement && lastCanvas != null) Initialize(lastCanvas);
+            if (GetElement() != builtElement && lastCanvas != null) Rebuild();
             shownAnything = false;
             ShowSelectedPoint();
         }

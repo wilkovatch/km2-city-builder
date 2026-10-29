@@ -37,7 +37,21 @@ namespace Api {
                 await Frames(3);
                 Screenshot("standalone_prop_rule.png");
             }
+            //the ribbon buttons rebuild the editor: it stays open (on the closing of the panels the editing ends)
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var addRibbon = ((List<EditorPanelPage>)typeof(EditorPanel).GetField("pages", flags).GetValue(builder.lowLevelEditorPanel))
+                .SelectMany(p => (List<List<EditorPanelElement>>)typeof(EditorPanelPage).GetField("elements", flags).GetValue(p)).SelectMany(row => row)
+                .OfType<EditorPanelElements.Button>().Select(b => typeof(EditorPanelElements.Button).GetField("button", flags).GetValue(b) as Godot.Button)
+                .FirstOrDefault(b => b.Text == StringManager.Get("PROP_PATH_ADD_RIBBON"));
+            var ribbonsBefore = element.RibbonNames.Count();
+            addRibbon?.EmitSignal(BaseButton.SignalName.Pressed);
+            await Frames(3);
+            Check("adding a ribbon from the editor (" + ribbonsBefore + " -> " + Element().RibbonNames.Count() + ") rebuilds it still open",
+                addRibbon != null && Element().RibbonNames.Count() == ribbonsBefore + 1 && builder.lowLevelEditorPanel.ActiveSelf()
+                && builder.lowLevelEditorPanel.IsOpen() && builder.lowLevelEditorPanel.GetElement() == Element());
             builder.CloseAllPanels();
+            await Frames(2);
+            Check("closing the rebuilt editor ends the editing", !builder.lowLevelEditorPanel.IsOpen() && builder.lowLevelPlacer.onFrame == null);
             await Call("propPaths.delete", new { element = id });
 
             //Creation-mode switching must not reuse the ordinary low-level type dropdown.
