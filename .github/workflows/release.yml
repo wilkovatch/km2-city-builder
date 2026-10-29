@@ -173,6 +173,14 @@ jobs:
             echo "${changes:-- No changes to the program}"
             if [ -n "$PREV" ]; then
               printf '\n**Full changelog**: https://github.com/%s/compare/%s...%s\n' "$GITHUB_REPOSITORY" "$PREV" "$TAG"
+              guide="wiki/Quickstart-Guide.md"
+              if ! git diff --quiet "$PREV" HEAD -- "$guide"; then
+                # short_path opens the rendered Markdown diff; the fragment targets the guide
+                guideHash=$(printf '%s' "$guide" | sha256sum | cut -d' ' -f1)
+                guideUrl="https://github.com/$GITHUB_REPOSITORY/compare/$PREV...$TAG"
+                printf '\n[Quickstart guide changes](%s?short_path=%s#diff-%s)\n' \
+                  "$guideUrl" "${guideHash:0:7}" "$guideHash"
+              fi
             fi
           } > notes.md
           cat notes.md
