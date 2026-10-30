@@ -31,7 +31,7 @@
 - [Terrain Patches](Core-Terrain-Patches)
 - [Buildings](Core-Buildings)
 - [Props and Objects](Core-Props-and-Objects)
-- [Low-Level Elements](Core-Low-Level-Elements)
+- [Custom Elements](Core-Custom-Elements)
 - [City Properties](Core-City-Properties)
 - [Lua Scripts](Core-Lua-Scripts)
 - [Python Integration](Core-Python-Integration)

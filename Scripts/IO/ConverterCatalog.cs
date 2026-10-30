@@ -1,16 +1,16 @@
 using System.Collections.Generic;
 using System.IO;
 
-//The converters of the current core (its converters folder): Python scripts turning elements of the city into low-level
-//elements (see the Core Low-Level Elements page of the wiki). Each one is a folder with a converter.json:
-//{"label": ..., "sources": ["road", "lowLevel/triangleFan", ...], "types": [...], "script": "convert.py", "replace": true}
+//The converters of the current core (its converters folder): Python scripts turning elements of the city into custom
+//elements (see the Core Custom Elements page of the wiki). Each one is a folder with a converter.json:
+//{"label": ..., "sources": ["road", "customElement/triangleFan", ...], "types": [...], "script": "convert.py", "replace": true}
 public static class ConverterCatalog {
     public class ConverterInfo {
         public string name; //the folder
         public string folder;
         public string label;
         public string tooltip;
-        public string[] sources; //the kinds converted: road, intersection, terrainPatch, buildingLine, lowLevel, lowLevel/<type>
+        public string[] sources; //the kinds converted: road, intersection, terrainPatch, buildingLine, customElement, customElement/<type>
         public string[] types; //the procedural types converted (all if null)
         public string script = "convert.py";
         //the converted elements are replaced: the roads and intersections become ghosts, the others are deleted
@@ -76,8 +76,8 @@ public static class ConverterCatalog {
             string type = null;
             if (element is IObjectWithState withState) type = withState.GetState()?.Str("type", null);
             foreach (var source in sources) {
-                if (source == kind || (kind == "lowLevel" && source == "lowLevel/" + type)) {
-                    if (types == null || kind == "lowLevel" || System.Array.IndexOf(types, type) >= 0) return true;
+                if (source == kind || (kind == "customElement" && source == "customElement/" + type)) {
+                    if (types == null || kind == "customElement" || System.Array.IndexOf(types, type) >= 0) return true;
                 }
             }
             return false;

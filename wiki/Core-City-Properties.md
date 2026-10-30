@@ -7,12 +7,12 @@ elements/cityProperties/
 ├── ui.json
 ├── parameters.json
 └── settings.json
-elements/customTypes/<type>.json
+elements/customCityPropertiesTypes/<type>.json
 ```
 
 ## `parameters.json` and `ui.json`
 
-Same format as for other elements (see [Parameters and UI](Parameters-and-UI)); all parameter types are available, including `array`, `customElement` and `objectInstance`, which makes the city properties the natural place for anything that is not tied to a single element (race checkpoints, opponent paths, police cars...). There are no built-in groups, type selector or presets in this panel; a Close button is added at the end of the first tab. Parameters cannot be `instanceSpecific`.
+Same format as for other elements (see [Parameters and UI](Parameters-and-UI)); all parameter types are available, including `array`, `customCityProperties` and `objectInstance`, which makes the city properties the natural place for anything that is not tied to a single element (race checkpoints, opponent paths, police cars...). There are no built-in groups, type selector or presets in this panel; a Close button is added at the end of the first tab. Parameters cannot be `instanceSpecific`.
 
 One parameter name has a special meaning:
 
@@ -45,9 +45,9 @@ Injected values are not expression variables: they are state properties, meant t
 }
 ```
 
-## Custom types
+## Custom city properties types
 
-A custom type (`customTypes/<type>.json`) is a reusable group of parameters, used by `customElement` parameters and by `array` parameters with `customElementType`.
+A custom city properties type (`customCityPropertiesTypes/<type>.json`) is a reusable group of parameters, used by `customCityProperties` parameters and by `array` parameters with `customCityPropertiesType`.
 
 ```json
 {
@@ -60,7 +60,7 @@ A custom type (`customTypes/<type>.json`) is a reusable group of parameters, use
     "parameters": [
         { "name": "name", "label": "RACE_NAME", "type": "string" },
         { "name": "checkpoints", "label": "CHECKPOINTS", "type": "array",
-          "arrayProperties": { "maxElements": -1, "customElementType": "checkpoint" } }
+          "arrayProperties": { "maxElements": -1, "customCityPropertiesType": "checkpoint" } }
     ]
 }
 ```
@@ -68,11 +68,11 @@ A custom type (`customTypes/<type>.json`) is a reusable group of parameters, use
 | Key | Description |
 |---|---|
 | `label` | Name of the parameter whose value is shown in lists of elements of this type (`null` for "Element N"). |
-| `parameters` | The parameters of the type. Custom types can contain arrays and other custom elements, at any depth. |
+| `parameters` | The parameters of the type. Custom city properties types can contain arrays and other custom city properties, at any depth. |
 | `exclusiveEditing` | Optional. When `enabled`, the parametric objects of only one element of the `category` are visible at a time: the one being edited. With `optional: true`, all elements are visible when none is being edited, and the element panel gets a button to hide the others. With `keepLinesVisible: true`, the elements not being edited hide only their objects, and the lines through them (`drawLine` arrays) stay visible (e.g. the decals of the MM2 core, whose points only show while editing them). |
 
 `exclusiveEditing` keeps the scene readable when many elements contain objects in the same place, for example the checkpoints of different races (MM2 shows the checkpoints of one race at a time) or the paths of the opponents of a race.
 
 The elements of the city properties can be selected by clicking them in the city, when no panel is open. Clicking a parametric object opens the city properties panel, then the panels of the elements that contain the object, then the transform panel on the object, with the innermost element panel as its parent. This is the same chain the user would open by hand. Clicking a `drawLine` line opens the panel of the element the line belongs to (e.g. a decal of the MM2 core, whose points are hidden until it is edited).
 
-Parametric objects inside custom types are not positioned by definitions (custom types have none): they appear at the origin and the user places them. For points that only mark a position, the special model name `@handle` shows a small handle instead of a mesh (MM2 uses it for opponent waypoints).
+Parametric objects inside custom city properties types are not positioned by definitions (custom city properties types have none): they appear at the origin and the user places them. For points that only mark a position, the special model name `@handle` shows a small handle instead of a mesh (MM2 uses it for opponent waypoints).

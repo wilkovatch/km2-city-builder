@@ -6,24 +6,24 @@ using GameObject = Godot.Node3D;
 using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
 using RC = RuntimeCalculator;
-using LowLevel;
+using CustomElements;
 
-//An element of a low-level type of the core: control points with the structure defined by the type, an optional mesh
+//An element of a custom element type of the core: control points with the structure defined by the type, an optional mesh
 //(vertices, triangles and texture coordinates) and parameters. Its geometry and lines are built by the Lua script of the
 //type, which can also keep its points constrained (e.g. aligned). The points (and the vertices of the mesh) are terrain
 //points, so they can be anchored and shared with other elements. An element can be put in a container (another
-//low-level element whose type lists its type, e.g. a room of a PSDL file).
-public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState {
+//custom element whose type lists its type, e.g. a room of a PSDL file).
+public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     public ObjectState state;
     public PointGroup points;
     public readonly List<TerrainPoint> meshVertices = new List<TerrainPoint>();
     public readonly List<int> triangles = new List<int>();
     public readonly List<Vector2> uvs = new List<Vector2>(); //the editable texture coordinates of the vertices
     public List<Vector2> scriptUVs; //the texture coordinates given by the geometry script (uvs "script")
-    public LowLevelElement container;
+    public CustomElement container;
     public object source; //the procedural element it replaces (a ghost), null if none
-    public LowLevelGenerator generator;
-    public LowLevelSplineGeometry.Data splineData;
+    public CustomElementGenerator generator;
+    public CustomElementSplineGeometry.Data splineData;
     readonly Dictionary<TerrainPoint, Vector3> splineProjectedPoints = new();
     int splineProjectionUndoVersion = -1;
     GameObject pointContainer;
@@ -45,10 +45,10 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     readonly List<Vector3> oldPositions = new List<Vector3>();
     int structureVersion = 0, oldStructureVersion = -1;
     int pointStateVersion = -1; //visibility and selection last applied to this structure
-    CityElements.Types.Runtime.LowLevelType curType;
+    CityElements.Types.Runtime.CustomElementType curType;
     RC.VariableContainer variableContainer;
     object updatedSource;
-    LowLevelElement updatedContainer;
+    CustomElement updatedContainer;
     bool updatingGeometry;
     int updatePointVersion = -1;
     List<TerrainPoint> updatePoints;
@@ -102,11 +102,11 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     public void Initialize(string type, GameObject pointContainer) {
         this.pointContainer = pointContainer;
-        state = Operations.LowLevelPresets.DefaultState(type);
+        state = Operations.CustomElementPresets.DefaultState(type);
         splineProjectionUndoVersion = History.UndoManager.AppliedVersion;
-        points = new PointGroup(PointTree.RootDef(GetLowLevelType()?.typeData.settings.controlPoints));
-        var generatorObj = GS.Create<LowLevelGenerator>("Geometry", this);
-        generator = GS.Cast<LowLevelGenerator>(generatorObj);
+        points = new PointGroup(PointTree.RootDef(GetCustomElementType()?.typeData.settings.controlPoints));
+        var generatorObj = GS.Create<CustomElementGenerator>("Geometry", this);
+        generator = GS.Cast<CustomElementGenerator>(generatorObj);
         generator.Initialize();
         GO.SetLayer(generator, Settings?.geometryLayer ?? 7);
     }
@@ -115,13 +115,13 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         return state;
     }
 
-    public CityElements.Types.Runtime.LowLevelType GetLowLevelType() {
-        var types = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes();
+    public CityElements.Types.Runtime.CustomElementType GetCustomElementType() {
+        var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
         var type = TypeName;
         return type != null && types.TryGetValue(type, out var res) ? res : null;
     }
 
-    public CityElements.Types.LowLevelSettings Settings => GetLowLevelType()?.typeData.settings;
+    public CityElements.Types.CustomElementSettings Settings => GetCustomElementType()?.typeData.settings;
 
     // Points
 
@@ -136,31 +136,31 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         ApplySharedPointState(p);
     }
 
-    //a point shared by low-level elements (e.g. a road and the BAI road computed from it, a room and its contents) is
+    //a point shared by custom elements (e.g. a road and the BAI road computed from it, a room and its contents) is
     //shown, selected and moveable if one of them shows, selects or lets it be moved, so that hiding an element or updating
     //one that can't be moved (or isn't edited) doesn't hide or lock the points of the one that is
     static void ApplySharedPointState(TerrainPoint p) {
         if (p == null || p.IsDeleted()) return;
         bool any = false, active = false, selected = false, moveable = false;
         foreach (var link in p.GetLinks()) {
-            if (link is not LowLevelElement e || e.deleted) continue;
+            if (link is not CustomElement e || e.deleted) continue;
             any = true;
             active |= e.active;
             selected |= e.selected;
             moveable |= e.active && e.moveable && !e.derivedFlag;
         }
         if (!any) return; //only used by other kinds of elements, which set it
-        p.ApplyLowLevelState(active, selected, moveable);
+        p.ApplyCustomElementState(active, selected, moveable);
     }
 
-    TerrainPoint CreatePoint(CityElements.Types.LowLevelPointNode def, Vector3 position) {
+    TerrainPoint CreatePoint(CityElements.Types.CustomElementPointNode def, Vector3 position) {
         return CreatePoint(position);
     }
 
     //the default content of a new element, around the point where it is created
     public void CreateDefault(Vector3 origin) {
         History.UndoManager.Touch(this);
-        var type = GetLowLevelType();
+        var type = GetCustomElementType();
         if (type == null) return;
         points = (PointGroup)PointTree.CreateDefault(PointTree.RootDef(type.typeData.settings.controlPoints), CreatePoint, origin);
         var meshSettings = type.typeData.settings.mesh;
@@ -342,10 +342,10 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     // Containers
 
-    public bool CanBeIn(LowLevelElement newContainer) {
+    public bool CanBeIn(CustomElement newContainer) {
         if (newContainer == null) return true;
         if (newContainer == this) return false;
-        var type = newContainer.GetLowLevelType();
+        var type = newContainer.GetCustomElementType();
         if (type == null || !type.CanContain(TypeName)) return false;
         //no cycles
         for (var c = newContainer; c != null; c = c.container) {
@@ -354,7 +354,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         return true;
     }
 
-    public bool SetContainer(LowLevelElement newContainer) {
+    public bool SetContainer(CustomElement newContainer) {
         if (!CanBeIn(newContainer)) return false;
         if (container == newContainer) return true;
         History.UndoManager.Touch(this);
@@ -472,7 +472,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     //sets everything from a snapshot (used by undo/redo): the constraints don't run on the restored points
     public void RestoreFromSnapshot(ObjectState newState, PointGroup newPoints, List<TerrainPoint> vertices, List<int> newTriangles,
-        List<Vector2> newUVs, LowLevelElement newContainer, object newSource) {
+        List<Vector2> newUVs, CustomElement newContainer, object newSource) {
 
         var oldPoints = new HashSet<TerrainPoint>(GetAllPoints());
         state = newState;
@@ -502,8 +502,8 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     // Update
 
     void ReloadType() {
-        var type = GetLowLevelType();
-        if (type?.typeData.settings.spline is CityElements.Types.LowLevelSplineSettings spline) {
+        var type = GetCustomElementType();
+        if (type?.typeData.settings.spline is CityElements.Types.CustomElementSplineSettings spline) {
             if (!state.properties.ContainsKey("curveType")) state.SetInt("curveType", spline.defaultCurveType);
             if (!state.properties.ContainsKey("segments")) state.SetInt("segments", spline.segments);
             if (!state.properties.ContainsKey("segmentsPer100m")) state.SetBool("segmentsPer100m", spline.segmentsPer100m);
@@ -559,7 +559,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     //runs the constraints of the type if points moved since they last ran; returns true if they moved other points
     public bool ApplyConstraints() {
         if (deleted) return false;
-        var type = GetLowLevelType();
+        var type = GetCustomElementType();
         if (type?.constraintsFunction == null) {
             constraintPositions = null;
             return false;
@@ -582,7 +582,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         var res = type.scriptHost.Call(type.constraintsFunction, RC.Scripting.LuaVariableView.Get(variableContainer), ctx, TypeName + " (constraints)");
         ConstraintsResult result;
         try {
-            result = LowLevelScripting.ReadConstraints(res, points, meshVertices.Count);
+            result = CustomElementScripting.ReadConstraints(res, points, meshVertices.Count);
         } catch (System.Exception e) {
             type.scriptHost.ReportError(TypeName + " (constraints)", e.Message);
             RecordConstraintPositions(all);
@@ -619,9 +619,9 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     //the points are computed by the derivedPoints script of the type (its flag is on)
     public bool IsDerived => Settings?.derivedPoints != null && state.Bool(Settings.derivedPoints.flag);
 
-    //the other low-level elements replacing the same procedural element, in the order of their ids
-    public List<LowLevelElement> GetSiblings(List<LowLevelElement> elements) {
-        var res = new List<LowLevelElement>();
+    //the other custom elements replacing the same procedural element, in the order of their ids
+    public List<CustomElement> GetSiblings(List<CustomElement> elements) {
+        var res = new List<CustomElement>();
         if (source == null) return res;
         foreach (var other in elements) {
             if (other != this && !other.IsDeleted() && other.source == source) res.Add(other);
@@ -631,9 +631,9 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     }
 
     //what the derived points depend on: the points of the element and of its siblings (and how many each one has)
-    List<float> GetDerivedInputs(List<LowLevelElement> siblings) {
+    List<float> GetDerivedInputs(List<CustomElement> siblings) {
         var res = new List<float>();
-        void Add(LowLevelElement element) {
+        void Add(CustomElement element) {
             var all = element.GetUpdatePoints();
             res.Add(History.ElementRegistry.GetId(element));
             res.Add(all.Count);
@@ -661,9 +661,9 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     //the element and of its siblings) change, in the undo step of the change. The first time (an element loaded,
     //converted or restored by undo/redo) the inputs are only recorded, so the points stay as they were (e.g. an export is
     //the same until something is edited). Returns true if the points changed
-    public bool UpdateDerivedPoints(List<LowLevelElement> elements) {
+    public bool UpdateDerivedPoints(List<CustomElement> elements) {
         if (deleted) return false;
-        var type = GetLowLevelType();
+        var type = GetCustomElementType();
         var settings = type?.typeData.settings.derivedPoints;
         if (settings == null || type.derivedFunction == null) return false;
         var flag = state.Bool(settings.flag);
@@ -691,7 +691,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         return changed;
     }
 
-    bool ComputeDerivedPoints(CityElements.Types.Runtime.LowLevelType type, List<LowLevelElement> siblings) {
+    bool ComputeDerivedPoints(CityElements.Types.Runtime.CustomElementType type, List<CustomElement> siblings) {
         ReloadType();
         var ctx = CreateScriptContext(null);
         var siblingsTable = new LuaTable();
@@ -704,7 +704,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         Dictionary<PointLeaf, Vector3> positions;
         try {
             if (!res.TryRead<LuaTable>(out var t)) throw new System.Exception("the result is not a table");
-            (tree, positions) = LowLevelScripting.ReadPointTree(t["points"], points.def);
+            (tree, positions) = CustomElementScripting.ReadPointTree(t["points"], points.def);
         } catch (System.Exception e) {
             type.scriptHost.ReportError(name, e.Message);
             return false;
@@ -714,7 +714,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     //the points of the tree: a point of a sibling at the position (shared, as after the conversion), the point of the
     //element at the same path if no other element uses it (moved there), or a new point
-    bool ApplyDerivedPoints(PointGroup tree, Dictionary<PointLeaf, Vector3> positions, List<LowLevelElement> siblings) {
+    bool ApplyDerivedPoints(PointGroup tree, Dictionary<PointLeaf, Vector3> positions, List<CustomElement> siblings) {
         History.UndoManager.Touch(this);
         var siblingPoints = new HashSet<TerrainPoint>();
         foreach (var sibling in siblings) siblingPoints.UnionWith(sibling.GetUpdatePoints());
@@ -726,7 +726,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
             var old = (PointTree.Find(points, path) as PointLeaf)?.point;
             TerrainPoint point = null;
             foreach (var p in siblingPoints) {
-                if (!p.IsDeleted() && p.GetPoint().DistanceTo(position) < Operations.LowLevel.WeldDistance) {
+                if (!p.IsDeleted() && p.GetPoint().DistanceTo(position) < Operations.CustomElements.WeldDistance) {
                     point = p;
                     break;
                 }
@@ -750,15 +750,15 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         return changed;
     }
 
-    //the low-level elements referenced by the parameters (their points are given to the scripts, see CreateScriptContext)
-    public List<(string name, LowLevelElement element)> GetReferencedElements() {
-        var res = new List<(string, LowLevelElement)>();
-        var type = GetLowLevelType();
+    //the custom elements referenced by the parameters (their points are given to the scripts, see CreateScriptContext)
+    public List<(string name, CustomElement element)> GetReferencedElements() {
+        var res = new List<(string, CustomElement)>();
+        var type = GetCustomElementType();
         if (type == null) return res;
         foreach (var name in type.GetReferenceParameters()) {
             var reference = state.State(name);
-            if (reference == null || reference.Str("kind", "") != "lowLevel") continue;
-            var target = History.ElementRegistry.Get(reference.Int("id", -1)) as LowLevelElement;
+            if (reference == null || reference.Str("kind", "") != "customElement") continue;
+            var target = History.ElementRegistry.Get(reference.Int("id", -1)) as CustomElement;
             if (target != null && target != this && !target.IsDeleted()) res.Add((name, target));
         }
         return res;
@@ -775,7 +775,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     }
 
     bool DidChange(List<TerrainPoint> all) {
-        if (state.HasChanged() || structureVersion != oldStructureVersion || GetLowLevelType() != curType) return true;
+        if (state.HasChanged() || structureVersion != oldStructureVersion || GetCustomElementType() != curType) return true;
         var positions = GetInputPositions(all);
         if (positions.Count != oldPositions.Count) return true;
         for (int i = 0; i < positions.Count; i++) {
@@ -828,11 +828,11 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     }
 
     internal sealed class GeometryUpdate {
-        internal LowLevelElement element;
+        internal CustomElement element;
         internal List<TerrainPoint> all;
-        internal CityElements.Types.Runtime.LowLevelType type;
+        internal CityElements.Types.Runtime.CustomElementType type;
         internal LuaValue variables, context;
-        internal LowLevel.GeometryResult geometry;
+        internal CustomElements.GeometryResult geometry;
         internal bool retryOnMainThread;
         internal readonly List<string> prints = new List<string>();
         internal readonly List<(string definition, string message)> errors = new List<(string, string)>();
@@ -849,7 +849,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
             }
             try {
                 var result = host.Call(function, variables, context, name);
-                geometry = LowLevelScripting.ReadGeometry(result);
+                geometry = CustomElementScripting.ReadGeometry(result);
             } catch (System.Exception e) {
                 host.ReportError(name, e.Message);
             }
@@ -881,10 +881,10 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         var type = curType;
         if (type?.splineType != null) {
             try {
-                var geometry = LowLevelSplineGeometry.Build(this, out splineData);
+                var geometry = CustomElementSplineGeometry.Build(this, out splineData);
                 generator.Rebuild(geometry, state, type.typeData.settings.propsContainers);
             } catch (System.Exception e) {
-                splineData = new LowLevelSplineGeometry.Data();
+                splineData = new CustomElementSplineGeometry.Data();
                 generator.Clear();
                 GameEngine.LogError("Spline type '" + TypeName + "': " + e.Message);
             }
@@ -899,7 +899,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         var ctx = CreateScriptContext(null);
         var res = type.scriptHost.Call(type.geometryFunction, RC.Scripting.LuaVariableView.Get(variableContainer), ctx, TypeName + " (geometry)");
         try {
-            var geometry = LowLevelScripting.ReadGeometry(res);
+            var geometry = CustomElementScripting.ReadGeometry(res);
             scriptUVs = geometry.uvs;
             generator.Rebuild(geometry, state, type.typeData.settings.propsContainers);
         } catch (System.Exception e) {
@@ -915,20 +915,20 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
         var ctx = new LuaTable();
         ctx["typeName"] = TypeName ?? "";
         ctx["name"] = GO.GetName(this);
-        ctx["points"] = LowLevelScripting.PointsTable(points, leaf => RC.Scripting.LuaVectors.ToLua(leaf.point.GetPoint()));
-        ctx["rotations"] = LowLevelScripting.PointsTable(points, leaf => leaf.def.rotatable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetRotation()) : LuaValue.Nil);
+        ctx["points"] = CustomElementScripting.PointsTable(points, leaf => RC.Scripting.LuaVectors.ToLua(leaf.point.GetPoint()));
+        ctx["rotations"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.rotatable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetRotation()) : LuaValue.Nil);
         var vertices = new List<Vector3>();
         foreach (var v in meshVertices) vertices.Add(v.GetPoint());
-        ctx["vertices"] = LowLevelScripting.List(vertices);
-        ctx["triangles"] = LowLevelScripting.List(triangles);
-        ctx["uvs"] = LowLevelScripting.List(uvs);
-        //the referenced low-level elements, by parameter: {typeName, name, points, vertices, triangles}
+        ctx["vertices"] = CustomElementScripting.List(vertices);
+        ctx["triangles"] = CustomElementScripting.List(triangles);
+        ctx["uvs"] = CustomElementScripting.List(uvs);
+        //the referenced custom elements, by parameter: {typeName, name, points, vertices, triangles}
         var references = new LuaTable();
         foreach (var (name, element) in GetReferencedElements()) references[name] = ElementTable(element);
         ctx["references"] = references;
         if (moved != null) {
             var movedTable = new LuaTable();
-            movedTable["points"] = LowLevelScripting.PointsTable(points, leaf => moved.Contains(leaf.point) ? new LuaValue(true) : LuaValue.Nil);
+            movedTable["points"] = CustomElementScripting.PointsTable(points, leaf => moved.Contains(leaf.point) ? new LuaValue(true) : LuaValue.Nil);
             var movedVertices = new LuaTable();
             for (int i = 0; i < meshVertices.Count; i++) {
                 if (moved.Contains(meshVertices[i])) movedVertices[i + 1] = true;
@@ -940,15 +940,15 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
     }
 
     //another element given to the scripts (a reference or a sibling): {typeName, name, points, vertices, triangles}
-    static LuaTable ElementTable(LowLevelElement element) {
+    static LuaTable ElementTable(CustomElement element) {
         var r = new LuaTable();
         r["typeName"] = element.TypeName ?? "";
         r["name"] = GO.GetName(element);
-        r["points"] = LowLevelScripting.PointsTable(element.points, leaf => RC.Scripting.LuaVectors.ToLua(leaf.point.GetPoint()));
+        r["points"] = CustomElementScripting.PointsTable(element.points, leaf => RC.Scripting.LuaVectors.ToLua(leaf.point.GetPoint()));
         var vertices = new List<Vector3>();
         foreach (var v in element.meshVertices) vertices.Add(v.GetPoint());
-        r["vertices"] = LowLevelScripting.List(vertices);
-        r["triangles"] = LowLevelScripting.List(element.triangles);
+        r["vertices"] = CustomElementScripting.List(vertices);
+        r["triangles"] = CustomElementScripting.List(element.triangles);
         return r;
     }
 }

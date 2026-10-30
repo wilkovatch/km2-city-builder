@@ -7,9 +7,9 @@ using Newtonsoft.Json.Linq;
 using GO = GameEngine.GameObject;
 
 namespace Operations {
-    //Conversion of elements to low-level elements by a converter of the core (see ConverterCatalog): the converter gets
-    //the elements in the format of the export JSON (with the elements around them) and returns the low-level elements in
-    //the format of the city save, which replace them (see the Core Low-Level Elements page of the wiki)
+    //Conversion of elements to custom elements by a converter of the core (see ConverterCatalog): the converter gets
+    //the elements in the format of the export JSON (with the elements around them) and returns the custom elements in
+    //the format of the city save, which replace them (see the Core Custom Elements page of the wiki)
     public static class Conversion {
         public class Result {
             public bool success;
@@ -17,8 +17,8 @@ namespace Operations {
             public Dictionary<string, int> elementIds = new Dictionary<string, int>();
             public string error; //unknown_converter, not_accepted, converter_failed, invalid_output
             public string message;
-            public List<LowLevelElement> created = new List<LowLevelElement>();
-            public List<LowLevelElement> updated = new List<LowLevelElement>(); //the existing elements changed (output "updates")
+            public List<CustomElement> created = new List<CustomElement>();
+            public List<CustomElement> updated = new List<CustomElement>(); //the existing elements changed (output "updates")
 
             public static Result Fail(string error, string message) {
                 return new Result { success = false, error = error, message = message };
@@ -36,7 +36,7 @@ namespace Operations {
         // Input
 
         //the elements to convert and the ones the converter may need: the intersections of the roads and the roads of the
-        //intersections (one level more), the containers and contents of the low-level elements, and the low-level
+        //intersections (one level more), the containers and contents of the custom elements, and the custom
         //elements replacing any of them
         static List<object> GetContext(ElementManager manager, List<object> elements) {
             var res = new List<object>();
@@ -54,16 +54,16 @@ namespace Operations {
                         case Intersection i:
                             foreach (var r in i.roads) Add(r);
                             break;
-                        case LowLevelElement l:
+                        case CustomElement l:
                             Add(l.container);
                             Add(l.source);
-                            foreach (var child in manager.GetLowLevelChildren(l)) Add(child);
+                            foreach (var child in manager.GetCustomElementChildren(l)) Add(child);
                             break;
                     }
                 }
             }
             foreach (var e in new List<object>(res)) {
-                foreach (var replacement in LowLevel.GetReplacements(manager, e)) Add(replacement);
+                foreach (var replacement in CustomElements.GetReplacements(manager, e)) Add(replacement);
             }
             return res;
         }
@@ -80,7 +80,7 @@ namespace Operations {
             var intersections = new JArray();
             var patches = new JArray();
             var lines = new JArray();
-            var lowLevel = new JArray();
+            var customElements = new JArray();
             using (var geometry = new CityEncoder.ExportGeometry(Id)) {
                 foreach (var e in GetContext(manager, elements)) {
                     switch (e) {
@@ -88,7 +88,7 @@ namespace Operations {
                         case Intersection i: intersections.Add(JToken.FromObject(geometry.GetIntersection(i, Id(i)))); break;
                         case TerrainPatch p: patches.Add(JToken.FromObject(geometry.GetTerrainPatch(p, Id(p)))); break;
                         case BuildingLine l: lines.Add(JToken.FromObject(geometry.GetBuildingLine(l, Id(l)))); break;
-                        case LowLevelElement l: lowLevel.Add(JToken.FromObject(geometry.GetLowLevelElement(l, Id(l)))); break;
+                        case CustomElement l: customElements.Add(JToken.FromObject(geometry.GetCustomElement(l, Id(l)))); break;
                     }
                 }
                 res["materialDict"] = JToken.FromObject(geometry.materials);
@@ -98,7 +98,7 @@ namespace Operations {
             res["intersections"] = intersections;
             res["terrainPatches"] = patches;
             res["buildingLines"] = lines;
-            res["lowLevelElements"] = lowLevel;
+            res["customElements"] = customElements;
             res["meshInstances"] = new JArray();
             res["cityProperties"] = JToken.FromObject(manager.GetDummy<CityProperties>().GetState());
             var ancestries = new JArray();
@@ -167,7 +167,7 @@ namespace Operations {
         }
 
         //checks the output before anything is changed; returns the error, null if valid
-        static string Validate(JObject output, Dictionary<string, CityElements.Types.Runtime.LowLevelType> types) {
+        static string Validate(JObject output, Dictionary<string, CityElements.Types.Runtime.CustomElementType> types) {
             var pointIds = new HashSet<string>();
             if (output["points"] is JArray points) {
                 foreach (var p in points) {
@@ -217,7 +217,7 @@ namespace Operations {
                 if (id == null) return "an element has no id";
                 var type = Key(e["type"]);
                 if (type == null || !types.ContainsKey(type)) return "the element " + id + " has an unknown type " + type;
-                if (types[type].typeData.settings.spline is CityElements.Types.LowLevelSplineSettings spline) {
+                if (types[type].typeData.settings.spline is CityElements.Types.CustomElementSplineSettings spline) {
                     if (e["mesh"] != null) return "a spline element cannot have an editable mesh";
                     if (e["state"]?["curveType"] is JToken mode && System.Array.IndexOf(spline.curveTypes, mode.Value<int>()) < 0) return "curve type is not allowed by " + type;
                 }
@@ -270,7 +270,7 @@ namespace Operations {
             foreach (var e in output["elements"] as JArray ?? new JArray()) {
                 if (e["source"] != null) return "imported elements cannot have procedural sources";
             }
-            try { return Validate(output, CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()); }
+            try { return Validate(output, CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()); }
             catch (System.Exception error) { return error.Message; }
         }
 
@@ -279,7 +279,7 @@ namespace Operations {
         }
 
         public static Result Apply(ElementManager manager, ConverterCatalog.ConverterInfo converter, List<object> elements, JObject output) {
-            var types = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes();
+            var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
             string error;
             try {
                 error = Validate(output, types);
@@ -297,10 +297,10 @@ namespace Operations {
                     var pos = ReadVector(p["position"], "position");
                     var weld = p["weld"] == null || (bool)p["weld"];
                     TerrainPoint point = null;
-                    if (weld) point = LowLevel.FindPointAt(manager, pos, createdPoints);
+                    if (weld) point = CustomElements.FindPointAt(manager, pos, createdPoints);
                     if (point == null) {
                         //a point following other points of the output is not put on an anchor of a road or intersection
-                        var anchor = weld && p["anchor"] == null ? LowLevel.FindAnchorAt(manager, pos) : null;
+                        var anchor = weld && p["anchor"] == null ? CustomElements.FindAnchorAt(manager, pos) : null;
                         point = TerrainPoint.Create(anchor != null ? anchor.GetPoint() : pos, null, manager.GetTerrainPointContainer(), anchor);
                         createdPoints.Add(point);
                         if (p["rotation"] != null) point.SetRotation(ReadVector(p["rotation"], "rotation"));
@@ -314,8 +314,8 @@ namespace Operations {
                     var point = points[Key(p["id"])];
                     if (!createdPoints.Contains(point)) continue;
                     var ok = anchor["line"] is JArray line
-                        ? LowLevel.AttachToLine(point, points[Key(line[0])], points[Key(line[1])])
-                        : LowLevel.AttachToColumn(point, points[Key(anchor["column"])]);
+                        ? CustomElements.AttachToLine(point, points[Key(line[0])], points[Key(line[1])])
+                        : CustomElements.AttachToColumn(point, points[Key(anchor["column"])]);
                     if (!ok) {
                         if (converter == null) throw new System.ArgumentException("the anchor of point " + Key(p["id"]) + " would make it follow itself");
                         GameEngine.LogWarning("Conversion: cyclic point anchor skipped");
@@ -324,20 +324,20 @@ namespace Operations {
             }
 
             //elements
-            var created = new Dictionary<string, LowLevelElement>();
+            var created = new Dictionary<string, CustomElement>();
             var outputElements = output["elements"] as JArray ?? new JArray();
-            //by default the elements replace the converted element (a low-level element: they take its place, its container and
+            //by default the elements replace the converted element (a custom element: they take its place, its container and
             //the procedural element it replaces)
             var replaces = output["replace"] != null ? (bool)output["replace"] : converter?.replace ?? false;
             object defaultSource = replaces && elements.Count == 1 ? elements[0] : null;
-            LowLevelElement defaultContainer = null;
-            if (defaultSource is LowLevelElement lowLevelSource) {
-                defaultContainer = lowLevelSource.container;
-                defaultSource = lowLevelSource.source;
+            CustomElement defaultContainer = null;
+            if (defaultSource is CustomElement customElementSource) {
+                defaultContainer = customElementSource.container;
+                defaultSource = customElementSource.source;
             }
             foreach (var e in outputElements) {
                 var type = Key(e["type"]);
-                var element = manager.CreateLowLevelElement(type, Key(e["name"]));
+                var element = manager.CreateCustomElement(type, Key(e["name"]));
                 res.elementIds[Key(e["id"])] = Id(element);
                 var state = e["state"] is JObject stateObj ? stateObj.ToObject<ObjectState>() : new ObjectState();
                 Operations.States.Normalize(state, types[type].parameterContainer.parameters);
@@ -349,7 +349,7 @@ namespace Operations {
                     origin = p.GetPoint();
                     break;
                 }
-                element.SetPoints(History.ElementSnapshot.LowLevelPoints(e["points"], state, element, t => points.TryGetValue(t.ToString(), out var tp) ? tp : null, origin));
+                element.SetPoints(History.ElementSnapshot.CustomElementPoints(e["points"], state, element, t => points.TryGetValue(t.ToString(), out var tp) ? tp : null, origin));
                 if (e["mesh"] is JObject mesh) {
                     var vertices = new List<TerrainPoint>();
                     if (mesh["vertices"] is JArray vs) foreach (var v in vs) vertices.Add(points[v.ToString()]);
@@ -381,7 +381,7 @@ namespace Operations {
             foreach (var e in outputElements) {
                 var element = created[Key(e["id"])];
                 if (e["container"] != null) {
-                    if (Resolve(e["container"]) is LowLevelElement container && !element.SetContainer(container)) {
+                    if (Resolve(e["container"]) is CustomElement container && !element.SetContainer(container)) {
                         GameEngine.LogWarning("Conversion: " + GO.GetName(element) + " can't be put in " + GO.GetName(container));
                     }
                 } else if (defaultContainer != null && element.CanBeIn(defaultContainer)) {
@@ -407,7 +407,7 @@ namespace Operations {
             //the changes of existing elements: their points of the names given replaced, their state merged
             if (output["updates"] is JArray updateArray) {
                 foreach (var u in updateArray) {
-                    if (Resolve(u["element"]) is not LowLevelElement target || target.IsDeleted()) {
+                    if (Resolve(u["element"]) is not CustomElement target || target.IsDeleted()) {
                         GameEngine.LogWarning("Conversion: the element of an update was not found");
                         continue;
                     }
@@ -418,13 +418,13 @@ namespace Operations {
                         }
                     }
                     if (u["points"] is JObject newPoints) {
-                        var tree = global::LowLevel.PointTree.ToJson(target.points, Id) as JObject ?? new JObject();
+                        var tree = global::CustomElements.PointTree.ToJson(target.points, Id) as JObject ?? new JObject();
                         foreach (var p in newPoints.Properties()) tree[p.Name] = p.Value;
                         TerrainPoint GetPoint(JToken t) {
                             if (t.Type == JTokenType.Integer) return History.ElementRegistry.Get((int)t) as TerrainPoint;
                             return points.TryGetValue(t.ToString(), out var tp) ? tp : null;
                         }
-                        target.SetPoints(History.ElementSnapshot.LowLevelPoints(tree, target.state, target, GetPoint, target.GetCenter()));
+                        target.SetPoints(History.ElementSnapshot.CustomElementPoints(tree, target.state, target, GetPoint, target.GetCenter()));
                     }
                     if (!res.updated.Contains(target)) res.updated.Add(target);
                 }
@@ -458,9 +458,9 @@ namespace Operations {
                 case BuildingLine l:
                     BuildingLines.Delete(l);
                     break;
-                case LowLevelElement l:
-                    //the elements replacing a low-level element take its place in its container
-                    foreach (var child in manager.GetLowLevelChildren(l)) child.SetContainer(l.container);
+                case CustomElement l:
+                    //the elements replacing a custom element take its place in its container
+                    foreach (var child in manager.GetCustomElementChildren(l)) child.SetContainer(l.container);
                     l.Delete();
                     break;
             }

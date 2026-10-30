@@ -9,17 +9,17 @@ using GO = GameEngine.GameObject;
 using GameObject = Godot.Node3D;
 using V3 = GameEngine.Vector3;
 
-//The geometry of a low-level element, as built by the geometry script of its type: the meshes (one submesh per mesh), the
+//The geometry of a custom element, as built by the geometry script of its type: the meshes (one submesh per mesh), the
 //lines and a collider (the meshes and a strip along each line) to select the element by clicking on it. The placeholder
 //meshes are kept apart (not exported), drawn only while the element is a container whose contents draw nothing
-public partial class LowLevelGenerator : PhysicsScriptable {
+public partial class CustomElementGenerator : PhysicsScriptable {
     const float MinLineWidth = 0.1f;
     const float MinColliderLineWidth = 0.5f;
 
     public MeshRenderer mr;
     public Mesh m;
     MeshCollider mc;
-    readonly List<(LineRenderer lr, LowLevel.GeometryLine line)> lines = new List<(LineRenderer, LowLevel.GeometryLine)>();
+    readonly List<(LineRenderer lr, CustomElements.GeometryLine line)> lines = new List<(LineRenderer, CustomElements.GeometryLine)>();
     bool linesShown = false;
     bool containerShown = false; //the container of the element, or an element in it, is being edited (see ShowContainerLines)
     bool trafficShown = false; //all the traffic lanes are shown (see ShowTrafficLines)
@@ -57,7 +57,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     }
 
     //the props of the prop rule of the state, for the containers of the type
-    void PlaceProps(List<LowLevel.GeometryPropLine> propLines, ObjectState state, string[] containers) {
+    void PlaceProps(List<CustomElements.GeometryPropLine> propLines, ObjectState state, string[] containers) {
         GO.Destroy(propsContainer);
         propsContainer = null;
         props.Clear();
@@ -74,7 +74,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
         }, propsContainer, props);
     }
 
-    public void Rebuild(LowLevel.GeometryResult geometry, ObjectState state, string[] propsContainers) {
+    public void Rebuild(CustomElements.GeometryResult geometry, ObjectState state, string[] propsContainers) {
         textures.Clear();
         var vertices = new List<Vector3>();
         var uvs = new List<Vector2>();
@@ -142,7 +142,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
         PlaceProps(geometry.propLines, state, propsContainers);
     }
 
-    void RebuildLines(List<LowLevel.GeometryLine> newLines, ObjectState state) {
+    void RebuildLines(List<CustomElements.GeometryLine> newLines, ObjectState state) {
         while (lines.Count > newLines.Count) {
             GO.Destroy(lines[lines.Count - 1].lr);
             lines.RemoveAt(lines.Count - 1);
@@ -172,11 +172,11 @@ public partial class LowLevelGenerator : PhysicsScriptable {
     }
 
     //an always shown line is hidden by its view toggle while it's off, unless the element is edited
-    static bool AlwaysShown(LowLevel.GeometryLine line) {
+    static bool AlwaysShown(CustomElements.GeometryLine line) {
         return line.always && Rendering.ViewToggles.IsOn(line.toggle);
     }
 
-    bool IsShown(LowLevel.GeometryLine line) {
+    bool IsShown(CustomElements.GeometryLine line) {
         return AlwaysShown(line) || linesShown || (line.withContainer && containerShown) || (line.traffic && trafficShown);
     }
 
@@ -239,7 +239,7 @@ public partial class LowLevelGenerator : PhysicsScriptable {
         RebuildCollider(lines.ConvertAll(l => l.line));
     }
 
-    void RebuildCollider(List<LowLevel.GeometryLine> newLines) {
+    void RebuildCollider(List<CustomElements.GeometryLine> newLines) {
         var cVertices = new List<Vector3>(meshColliderVertices);
         var cIndices = new List<int>();
         foreach (var submesh in meshColliderIndices) cIndices.AddRange(submesh);
@@ -282,6 +282,6 @@ public partial class LowLevelGenerator : PhysicsScriptable {
         placeholderVertices = new List<Vector3>();
         placeholderIndices = new List<int>();
         GameEngine.Mesh.RefreshCollider(null, mc, false);
-        PlaceProps(new List<LowLevel.GeometryPropLine>(), new ObjectState(), null);
+        PlaceProps(new List<CustomElements.GeometryPropLine>(), new ObjectState(), null);
     }
 }

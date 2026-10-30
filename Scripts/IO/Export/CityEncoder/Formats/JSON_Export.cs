@@ -55,7 +55,7 @@ namespace CityEncoder {
                         case Intersection i: return manager.intersections.IndexOf(i);
                         case TerrainPatch p: return manager.patches.IndexOf(p);
                         case BuildingLine l: return manager.buildings.IndexOf(l);
-                        case LowLevelElement e: return manager.lowLevelElements.IndexOf(e);
+                        case CustomElement e: return manager.customElements.IndexOf(e);
                         default: return -1;
                     }
                 });
@@ -147,22 +147,22 @@ namespace CityEncoder {
                     await caller.ToSignal(caller.GetTree(), "process_frame");
                 }
             }
-            //Low-level elements
-            var lowLevelArray = new IO.ExportedCity.LowLevelElement[manager.lowLevelElements.Count];
-            for (int i = 0; i < manager.lowLevelElements.Count; i++) {
+            //Custom elements
+            var customElementArray = new IO.ExportedCity.CustomElement[manager.customElements.Count];
+            for (int i = 0; i < manager.customElements.Count; i++) {
                 try {
-                    lowLevelArray[i] = geometry.GetLowLevelElement(manager.lowLevelElements[i], i);
+                    customElementArray[i] = geometry.GetCustomElement(manager.customElements[i], i);
                 } catch (System.Exception e) {
                     return Fail(e);
                 }
 
-                if (i % 100 == 0 || i == manager.lowLevelElements.Count - 1) {
-                    progressBar.SetProgress(0.9f + 0.05f * ((float)(i + 1) / manager.lowLevelElements.Count));
+                if (i % 100 == 0 || i == manager.customElements.Count - 1) {
+                    progressBar.SetProgress(0.9f + 0.05f * ((float)(i + 1) / manager.customElements.Count));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
                 }
             }
-            savedCity.lowLevelElements = System.Array.FindAll(lowLevelArray, e => e.type != PropPath.TypeId);
-            savedCity.propPaths = System.Array.FindAll(lowLevelArray, e => e.type == PropPath.TypeId);
+            savedCity.customElements = System.Array.FindAll(customElementArray, e => e.type != PropPath.TypeId);
+            savedCity.propPaths = System.Array.FindAll(customElementArray, e => e.type == PropPath.TypeId);
 
             try {
                 savedCity.buildingLines = linesArray;

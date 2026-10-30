@@ -19,9 +19,9 @@ The classes in `Scripts/IO` save and load cities, export them for the core expor
 | `terrainPoints` | Every terrain point, with what it is anchored to: `linkType` (`None`, `Point`: an anchor of a road or intersection, `Line`: a point on a link between two terrain points), `elementType` + `elementId` + `anchorIndex` to find the anchor, `percent` for line links, and the `dividing` flag. |
 | `terrainPatches` | `id`, `name`, `state`, perimeter and internal point ids, `borderMeshes` (state, instance state, segment point ids). |
 | `buildingLines` | `id`, `name`, `state`, `instanceState`, line point ids, `buildings` (states) and `sides` (states). |
-| `lowLevelElements` | `id`, `name`, `state` (type and parameters; reference parameters as `{kind, id}` with the indices of the save), `points` (the structure of the control points of the type, with terrain point ids), `meshVertices` (terrain point ids), `triangles`, `uvs`, `containerId` (-1 if none), `source` (`{kind, id}` of the ghost it replaces). |
+| `customElements` | `id`, `name`, `state` (type and parameters; reference parameters as `{kind, id}` with the indices of the save), `points` (the structure of the control points of the type, with terrain point ids), `meshVertices` (terrain point ids), `triangles`, `uvs`, `containerId` (-1 if none), `source` (`{kind, id}` of the ghost it replaces). |
 
-Roads and intersections have `ghost` when they were replaced by low-level elements, the terrain points `rotation` when they are rotatable points of low-level elements (both left out otherwise).
+Roads and intersections have `ghost` when they were replaced by custom elements, the terrain points `rotation` when they are rotatable points of custom elements (both left out otherwise).
 
 Vectors and quaternions use the serializable structs from `States.Utils` and are in program coordinates. Element states are `ObjectState`s, so they appear as plain JSON objects with the parameter names as keys.
 
@@ -36,14 +36,14 @@ Loads a city:
 1. Erases the current city and checks the versions (`CheckVersion`): no core in the preferences, or a core version different from the installed one, means a migration is needed; a city saved with a newer core feature version or an unknown core is an error.
 2. Runs the migration if accepted (`Files/python/migrate.py`, see [Core Python Integration](Core-Python-Integration#migrations)).
 3. Checks the Python modules of the core.
-4. Loads the preferences (strings, formats, Python server), decompresses and deserializes the save and decodes its heightmap on a worker thread, then creates the terrain (from the saved heights or flat) on the main thread. Sets the city properties and recreates mesh instances, roads, intersections, terrain patches (with their terrain points, resolving the anchors they are attached to), building lines and low-level elements. Presets are reloaded from the city folder on first use.
+4. Loads the preferences (strings, formats, Python server), decompresses and deserializes the save and decodes its heightmap on a worker thread, then creates the terrain (from the saved heights or flat) on the main thread. Sets the city properties and recreates mesh instances, roads, intersections, terrain patches (with their terrain points, resolving the anchors they are attached to), building lines and custom elements. Presets are reloaded from the city folder on first use.
 5. Stores the file in the `LastCity` setting (unless `LoadOptions.rememberAsLastCity` is false).
 
 `DecodeCityAsync(manager, filename, options)` returns a `LoadResult` (`success`, or an `error` code and message); if the city can't be loaded it is closed. The questions (migration, missing Python modules) and the errors go through `options.interaction` (`Operations.IInteraction`): the editor's popups by default (`UiInteraction`), the answers given in advance for scripts (`FixedInteraction`). The progress is reported to `options.progress` as well as shown on the progress bar.
 
 The worker reads plain managed data only; Godot nodes, meshes, textures and colliders stay on the main thread. Element creation yields after about 50 ms of work per batch, so the batch size follows the cost of the elements. Mesh instances use their saved names directly, avoiding a search through the existing instances for a temporary automatic name. Automatic `ElementManager` updates are suspended while loading; the loader explicitly rebuilds the roads and intersections before resolving their terrain anchors, and the complete city is updated after loading.
 
-Loaded terrain points start with a hidden handle containing only their transform and logic. Its mesh and collision shape are created when the point is first shown, with the color, scale and movement layer already set. Large low-level geometry rebuilds then use the isolated Lua workers described in [Geometry Generation](Geometry-Generation#low-level-elements).
+Loaded terrain points start with a hidden handle containing only their transform and logic. Its mesh and collision shape are created when the point is first shown, with the color, scale and movement layer already set. Large custom element geometry rebuilds then use the isolated Lua workers described in [Geometry Generation](Geometry-Generation#custom-elements).
 
 The type and Lua caches are cleared once after loading the preferences, before recreating elements. The final UI refresh invalidates panel controls for the new city without constructing hidden editors or reloading the types a second time; panels initialize when opened.
 
@@ -82,7 +82,7 @@ Top-level structure (`ExportedCity`):
 | `terrainPatches` | `data`, perimeter and internal points, `borderMeshes` (`fields` + `segment`). |
 | `buildingLines` | `data`, `linePoints`, `sides`, `roof`, `buildings` (each with `front`, `left`, `right`, `back` sides, `roof` and splines). Each side has its merged `data.mesh`, plus `meshDict`, `facades` and `paramMeshes` with the block instancing data. |
 | `meshInstances` | `id`, `name`, `settings`, `reference` (`meshId` into `meshDict`, position, scale, rotation). |
-| `lowLevelElements` | The low-level elements, see [Core Low-Level Elements](Core-Low-Level-Elements#export). The roads and intersections have `ghost` (replaced by low-level elements: their geometry is not to be exported). |
+| `customElements` | The custom elements, see [Core Custom Elements](Core-Custom-Elements#export). The roads and intersections have `ghost` (replaced by custom elements: their geometry is not to be exported). |
 | `cityProperties` | State of the city properties. |
 | `typeAncestry` | For every type of the core: `category` (its folder in `elements`), `name` and `ancestry` (the type, then the types it extends, nearest first; see [Core Type Inheritance](Core-Type-Inheritance#exporters)). |
 | `cityFolder` | The folder of the city project, with its own `geometry` and `texture` folders (MM2 packs them in the `.ar` archive). |

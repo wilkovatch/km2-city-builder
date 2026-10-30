@@ -8,7 +8,7 @@ namespace CityElements.Types {
         public string placeholder;
         public string tooltip;
         public string type;
-        public string customElementType;
+        public string customCityPropertiesType;
         public object defaultValueInArray;
         public string container;
         public string[] enumLabels;
@@ -21,7 +21,7 @@ namespace CityElements.Types {
         public string presetCategory;
         public string[] extensions;
         //a "reference" parameter (another element of the city): the kinds it can reference ("road", "intersection",
-        //"lowLevel", or "lowLevel/<type>" for a single low-level type)
+        //"customElement", or "customElement/<type>" for a single custom element type)
         public string[] referenceTypes;
 
         public string fullName() {
@@ -33,7 +33,7 @@ namespace CityElements.Types {
         public int maxElements;
         public string elementLabel;
         public Parameter[] elementProperties;
-        public string customElementType;
+        public string customCityPropertiesType;
         public bool drawLine; //draw a line through the parametric objects of the elements, in order (e.g. the points of a path)
         public LineSettings lineSettings; //optional, how the line is drawn (by default a handle line)
     }
@@ -54,13 +54,13 @@ namespace CityElements.Types {
         public bool vRoundPerSegment; //with vLength, each segment between two points gets a whole number of units of v (at least 1)
     }
 
-    public class CustomElement {
+    public class CustomCityPropertiesType {
         public string label;
-        public CustomElementExclusiveEditing exclusiveEditing;
+        public CustomCityPropertiesExclusiveEditing exclusiveEditing;
         public Parameter[] parameters;
     }
 
-    public class CustomElementExclusiveEditing {
+    public class CustomCityPropertiesExclusiveEditing {
         public bool enabled;
         public bool optional;
         public string category;

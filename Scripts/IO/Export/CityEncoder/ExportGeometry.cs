@@ -360,7 +360,7 @@ namespace CityEncoder {
             return elem;
         }
 
-        Newtonsoft.Json.Linq.JObject GetLowLevelPoint(TerrainPoint p, bool rotatable) {
+        Newtonsoft.Json.Linq.JObject GetCustomElementPoint(TerrainPoint p, bool rotatable) {
             var res = new Newtonsoft.Json.Linq.JObject();
             res["id"] = History.ElementRegistry.GetId(p);
             var pos = p.GetPoint();
@@ -378,26 +378,26 @@ namespace CityEncoder {
             return kind != null && id >= 0 ? new IO.ExportedCity.ElementReference { kind = kind, id = id } : null;
         }
 
-        static Newtonsoft.Json.Linq.JToken GetLowLevelPoints(LowLevel.PointNode node, System.Func<LowLevel.PointLeaf, Newtonsoft.Json.Linq.JToken> leafValue) {
+        static Newtonsoft.Json.Linq.JToken GetCustomElementPoints(CustomElements.PointNode node, System.Func<CustomElements.PointLeaf, Newtonsoft.Json.Linq.JToken> leafValue) {
             switch (node) {
-                case LowLevel.PointLeaf leaf:
+                case CustomElements.PointLeaf leaf:
                     return leafValue(leaf);
-                case LowLevel.PointGroup group: {
+                case CustomElements.PointGroup group: {
                     var obj = new Newtonsoft.Json.Linq.JObject();
-                    foreach (var (name, child) in group.children) obj[name] = GetLowLevelPoints(child, leafValue);
+                    foreach (var (name, child) in group.children) obj[name] = GetCustomElementPoints(child, leafValue);
                     return obj;
                 }
-                case LowLevel.PointList list: {
+                case CustomElements.PointList list: {
                     var arr = new Newtonsoft.Json.Linq.JArray();
-                    foreach (var item in list.items) arr.Add(GetLowLevelPoints(item, leafValue));
+                    foreach (var item in list.items) arr.Add(GetCustomElementPoints(item, leafValue));
                     return arr;
                 }
             }
             return null;
         }
 
-        public IO.ExportedCity.LowLevelElement GetLowLevelElement(LowLevelElement element, int id) {
-            var elem = new IO.ExportedCity.LowLevelElement();
+        public IO.ExportedCity.CustomElement GetCustomElement(CustomElement element, int id) {
+            var elem = new IO.ExportedCity.CustomElement();
             elem.spline = element.splineData;
             elem.id = id;
             elem.type = element.TypeName;
@@ -411,9 +411,9 @@ namespace CityEncoder {
             baseData.mesh = GetMeshData(GO.GetObject(element.generator));
             baseData.propLines = GetPropLines(element.generator.props);
             elem.data = baseData;
-            elem.points = GetLowLevelPoints(element.points, leaf => GetLowLevelPoint(leaf.point, leaf.def.rotatable));
+            elem.points = GetCustomElementPoints(element.points, leaf => GetCustomElementPoint(leaf.point, leaf.def.rotatable));
             elem.vertices = new Newtonsoft.Json.Linq.JArray();
-            foreach (var v in element.meshVertices) elem.vertices.Add(GetLowLevelPoint(v, false));
+            foreach (var v in element.meshVertices) elem.vertices.Add(GetCustomElementPoint(v, false));
             elem.triangles = element.triangles.ToArray();
             var uvMode = element.Settings?.mesh?.uvs ?? "none";
             var uvs = uvMode == "editable" ? element.uvs : uvMode == "script" ? element.scriptUVs : null;

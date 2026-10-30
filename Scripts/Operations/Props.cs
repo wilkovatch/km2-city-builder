@@ -122,7 +122,7 @@ namespace Operations {
             elem.SetStr("mesh", mesh);
         }
 
-        // Prop rules: the props containers of an element (a road, or a low-level element of a type with props
+        // Prop rules: the props containers of an element (a road, or a custom element of a type with props
         // containers), in "propRule" of its state
 
         public static ObjectState GetPropRule(ObjectState owner, bool createIfNull) {

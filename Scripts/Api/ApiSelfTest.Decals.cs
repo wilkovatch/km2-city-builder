@@ -9,7 +9,7 @@ namespace Api {
     public partial class ApiSelfTest {
         static float[] SplinePosition(Vector3 value) => new[] { value.X, value.Y, value.Z };
         async Task Decals() {
-            var types = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes();
+            var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
             if (!types.ContainsKey("decal")) return;
             var schema = await Call("state.schema", new { @ref = 0 });
             Check("manual and automatic decals are no longer city properties", !schema["parameters"].Any(p =>
@@ -22,28 +22,28 @@ namespace Api {
             var direct = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemText(i) == StringManager.Get("CREATE_DECAL"));
             Check("Create exposes a direct decal and a PSDL group", Enumerable.Range(0, menu.ItemCount).Any(i => menu.GetItemText(i) == StringManager.Get("CREATE_PSDL_ELEMENT")));
             menu.EmitSignal(PopupMenu.SignalName.IdPressed, menu.GetItemId(direct));
-            History.UndoManager.Record("place first spline point", () => builder.lowLevelPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-700, 0, -700) }));
-            var clicked = builder.lowLevelPlacer.GetElement();
+            History.UndoManager.Record("place first spline point", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-700, 0, -700) }));
+            var clicked = builder.customElementPlacer.GetElement();
             Check("the first click creates one point and continues drawing", clicked != null && clicked.GetAllPoints().Count == 1 &&
-                builder.lowLevelPlacer.placementMode == ElementPlacer.LowLevelPlacer.PlacementMode.AppendPoint);
-            History.UndoManager.Record("place second spline point", () => builder.lowLevelPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-700, 0, -680) }));
+                builder.customElementPlacer.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.AppendPoint);
+            History.UndoManager.Record("place second spline point", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-700, 0, -680) }));
             await Frames(1);
-            builder.lowLevelEditorPanel.SetPointPlacementMode(2);
-            History.UndoManager.Record("prepend spline point", () => builder.lowLevelPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-700, 0, -720) }));
+            builder.customElementEditorPanel.SetPointPlacementMode(2);
+            History.UndoManager.Record("prepend spline point", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-700, 0, -720) }));
             Check("prepend places an individual point at the clicked position", clicked.GetLeaves()[0].leaf.point.GetPoint().Z == -720);
             var clickedId = History.ElementRegistry.GetId(clicked);
-            await Call("lowLevel.delete", new { element = clickedId });
+            await Call("customElement.delete", new { element = clickedId });
             var grouped = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemText(i) == StringManager.Get("CREATE_PSDL_ELEMENT"));
             menu.EmitSignal(PopupMenu.SignalName.IdPressed, menu.GetItemId(grouped));
-            var groupedTypes = (List<string>)typeof(EditorPanels.LowLevelElementEditorPanel).GetField("creatableTypes",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder.lowLevelEditorPanel);
+            var groupedTypes = (List<string>)typeof(EditorPanels.CustomElementEditorPanel).GetField("creatableTypes",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder.customElementEditorPanel);
             Check("the PSDL creation panel excludes direct decal entries", groupedTypes.Count > 0 && !groupedTypes.Contains("decal"));
             builder.CloseAllPanels();
-            var id = (await Call("lowLevel.create", new { type = "decal", name = "Spline decal test",
+            var id = (await Call("customElement.create", new { type = "decal", name = "Spline decal test",
                 state = new { texture = "texture/decal_zigzag_l.tex", width = 3, curveType = 2 },
                 points = new { spline = new[] { new { position = new[] { -560, 0, 0 } }, new { position = new[] { -500, 0, 2 } }, new { position = new[] { -450, 0, -3 } } } }
             })).Value<int>();
-            LowLevelElement Element() => History.UndoManager.GetAliveElement(id) as LowLevelElement;
+            CustomElement Element() => History.UndoManager.GetAliveElement(id) as CustomElement;
             var element = Element();
             Check("spline geometry is built from core components", element.splineData?.sections.Length == 3 && element.splineData.pieces.Length >= 5 && element.generator.DrawsMesh());
             var section = element.splineData.sections[0];
@@ -51,15 +51,15 @@ namespace Api {
             Check("export contains the evaluated spline pieces", exported["element"]?["spline"]?["pieces"]?.Count() == element.splineData.pieces.Length);
             Check("the decal section has the configured width", Mathf.Abs(new Vector3(section.vertices[0][0], section.vertices[0][1], section.vertices[0][2]).DistanceTo(
                 new Vector3(section.vertices[1][0], section.vertices[1][1], section.vertices[1][2])) - 3) < 0.01f);
-            await CheckUndo("moving a spline point", () => Call("lowLevel.movePoint", new { element = id, path = "spline.1", position = new[] { -500, 12, 3 } }));
+            await CheckUndo("moving a spline point", () => Call("customElement.movePoint", new { element = id, path = "spline.1", position = new[] { -500, 12, 3 } }));
             element = Element();
-            var point = ((LowLevel.PointLeaf)((LowLevel.PointList)element.points.Get("spline")).items[1]).point;
+            var point = ((CustomElements.PointLeaf)((CustomElements.PointList)element.points.Get("spline")).items[1]).point;
             Check("moving a spline point projects it back onto the road", Mathf.Abs(point.GetPoint().Y - GeometryHelper.ProjectOnSurface(point.GetPoint(), 136, element.generator).Y) < 0.001f);
             var y = point.GetPoint().Y;
             await Call("city.flush"); await Call("city.flush");
             Check("surface projection excludes decals and does not accumulate height", Mathf.Abs(point.GetPoint().Y - y) < 0.001f);
-            await CheckUndo("inserting a spline point", () => Call("lowLevel.insert", new { element = id, array = "spline", index = 1 }));
-            await Call("lowLevel.remove", new { element = id, array = "spline", index = 1 });
+            await CheckUndo("inserting a spline point", () => Call("customElement.insert", new { element = id, array = "spline", index = 1 }));
+            await Call("customElement.remove", new { element = id, array = "spline", index = 1 });
             foreach (var mode in new[] { 0, 1, 2 }) {
                 await Call("state.setParam", new { @ref = id, name = "curveType", value = mode });
                 Check("spline mode " + mode + " builds finite sections", Element().splineData.sections.Length >= 2 &&
@@ -73,21 +73,21 @@ namespace Api {
                 await Expect("a curve mode excluded by the core", "invalid_value", "state.setParam", new { @ref = id, name = "curveType", value = 0 });
                 await Expect("state import respects the allowed spline modes", "invalid_value", "state.import", new { @ref = id, values = new { curveType = 0 } });
             } finally { settings.curveTypes = allowed; }
-            await Expect("a spline cannot accept an editable mesh", "invalid_operation", "lowLevel.setMesh", new { element = id, mesh = new { vertices = new object[0], triangles = new int[0] } });
+            await Expect("a spline cannot accept an editable mesh", "invalid_operation", "customElement.setMesh", new { element = id, mesh = new { vertices = new object[0], triangles = new int[0] } });
             await CheckUndo("changing spline width", () => Call("state.setParam", new { @ref = id, name = "width", value = 4 }));
-            var empty = (await Call("lowLevel.create", new { type = "decal", name = "Incomplete spline" })).Value<int>();
-            Check("new splines do not create two default points", ((LowLevel.PointList)(History.UndoManager.GetAliveElement(empty) as LowLevelElement).points.Get("spline")).items.Count == 0);
-            await Call("lowLevel.delete", new { element = empty });
-            var duplicate = (await Call("lowLevel.create", new { type = "decal", points = new { spline = new[] {
+            var empty = (await Call("customElement.create", new { type = "decal", name = "Incomplete spline" })).Value<int>();
+            Check("new splines do not create two default points", ((CustomElements.PointList)(History.UndoManager.GetAliveElement(empty) as CustomElement).points.Get("spline")).items.Count == 0);
+            await Call("customElement.delete", new { element = empty });
+            var duplicate = (await Call("customElement.create", new { type = "decal", points = new { spline = new[] {
                 new { position = new[] { 0, 0, 0 } }, new { position = new[] { 0, 0, 0 } } } } })).Value<int>();
-            Check("coincident spline points produce no invalid geometry", !(History.UndoManager.GetAliveElement(duplicate) as LowLevelElement).generator.DrawsMesh());
-            await Call("lowLevel.delete", new { element = duplicate });
+            Check("coincident spline points produce no invalid geometry", !(History.UndoManager.GetAliveElement(duplicate) as CustomElement).generator.DrawsMesh());
+            await Call("customElement.delete", new { element = duplicate });
             element = Element();
             History.UndoManager.Record("edit spline", () => builder.SelectObject(element, true, null));
-            Check("clicking a spline opens the low-level editor", builder.lowLevelEditorPanel.GetElement() == element);
-            builder.lowLevelEditorPanel.SetPointPlacementMode(2);
-            Check("spline placement offers prepend", builder.lowLevelPlacer.placementMode == ElementPlacer.LowLevelPlacer.PlacementMode.PrependPoint);
-            builder.lowLevelEditorPanel.SetPointPlacementMode(0);
+            Check("clicking a spline opens the custom element editor", builder.customElementEditorPanel.GetElement() == element);
+            builder.customElementEditorPanel.SetPointPlacementMode(2);
+            Check("spline placement offers prepend", builder.customElementPlacer.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.PrependPoint);
+            builder.customElementEditorPanel.SetPointPlacementMode(0);
             builder.CloseAllPanels();
             if (DisplayServer.GetName() != "headless") {
                 var previousCamera = await Call("view.camera.get");
@@ -100,7 +100,7 @@ namespace Api {
         }
 
         async Task RailDecalGeneration() {
-            var intersection = M.intersections.First(i => !i.IsDeleted() && !Operations.LowLevel.IsGhost(i) && i.roads.Count >= 2);
+            var intersection = M.intersections.First(i => !i.IsDeleted() && !Operations.CustomElements.IsGhost(i) && i.roads.Count >= 2);
             var converter = ConverterCatalog.Get("generateRailDecals");
             var iid = History.ElementRegistry.GetId(intersection);
             var center = GO.GetPosition(intersection.point);
@@ -126,18 +126,18 @@ namespace Api {
             }
             await Call("city.flush");
             await CheckUndo("generating independent intersection rail decals", () => Call("elements.convert", new { elements = new[] { iid }, converter = "generateRailDecals" }));
-            var generated = M.lowLevelElements.Where(e => !e.IsDeleted() && e.TypeName == "decal" && e.state.Str("texture").Contains("r4i_rails_f")).ToList();
-            Check("rail decals are editable independent elements", generated.Count >= 2 && generated.All(e => e.source == null && e.container == null) && !Operations.LowLevel.IsGhost(intersection));
+            var generated = M.customElements.Where(e => !e.IsDeleted() && e.TypeName == "decal" && e.state.Str("texture").Contains("r4i_rails_f")).ToList();
+            Check("rail decals are editable independent elements", generated.Count >= 2 && generated.All(e => e.source == null && e.container == null) && !Operations.CustomElements.IsGhost(intersection));
             var ids = (JArray)await Call("elements.convert", new { elements = new[] { iid }, converter = "generateRailDecals" });
             Check("repeated rail generation appends another set", ids.Count == generated.Count);
-            foreach (var id in ids.Values<int>()) await Call("lowLevel.delete", new { element = id });
+            foreach (var id in ids.Values<int>()) await Call("customElement.delete", new { element = id });
             for (int i = 0; i < roads.Length; i++) await Call("state.setParam", new { @ref = History.ElementRegistry.GetId(roads[i]), name = "cableCarLine", value = previous[i] });
             await Call("roads.delete", new { road = extra });
         }
 
         async Task SplineComponents() {
-            var types = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes();
-            var source = Newtonsoft.Json.JsonConvert.DeserializeObject<CityElements.Types.LowLevelType>(
+            var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
+            var source = Newtonsoft.Json.JsonConvert.DeserializeObject<CityElements.Types.CustomElementType>(
                 Newtonsoft.Json.JsonConvert.SerializeObject(types["decal"].typeData));
             var settings = source.settings.spline;
             settings.projectPoints = settings.projectSections = false;
@@ -153,12 +153,12 @@ namespace Api {
                 uvs = new[] { "vec2(0,0)", "vec2(1,0)", "vec2(0,1)" }, faces = new object[] { 0, 1, 2 }, facesTextures = new object[] { 0 } };
             mesh.endMesh = mesh.startMesh;
             const string key = "__testSplineComponents";
-            types[key] = new CityElements.Types.Runtime.LowLevelType(source, key);
+            types[key] = new CityElements.Types.Runtime.CustomElementType(source, key);
             int id = -1;
             try {
-                id = (await Call("lowLevel.create", new { type = key, state = new { width = 3, drawStrip = true, texture = "texture/decal_zigzag_l.tex" },
+                id = (await Call("customElement.create", new { type = key, state = new { width = 3, drawStrip = true, texture = "texture/decal_zigzag_l.tex" },
                     points = new { spline = new[] { new { position = new[] { 600, 0, 600 } }, new { position = new[] { 600, 0, 610 } }, new { position = new[] { 600, 0, 620 } } } } })).Value<int>();
-                var element = (LowLevelElement)History.UndoManager.GetAliveElement(id);
+                var element = (CustomElement)History.UndoManager.GetAliveElement(id);
                 Check("spline components evaluate dynamic definitions per section", Mathf.Abs(element.splineData.sections[0].vertices[1][0] - element.splineData.sections[0].vertices[0][0]) == 4 &&
                     Mathf.Abs(element.splineData.sections[2].vertices[1][0] - element.splineData.sections[2].vertices[0][0]) == 6);
                 var indices = 0;
@@ -167,31 +167,31 @@ namespace Api {
                 await Call("state.setParam", new { @ref = id, name = "drawStrip", value = false });
                 Check("spline component conditions can hide the mesh", !element.generator.DrawsMesh());
             } finally {
-                if (id >= 0) await Call("lowLevel.delete", new { element = id });
+                if (id >= 0) await Call("customElement.delete", new { element = id });
                 types.Remove(key);
             }
-            var overlay = (await Call("lowLevel.create", new { type = "decal", points = new { spline = new[] {
+            var overlay = (await Call("customElement.create", new { type = "decal", points = new { spline = new[] {
                 new { position = new[] { 650, 0, 600 } }, new { position = new[] { 650, 0, 610 } } } } })).Value<int>();
-            var surface = (await Call("lowLevel.create", new { type = "triangleFan", mesh = new {
+            var surface = (await Call("customElement.create", new { type = "triangleFan", mesh = new {
                 vertices = new[] { new { position = new[] { 640, 10, 590 } }, new { position = new[] { 640, 10, 620 } },
                     new { position = new[] { 660, 10, 620 } }, new { position = new[] { 660, 10, 590 } } }, triangles = new[] { 0, 1, 2, 0, 2, 3 }
             } })).Value<int>();
-            var overlayElement = (LowLevelElement)History.UndoManager.GetAliveElement(overlay);
-            Check("spline sections project onto low-level surfaces created later (" + overlayElement.splineData.sections[0].center[1] + ")", overlayElement.splineData.sections.All(s => Mathf.Abs(s.center[1] - 10) < 0.001f));
-            await Call("lowLevel.move", new { element = surface, offset = new[] { 0, 3, 0 } });
-            Check("moving a low-level surface refreshes projected spline sections (" + overlayElement.splineData.sections[0].center[1] + ")", overlayElement.splineData.sections.All(s => Mathf.Abs(s.center[1] - 13) < 0.001f));
-            await Call("lowLevel.delete", new { element = overlay });
-            await Call("lowLevel.delete", new { element = surface });
+            var overlayElement = (CustomElement)History.UndoManager.GetAliveElement(overlay);
+            Check("spline sections project onto custom element surfaces created later (" + overlayElement.splineData.sections[0].center[1] + ")", overlayElement.splineData.sections.All(s => Mathf.Abs(s.center[1] - 10) < 0.001f));
+            await Call("customElement.move", new { element = surface, offset = new[] { 0, 3, 0 } });
+            Check("moving a custom element surface refreshes projected spline sections (" + overlayElement.splineData.sections[0].center[1] + ")", overlayElement.splineData.sections.All(s => Mathf.Abs(s.center[1] - 13) < 0.001f));
+            await Call("customElement.delete", new { element = overlay });
+            await Call("customElement.delete", new { element = surface });
         }
 
         async Task ReloadSplines() {
-            var before = M.lowLevelElements.Where(e => e.TypeName == "decal" && !e.IsDeleted()).Select(e => new {
+            var before = M.customElements.Where(e => e.TypeName == "decal" && !e.IsDeleted()).Select(e => new {
                 name = GO.GetName(e), points = e.GetAllPoints().Select(p => p.GetPoint()).ToArray(), pieces = e.splineData.pieces.Length
             }).ToArray();
             await Call("city.save");
             await Call("city.reload");
             Check("save/reload rebuilds spline geometry and preserves control points", before.All(record => {
-                var e = M.lowLevelElements.FirstOrDefault(e => GO.GetName(e) == record.name && e.TypeName == "decal");
+                var e = M.customElements.FirstOrDefault(e => GO.GetName(e) == record.name && e.TypeName == "decal");
                 return e != null && e.GetAllPoints().Select(p => p.GetPoint()).SequenceEqual(record.points) && e.splineData.pieces.Length == record.pieces;
             }));
         }

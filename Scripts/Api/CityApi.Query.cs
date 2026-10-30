@@ -7,7 +7,7 @@ using GS = GameEngine.Scriptable;
 namespace Api {
     //Reading the city
     public partial class CityApi {
-        public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "meshInstance", "terrainPoint", "cityProperties", "lowLevel", "propPath" };
+        public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "meshInstance", "terrainPoint", "cityProperties", "customElement", "propPath" };
 
         internal static int IdOf(object element) {
             return element is CityProperties ? History.ElementRegistry.CityPropertiesId : History.ElementRegistry.GetId(element);
@@ -19,7 +19,7 @@ namespace Api {
                 case Intersection i: return i.state?.Str("type", null);
                 case TerrainPatch p: return p.state?.Str("type", null);
                 case BuildingLine l: return l.state?.Str("type", null);
-                case LowLevelElement e: return e.TypeName;
+                case CustomElement e: return e.TypeName;
                 case MeshInstance m: return m.meshPath;
                 default: return null;
             }
@@ -46,7 +46,7 @@ namespace Api {
                 terrainPatches = CountAlive(M.patches),
                 buildingLines = CountAlive(M.buildings),
                 meshInstances = CountAlive(M.meshes),
-                lowLevelElements = CountAlive(M.lowLevelElements),
+                customElements = CountAlive(M.customElements),
                 terrainPoints = M.GetTerrainPoints().Count
             };
         }
@@ -95,7 +95,7 @@ namespace Api {
                 insideDirection = anchor.insideDirection,
                 prev = GO.IsNull(anchor.prev) ? null : AnchorRef(anchor.prev),
                 next = GO.IsNull(anchor.next) ? null : AnchorRef(anchor.next),
-                lowLevelOnly = anchor.lowLevelOnly,
+                customElementsOnly = anchor.customElementsOnly,
                 usedBy
             };
         }
@@ -111,8 +111,8 @@ namespace Api {
             return res;
         }
 
-        [ApiMethod("anchors.list", "Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it, lowLevelOnly; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on; lowLevel: also the anchors only for the low-level elements (lowLevelOnly: across the road ends, not for terrain patches and building lines)")]
-        public List<object> ListAnchors(string unusedBy = null, bool lowLevel = false) {
+        [ApiMethod("anchors.list", "Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it, customElementsOnly; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on; customElements: also the anchors only for the custom elements (customElementsOnly: across the road ends, not for terrain patches and building lines)")]
+        public List<object> ListAnchors(string unusedBy = null, bool customElements = false) {
             RequireCity();
             if (unusedBy != null && unusedBy != "terrainPatch" && unusedBy != "buildingLine") throw ApiException.InvalidValue("unusedBy must be terrainPatch or buildingLine");
             var users = Operations.Anchors.GetUsers(M);
@@ -122,7 +122,7 @@ namespace Api {
                 var (owner, index) = Operations.Anchors.GetOwner(anchor);
                 if (owner == null || index < 0) continue;
                 users.TryGetValue(anchor, out var list);
-                if (anchor.lowLevelOnly && (!lowLevel || unusedBy != null)) continue;
+                if (anchor.customElementsOnly && (!customElements || unusedBy != null)) continue;
                 if (unusedBy == "terrainPatch" && Operations.Anchors.IsUsedBy<TerrainPatch>(list)) continue;
                 if (unusedBy == "buildingLine" && Operations.Anchors.IsUsedBy<BuildingLine>(list)) continue;
                 res.Add(AnchorInfo(anchor, index, users));
@@ -259,14 +259,14 @@ namespace Api {
                     var used = new List<int>();
                     foreach (var p in M.patches) if (p.GetPerimeterPointsComponents().Contains(point) || p.GetInternalPointsComponents().Contains(point)) used.Add(IdOf(p));
                     foreach (var l in M.buildings) if (l.ContainsPoint(point)) used.Add(IdOf(l));
-                    foreach (var l in M.lowLevelElements) if (l.HasPoint(point)) used.Add(IdOf(l));
+                    foreach (var l in M.customElements) if (l.HasPoint(point)) used.Add(IdOf(l));
                     return new { position = point.GetPoint(), dividing = point.dividing, usedBy = used };
                 }
                 case CityProperties cp: {
                     return new { parametricObjects = new List<string>(cp.objectInstances.Keys) };
                 }
-                case LowLevelElement lowLevel:
-                    return LowLevelDerived(lowLevel);
+                case CustomElement customElement:
+                    return CustomElementDerived(customElement);
                 default:
                     return null;
             }
@@ -315,7 +315,7 @@ namespace Api {
                     case Intersection i: element = geometry.GetIntersection(i, IdOf(i)); break;
                     case TerrainPatch p: element = geometry.GetTerrainPatch(p, IdOf(p)); break;
                     case BuildingLine l: element = geometry.GetBuildingLine(l, IdOf(l)); break;
-                    case LowLevelElement ll: element = geometry.GetLowLevelElement(ll, IdOf(ll)); break;
+                    case CustomElement ll: element = geometry.GetCustomElement(ll, IdOf(ll)); break;
                     case MeshInstance m: element = geometry.GetMeshInstance(m, m.objectParameter == null ? IdOf(m) : -1); break;
                     default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, meshInstance or parametricObject", KindOf(e));
                 }

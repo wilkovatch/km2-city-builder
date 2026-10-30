@@ -57,7 +57,7 @@ namespace History {
                 if (!loaded.success) throw new System.Exception(loaded.message);
                 await Frames(3);
                 UndoManager.Clear();
-                Log("city loaded: " + M.lowLevelElements.Count + " low-level elements, " + M.meshes.Count + " meshes");
+                Log("city loaded: " + M.customElements.Count + " custom elements, " + M.meshes.Count + " meshes");
                 void Time(string label, System.Action action) {
                     var timer = System.Diagnostics.Stopwatch.StartNew();
                     action();
@@ -68,9 +68,9 @@ namespace History {
                 Time("deselect meshes (already deselected)", () => M.DeselectMeshes());
                 var samples = new List<Node3D>();
                 if (M.meshes.Count > 0) samples.Add(M.meshes[0]);
-                var element = M.lowLevelElements.Find(e => e.GetAllPoints().Count > 0 && !(e.GetLowLevelType()?.IsContainer ?? false));
+                var element = M.customElements.Find(e => e.GetAllPoints().Count > 0 && !(e.GetCustomElementType()?.IsContainer ?? false));
                 if (element != null) samples.Add(element);
-                var container = M.lowLevelElements.Find(e => e.GetLowLevelType()?.IsContainer ?? false);
+                var container = M.customElements.Find(e => e.GetCustomElementType()?.IsContainer ?? false);
                 if (container != null) samples.Add(container);
                 foreach (var sample in samples) {
                     for (int i = 0; i < 2; i++) {
@@ -86,13 +86,13 @@ namespace History {
                 }
                 var allHidden = true;
                 var seen = new HashSet<TerrainPoint>();
-                foreach (var e in M.lowLevelElements) {
+                foreach (var e in M.customElements) {
                     allHidden &= !e.IsActive() && !e.IsSelected() && !e.IsMoveHandleShown();
                     foreach (var p in e.GetAllPoints()) {
                         if (seen.Add(p)) allHidden &= !GO.GetEnabled(p.GetObject());
                     }
                 }
-                Check("all low-level handles are hidden after closing", allHidden);
+                Check("all custom element handles are hidden after closing", allHidden);
             } catch (System.Exception e) {
                 Log("exception: " + e);
                 failures++;
@@ -531,7 +531,7 @@ namespace History {
                     Log("     no road with parametric objects");
                 }
 
-                //array/custom element panels (city properties, then the road)
+                //array/custom city properties panels (city properties, then the road)
                 foreach (var (owner, panelField) in new (object, string)[] { (M.GetDummy<CityProperties>(), "cityPropertiesEditorPanel"), (road, "roadEditorPanel") }) {
                     var panel = Panel<EditorPanel>(panelField);
                     if (owner is Road) builder.SelectObject(road, true, null); else CallBuilder<object>("ToggleCityProperties");
@@ -540,7 +540,7 @@ namespace History {
                     EditorPanel opened = null;
                     foreach (CityElements.Types.Parameter param in parameterMap.Values) {
                         if (param.type == "array" && stateOwner.GetState().Array<ObjectState>(param.fullName())?.Length > 0) opened = panel.OpenArrayElement(param.fullName(), 0);
-                        else if (param.type == "customElement" && stateOwner.GetState().State(param.fullName()) != null) opened = panel.OpenArrayElement(param.fullName(), null);
+                        else if (param.type == "customCityProperties" && stateOwner.GetState().State(param.fullName()) != null) opened = panel.OpenArrayElement(param.fullName(), null);
                         if (opened != null && Shown() == opened) {
                             Log("     array element " + param.fullName() + " of " + panelField);
                             break;
@@ -569,7 +569,7 @@ namespace History {
                     if (param.fullName() == "trainLines") trainLinesParam = param;
                 }
                 if (trainLinesParam != null) {
-                    var trainLineParams = CityElements.Types.Parsers.TypeParser.GetCustomTypes()["trainLine"].parameters;
+                    var trainLineParams = CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()["trainLine"].parameters;
                     var pointsParam = System.Array.Find(trainLineParams, p => p.name == "points");
                     var li = -1;
                     UndoManager.Record("add train line", () => {

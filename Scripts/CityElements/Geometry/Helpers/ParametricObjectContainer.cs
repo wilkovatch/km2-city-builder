@@ -258,8 +258,8 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
             }
             SyncArrayLine(param.Key, param.Value, state);
         }
-        var customElemParams = runtimeType.customElemParams;
-        foreach (var param in customElemParams) {
+        var customCityPropertiesParams = runtimeType.customCityPropertiesParams;
+        foreach (var param in customCityPropertiesParams) {
             var objState = state?.State(param.Key);
             if (objState == null) {
                 objState = new ObjectState();
@@ -288,7 +288,7 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
             return;
         }
         if (lr == null) {
-            //a child, so it is hidden with the container (e.g. by the exclusive editing of a custom element)
+            //a child, so it is hidden with the container (e.g. by the exclusive editing of custom city properties)
             lr = GO.CreateLineRenderer(GO.GetObject(this), "Line (" + key + ")");
             lr.startWidth = MinArrayLineWidth;
             lr.endWidth = MinArrayLineWidth;
@@ -382,7 +382,7 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
             foreach (var param in runtimeType.arrayParams) {
                 res.Add(param.Key);
             }
-            foreach (var param in runtimeType.customElemParams) {
+            foreach (var param in runtimeType.customCityPropertiesParams) {
                 res.Add(param.Key);
             }
         }
@@ -453,8 +453,8 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
                     elem.UpdateObjects();
                 }
             }
-            var customElemParams = runtimeType.customElemParams;
-            foreach (var param in customElemParams) {
+            var customCityPropertiesParams = runtimeType.customCityPropertiesParams;
+            foreach (var param in customCityPropertiesParams) {
                 var elem = arrayObjects[param.Key][0];
                 elem.repositionObjects = true;
                 elem.resetObjectsPositions = resetObjectsPositions;

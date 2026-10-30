@@ -16,7 +16,7 @@ elements/props/
 
 ## Props along roads
 
-The hierarchy is: a road's **prop rule** (state property `propRule`, preset category `roadPropRule`) contains one **container** per props container name of the road type (`left`, `right`, `middle`... as listed in the road type's `propsContainers`); each container (preset category `propContainer`) contains one or more **elements** (preset category `propElem`); each element places one kind of prop along the container's props line using its element type's placement rules. The low-level elements of the types with `propsContainers` have a prop rule too (see [Core Low-Level Elements](Core-Low-Level-Elements)).
+The hierarchy is: a road's **prop rule** (state property `propRule`, preset category `roadPropRule`) contains one **container** per props container name of the road type (`left`, `right`, `middle`... as listed in the road type's `propsContainers`); each container (preset category `propContainer`) contains one or more **elements** (preset category `propElem`); each element places one kind of prop along the container's props line using its element type's placement rules. The custom elements of the types with `propsContainers` have a prop rule too (see [Core Custom Elements](Core-Custom-Elements)).
 
 The props lines themselves (where the props go) are defined by the road type, see [Core Roads](Core-Roads#props-lines).
 
@@ -125,7 +125,7 @@ An optional distance-reference point in every section of a segment changes where
 
 Prop element `placementRules.iterationScope` is `"path"` by default. `"edge"` restarts the element's expressions for every nonzero polyline edge, with `i`, `lastX`, `lastZ` reset and `totalLength` equal to that edge's length. `pathForward` is the current normalized path tangent; its horizontal projection can be used by `forward` when a collapsed ribbon has no across direction. For example, `cross(worldUp, pathForward)` turns a prop a quarter turn from the tangent. The existing 1000-iteration guard applies to each sequence.
 
-Saved cities and export JSON have a separate `propPaths` array. Internally these elements reuse low-level point ownership and history; the reserved built-in type `__propPath` is independent of the core. Export records contain rule state, ribbon control points and evaluated `data.propLines`, using the ordinary mesh dictionary. Exporters decide whether to write a procedural path or its evaluated placements; a core's road-specific suppression of generated props must not silently suppress standalone rules.
+Saved cities and export JSON have a separate `propPaths` array. Internally these elements reuse custom element point ownership and history; the reserved built-in type `__propPath` is independent of the core. Export records contain rule state, ribbon control points and evaluated `data.propLines`, using the ordinary mesh dictionary. Exporters decide whether to write a procedural path or its evaluated placements; a core's road-specific suppression of generated props must not silently suppress standalone rules.
 
 ## Mesh instances (`meshInstance.json`)
 
@@ -171,7 +171,7 @@ The transform (position, rotation, scale, in the program's coordinates) goes fro
 
 A parameter of type `objectInstance` attaches a mesh to its element. The core decides where it goes (through definitions), the user can adjust it within the allowed axes, and it is exported as part of the element's state.
 
-`objectInstance` parameters can be used in road types, in the city properties, and in the elements of `array` and `customElement` parameters (for example the MM2 races, made of arrays of checkpoints).
+`objectInstance` parameters can be used in road types, in the city properties, and in the elements of `array` and `customCityProperties` parameters (for example the MM2 races, made of arrays of checkpoints).
 
 ```json
 {
@@ -209,7 +209,7 @@ A parameter of type `objectInstance` attaches a mesh to its element. The core de
 
 The hooks (`condition`, `defaultModel.index`, `basePosition`, `baseRotation`, `baseScale`) are evaluated each time the objects of the element are placed, after all the elements have been rebuilt. The definitions they name can be expressions or [Lua scripts](Core-Lua-Scripts). Late definitions of a category other than `common` are only evaluated when a hook reads them, which makes such a category the place for the placement logic.
 
-Elements of `array` and `customElement` parameters have no definitions, so their objects should not use `condition` or the `base*` keys: they start at the origin of the element and are placed by the user.
+Elements of `array` and `customCityProperties` parameters have no definitions, so their objects should not use `condition` or the `base*` keys: they start at the origin of the element and are placed by the user.
 
 ### Objects near another road
 

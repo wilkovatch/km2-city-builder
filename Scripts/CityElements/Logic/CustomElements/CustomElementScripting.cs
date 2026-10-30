@@ -3,11 +3,11 @@ using Godot;
 using Lua;
 using RuntimeCalculator.Scripting;
 
-//The tables given to and returned by the Lua functions of the low-level types (see the Core Low-Level Elements page of the
+//The tables given to and returned by the Lua functions of the custom element types (see the Core Custom Elements page of the
 //wiki): the control points mirror their structure (the groups are tables of named nodes, the arrays are lists, 1-based as
 //usual in Lua, and the points are vec3), the vertices of the mesh are a list of vec3, its triangles a flat list of 0-based
 //indices
-namespace LowLevel {
+namespace CustomElements {
     public class GeometryMesh {
         public string texture; //a texture parameter of the element (or a built-in material name)
         public List<Vector3> vertices = new List<Vector3>();
@@ -51,7 +51,7 @@ namespace LowLevel {
         public Dictionary<int, Vector3> vertices = new Dictionary<int, Vector3>(); //by 0-based index
     }
 
-    public static class LowLevelScripting {
+    public static class CustomElementScripting {
         // To Lua
 
         public static LuaTable PointsTable(PointNode node, System.Func<PointLeaf, LuaValue> leafValue) {
@@ -239,7 +239,7 @@ namespace LowLevel {
 
         //a whole tree of control points (the derived points): its structure (the leaves without their terrain points yet,
         //checked with PointTree.Validate) and the position of every leaf
-        public static (PointGroup tree, Dictionary<PointLeaf, Vector3> positions) ReadPointTree(LuaValue value, CityElements.Types.LowLevelPointNode rootDef) {
+        public static (PointGroup tree, Dictionary<PointLeaf, Vector3> positions) ReadPointTree(LuaValue value, CityElements.Types.CustomElementPointNode rootDef) {
             var positions = new Dictionary<PointLeaf, Vector3>();
             var t = Table(value);
             if (t == null) throw new System.Exception("points is not a table");
@@ -249,7 +249,7 @@ namespace LowLevel {
             return (tree, positions);
         }
 
-        static PointNode ReadNode(LuaValue value, CityElements.Types.LowLevelPointNode def, string path, Dictionary<PointLeaf, Vector3> positions, bool asArray = true) {
+        static PointNode ReadNode(LuaValue value, CityElements.Types.CustomElementPointNode def, string path, Dictionary<PointLeaf, Vector3> positions, bool asArray = true) {
             if (asArray && def.array != null) {
                 var list = new PointList(def);
                 var items = Table(value);

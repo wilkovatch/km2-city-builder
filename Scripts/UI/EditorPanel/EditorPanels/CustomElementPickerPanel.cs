@@ -4,15 +4,15 @@ using SM = StringManager;
 using GO = GameEngine.GameObject;
 
 namespace EditorPanels {
-    //A child panel of the low-level element editor listing low-level elements to act on one of them (e.g. the container
+    //A child panel of the custom element editor listing custom elements to act on one of them (e.g. the container
     //to merge the element into, or to move it to): the parent is hidden while it's shown, and the action runs after the
     //parent is shown again
-    public class LowLevelElementPickerPanel : EditorPanel {
+    public class CustomElementPickerPanel : EditorPanel {
         EditorPanelElements.Label titleLabel, currentLabel;
         EditorPanelElements.ScrollList lst;
         EditorPanelElements.Button actionButton, cancelButton;
-        List<LowLevelElement> items = new List<LowLevelElement>(); //null is none
-        System.Action<LowLevelElement> action;
+        List<CustomElement> items = new List<CustomElement>(); //null is none
+        System.Action<CustomElement> action;
         int curI = -1;
 
         public override void Initialize(GameObject canvas) {
@@ -30,8 +30,8 @@ namespace EditorPanels {
         }
 
         //currentText: shown above the list (hidden if null)
-        public void Open(string title, string listTitle, List<LowLevelElement> items, string currentText, string actionLabel,
-            System.Action<LowLevelElement> action) {
+        public void Open(string title, string listTitle, List<CustomElement> items, string currentText, string actionLabel,
+            System.Action<CustomElement> action) {
 
             parentPanel.Hide(true);
             SetActive(true);

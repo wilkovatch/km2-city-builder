@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using Godot;
 using Newtonsoft.Json.Linq;
-using Def = CityElements.Types.LowLevelPointNode;
+using Def = CityElements.Types.CustomElementPointNode;
 
-//The control points of a low-level element, with the structure defined by its type: named points, groups of points and
+//The control points of a custom element, with the structure defined by its type: named points, groups of points and
 //arrays of points or groups. A point is a terrain point, so it can be anchored and shared like the points of a patch.
 //Paths name a point or a node: the names of the nodes joined by dots, with the 0-based index of the element in each array
 //(e.g. "sections.2.leftRoad").
-namespace LowLevel {
+namespace CustomElements {
     public abstract class PointNode {
         public readonly Def def;
 

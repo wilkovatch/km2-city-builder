@@ -36,7 +36,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     public RoadSplitLine splitLine;
 
     public bool deleted = false;
-    //replaced by low-level elements: its geometry is hidden, can't be selected and is not exported, but it stays for the
+    //replaced by custom elements: its geometry is hidden, can't be selected and is not exported, but it stays for the
     //elements connected to it (its intersections, the terrain points on its anchors)
     public bool ghost = false;
     public bool cityPropertiesInjected = false; //the parameters injected by the city properties are in runtimeState

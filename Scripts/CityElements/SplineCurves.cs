@@ -9,7 +9,7 @@ using Newtonsoft.Json.Linq;
 using RuntimeCalculator.Scripting;
 using Settings = CityElements.Types.RoadSettings;
 
-//Core curves are shared by roads and low-level splines. Numeric IDs are persistent, never dropdown indices.
+//Core curves are shared by roads and custom element splines. Numeric IDs are persistent, never dropdown indices.
 public static class SplineCurves {
     public class Definition {
         public int id;

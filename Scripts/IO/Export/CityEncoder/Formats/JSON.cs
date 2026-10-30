@@ -148,14 +148,14 @@ namespace CityEncoder {
                     case Intersection i: return manager.intersections.IndexOf(i);
                     case TerrainPatch p: return manager.patches.IndexOf(p);
                     case BuildingLine l: return manager.buildings.IndexOf(l);
-                    case LowLevelElement e: return manager.lowLevelElements.IndexOf(e);
+                    case CustomElement e: return manager.customElements.IndexOf(e);
                     default: return -1;
                 }
             }
-            var lowLevelArray = new IO.SavedCity.LowLevelElement[manager.lowLevelElements.Count];
-            for (int i = 0; i < manager.lowLevelElements.Count; i++) {
+            var customElementArray = new IO.SavedCity.CustomElement[manager.customElements.Count];
+            for (int i = 0; i < manager.customElements.Count; i++) {
                 try {
-                    lowLevelArray[i] = History.ElementSnapshot.CaptureLowLevel(manager.lowLevelElements[i], i, p => GetTerrainPoint(p, pointsList, manager),
+                    customElementArray[i] = History.ElementSnapshot.CaptureCustomElement(manager.customElements[i], i, p => GetTerrainPoint(p, pointsList, manager),
                         IndexOf, (kind, id) => IndexOf(History.ElementRegistry.Get(id)));
                 } catch (System.Exception e) {
                     GameEngine.LogError(e.ToString());
@@ -163,13 +163,13 @@ namespace CityEncoder {
                     return e.Message;
                 }
 
-                if (i % 100 == 0 || i == manager.lowLevelElements.Count - 1) {
-                    progressBar.SetProgress(0.9f + 0.05f * ((float)(i + 1) / manager.lowLevelElements.Count));
+                if (i % 100 == 0 || i == manager.customElements.Count - 1) {
+                    progressBar.SetProgress(0.9f + 0.05f * ((float)(i + 1) / manager.customElements.Count));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
                 }
             }
-            savedCity.lowLevelElements = System.Array.FindAll(lowLevelArray, e => e.state.Str("type", "") != PropPath.TypeId);
-            savedCity.propPaths = System.Array.FindAll(lowLevelArray, e => e.state.Str("type", "") == PropPath.TypeId);
+            savedCity.customElements = System.Array.FindAll(customElementArray, e => e.state.Str("type", "") != PropPath.TypeId);
+            savedCity.propPaths = System.Array.FindAll(customElementArray, e => e.state.Str("type", "") == PropPath.TypeId);
 
             try {
                 savedCity.terrainPoints = GetTerrainPointsArray(pointsList);

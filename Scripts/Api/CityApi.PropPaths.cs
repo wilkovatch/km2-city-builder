@@ -36,14 +36,14 @@ namespace Api {
             element.state.SetArray("ribbonNames", names.ToArray());
             element.state.SetBool("useDistanceReference", reference);
             element.state.SetArray("referenceSegments", referenceSegments.ToArray());
-            element.SetPoints(LowLevelPoints(element, new JObject { ["ribbons"] = items }, Vector3.Zero));
+            element.SetPoints(CustomElementPoints(element, new JObject { ["ribbons"] = items }, Vector3.Zero));
             element.state.FlagAsChanged();
         }
 
         [ApiMethod("propPaths.create", "Creates a standalone prop rule with named segmented ribbons and shared/anchored point targets")]
         public int CreatePropPath(JObject ribbons, JObject rule = null, string name = null) {
             return ApplyChange("create prop rule", () => {
-                var element = (PropPath)M.CreateLowLevelElement(PropPath.TypeId, name);
+                var element = (PropPath)M.CreateCustomElement(PropPath.TypeId, name);
                 SetPropRibbons(element, ribbons);
                 element.state.SetState("propRule", rule?.ToObject<ObjectState>() ?? new ObjectState());
                 Operations.Props.NormalizeRule(element.state.State("propRule"));
@@ -69,10 +69,10 @@ namespace Api {
 
         [ApiMethod("propPaths.insert", "Inserts a segment or paired section at an array path")]
         public object InsertPropPathSection(ElementRef element, string array, int? index = null, Vector3? position = null)
-            => InsertLowLevel(element, array, index, position);
+            => InsertCustomElement(element, array, index, position);
 
         [ApiMethod("propPaths.remove", "Removes a segment or paired section at an array path")]
-        public void RemovePropPathSection(ElementRef element, string array, int index) => RemoveLowLevel(element, array, index);
+        public void RemovePropPathSection(ElementRef element, string array, int index) => RemoveCustomElement(element, array, index);
 
         [ApiMethod("propPaths.renameRibbon", "Renames a ribbon and its prop container together")]
         public void RenamePropRibbon(ElementRef element, int index, string name) {
@@ -85,19 +85,19 @@ namespace Api {
         }
 
         [ApiMethod("propPaths.move", "Moves a standalone prop rule, respecting shared points and anchors")]
-        public int MovePropPath(ElementRef element, Vector3? offset = null, Vector3? position = null) => MoveLowLevel(element, offset, position);
+        public int MovePropPath(ElementRef element, Vector3? offset = null, Vector3? position = null) => MoveCustomElement(element, offset, position);
 
         [ApiMethod("propPaths.delete", "Deletes a standalone prop rule and its generated props")]
-        public void DeletePropPath(ElementRef element) => DeleteLowLevel(element);
+        public void DeletePropPath(ElementRef element) => DeleteCustomElement(element);
 
         [ApiMethod("propPaths.movePoint", "Moves a ribbon point, using its path from elements.get")]
-        public void MovePropPathPoint(ElementRef element, string path, Vector3 position) => MoveLowLevelPoint(element, position, path);
+        public void MovePropPathPoint(ElementRef element, string path, Vector3 position) => MoveCustomElementPoint(element, position, path);
 
         [ApiMethod("propPaths.attachPoint", "Shares or anchors a ribbon point")]
         public int AttachPropPathPoint(ElementRef element, string path, PointTarget to = null, int[] line = null, int? column = null)
-            => AttachLowLevelPoint(element, to, path, null, line, column);
+            => AttachCustomElementPoint(element, to, path, null, line, column);
 
         [ApiMethod("propPaths.detachPoint", "Detaches a ribbon point")]
-        public int DetachPropPathPoint(ElementRef element, string path) => DetachLowLevelPoint(element, path);
+        public int DetachPropPathPoint(ElementRef element, string path) => DetachCustomElementPoint(element, path);
     }
 }

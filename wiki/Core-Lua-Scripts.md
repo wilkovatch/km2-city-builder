@@ -27,7 +27,7 @@ end
 return M
 ```
 
-`require` only finds the modules of the `lua` folder of the core (`a.b` is the file `lua/a/b.lua`). Each module is loaded once per Lua state and shared by the types using that state. Large low-level geometry rebuilds use isolated worker states; keep geometry functions pure and do not retain data from individual elements in module variables. The scripts are read again when a city is loaded.
+`require` only finds the modules of the `lua` folder of the core (`a.b` is the file `lua/a/b.lua`). Each module is loaded once per Lua state and shared by the types using that state. Large custom element geometry rebuilds use isolated worker states; keep geometry functions pure and do not retain data from individual elements in module variables. The scripts are read again when a city is loaded.
 
 ## Script definitions
 

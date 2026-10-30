@@ -206,12 +206,14 @@ namespace CityDecoder {
             if (loadedCity.terrainPatches == null) loadedCity.terrainPatches = new IO.SavedCity.TerrainPatch[0];
             if (loadedCity.buildingLines == null) loadedCity.buildingLines = new IO.SavedCity.BuildingLine[0];
             if (loadedCity.terrainPoints == null) loadedCity.terrainPoints = new IO.SavedCity.TerrainPoint[0];
-            loadedCity.lowLevelElements = System.Linq.Enumerable.Concat(loadedCity.lowLevelElements ?? new IO.SavedCity.LowLevelElement[0],
-                loadedCity.propPaths ?? new IO.SavedCity.LowLevelElement[0]).ToArray();
+            loadedCity.customElements = (loadedCity.customElements ?? new IO.SavedCity.CustomElement[0])
+                .Concat(loadedCity.lowLevelElements ?? new IO.SavedCity.CustomElement[0])
+                .Concat(loadedCity.propPaths ?? new IO.SavedCity.CustomElement[0]).ToArray();
+            loadedCity.lowLevelElements = null;
 
             float totalNum = loadedCity.meshes.Length + loadedCity.roads.Length +
                 loadedCity.intersections.Length + loadedCity.terrainPatches.Length
-                + loadedCity.buildingLines.Length + loadedCity.lowLevelElements.Length;
+                + loadedCity.buildingLines.Length + loadedCity.customElements.Length;
 
             int reachedNum = 0;
             int n = 0;
@@ -371,16 +373,16 @@ namespace CityDecoder {
                 reachedNum++;
             }
 
-            //low-level elements (their containers, sources and references once they all exist)
-            var loadedLowLevel = new Dictionary<int, LowLevelElement>();
+            //custom elements (their containers, sources and references once they all exist)
+            var loadedCustomElements = new Dictionary<int, CustomElement>();
             var loadedPatches = manager.patches;
             n = 0;
-            foreach (var e in loadedCity.lowLevelElements) {
+            foreach (var e in loadedCity.customElements) {
                 n++;
                 var type = e.state?.Str("type", null);
-                var element = manager.CreateLowLevelElement(type, string.IsNullOrEmpty(e.name) ? null : e.name);
+                var element = manager.CreateCustomElement(type, string.IsNullOrEmpty(e.name) ? null : e.name);
                 element.state = e.state ?? new ObjectState();
-                var points = History.ElementSnapshot.LowLevelPoints(e.points, element.state, element,
+                var points = History.ElementSnapshot.CustomElementPoints(e.points, element.state, element,
                     token => GetTerrainPoint(loadedTerrainPoints[(int)token], pointDict, loadedTerrainPoints), Vector3.Zero);
                 element.SetPoints(points);
                 if (e.meshVertices != null) {
@@ -388,7 +390,7 @@ namespace CityDecoder {
                     foreach (var p in e.meshVertices) vertices.Add(GetTerrainPoint(loadedTerrainPoints[p], pointDict, loadedTerrainPoints));
                     element.SetMesh(vertices, new List<int>(e.triangles ?? new int[0]), e.uvs != null ? States.SerializableVector2.GetRuntimeList(e.uvs) : null);
                 }
-                loadedLowLevel[e.id] = element;
+                loadedCustomElements[e.id] = element;
                 if (batchWatch.ElapsedMilliseconds >= LoadBatchMilliseconds) {
                     progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
                     await caller.ToSignal(caller.GetTree(), "process_frame");
@@ -403,13 +405,14 @@ namespace CityDecoder {
                     case "terrainPatch": return id >= 0 && id < loadedPatches.Count ? loadedPatches[id] : null;
                     case "buildingLine": return id >= 0 && id < manager.buildings.Count ? manager.buildings[id] : null;
                     case "propPath":
-                    case "lowLevel": return loadedLowLevel.TryGetValue(id, out var l) ? l : null;
+                    case "lowLevel": //saved before the rename
+                    case "customElement": return loadedCustomElements.TryGetValue(id, out var l) ? l : null;
                     default: return null;
                 }
             }
-            foreach (var e in loadedCity.lowLevelElements) {
-                var element = loadedLowLevel[e.id];
-                if (e.containerId >= 0 && loadedLowLevel.TryGetValue(e.containerId, out var container)) element.container = container;
+            foreach (var e in loadedCity.customElements) {
+                var element = loadedCustomElements[e.id];
+                if (e.containerId >= 0 && loadedCustomElements.TryGetValue(e.containerId, out var container)) element.container = container;
                 if (e.source.HasValue) element.source = LoadedElement(e.source.Value.kind, e.source.Value.id);
                 element.state = History.ElementSnapshot.MapReferences(element.state, (kind, id) => History.ElementRegistry.GetId(LoadedElement(kind, id)));
             }

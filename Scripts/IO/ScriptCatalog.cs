@@ -10,7 +10,7 @@ public static class ScriptCatalog {
     public const string SettingsFile = "script.json";
     public const string DefaultEntry = "main.py";
     static readonly HashSet<string> inputTypes = new HashSet<string> {
-        "bool", "int", "float", "enum", "string", "texture", "mesh", "array", "customElement", "preset", "file", "folder"
+        "bool", "int", "float", "enum", "string", "texture", "mesh", "array", "customCityProperties", "preset", "file", "folder"
     };
 
 #pragma warning disable CS0649 //set by the deserialization of script.json
@@ -165,7 +165,7 @@ public static class ScriptCatalog {
             return false;
         }
         if (p.type == "array") {
-            if (p.arrayProperties == null || (p.arrayProperties.elementProperties == null && p.arrayProperties.customElementType == null)) {
+            if (p.arrayProperties == null || (p.arrayProperties.elementProperties == null && p.arrayProperties.customCityPropertiesType == null)) {
                 Warn("an array needs arrayProperties with elementProperties");
                 return false;
             }

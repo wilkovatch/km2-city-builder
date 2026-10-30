@@ -4,21 +4,21 @@ using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
 
 namespace Operations {
-    //Editing of the low-level elements (see LowLevelElement), and of the ghosts of the procedural elements they replace
-    public static class LowLevel {
+    //Editing of the custom elements (see CustomElement), and of the ghosts of the procedural elements they replace
+    public static class CustomElements {
         //distance within which a point of a converted element is welded to an existing point or anchor
         public const float WeldDistance = 0.01f;
 
         public static string GetTypeLabel(string type) {
-            var types = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes();
+            var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
             if (type == null || !types.TryGetValue(type, out var t)) return type ?? "";
             var label = t.typeData.ui.label;
             return string.IsNullOrEmpty(label) ? type : StringManager.Get(label);
         }
 
         //a new element of the type with its default content around the position
-        public static LowLevelElement Create(ElementManager manager, string type, Vector3 position, LowLevelElement container = null) {
-            var element = manager.CreateLowLevelElement(type);
+        public static CustomElement Create(ElementManager manager, string type, Vector3 position, CustomElement container = null) {
+            var element = manager.CreateCustomElement(type);
             element.CreateDefault(position);
             if (container != null) element.SetContainer(container);
             return element;
@@ -26,9 +26,9 @@ namespace Operations {
 
         //deletes the element; the elements it contains are left without a container. The ghost it replaces is deleted with
         //the last element replacing it (deleteGhost false: it's kept, e.g. to bring it back)
-        public static void Delete(ElementManager manager, LowLevelElement element, bool deleteGhost = true) {
+        public static void Delete(ElementManager manager, CustomElement element, bool deleteGhost = true) {
             if (element == null || element.IsDeleted()) return;
-            foreach (var child in manager.GetLowLevelChildren(element)) child.SetContainer(null);
+            foreach (var child in manager.GetCustomElementChildren(element)) child.SetContainer(null);
             var source = element.source;
             element.Delete();
             if (deleteGhost && IsGhost(source) && GetReplacements(manager, source).Count == 0) DeleteGhost(manager, source);
@@ -43,40 +43,40 @@ namespace Operations {
             manager.FlagAsChanged();
         }
 
-        public static bool InsertArrayElement(LowLevelElement element, string arrayPath, int index, bool userEdit = true) {
+        public static bool InsertArrayElement(CustomElement element, string arrayPath, int index, bool userEdit = true) {
             return element.InsertArrayElement(arrayPath, index, userEdit);
         }
 
-        public static bool RemoveArrayElement(LowLevelElement element, string arrayPath, int index, bool userEdit = true) {
+        public static bool RemoveArrayElement(CustomElement element, string arrayPath, int index, bool userEdit = true) {
             return element.RemoveArrayElement(arrayPath, index, userEdit);
         }
 
         //the element of the editable array containing the point: of the outermost one (e.g. the section of a lane point,
         //what Insert, Remove and Delete act on) or of the innermost one (the lane); null if the point is not in one
-        public static (string arrayPath, int index)? ArrayElementOf(LowLevelElement element, TerrainPoint point, bool outermost) {
-            var path = point != null && element?.points != null ? global::LowLevel.PointTree.PathOf(element.points, point) : null;
-            return path != null ? global::LowLevel.PointTree.FindArrayElement(element.points, path, true, outermost) : null;
+        public static (string arrayPath, int index)? ArrayElementOf(CustomElement element, TerrainPoint point, bool outermost) {
+            var path = point != null && element?.points != null ? global::CustomElements.PointTree.PathOf(element.points, point) : null;
+            return path != null ? global::CustomElements.PointTree.FindArrayElement(element.points, path, true, outermost) : null;
         }
 
         //removes a point from the element (the element of the outermost array containing it, or a vertex of the mesh), the
         //point is deleted if no other element uses it
-        public static bool RemovePoint(LowLevelElement element, TerrainPoint point) {
+        public static bool RemovePoint(CustomElement element, TerrainPoint point) {
             return point.DeleteManual(element);
         }
 
         //the containers the element can be put in
-        public static List<LowLevelElement> GetPossibleContainers(ElementManager manager, LowLevelElement element) {
-            var res = new List<LowLevelElement>();
-            foreach (var other in manager.lowLevelElements) {
+        public static List<CustomElement> GetPossibleContainers(ElementManager manager, CustomElement element) {
+            var res = new List<CustomElement>();
+            foreach (var other in manager.customElements) {
                 if (!other.IsDeleted() && element.CanBeIn(other)) res.Add(other);
             }
             return res;
         }
 
         //moves the elements of a container into another one (of a type that can contain them all) and deletes it
-        public static bool Merge(ElementManager manager, LowLevelElement from, LowLevelElement into) {
+        public static bool Merge(ElementManager manager, CustomElement from, CustomElement into) {
             if (from == null || into == null || from == into || from.IsDeleted() || into.IsDeleted()) return false;
-            var children = manager.GetLowLevelChildren(from);
+            var children = manager.GetCustomElementChildren(from);
             foreach (var child in children) {
                 if (child != into && !child.CanBeIn(into)) return false;
             }
@@ -91,10 +91,10 @@ namespace Operations {
         // Moving with the contents
 
         //the element, the elements it contains, the ones they contain and so on
-        public static List<LowLevelElement> WithContents(ElementManager manager, LowLevelElement element) {
-            var res = new List<LowLevelElement> { element };
+        public static List<CustomElement> WithContents(ElementManager manager, CustomElement element) {
+            var res = new List<CustomElement> { element };
             for (int i = 0; i < res.Count; i++) {
-                foreach (var child in manager.GetLowLevelChildren(res[i])) {
+                foreach (var child in manager.GetCustomElementChildren(res[i])) {
                     if (!res.Contains(child)) res.Add(child);
                 }
             }
@@ -102,7 +102,7 @@ namespace Operations {
         }
 
         //the points of the element and of its contents, each once
-        public static List<TerrainPoint> PointsWithContents(ElementManager manager, LowLevelElement element) {
+        public static List<TerrainPoint> PointsWithContents(ElementManager manager, CustomElement element) {
             var res = new List<TerrainPoint>();
             var seen = new HashSet<TerrainPoint>();
             foreach (var e in WithContents(manager, element)) {
@@ -114,7 +114,7 @@ namespace Operations {
         }
 
         //the center of the points of the element and of its contents (where its move handle is), null without points
-        public static Vector3? CenterWithContents(ElementManager manager, LowLevelElement element) {
+        public static Vector3? CenterWithContents(ElementManager manager, CustomElement element) {
             var points = PointsWithContents(manager, element);
             if (points.Count == 0) return null;
             var res = Vector3.Zero;
@@ -127,7 +127,7 @@ namespace Operations {
         //count (they are the ones of the element converted, which nothing else shows): the points leave them and move. The
         //points on a line follow its ends, the ones on another point follow it, and the ones on a vertical line move as with
         //the gizmo (their height changes, the line follows its point). Returns the number of points moved
-        public static int Move(ElementManager manager, LowLevelElement element, Vector3 offset) {
+        public static int Move(ElementManager manager, CustomElement element, Vector3 offset) {
             if (element == null || element.IsDeleted() || offset.IsZeroApprox()) return 0;
             var moved = 0;
             foreach (var p in PointsWithContents(manager, element)) {
@@ -168,15 +168,15 @@ namespace Operations {
 
         //a new element at the start or end of the array, moved so that its center is at the position and turned around the
         //vertical axis as the direction of the array changes (e.g. a section of a road continuing it around a curve)
-        public static bool AppendArrayElementAt(LowLevelElement element, string arrayPath, bool atStart, Vector3 position, bool userEdit = true) {
-            if (element.points == null || !(global::LowLevel.PointTree.Find(element.points, arrayPath) is global::LowLevel.PointList list)) return false;
+        public static bool AppendArrayElementAt(CustomElement element, string arrayPath, bool atStart, Vector3 position, bool userEdit = true) {
+            if (element.points == null || !(global::CustomElements.PointTree.Find(element.points, arrayPath) is global::CustomElements.PointList list)) return false;
             var count = list.items.Count;
             var end = count > 0 ? list.items[atStart ? 0 : count - 1] : null;
             var previous = count > 1 ? list.items[atStart ? 1 : count - 2] : null;
             var index = atStart ? 0 : count;
             if (!element.InsertArrayElement(arrayPath, index, userEdit)) return false;
             var added = list.items[index];
-            var newLeaves = global::LowLevel.PointTree.Leaves(added);
+            var newLeaves = global::CustomElements.PointTree.Leaves(added);
             if (end == null) {
                 //nothing to continue: the default layout around the position
                 var center = NodeCenter(added);
@@ -193,7 +193,7 @@ namespace Operations {
                 if (oldDir.LengthSquared() > 1e-8f && newDir.LengthSquared() > 1e-8f) angle = oldDir.SignedAngleTo(newDir, Vector3.Up);
             }
             foreach (var (relPath, leaf) in newLeaves) {
-                var model = global::LowLevel.PointTree.Find(end, relPath) as global::LowLevel.PointLeaf;
+                var model = global::CustomElements.PointTree.Find(end, relPath) as global::CustomElements.PointLeaf;
                 if (model?.point == null || model.point.IsDeleted()) continue;
                 var offset = (model.point.GetPoint() - endCenter).Rotated(Vector3.Up, angle);
                 GO.SetPosition(leaf.point.GetObject(), position + offset);
@@ -202,10 +202,10 @@ namespace Operations {
             return true;
         }
 
-        static Vector3 NodeCenter(global::LowLevel.PointNode node) {
+        static Vector3 NodeCenter(global::CustomElements.PointNode node) {
             var res = Vector3.Zero;
             var n = 0;
-            foreach (var (_, leaf) in global::LowLevel.PointTree.Leaves(node)) {
+            foreach (var (_, leaf) in global::CustomElements.PointTree.Leaves(node)) {
                 if (leaf.point == null || leaf.point.IsDeleted()) continue;
                 res += leaf.point.GetPoint();
                 n++;
@@ -218,11 +218,11 @@ namespace Operations {
         //A uniform array gets the point in every instance: the clicked point in the instance whose holder (e.g. the section
         //of an array of lanes) is the nearest to the click, a new point at the same offset from the center of the others
         //(turned as their direction across, from their first to their last point, is)
-        public static TerrainPoint AppendPoint(ElementManager manager, LowLevelElement element, string arrayPath, Node3D obj, Vector3 position) {
-            if (element.points == null || !(global::LowLevel.PointTree.Find(element.points, arrayPath) is global::LowLevel.PointList list)) return null;
+        public static TerrainPoint AppendPoint(ElementManager manager, CustomElement element, string arrayPath, Node3D obj, Vector3 position) {
+            if (element.points == null || !(global::CustomElements.PointTree.Find(element.points, arrayPath) is global::CustomElements.PointList list)) return null;
             if (list.def.children != null) {
                 if (!AppendArrayElementAt(element, arrayPath, false, position)) return null;
-                var leaves = global::LowLevel.PointTree.Leaves(list.items[list.items.Count - 1]);
+                var leaves = global::CustomElements.PointTree.Leaves(list.items[list.items.Count - 1]);
                 return leaves.Count > 0 ? leaves[0].leaf.point : null;
             }
             var holders = UniformHolders(element, arrayPath);
@@ -233,7 +233,7 @@ namespace Operations {
             if (holders.Count > 0) list = holders[nearest].list;
             //a point is in an array of points once (clicking the first point of a closed array closes it instead)
             var clicked = obj == null ? null : GameEngine.Scriptable.FindRecursive<TerrainPoint>(obj);
-            if (clicked != null && list.items.Exists(item => item is global::LowLevel.PointLeaf l && l.point == clicked)) return null;
+            if (clicked != null && list.items.Exists(item => item is global::CustomElements.PointLeaf l && l.point == clicked)) return null;
             if (!element.InsertArrayElement(arrayPath, list.items.Count)) return null;
             for (int i = 0; i < holders.Count; i++) {
                 if (i == nearest) continue;
@@ -241,35 +241,35 @@ namespace Operations {
                 var angle = 0.0f;
                 var from = holders[nearest].across;
                 if (from.LengthSquared() > 1e-8f && across.LengthSquared() > 1e-8f) angle = from.SignedAngleTo(across, Vector3.Up);
-                var added = (global::LowLevel.PointLeaf)other.items[other.items.Count - 1];
+                var added = (global::CustomElements.PointLeaf)other.items[other.items.Count - 1];
                 GO.SetPosition(added.point.GetObject(), center + (position - holders[nearest].center).Rotated(Vector3.Up, angle));
             }
             var point = PointFromClick(manager, obj, position);
-            var leaf = (global::LowLevel.PointLeaf)list.items[list.items.Count - 1];
+            var leaf = (global::CustomElements.PointLeaf)list.items[list.items.Count - 1];
             element.ReplacePoint(leaf.point, point);
             if (point.GetLinks().Count == 0) point.Delete(); //not used after all
             return point.IsDeleted() ? null : point;
         }
 
-        public static TerrainPoint InsertPointAt(ElementManager manager, LowLevelElement element, string path, int index, Node3D obj, Vector3 position) {
+        public static TerrainPoint InsertPointAt(ElementManager manager, CustomElement element, string path, int index, Node3D obj, Vector3 position) {
             if (!element.InsertArrayElement(path, index)) return null;
-            var list = (global::LowLevel.PointList)global::LowLevel.PointTree.Find(element.points, path);
+            var list = (global::CustomElements.PointList)global::CustomElements.PointTree.Find(element.points, path);
             var point = PointFromClick(manager, obj, position);
-            element.ReplacePoint(((global::LowLevel.PointLeaf)list.items[index]).point, point);
+            element.ReplacePoint(((global::CustomElements.PointLeaf)list.items[index]).point, point);
             return point;
         }
 
         //the instances of a uniform array in the elements of another array (none otherwise), with the center of the node
         //holding each one and its horizontal direction across (from its first to its last point)
-        static List<(global::LowLevel.PointList list, Vector3 center, Vector3 across)> UniformHolders(LowLevelElement element, string arrayPath) {
-            var res = new List<(global::LowLevel.PointList, Vector3, Vector3)>();
-            var instances = global::LowLevel.PointTree.UniformInstances(element.points, arrayPath);
+        static List<(global::CustomElements.PointList list, Vector3 center, Vector3 across)> UniformHolders(CustomElement element, string arrayPath) {
+            var res = new List<(global::CustomElements.PointList, Vector3, Vector3)>();
+            var instances = global::CustomElements.PointTree.UniformInstances(element.points, arrayPath);
             if (instances.Count < 2) return res;
-            foreach (var (path, list) in global::LowLevel.PointTree.Lists(element.points)) {
+            foreach (var (path, list) in global::CustomElements.PointTree.Lists(element.points)) {
                 if (!instances.Contains(list)) continue;
                 var dot = path.LastIndexOf('.');
-                var holder = global::LowLevel.PointTree.Find(element.points, dot < 0 ? "" : path.Substring(0, dot));
-                var leaves = global::LowLevel.PointTree.Leaves(holder).FindAll(l => l.leaf.point != null && !l.leaf.point.IsDeleted());
+                var holder = global::CustomElements.PointTree.Find(element.points, dot < 0 ? "" : path.Substring(0, dot));
+                var leaves = global::CustomElements.PointTree.Leaves(holder).FindAll(l => l.leaf.point != null && !l.leaf.point.IsDeleted());
                 var across = leaves.Count > 1 ? leaves[leaves.Count - 1].leaf.point.GetPoint() - leaves[0].leaf.point.GetPoint() : Vector3.Zero;
                 across.Y = 0;
                 res.Add((list, NodeCenter(holder), across));
@@ -279,7 +279,7 @@ namespace Operations {
 
         //the point of the element is replaced with the clicked terrain point (shared with its elements from now on), or
         //attached to the clicked anchor or segment; returns the point the element now has, null if nothing was clicked
-        public static TerrainPoint AttachPoint(ElementManager manager, LowLevelElement element, TerrainPoint point, Node3D obj, Vector3 position) {
+        public static TerrainPoint AttachPoint(ElementManager manager, CustomElement element, TerrainPoint point, Node3D obj, Vector3 position) {
             var clicked = obj == null ? null : GameEngine.Scriptable.FindRecursive<TerrainPoint>(obj);
             if (clicked != null && !clicked.IsDeleted()) {
                 if (clicked == point) return point;
@@ -314,7 +314,7 @@ namespace Operations {
 
         //the point of the element stops being shared with the other elements (a copy of it takes its place in the element),
         //or, if only the element uses it, stops following its anchor
-        public static TerrainPoint DetachPoint(ElementManager manager, LowLevelElement element, TerrainPoint point) {
+        public static TerrainPoint DetachPoint(ElementManager manager, CustomElement element, TerrainPoint point) {
             if (point.GetLinks().Count > 1) {
                 var copy = TerrainPoint.Create(point.GetPoint(), null, manager.GetTerrainPointContainer());
                 copy.SetRotation(point.GetRotation());
@@ -336,17 +336,17 @@ namespace Operations {
             else if (element is Intersection intersection) intersection.SetGhost(ghost);
         }
 
-        //the low-level elements replacing a procedural element
-        public static List<LowLevelElement> GetReplacements(ElementManager manager, object source) {
-            var res = new List<LowLevelElement>();
+        //the custom elements replacing a procedural element
+        public static List<CustomElement> GetReplacements(ElementManager manager, object source) {
+            var res = new List<CustomElement>();
             if (source == null) return res;
-            foreach (var element in manager.lowLevelElements) {
+            foreach (var element in manager.customElements) {
                 if (!element.IsDeleted() && element.source == source) res.Add(element);
             }
             return res;
         }
 
-        //brings back a ghost: the low-level elements replacing it are deleted
+        //brings back a ghost: the custom elements replacing it are deleted
         public static void RestoreGhost(ElementManager manager, object ghost) {
             foreach (var element in GetReplacements(manager, ghost)) Delete(manager, element, false);
             SetGhost(ghost, false);
@@ -373,13 +373,13 @@ namespace Operations {
             return null;
         }
 
-        //the anchor is of a ghost, which nothing else shows; the anchors across the end of a road (low-level only) of a ghost
+        //the anchor is of a ghost, which nothing else shows; the anchors across the end of a road (custom elements only) of a ghost
         //intersection are not, while the road isn't a ghost: they follow its end (e.g. for the road converted after the
         //intersection, whose points there, as the ones of its dividers, are put on them)
         public static bool IsGhostAnchor(TerrainAnchor anchor) {
             var owner = Anchors.GetOwner(anchor).owner;
             if (!IsGhost(owner)) return false;
-            if (!anchor.lowLevelOnly || owner is not Intersection intersection) return true;
+            if (!anchor.customElementsOnly || owner is not Intersection intersection) return true;
             var position = anchor.GetPoint();
             bool OnEnd(List<Vector3> ends) => ends.Exists(p => GameEngine.Vector3.Distance(p, position) < WeldDistance);
             foreach (var road in intersection.roads) {

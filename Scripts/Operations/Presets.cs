@@ -28,8 +28,8 @@ namespace Operations {
 
         //names the state after the preset and saves a copy of it (overwriting a preset with the same name)
         public static void Save(ObjectState state, string category, string name) {
-            var type = LowLevelPresets.TypeOfCategory(category);
-            if (type != null) LowLevelPresets.Extract(state, type); //validate before changing the link
+            var type = CustomElementPresets.TypeOfCategory(category);
+            if (type != null) CustomElementPresets.Extract(state, type); //validate before changing the link
             if (category == "road") {
                 var types = CityElements.Types.Parsers.TypeParser.GetRoadTypes();
                 if (types.TryGetValue(state.Str("type"), out var roadType)) SplineCurves.ValidateState(roadType.typeData.settings, state);
@@ -43,7 +43,7 @@ namespace Operations {
         }
 
         public static bool CanSync(string category) {
-            return linkedCategories.Contains(category) || LowLevelPresets.TypeOfCategory(category) != null;
+            return linkedCategories.Contains(category) || CustomElementPresets.TypeOfCategory(category) != null;
         }
 
         //deletes the preset (the default one can't be), the elements using it are unlinked from it
@@ -58,7 +58,7 @@ namespace Operations {
         public static bool Sync(ElementManager manager, string category, string name) {
             var curPreset = PresetManager.GetPresetByName(name, category);
             if (curPreset == null) return false;
-            if (LowLevelPresets.ChangeLinked(manager, category, name, false)) return true;
+            if (CustomElementPresets.ChangeLinked(manager, category, name, false)) return true;
             ObjectState Copy(ObjectState _) {
                 var newState = (ObjectState)curPreset.Clone();
                 newState.FlagAsChanged();
@@ -94,7 +94,7 @@ namespace Operations {
         }
 
         static void Unlink(ElementManager manager, string category, string name) {
-            if (LowLevelPresets.ChangeLinked(manager, category, name, true)) return;
+            if (CustomElementPresets.ChangeLinked(manager, category, name, true)) return;
             switch (category) {
                 case "road":
                     foreach (var road in manager.roads) {

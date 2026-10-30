@@ -25,7 +25,7 @@ Guidance for AI coding agents (and humans) working on **km2 City Builder**. Read
 | Path | What |
 |---|---|
 | `Scripts/UI` | Menu bar, editor panels (`EditorPanel/EditorPanels`), placers and terrain modifiers, camera, debug console |
-| `Scripts/CityElements/Logic` | Roads, intersections, patches, building lines, mesh instances, low-level elements, city properties |
+| `Scripts/CityElements/Logic` | Roads, intersections, patches, building lines, mesh instances, custom elements, city properties |
 | `Scripts/CityElements/Geometry` | Mesh generators driven by the core's type definitions |
 | `Scripts/CityElements/Types` | Core JSON type loading (`TypeParser`, `Parsers/TypeInheritance.cs` for `extends`) and runtime types |
 | `Scripts/RuntimeCalculator` | Expression parser/evaluator, Lua scripting |
@@ -81,7 +81,7 @@ All self-tests write a log **next to** the given folder (not inside it) and exit
 
 ### `selftest api <new folder>` (`Scripts/Api/ApiSelfTest.cs`)
 
-Creates an MM2 SF city and drives it only through JSON API commands. It covers elements, anchors, terrain, undo/redo, transactions, generators, Python/Lua scripting, type inheritance, merge/split, seamless intersections, decals, export layout/hudmap, `.ar` packing, rendering, validation, MCP and low-level elements. Writes `api_selftest.log`.
+Creates an MM2 SF city and drives it only through JSON API commands. It covers elements, anchors, terrain, undo/redo, transactions, generators, Python/Lua scripting, type inheritance, merge/split, seamless intersections, decals, export layout/hudmap, `.ar` packing, rendering, validation, MCP and custom elements. Writes `api_selftest.log`.
 
 ```
 <godot console exe> --path . --resolution 1152x648 -- selftest api "<scratch>/api/city"     # windowed (also saves screenshots)
@@ -96,7 +96,7 @@ Creates an MM2 SF city and drives it only through JSON API commands. It covers e
 - Empty ObjectState arrays vanish on JSON re-read, so compare `[]` and missing as equal.
 - `city.exportJson` ids are indices in the manager lists, not API ids. Ids change after a reload, so re-list (or compare by name).
 - An API `Call` flushes and resets the elements' editing state, and a change closes the open editors (as before an undo). To test a GUI action with undo, run the GUI steps first, then `city.flush`, then take the snapshots (`CheckGuiUndo` in `BaiConnections`), not `CheckUndo` around them.
-- The low-level panel gets its element from the click mode (`GetPlacer()` is `terrainClick.modifier as LowLevelPlacer`): a temporary click mode (e.g. `ReferencePicker`) must restore the previous one before changing the element. While the point transform panel (M) is open the modifier is null; `CityBuilderMenuBar.ControlPointOwnerLowLevel` gives the element.
+- The custom element panel gets its element from the click mode (`GetPlacer()` is `terrainClick.modifier as CustomElementPlacer`): a temporary click mode (e.g. `ReferencePicker`) must restore the previous one before changing the element. While the point transform panel (M) is open the modifier is null; `CityBuilderMenuBar.ControlPointOwnerCustomElement` gives the element.
 - Every menu entry and panel button runs inside `UndoManager.Record` (`IsBusy` is true), so a `RunLong` API call made synchronously from a GUI action fails with "another operation is running". GUI code must yield a frame first, and tests of GUI actions should go through `UndoManager.Record` like the menu does.
 - Panel checks: call `panel.Update()`, not `placer.onFrame` (which returns early when nothing changed).
 - Read core settings like `allowYaw`/`allowRoll` from the type instead of hardcoding them; the maintainer toggles them locally.
@@ -136,7 +136,7 @@ Simulating input in self-tests:
 - **Update loop:** the UI never regenerates elements directly. Edits change state and mark dirty, and `ElementManager` rebuilds once per frame after every other node.
 - **Renderer** (`Scripts/Rendering/CityRenderer`): a SubViewport sharing the main World3D. Render layer bit 17 (`GameEngine.Camera.RenderOnlyLayer`) is hidden from the editor camera, and bit 18 is the gizmo. During a render it forces the best LOD, suspends cull distances and points Terrain3D at the render camera.
 - **MCP:** the HTTP server is hand-written on a loopback `TcpListener` (HttpListener would need a URL ACL), default port 7810, Bearer token, settings `mcpServerEnabled/Port/Token`. stdio `mcp` handles messages sequentially. `script_run` must not go through the dispatcher (deadlock), so it uses `ApiHost.RunOnMainThread`.
-- **Low-level elements** (core-defined, e.g. the MM2 PSDL attributes): core folder `elements/lowLevel/<type>/`, save key `lowLevelElements`, API kind `lowLevel`. Don't call them "custom elements", which already means customTypes/customElement parameter groups. Converted roads/intersections become hidden `ghost`s whose references resolve to their replacements at export. The generic mechanism is in `wiki/Core-Low-Level-Elements.md`, the core specifics (and the MM2 export-equivalence check) in the core's README and `AGENTS.md`.
+- **Custom elements** (generic element types defined by the core, not necessarily low-level representations: e.g. the MM2 PSDL attributes, but also its decals and trains): core folder `elements/customElements/<type>/`, save key `customElements`, API kind `customElement`, preset/reference/converter prefix `customElement/<type>`. They used to be called "low-level elements": cities saved before the rename (`lowLevelElements`, `lowLevel` references, `lowLevel/<type>` preset categories) are still read. Don't confuse them with the `customCityProperties` parameter type (`customCityPropertiesType`, types in `elements/customCityPropertiesTypes/`), the nested parameter groups of the city properties (formerly `customElement`/`customTypes`). Converted roads/intersections become hidden `ghost`s whose references resolve to their replacements at export. The generic mechanism is in `wiki/Core-Custom-Elements.md`, the core specifics (and the MM2 export-equivalence check) in the core's README and `AGENTS.md`.
 - **Core view toggles:** core `settings.json` `viewToggles`, stored in the city `preferences.json` as `viewToggle.<name>`. Core settings must not be read before a city is loaded (that once cached the wrong settings and broke `.tex` decoding).
 - **Terrain3D** snaps heightmap imports to its region grid; the region size is `min(256, resolution/2)`.
 - Forward+ wireframe works without `RenderingServer.SetDebugGenerateWireframes` (needed only on the Compatibility renderer).

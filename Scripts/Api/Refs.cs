@@ -14,7 +14,7 @@ namespace Api {
     //  {"road": <ref>, "container": "right", "list": "props", "index": 0}     an element of a props container (no index:
     //                                                                         the single element of the list)
     //  {"parent": <ref>, "param": "races", "index": 0}                        an element of an array parameter (no index:
-    //                                                                         a custom element parameter)
+    //                                                                         a custom city properties parameter)
     //  {"owner": <ref>, "object": "trafficLight", "path": ["races.0"]}        a parametric object (objectInstance parameter),
     //                                                                         path: the array elements leading to it
     [JsonConverter(typeof(ElementRefConverter))]

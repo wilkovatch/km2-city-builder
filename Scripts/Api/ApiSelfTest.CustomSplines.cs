@@ -13,10 +13,10 @@ namespace Api {
     public partial class ApiSelfTest {
         async Task TrainSplines() {
             Log("train splines");
-            var settings = TP.GetLowLevelTypes()["train"].typeData.settings.spline;
+            var settings = TP.GetCustomElementTypes()["train"].typeData.settings.spline;
             Check("train curve is restricted to trains", settings.curveTypes.SequenceEqual(new[] { 3 }) &&
                 !SplineCurves.Allowed(TP.GetRoadTypes()["psdl"].typeData.settings).Contains(3) &&
-                !TP.GetLowLevelTypes()["decal"].typeData.settings.spline.curveTypes.Contains(3));
+                !TP.GetCustomElementTypes()["decal"].typeData.settings.spline.curveTypes.Contains(3));
             var controls = new List<Vector3> { new(0,0,0), new(10,5,0), new(10,20,10), new(25,0,15), new(30,-5,25) };
             var state = new ObjectState(); state.SetInt("curveType",3);
             var curve = SplineCurves.Create(settings,state,controls);
@@ -42,8 +42,8 @@ namespace Api {
                 deviation = Math.Max(deviation,p.DistanceTo(GeometryHelper.ClosestPointToCurve(p,samples.points,out _)));
             }
             Check("adaptive preview follows the game curve within 5 cm", deviation <= .051f && samples.parameters.Count == samples.points.Count);
-            var id = (await Call("lowLevel.create", new { type="train", name="Train preview", points=new { spline=controls.Select(p => new { position=SplinePosition(p+new Vector3(-450,25,-150)) }).ToArray() } })).Value<int>();
-            LowLevelElement Element() => (LowLevelElement)History.UndoManager.GetAliveElement(id);
+            var id = (await Call("customElement.create", new { type="train", name="Train preview", points=new { spline=controls.Select(p => new { position=SplinePosition(p+new Vector3(-450,25,-150)) }).ToArray() } })).Value<int>();
+            CustomElement Element() => (CustomElement)History.UndoManager.GetAliveElement(id);
             var element = Element();
             Check("train creates a line without surface geometry", !element.generator.DrawsMesh() && element.generator.m.GetSurfaceCount() == 0 && element.splineData.sections.Length > controls.Count);
             builder.CloseAllPanels(); element.SetActive(false,false); element.Select(false);
@@ -53,15 +53,15 @@ namespace Api {
             var middle = element.splineData.sections[element.splineData.sections.Length/2].center;
             var position = new Vector3(middle[0],middle[1],middle[2]);
             Check("deselected train can be selected through its line collider",GameEngine.Raycast.DoRaycast(element,position+Vector3.Up*20,Vector3.Down,out var hit,40,1<<7) && hit.collider == element.generator);
-            Check("trains have no preset category", Operations.LowLevelPresets.Category("train") == null);
+            Check("trains have no preset category", Operations.CustomElementPresets.Category("train") == null);
             var schema = await Call("state.schema",new { @ref=id });
             Check("train schema has no presets", schema["presetCategory"].Type == JTokenType.Null);
             Check("train tension cannot be edited", !schema["parameters"].Any(p => p["name"].Value<string>() == "hermiteTension"));
             await Expect("train rejects built-in Hermite", "invalid_value", "state.setParam",new { @ref=id,name="curveType",value=1 });
             await Expect("train rejects imported curve changes", "invalid_value", "state.import",new { @ref=id,values=new {curveType=1} });
-            await Expect("train presets are disabled", "invalid_value", "presets.save",new {category="lowLevel/train",name="Invalid train",values=new {type="train",curveType=3} });
-            await Call("lowLevel.create",new { type="train",name="Incomplete train" });
-            await CheckUndo("adding a train point", () => Call("lowLevel.insert", new { element=id,array="spline",position=new[] {-410,24,-105} }));
+            await Expect("train presets are disabled", "invalid_value", "presets.save",new {category="customElement/train",name="Invalid train",values=new {type="train",curveType=3} });
+            await Call("customElement.create",new { type="train",name="Incomplete train" });
+            await CheckUndo("adding a train point", () => Call("customElement.insert", new { element=id,array="spline",position=new[] {-410,24,-105} }));
             var export = await Call("elements.geometry",new { @ref=id });
             var authored = (JArray)export["element"]["points"]["spline"];
             var before = authored.DeepClone();
@@ -73,7 +73,7 @@ namespace Api {
                 await Frames(5); Screenshot("train_preview.png");
             }
             await Call("city.save"); await Call("city.reload");
-            element = M.lowLevelElements.First(e => GO.GetName(e) == "Train preview");
+            element = M.customElements.First(e => GO.GetName(e) == "Train preview");
             Check("train save/reload rebuilds the custom preview",element.state.Int("curveType") == 3 && element.GetAllPoints().Count() == authored.Count && element.splineData.sections.Length > authored.Count);
             var json = Path.Combine(folder,"..","trains_export.json");
             await Call("city.exportJson",new {path=json});

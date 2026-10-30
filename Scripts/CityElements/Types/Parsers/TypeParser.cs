@@ -22,8 +22,8 @@ namespace CityElements.Types.Parsers {
             meshInstanceSettings = null;
             parametricMeshInstanceSettings = null;
             citySettings = null;
-            customTypes = null;
-            lowLevelTypes = null;
+            customCityPropertiesTypes = null;
+            customElementTypes = null;
             TI.ClearAncestries();
             RuntimeCalculator.Scripting.LuaScriptHost.Reset();
         }
@@ -256,33 +256,33 @@ namespace CityElements.Types.Parsers {
             return citySettings;
         }
 
-        static Dictionary<string, CustomElement> customTypes = null;
-        public static Dictionary<string, CustomElement> GetCustomTypes(bool reload = false) {
+        static Dictionary<string, CustomCityPropertiesType> customCityPropertiesTypes = null;
+        public static Dictionary<string, CustomCityPropertiesType> GetCustomCityPropertiesTypes(bool reload = false) {
             EnsureCore();
-            if (customTypes != null && !reload) return customTypes;
+            if (customCityPropertiesTypes != null && !reload) return customCityPropertiesTypes;
             var elementsDir = GetElementsDir();
             if (elementsDir == null) return null;
             var ancestries = new Dictionary<string, string[]>();
-            customTypes = LoadCustomTypes(elementsDir, ancestries);
-            TI.SetAncestries(TI.CustomTypes, ancestries);
-            return customTypes;
+            customCityPropertiesTypes = LoadCustomCityPropertiesTypes(elementsDir, ancestries);
+            TI.SetAncestries(TI.CustomCityPropertiesTypes, ancestries);
+            return customCityPropertiesTypes;
         }
 
-        public static Dictionary<string, CustomElement> LoadCustomTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
-            return LoadFileTypes(elementsDir, TI.CustomTypes, ancestries, (file, key) => TI.LoadSingle<CustomElement>(file));
+        public static Dictionary<string, CustomCityPropertiesType> LoadCustomCityPropertiesTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFileTypes(elementsDir, TI.CustomCityPropertiesTypes, ancestries, (file, key) => TI.LoadSingle<CustomCityPropertiesType>(file));
         }
 
-        //Low-level elements (the folder is optional, cores without it have no low-level types)
-        static Dictionary<string, Runtime.LowLevelType> lowLevelTypes;
-        public static Dictionary<string, Runtime.LowLevelType> GetLowLevelTypes(bool reload = false) {
-            var types = GetTypes(ref lowLevelTypes, TI.LowLevel, LoadLowLevelTypes, reload);
+        //Custom elements (the folder is optional, cores without it have no custom element types)
+        static Dictionary<string, Runtime.CustomElementType> customElementTypes;
+        public static Dictionary<string, Runtime.CustomElementType> GetCustomElementTypes(bool reload = false) {
+            var types = GetTypes(ref customElementTypes, TI.CustomElements, LoadCustomElementTypes, reload);
             if (!types.ContainsKey(PropPath.TypeId)) types.Add(PropPath.TypeId, PropPath.CreateType());
             return types;
         }
 
-        public static Dictionary<string, Runtime.LowLevelType> LoadLowLevelTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
-            if (!Directory.Exists(CategoryDir(elementsDir, TI.LowLevel))) return new Dictionary<string, Runtime.LowLevelType>();
-            return LoadFolderTypes(elementsDir, TI.LowLevel, ancestries, (dir, key) => new Runtime.LowLevelType(new LowLevelType(dir), key));
+        public static Dictionary<string, Runtime.CustomElementType> LoadCustomElementTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            if (!Directory.Exists(CategoryDir(elementsDir, TI.CustomElements))) return new Dictionary<string, Runtime.CustomElementType>();
+            return LoadFolderTypes(elementsDir, TI.CustomElements, ancestries, (dir, key) => new Runtime.CustomElementType(new CustomElementType(dir), key));
         }
 
         //the ancestries of the types of every category of the current core
@@ -296,8 +296,8 @@ namespace CityElements.Types.Parsers {
             GetPropsElementTypes();
             GetPropsContainersTypes();
             GetParametricMeshInstanceSettings();
-            GetCustomTypes();
-            GetLowLevelTypes();
+            GetCustomCityPropertiesTypes();
+            GetCustomElementTypes();
             return TI.GetAllAncestries();
         }
     }

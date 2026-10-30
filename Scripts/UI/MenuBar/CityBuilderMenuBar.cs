@@ -21,7 +21,7 @@ public partial class CityBuilderMenuBar : Control {
     PresetEditorPanel presetEditorPanel = new PresetEditorPanel();
     TerrainPatchEditorPanel terrainPatchEditorPanel = new TerrainPatchEditorPanel();
     EditorPanels.Buildings.LineEditorPanel buildingLineEditorPanel = new EditorPanels.Buildings.LineEditorPanel();
-    public EditorPanels.LowLevelElementEditorPanel lowLevelEditorPanel = new EditorPanels.LowLevelElementEditorPanel();
+    public EditorPanels.CustomElementEditorPanel customElementEditorPanel = new EditorPanels.CustomElementEditorPanel();
     WholeCityTerrainEditorPanel cityTerrainEditorPanel = new WholeCityTerrainEditorPanel();
     WholeCityBuildingsEditorPanel cityBuildingsEditorPanel = new WholeCityBuildingsEditorPanel();
     ObjectListEditorPanel objectListEditorPanel = new ObjectListEditorPanel();
@@ -42,7 +42,7 @@ public partial class CityBuilderMenuBar : Control {
     ElementPlacer.RoadPlacer roadPlacer;
     ElementPlacer.TerrainPlacer terrainPlacer;
     ElementPlacer.BuildingPlacer buildingPlacer;
-    public ElementPlacer.LowLevelPlacer lowLevelPlacer;
+    public ElementPlacer.CustomElementPlacer customElementPlacer;
     public ElementPlacer.MeshPlacer meshPlacer;
     public ElementPlacer.ArrayPointPlacer arrayPointPlacer;
     public ElementPlacer.ReferencePicker referencePicker;
@@ -110,7 +110,7 @@ public partial class CityBuilderMenuBar : Control {
         roadPlacer = new ElementPlacer.RoadPlacer(helper.elementManager);
         terrainPlacer = new ElementPlacer.TerrainPlacer(helper.elementManager);
         buildingPlacer = new ElementPlacer.BuildingPlacer(helper.elementManager);
-        lowLevelPlacer = new ElementPlacer.LowLevelPlacer(helper.elementManager);
+        customElementPlacer = new ElementPlacer.CustomElementPlacer(helper.elementManager);
         meshPlacer = new ElementPlacer.MeshPlacer(helper.elementManager);
         arrayPointPlacer = new ElementPlacer.ArrayPointPlacer(this);
         referencePicker = new ElementPlacer.ReferencePicker(this);
@@ -246,7 +246,7 @@ public partial class CityBuilderMenuBar : Control {
             cityPropertiesEditorPanel,
             scriptInputEditorPanel,
             validationEditorPanel,
-            lowLevelEditorPanel
+            customElementEditorPanel
         };
 
         menuBar.SetAsLastSibling();
@@ -423,7 +423,7 @@ public partial class CityBuilderMenuBar : Control {
 
     bool IsElementEditor(EditorPanel panel) {
         return panel == roadEditorPanel || panel == intersectionEditorPanel || panel == terrainPatchEditorPanel || panel == buildingLineEditorPanel
-            || panel == lowLevelEditorPanel;
+            || panel == customElementEditorPanel;
     }
 
     System.Func<EditorPanel, EditorPanel> CaptureRootReopen(EditorPanel root) {
@@ -449,21 +449,21 @@ public partial class CityBuilderMenuBar : Control {
             var mode = (int)buildingPlacer.placementMode;
             return CaptureElementReopen((modifier as ElementPlacer.BuildingPlacer)?.GetLine(false), buildingLineEditorPanel, () => buildingLineEditorPanel.SetPointPlacementMode(mode));
         }
-        if (root == lowLevelEditorPanel) {
-            var element = (modifier as ElementPlacer.LowLevelPlacer)?.GetElement();
+        if (root == customElementEditorPanel) {
+            var element = (modifier as ElementPlacer.CustomElementPlacer)?.GetElement();
             if (element == null) {
-                var type = lowLevelEditorPanel.creationType;
-                var group = lowLevelEditorPanel.creationGroup;
-                var draft = lowLevelEditorPanel.CaptureCreationState();
+                var type = customElementEditorPanel.creationType;
+                var group = customElementEditorPanel.creationGroup;
+                var draft = customElementEditorPanel.CaptureCreationState();
                 return _ => {
-                    if (editingPresets) EditLowLevelPresets(type);
-                    else StartLowLevelCreation(type, group);
-                    lowLevelEditorPanel.RestoreCreationState(draft);
-                    return lowLevelEditorPanel;
+                    if (editingPresets) EditCustomElementPresets(type);
+                    else StartCustomElementCreation(type, group);
+                    customElementEditorPanel.RestoreCreationState(draft);
+                    return customElementEditorPanel;
                 };
             }
-            var mode = lowLevelEditorPanel.GetPointPlacementMode();
-            return CaptureElementReopen(element, lowLevelEditorPanel, () => lowLevelEditorPanel.SetPointPlacementMode(mode));
+            var mode = customElementEditorPanel.GetPointPlacementMode();
+            return CaptureElementReopen(element, customElementEditorPanel, () => customElementEditorPanel.SetPointPlacementMode(mode));
         }
         if (root == transformPropertiesEditorPanel) {
             var mesh = CaptureMeshLocator(transformPropertiesEditorPanel.instance);
@@ -597,8 +597,8 @@ public partial class CityBuilderMenuBar : Control {
                 return current != null && index < current.points.Count ? current.points[index] : null;
             };
         }
-        if (owner is LowLevelElement element && element.GetMoveHandle() == node) {
-            return () => (History.UndoManager.GetAliveElement(id) as LowLevelElement)?.GetMoveHandle();
+        if (owner is CustomElement element && element.GetMoveHandle() == node) {
+            return () => (History.UndoManager.GetAliveElement(id) as CustomElement)?.GetMoveHandle();
         }
         return null;
     }
@@ -677,17 +677,17 @@ public partial class CityBuilderMenuBar : Control {
         var actions = new List<System.Action> { CreateRoad, CreateTerrain, CreateBuildingLine, CreateMeshInstance };
         var groups = new HashSet<string>();
         if (!noCity && PathHelper.CoreAvailable()) {
-            foreach (var pair in CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()) {
+            foreach (var pair in CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()) {
                 var settings = pair.Value.typeData.settings;
                 if (!settings.creatable) continue;
                 var type = pair.Key;
-                var group = settings.createMenu?.group ?? "CREATE_LOW_LEVEL_ELEMENT";
+                var group = settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT";
                 if (settings.createMenu?.direct == true) {
-                    entries.Add(Operations.LowLevel.GetTypeLabel(type));
-                    actions.Add(() => StartLowLevelCreation(type));
+                    entries.Add(Operations.CustomElements.GetTypeLabel(type));
+                    actions.Add(() => StartCustomElementCreation(type));
                 } else if (groups.Add(group)) {
                     entries.Add(SM.Get(group));
-                    actions.Add(() => StartLowLevelCreation(null, group));
+                    actions.Add(() => StartCustomElementCreation(null, group));
                 }
             }
         }
@@ -779,7 +779,7 @@ public partial class CityBuilderMenuBar : Control {
         roadPlacer.placementMode = ElementPlacer.RoadPlacer.PlacementMode.None;
         terrainPlacer.placementMode = ElementPlacer.TerrainPlacer.PlacementMode.None;
         buildingPlacer.placementMode = ElementPlacer.BuildingPlacer.PlacementMode.None;
-        lowLevelPlacer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.None;
+        customElementPlacer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.None;
         meshPlacer.placeEnabled = false;
         arrayPointPlacer.Stop();
         meshListEditorPanel.ResetEntries(); //otherwise when opened for the first time it would have broken paths due to prefs not being loaded at first load
@@ -1177,23 +1177,23 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     void CreatePropPath() {
-        StartLowLevelCreation(PropPath.TypeId);
+        StartCustomElementCreation(PropPath.TypeId);
     }
 
-    void CreateLowLevelElement() {
-        StartLowLevelCreation(null);
+    void CreateCustomElement() {
+        StartCustomElementCreation(null);
     }
 
-    void StartLowLevelCreation(string type, string group = "CREATE_LOW_LEVEL_ELEMENT") {
-        lowLevelEditorPanel.Terminate();
-        DisableAllPanels(lowLevelEditorPanel);
-        lowLevelEditorPanel.creationType = type;
-        lowLevelEditorPanel.creationGroup = group;
-        lowLevelPlacer.createType = type;
-        lowLevelPlacer.SetElement(null);
-        lowLevelPlacer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.Create;
-        terrainClick.modifier = lowLevelPlacer;
-        lowLevelEditorPanel.SetActive(true);
+    void StartCustomElementCreation(string type, string group = "CREATE_CUSTOM_ELEMENT") {
+        customElementEditorPanel.Terminate();
+        DisableAllPanels(customElementEditorPanel);
+        customElementEditorPanel.creationType = type;
+        customElementEditorPanel.creationGroup = group;
+        customElementPlacer.createType = type;
+        customElementPlacer.SetElement(null);
+        customElementPlacer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.Create;
+        terrainClick.modifier = customElementPlacer;
+        customElementEditorPanel.SetActive(true);
     }
 
     //converts the element with a converter of the core (see Operations.Conversion): the editor is locked while the
@@ -1371,13 +1371,13 @@ public partial class CityBuilderMenuBar : Control {
         roadEditorPanel.SetActive(true, false);
     }
 
-    public void EditLowLevelPresets(string type) {
-        lowLevelEditorPanel.Terminate();
-        DisableAllPanels(lowLevelEditorPanel);
-        lowLevelPlacer.SetElement(null);
+    public void EditCustomElementPresets(string type) {
+        customElementEditorPanel.Terminate();
+        DisableAllPanels(customElementEditorPanel);
+        customElementPlacer.SetElement(null);
         terrainClick.modifier = nullModifier;
-        lowLevelEditorPanel.creationType = type;
-        lowLevelEditorPanel.SetActive(true);
+        customElementEditorPanel.creationType = type;
+        customElementEditorPanel.SetActive(true);
     }
 
     public void EditIntersectionPresets() {
@@ -1422,19 +1422,19 @@ public partial class CityBuilderMenuBar : Control {
         var buildingSide = (buildingLine != null && c != null) ? buildingLine.GetColliderSide(c) : null;
         var building = (buildingLine != null && c != null) ? buildingLine.GetColliderBuilding(c) : null;
         var selector = GS.Cast<GenericSelector>(obj);
-        var lowLevel = GS.Cast<LowLevelElement>(obj);
-        if (lowLevel != null && lowLevel.IsDeleted()) lowLevel = null;
+        var customElement = GS.Cast<CustomElement>(obj);
+        if (customElement != null && customElement.IsDeleted()) customElement = null;
         if (road != null && road.ghost) road = null;
         if (intersection != null && intersection.intersection.ghost) intersection = null;
-        if (lowLevel != null) {
-            ReselectObjectPanelAndModifier(obj, withEditor, lowLevelEditorPanel, lowLevelPlacer);
+        if (customElement != null) {
+            ReselectObjectPanelAndModifier(obj, withEditor, customElementEditorPanel, customElementPlacer);
             if (withEditor) {
-                lowLevelPlacer.SetElement(lowLevel);
-                lowLevelPlacer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.None;
-                lowLevelEditorPanel.ShowWithStack(stack);
+                customElementPlacer.SetElement(customElement);
+                customElementPlacer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.None;
+                customElementEditorPanel.ShowWithStack(stack);
             } else {
-                lowLevel.SetActive(true, true);
-                lowLevel.Select(true);
+                customElement.SetActive(true, true);
+                customElement.Select(true);
             }
         }
         else if (cityProperties != null) {
@@ -1607,20 +1607,20 @@ public partial class CityBuilderMenuBar : Control {
             setSelectMode = intersectionEditorPanel.CanDelete();
             if (setSelectMode) intersectionEditorPanel.Delete();
         }
-        else if (lowLevelEditorPanel.ActiveSelf()) {
-            var element = lowLevelEditorPanel.GetElement();
+        else if (customElementEditorPanel.ActiveSelf()) {
+            var element = customElementEditorPanel.GetElement();
             if (element == null) {
                 setSelectMode = false;
             } else if (gizmo.mainTargetRoot != null) {
                 var point = GS.FindRecursive<TerrainPoint>(gizmo.mainTargetRoot);
-                if (point != null && Operations.LowLevel.RemovePoint(element, point)) {
+                if (point != null && Operations.CustomElements.RemovePoint(element, point)) {
                     gizmo.RemoveTarget(gizmo.mainTargetRoot);
                     point.Select(false);
                     NotifyChange();
                 }
                 setSelectMode = false;
             } else {
-                lowLevelEditorPanel.Delete();
+                customElementEditorPanel.Delete();
             }
         }
         else if (buildingLineEditorPanel.ActiveSelf()) {
@@ -1702,8 +1702,8 @@ public partial class CityBuilderMenuBar : Control {
         return null;
     }
 
-    //the low-level element whose editor the transform panel was opened from (on one of its points), null otherwise
-    public LowLevelElement ControlPointOwnerLowLevel => (controlPointOwnerModifier as ElementPlacer.LowLevelPlacer)?.GetElement();
+    //the custom element whose editor the transform panel was opened from (on one of its points), null otherwise
+    public CustomElement ControlPointOwnerCustomElement => (controlPointOwnerModifier as ElementPlacer.CustomElementPlacer)?.GetElement();
 
     //called by the transform panel before returning to (or terminating) the editor owning the control point
     public void RestoreControlPointOwner() {

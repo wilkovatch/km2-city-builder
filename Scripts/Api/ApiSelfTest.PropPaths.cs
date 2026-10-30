@@ -42,13 +42,13 @@ namespace Api {
                     && ElementPlacer.ReferencePicker.ElementOf(hit.collider) == element);
                 if (found) History.UndoManager.Record("select generated prop", () => selector.Select(hit));
                 await Frames(2);
-                Check("clicking each generated prop opens its rule editor", builder.lowLevelEditorPanel.IsOpen()
-                    && builder.lowLevelEditorPanel.GetElement() == element && builder.lowLevelPlacer.GetElement() == element);
+                Check("clicking each generated prop opens its rule editor", builder.customElementEditorPanel.IsOpen()
+                    && builder.customElementEditorPanel.GetElement() == element && builder.customElementPlacer.GetElement() == element);
             }
             Check("generated props share their asset selection shape", element.generator.props.All(p =>
                 p.obj.GetChildren().OfType<CollisionShape3D>().SingleOrDefault()?.Shape == MeshManager.GetSelectionShape(mesh)));
-            builder.lowLevelEditorPanel.Update();
-            Check("selecting a generated prop opens its rule owner", builder.lowLevelEditorPanel.GetElement() == element);
+            builder.customElementEditorPanel.Update();
+            Check("selecting a generated prop opens its rule owner", builder.customElementEditorPanel.GetElement() == element);
             Check("standalone rule editing exposes a move handle", element.IsMoveHandleShown());
             Check("standalone ribbon points are editable", element.GetAllPoints().Any(p => GO.GetLayer(p.GetObject()) == 8));
             if (DisplayServer.GetName() != "headless") {
@@ -59,7 +59,7 @@ namespace Api {
             }
             //the ribbon buttons rebuild the editor: it stays open (on the closing of the panels the editing ends)
             var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var addRibbon = ((List<EditorPanelPage>)typeof(EditorPanel).GetField("pages", flags).GetValue(builder.lowLevelEditorPanel))
+            var addRibbon = ((List<EditorPanelPage>)typeof(EditorPanel).GetField("pages", flags).GetValue(builder.customElementEditorPanel))
                 .SelectMany(p => (List<List<EditorPanelElement>>)typeof(EditorPanelPage).GetField("elements", flags).GetValue(p)).SelectMany(row => row)
                 .OfType<EditorPanelElements.Button>().Select(b => typeof(EditorPanelElements.Button).GetField("button", flags).GetValue(b) as Godot.Button)
                 .FirstOrDefault(b => b.Text == StringManager.Get("PROP_PATH_ADD_RIBBON"));
@@ -67,18 +67,18 @@ namespace Api {
             addRibbon?.EmitSignal(BaseButton.SignalName.Pressed);
             await Frames(3);
             Check("adding a ribbon from the editor (" + ribbonsBefore + " -> " + Element().RibbonNames.Count() + ") rebuilds it still open",
-                addRibbon != null && Element().RibbonNames.Count() == ribbonsBefore + 1 && builder.lowLevelEditorPanel.ActiveSelf()
-                && builder.lowLevelEditorPanel.IsOpen() && builder.lowLevelEditorPanel.GetElement() == Element());
+                addRibbon != null && Element().RibbonNames.Count() == ribbonsBefore + 1 && builder.customElementEditorPanel.ActiveSelf()
+                && builder.customElementEditorPanel.IsOpen() && builder.customElementEditorPanel.GetElement() == Element());
             builder.CloseAllPanels();
             await Frames(2);
-            Check("closing the rebuilt editor ends the editing", !builder.lowLevelEditorPanel.IsOpen() && builder.lowLevelPlacer.onFrame == null);
+            Check("closing the rebuilt editor ends the editing", !builder.customElementEditorPanel.IsOpen() && builder.customElementPlacer.onFrame == null);
             await Call("propPaths.delete", new { element = id });
 
-            //Creation-mode switching must not reuse the ordinary low-level type dropdown.
+            //Creation-mode switching must not reuse the ordinary custom element type dropdown.
             var method = typeof(CityBuilderMenuBar).GetMethod("CreatePropPath", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             History.UndoManager.Record("create prop rule menu", () => method.Invoke(builder, null));
             await Frames(2);
-            Check("the Create prop rule command selects the generic built-in type", (builder.terrainClick.modifier as ElementPlacer.LowLevelPlacer)?.createType == PropPath.TypeId);
+            Check("the Create prop rule command selects the generic built-in type", (builder.terrainClick.modifier as ElementPlacer.CustomElementPlacer)?.createType == PropPath.TypeId);
             builder.CloseAllPanels();
         }
     }

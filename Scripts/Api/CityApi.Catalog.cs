@@ -10,7 +10,7 @@ namespace Api {
     public partial class CityApi {
         public static readonly string[] TypeKinds = {
             "road", "intersection", "terrainPatch", "borderMesh", "buildingLine", "building", "buildingSide", "buildingBlock",
-            "propContainer", "propElement", "cityProperties", "meshInstance", "parametricObject", "lowLevel"
+            "propContainer", "propElement", "cityProperties", "meshInstance", "parametricObject", "customElement"
         };
 
         [ApiMethod("cores.list", "The installed cores")]
@@ -50,7 +50,7 @@ namespace Api {
                 case "propContainer": return TI.PropsContainers;
                 case "propElement": return TI.PropsElements;
                 case "parametricObject": return TI.ParametricObjects;
-                case "lowLevel": return TI.LowLevel;
+                case "customElement": return TI.CustomElements;
                 default: return null;
             }
         }
@@ -114,17 +114,17 @@ namespace Api {
                 case "meshInstance":
                     var settings = TP.GetMeshInstanceSettings();
                     return new List<object> { new { name = "", label = (string)null, ancestry = new[] { "" }, parameters = SchemaOf(Params(settings?.typeData.parametersInfo)) } };
-                case "lowLevel":
-                    var lowLevelTypes = new List<object>();
-                    foreach (var t in TP.GetLowLevelTypes()) {
+                case "customElement":
+                    var customElementTypes = new List<object>();
+                    foreach (var t in TP.GetCustomElementTypes()) {
                         var s = t.Value.typeData.settings;
-                        lowLevelTypes.Add(new {
+                        customElementTypes.Add(new {
                             name = t.Key, label = SM.GetOrKey(t.Value.typeData.ui.label ?? t.Key), ancestry = AncestryOf(kind, t.Key),
                             parameters = SchemaOf(Params(t.Value.parameterContainer)), controlPoints = s.controlPoints, mesh = s.mesh,
                             contains = s.container?.contains, creatable = s.creatable
                         });
                     }
-                    return lowLevelTypes;
+                    return customElementTypes;
                 case "parametricObject":
                     var res = new List<object>();
                     foreach (var t in TP.GetParametricMeshInstanceSettings() ?? new Dictionary<string, CityElements.Types.Runtime.MeshInstanceSettings>()) {
@@ -144,7 +144,7 @@ namespace Api {
             return res;
         }
 
-        [ApiMethod("presets.list", "The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, propContainer, propElem, roadPropRule, lowLevel/<type> for enabled low-level types, or a container such as rail); the first one is the default")]
+        [ApiMethod("presets.list", "The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, propContainer, propElem, roadPropRule, customElement/<type> for enabled custom element types, or a container such as rail); the first one is the default")]
         public List<string> ListPresets(string category) {
             RequireCity();
             try { return PresetNames(category); }
@@ -170,7 +170,7 @@ namespace Api {
             catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
         }
 
-        [ApiMethod("presets.delete", "Deletes a preset (not the default one); linked roads, intersections, building parts and enabled low-level elements are unlinked from it")]
+        [ApiMethod("presets.delete", "Deletes a preset (not the default one); linked roads, intersections, building parts and enabled custom elements are unlinked from it")]
         public void DeletePreset(string category, string name) {
             RequireCity();
             if (name == Operations.Presets.DefaultName) throw ApiException.InvalidOperation("the default preset can't be deleted");
@@ -182,7 +182,7 @@ namespace Api {
             });
         }
 
-        [ApiMethod("presets.sync", "Gives the current values of a preset to the roads, intersections, building parts and enabled low-level elements linked to it")]
+        [ApiMethod("presets.sync", "Gives the current values of a preset to the roads, intersections, building parts and enabled custom elements linked to it")]
         public void SyncPreset(string category, string name) {
             ApplyChange("sync preset", () => {
                 try {

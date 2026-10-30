@@ -6,7 +6,7 @@ using GO = GameEngine.GameObject;
 using GH = GeometryHelper;
 
 //The props of a prop rule ("propRule" of a state: a props container for each name), placed along the lines of each
-//container (between a start and an end line with as many points): used by the roads and the low-level elements
+//container (between a start and an end line with as many points): used by the roads and the custom elements
 public static class PropPlacer {
     static Vector3 PathTangent(Vector3[] path, float distance) {
         var last = GameEngine.Vector3.forward;
@@ -48,7 +48,7 @@ public static class PropPlacer {
         }
     }
 
-    public static void PlaceRibbons(ObjectState rule, List<LowLevel.GeometryPropLine> ribbons, GameObject root,
+    public static void PlaceRibbons(ObjectState rule, List<CustomElements.GeometryPropLine> ribbons, GameObject root,
         List<(string container, string meshName, GameObject obj)> props) {
         if (rule == null) return;
         foreach (var group in ribbons.GroupBy(r => r.container)) {
@@ -67,7 +67,7 @@ public static class PropPlacer {
         }
     }
 
-    static (Vector3 pos, Vector3 dir, Vector3 tangent) Sample(List<LowLevel.GeometryPropLine> segments, float x, float z) {
+    static (Vector3 pos, Vector3 dir, Vector3 tangent) Sample(List<CustomElements.GeometryPropLine> segments, float x, float z) {
         foreach (var segment in segments) {
             var mid = segment.distanceReference.Count == segment.startBound.Count ? segment.distanceReference
                 : segment.startBound.Zip(segment.endBound, (a, b) => (a + b) * 0.5f).ToList();
@@ -92,7 +92,7 @@ public static class PropPlacer {
     }
 
     static void PlaceLane(Vector3[] inLine, Vector3[] outLine, ObjectState elem, string containerType, GameObject propsContainer,
-        List<(string container, string meshName, GameObject obj)> props, List<LowLevel.GeometryPropLine> segments = null, bool edgeCall = false) {
+        List<(string container, string meshName, GameObject obj)> props, List<CustomElements.GeometryPropLine> segments = null, bool edgeCall = false) {
 
         if (inLine.Length != outLine.Length) {
             GameEngine.Print("Invalid props spline detected");
@@ -121,21 +121,21 @@ public static class PropPlacer {
                 numElemMeshes = meshesList.Length;
             }
             if (segments == null && type.rules.iterationScope == "edge") {
-                segments = new List<LowLevel.GeometryPropLine> { new LowLevel.GeometryPropLine {
+                segments = new List<CustomElements.GeometryPropLine> { new CustomElements.GeometryPropLine {
                     container = containerType, startBound = inLine.ToList(), endBound = outLine.ToList()
                 } };
             }
             if (segments != null && type.rules.iterationScope == "edge" && !edgeCall) {
                 foreach (var segment in segments) {
                     for (int k = 0; k + 1 < segment.startBound.Count; k++) {
-                        var edge = new LowLevel.GeometryPropLine { container = containerType,
+                        var edge = new CustomElements.GeometryPropLine { container = containerType,
                             startBound = segment.startBound.GetRange(k, 2), endBound = segment.endBound.GetRange(k, 2) };
                         if (segment.distanceReference.Count == segment.startBound.Count) edge.distanceReference = segment.distanceReference.GetRange(k, 2);
                         var middle = edge.distanceReference.Count == 2 ? edge.distanceReference
                             : edge.startBound.Zip(edge.endBound, (a, b) => (a + b) * 0.5f).ToList();
                         if (middle[0].DistanceTo(middle[1]) < 0.000001f) continue;
                         PlaceLane(edge.startBound.ToArray(), edge.endBound.ToArray(), elem, containerType, propsContainer, props,
-                            new List<LowLevel.GeometryPropLine> { edge }, true);
+                            new List<CustomElements.GeometryPropLine> { edge }, true);
                     }
                 }
                 return;

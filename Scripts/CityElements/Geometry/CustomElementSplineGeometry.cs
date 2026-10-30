@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
-using LowLevel;
+using CustomElements;
 using GH = GeometryHelper;
 
 //Evaluated on the main thread: projection uses physics. Only control points and state are saved; sections are derived.
-public static class LowLevelSplineGeometry {
+public static class CustomElementSplineGeometry {
     public class Section {
         public float[] center, right, up;
         public float[][] vertices;
@@ -47,11 +47,11 @@ public static class LowLevelSplineGeometry {
         return result;
     }
 
-    public static GeometryResult Build(LowLevelElement element, out Data data) {
+    public static GeometryResult Build(CustomElement element, out Data data) {
         data = new Data();
         var result = new GeometryResult();
         var settings = element.Settings.spline;
-        var type = element.GetLowLevelType().splineType;
+        var type = element.GetCustomElementType().splineType;
         var state = element.state;
         var mode = state.Int("curveType", settings.defaultCurveType);
         if (Array.IndexOf(settings.curveTypes, mode) < 0) throw new ArgumentException("Curve type is not allowed by " + element.TypeName);
@@ -68,9 +68,9 @@ public static class LowLevelSplineGeometry {
         if (settings.projectSections) {
             samples = samples.Select(p => GH.ProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
         }
-        GeometryLine Line(List<Vector3> positions, CityElements.Types.LowLevelSplineLine style) {
+        GeometryLine Line(List<Vector3> positions, CityElements.Types.CustomElementSplineLine style) {
             var line = new GeometryLine { points = positions, always = style?.always == true };
-            if (style?.color != null) line.color = LowLevelScripting.ReadColor(new Lua.LuaValue(style.color), line.color);
+            if (style?.color != null) line.color = CustomElementScripting.ReadColor(new Lua.LuaValue(style.color), line.color);
             return line;
         }
         if (samples.Count >= 2) result.lines.Add(Line(samples, settings.line));

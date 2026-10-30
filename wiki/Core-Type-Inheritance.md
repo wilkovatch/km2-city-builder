@@ -17,7 +17,7 @@ roads/psdlTunnel/
     └── tunnelLights.json
 ```
 
-**Single file types** (props elements, props containers, parametric objects, custom types) use the same keys in their file:
+**Single file types** (props elements, props containers, parametric objects, custom city properties types) use the same keys in their file:
 
 ```json
 {
@@ -139,7 +139,7 @@ The elements of the exported city have the name of their own type. The export JS
 ]
 ```
 
-`category` is the folder of the type inside `elements` (`roads`, `intersections`, `terrainPatches/terrainPatches`, `terrainPatches/borderMeshes`, `buildings`, `buildingBlocks`, `props/elements`, `props/containers`, `props/parametric`, `customTypes`). In Python:
+`category` is the folder of the type inside `elements` (`roads`, `intersections`, `terrainPatches/terrainPatches`, `terrainPatches/borderMeshes`, `buildings`, `buildingBlocks`, `props/elements`, `props/containers`, `props/parametric`, `customCityPropertiesTypes`, `customElements`). In Python:
 
 ```python
 ancestries = {(t['category'], t['name']): t['ancestry'] for t in data.get('typeAncestry', [])}

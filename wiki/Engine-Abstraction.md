@@ -54,7 +54,7 @@ Everything related to meshes and colliders:
 * `GetVertices`, `GetNormals`, `GetUVs`, `GetIndices`, `GetSubmeshCount` read mesh data back (in program coordinates), used by the exporter.
 * `CreateCollider`/`RefreshCollider` create and update a concave collision shape (double-sided, so that rays hit generated meshes from above), `CreateBoxCollider`, `CreateCapsuleCollider`, `AdjustCapsuleCollider`.
 * `CreateSelectionShape` combines an imported asset's indexed and non-indexed triangle surfaces in Godot coordinates, including its root and child transforms, into a double-sided shape. It uses the LOD metadata to include level 0 and untagged meshes, ignores current visibility, and skips degenerate triangles, non-triangle surfaces and line renderers. An asset without usable triangles returns null. `CreateShapeCollider` attaches an existing shape as a direct child of a physics body, allowing mesh instances to share the cached resource.
-* `RefreshCollider(collider, vertices, indices)` builds a double-sided shape directly from program-coordinate triangles, with the same Z conversion and winding as the mesh-based overload. Low-level elements use it to avoid an intermediate rendering mesh, normal calculation and readback.
+* `RefreshCollider(collider, vertices, indices)` builds a double-sided shape directly from program-coordinate triangles, with the same Z conversion and winding as the mesh-based overload. Custom elements use it to avoid an intermediate rendering mesh, normal calculation and readback.
 * `CombineMeshes`, `GetEncapsulatingBoundsForChildMeshes`, `SetShadowsTwoSidedRecursive`.
 
 ### `Raycast`

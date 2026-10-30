@@ -7,8 +7,8 @@ using GO = GameEngine.GameObject;
 using RaycastHit = GameEngine.Raycast.RaycastHit;
 
 namespace ElementPlacer {
-    //The clicks while a low-level element is edited (or created)
-    public class LowLevelPlacer : TerrainAction {
+    //The clicks while a custom element is edited (or created)
+    public class CustomElementPlacer : TerrainAction {
         public enum PlacementMode {
             None,
             Create, //a new element of createType where clicked
@@ -18,7 +18,7 @@ namespace ElementPlacer {
             PrependPoint
         }
 
-        public LowLevelElement curElement = null;
+        public CustomElement curElement = null;
         public string createType;
         public ObjectState creationState;
         public PlacementMode placementMode = PlacementMode.None;
@@ -29,15 +29,15 @@ namespace ElementPlacer {
         public System.Action onModeEnded; //the placement mode ended by itself (e.g. a closed array was closed)
         readonly ElementManager manager;
 
-        public LowLevelPlacer(ElementManager manager) {
+        public CustomElementPlacer(ElementManager manager) {
             this.manager = manager;
         }
 
-        public void SetElement(LowLevelElement element) {
+        public void SetElement(CustomElement element) {
             curElement = GO.IsNull(element) || (element != null && element.IsDeleted()) ? null : element;
         }
 
-        public LowLevelElement GetElement() {
+        public CustomElement GetElement() {
             if (curElement != null && (GO.IsNull(curElement) || curElement.IsDeleted())) curElement = null;
             return curElement;
         }
@@ -69,12 +69,12 @@ namespace ElementPlacer {
             switch (placementMode) {
                 case PlacementMode.Create:
                     if (createType == null) return;
-                    curElement = Operations.LowLevel.Create(manager, createType, hit.point);
-                    if (creationState != null) Operations.LowLevelPresets.Apply(curElement.state, creationState, createType);
+                    curElement = Operations.CustomElements.Create(manager, createType, hit.point);
+                    if (creationState != null) Operations.CustomElementPresets.Apply(curElement.state, creationState, createType);
                     placementMode = PlacementMode.None;
                     if (curElement.Settings?.spline != null) {
                         arrayPath = "spline";
-                        Operations.LowLevel.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
+                        Operations.CustomElements.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
                         placementMode = PlacementMode.AppendPoint;
                     }
                     curElement.SetActive(true, true);
@@ -88,22 +88,22 @@ namespace ElementPlacer {
                         onModeEnded?.Invoke();
                         return;
                     }
-                    var point = Operations.LowLevel.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
+                    var point = Operations.CustomElements.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
                     point?.Select(true);
                     break;
                 case PlacementMode.PrependPoint:
                 case PlacementMode.InsertPoint:
                     if (GetElement() == null) return;
-                    var list = LowLevel.PointTree.Find(curElement.points, "spline") as LowLevel.PointList;
+                    var list = CustomElements.PointTree.Find(curElement.points, "spline") as CustomElements.PointList;
                     var selectedPoint = manager.builder.gizmo.mainTargetRoot == null ? null : GS.FindRecursive<TerrainPoint>(manager.builder.gizmo.mainTargetRoot);
-                    var index = placementMode == PlacementMode.PrependPoint ? 0 : list.items.FindIndex(n => ((LowLevel.PointLeaf)n).point == selectedPoint);
+                    var index = placementMode == PlacementMode.PrependPoint ? 0 : list.items.FindIndex(n => ((CustomElements.PointLeaf)n).point == selectedPoint);
                     if (index < 0) return;
                     if (placementMode == PlacementMode.InsertPoint && !atStart) index++;
-                    Operations.LowLevel.InsertPointAt(manager, curElement, "spline", index, obj, hit.point);
+                    Operations.CustomElements.InsertPointAt(manager, curElement, "spline", index, obj, hit.point);
                     break;
                 case PlacementMode.AppendElement:
                     if (GetElement() == null) return;
-                    Operations.LowLevel.AppendArrayElementAt(curElement, arrayPath, atStart, hit.point);
+                    Operations.CustomElements.AppendArrayElementAt(curElement, arrayPath, atStart, hit.point);
                     break;
             }
             UnselectPointDelayed();
@@ -111,10 +111,10 @@ namespace ElementPlacer {
 
         //the click is on the first point of the closed array points are added to
         bool ClosesArray(Node3D obj) {
-            var list = LowLevel.PointTree.Find(curElement.points, arrayPath) as LowLevel.PointList;
+            var list = CustomElements.PointTree.Find(curElement.points, arrayPath) as CustomElements.PointList;
             if (list == null || !list.def.array.closed || list.items.Count < 2) return false;
             var clicked = obj == null ? null : GS.FindRecursive<TerrainPoint>(obj);
-            return clicked != null && list.items[0] is LowLevel.PointLeaf first && first.point == clicked;
+            return clicked != null && list.items[0] is CustomElements.PointLeaf first && first.point == clicked;
         }
 
         void UnselectPointDelayed() {

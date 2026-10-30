@@ -1,6 +1,6 @@
 # Core Spline Types
 
-Roads, road-style geometry and spline-driven low-level elements share a curve registry. The built-in curves keep their saved IDs: `0` Bézier, `1` Hermite and `2` low-poly. A core can define additional curves without adding game-specific code to the builder.
+Roads, road-style geometry and spline-driven custom elements share a curve registry. The built-in curves keep their saved IDs: `0` Bézier, `1` Hermite and `2` low-poly. A core can define additional curves without adding game-specific code to the builder.
 
 ## Definitions and availability
 
@@ -24,9 +24,9 @@ An optional `splineTypes.json` in the core folder contains an array:
 
 IDs must be unique integers of at least 3; names must be unique and cannot use the built-in names `bezier`, `hermite` or `lowPoly`. Keep IDs and names stable across core updates. Labels are core string keys; functions are in its `lua` folder, using the usual `<module>.<function>` references. `evaluate` and `controlParameters` are required; the other callbacks are optional.
 
-A road type enables curves with `curveTypes` and `defaultCurveType` in its `settings.json`. A low-level type uses the same fields inside `spline`. Registration alone makes a curve available to neither: absent road settings retain the three built-in modes and existing defaults. For example, a core's train curve can be allowed only by its train type while its roads keep `[0, 1, 2]`.
+A road type enables curves with `curveTypes` and `defaultCurveType` in its `settings.json`. A custom element type uses the same fields inside `spline`. Registration alone makes a curve available to neither: absent road settings retain the three built-in modes and existing defaults. For example, a core's train curve can be allowed only by its train type while its roads keep `[0, 1, 2]`.
 
-The road editor and API schema list only the allowed choices. `state.setBuiltin` accepts their stable names or persisted numeric IDs, which are not dropdown indices. A road schema's `enumValues` and `enumIds` are parallel lists. Low-level elements retain the integer `curveType` parameter. Presets and imports must respect the element's allowlist.
+The road editor and API schema list only the allowed choices. `state.setBuiltin` accepts their stable names or persisted numeric IDs, which are not dropdown indices. A road schema's `enumValues` and `enumIds` are parallel lists. Custom elements retain the integer `curveType` parameter. Presets and imports must respect the element's allowlist.
 
 ## Evaluation
 
@@ -74,8 +74,8 @@ The builder validates both split outputs, the joins, the far ends, source mappin
 
 ## Lines without surface geometry and export
 
-A low-level spline can omit components and use empty `sectionVertices`, producing only its guide line and selection collider. Optional `spline.line` and `spline.controlLine` objects set a named `color` and `always` visibility; the latter draws the authored control polygon. Without styling, the existing yellow editing line is retained.
+A custom element spline can omit components and use empty `sectionVertices`, producing only its guide line and selection collider. Optional `spline.line` and `spline.controlLine` objects set a named `color` and `always` visibility; the latter draws the authored control polygon. Without styling, the existing yellow editing line is retained.
 
-`previewTolerance` enables adaptive low-level display sampling, seeded at the control parameters and checking quarter, midpoint and three-quarter chord deviation. `previewMaxDepth` caps subdivision (maximum 8). These settings affect derived display samples, not authored controls.
+`previewTolerance` enables adaptive custom element display sampling, seeded at the control parameters and checking quarter, midpoint and three-quarter chord deviation. `previewMaxDepth` caps subdivision (maximum 8). These settings affect derived display samples, not authored controls.
 
-Low-level export JSON already contains authored controls in `points.spline`, each `{id, position}`; roads contain authored positions in `b64v3a_points` (`points` after Python decoding). Sampled low-level `spline.sections`/`pieces` are separate derived data; sections also carry their curve `parameter`. An exporter whose game interpolates curves should use the authored points.
+Custom element export JSON already contains authored controls in `points.spline`, each `{id, position}`; roads contain authored positions in `b64v3a_points` (`points` after Python decoding). Sampled custom element `spline.sections`/`pieces` are separate derived data; sections also carry their curve `parameter`. An exporter whose game interpolates curves should use the authored points.

@@ -21,7 +21,7 @@ namespace CityElements.Types.Runtime {
         public List<Dictionary<string, RC.Booleans.Boolean>> localBoolDefinitions = new List<Dictionary<string, RC.Booleans.Boolean>>();
         public Dictionary<string, Parameter> objectInstanceParams = new Dictionary<string, Parameter>();
         public Dictionary<string, Types.ArrayProperties> arrayParams = new Dictionary<string, Types.ArrayProperties>();
-        public Dictionary<string, string> customElemParams = new Dictionary<string, string>();
+        public Dictionary<string, string> customCityPropertiesParams = new Dictionary<string, string>();
         public Dictionary<string, Definition[]> lateDefinitionsDict = new Dictionary<string, Definition[]>();
 
         //the bool variables (parameters and definitions), stored as floats: the scripts read them as booleans
@@ -90,8 +90,8 @@ namespace CityElements.Types.Runtime {
                         objectInstanceParams.Add(param.fullName(), param);
                     } else if (param.type == "array") {
                         arrayParams.Add(param.fullName(), param.arrayProperties);
-                    } else if (param.type == "customElement") {
-                        customElemParams.Add(param.fullName(), param.customElementType);
+                    } else if (param.type == "customCityProperties") {
+                        customCityPropertiesParams.Add(param.fullName(), param.customCityPropertiesType);
                     }
                 }
             }

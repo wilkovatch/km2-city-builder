@@ -5,24 +5,34 @@ using TP = CityElements.Types.Parsers.TypeParser;
 
 namespace Operations {
     //Property presets never carry point geometry or instance references. Creation memory is local to the loaded city.
-    public static class LowLevelPresets {
-        const string Prefix = "lowLevel/";
+    public static class CustomElementPresets {
+        const string Prefix = "customElement/";
         static readonly Dictionary<string, string> lastPresets = new();
 
-        public static string Category(string type) => type != null && TP.GetLowLevelTypes().TryGetValue(type, out var t)
+        public static string Category(string type) => type != null && TP.GetCustomElementTypes().TryGetValue(type, out var t)
             && t.typeData.settings.presets ? Prefix + type : null;
+
+        //the categories of the cities saved before the rename (lowLevel/<type>)
+        public static void RenameOldCategories(Dictionary<string, ObjectState[]> presets) {
+            foreach (var key in new List<string>(presets.Keys)) {
+                if (!key.StartsWith("lowLevel/", StringComparison.Ordinal)) continue;
+                var category = Prefix + key.Substring("lowLevel/".Length);
+                if (!presets.ContainsKey(category)) presets[category] = presets[key];
+                presets.Remove(key);
+            }
+        }
 
         public static string TypeOfCategory(string category) {
             if (category == null || !category.StartsWith(Prefix, StringComparison.Ordinal)) return null;
             var type = category.Substring(Prefix.Length);
-            if (Category(type) == null) throw new ArgumentException("presets are not enabled for low-level type '" + type + "'");
+            if (Category(type) == null) throw new ArgumentException("presets are not enabled for custom element type '" + type + "'");
             return type;
         }
 
         public static ObjectState DefaultState(string type) {
             var state = new ObjectState();
             state.SetStr("type", type);
-            if (TP.GetLowLevelTypes().TryGetValue(type, out var t) && t.typeData.settings.spline is LowLevelSplineSettings spline) {
+            if (TP.GetCustomElementTypes().TryGetValue(type, out var t) && t.typeData.settings.spline is CustomElementSplineSettings spline) {
                 state.SetInt("curveType", spline.defaultCurveType);
                 state.SetInt("segments", spline.segments);
                 state.SetBool("segmentsPer100m", spline.segmentsPer100m);
@@ -33,7 +43,7 @@ namespace Operations {
 
         public static ObjectState DefaultPreset(string type) {
             var state = DefaultState(type);
-            var defaults = TP.GetLowLevelTypes()[type].typeData.settings.defaultPreset;
+            var defaults = TP.GetCustomElementTypes()[type].typeData.settings.defaultPreset;
             if (defaults != null) foreach (var p in defaults.properties) state.SetProperty(p.Key, p.Value);
             state.Name = Presets.DefaultName;
             return Extract(state, type);
@@ -43,7 +53,7 @@ namespace Operations {
             if (state.properties.TryGetValue("type", out var value) && (value is not string typeName || typeName != type)) {
                 throw new ArgumentException("preset type must be '" + type + "'");
             }
-            var t = TP.GetLowLevelTypes()[type];
+            var t = TP.GetCustomElementTypes()[type];
             States.Normalize(state, t.parameterContainer.parameters);
             var spline = t.typeData.settings.spline;
             if (spline != null) SplineCurves.ValidateState(spline, state);
@@ -59,7 +69,7 @@ namespace Operations {
                 if (p.instanceSpecific || p.type == "reference") {
                     state.properties.Remove(key);
                     if (restore && original != null && original.properties.TryGetValue(key, out var value)) state.SetProperty(key, value);
-                } else if (p.type == "customElement") {
+                } else if (p.type == "customCityProperties") {
                     var child = state.State(key);
                     var oldChild = original?.State(key);
                     if (child != null || (restore && oldChild != null)) {
@@ -80,13 +90,13 @@ namespace Operations {
             foreach (var p in ((ObjectState)state.Clone()).properties) copy.SetProperty(p.Key, p.Value);
             Validate(copy, type);
             copy.SetStr("type", type);
-            Filter(copy, null, TP.GetLowLevelTypes()[type].parameterContainer.parameters, false);
+            Filter(copy, null, TP.GetCustomElementTypes()[type].parameterContainer.parameters, false);
             return copy;
         }
 
         public static ObjectState Apply(ObjectState original, ObjectState preset, string type) {
             var copy = Extract(preset, type);
-            Filter(copy, original, TP.GetLowLevelTypes()[type].parameterContainer.parameters, true);
+            Filter(copy, original, TP.GetCustomElementTypes()[type].parameterContainer.parameters, true);
             original.ReplaceWith(copy);
             original.FlagAsChanged();
             return original;
@@ -111,7 +121,7 @@ namespace Operations {
             if (type == null) return false;
             var preset = unlink ? null : PresetManager.GetPresetByName(name, category);
             if (preset != null) Validate((ObjectState)preset.Clone(), type);
-            foreach (var element in manager.lowLevelElements) {
+            foreach (var element in manager.customElements) {
                 if (element.IsDeleted() || element.TypeName != type || element.state.Name != name) continue;
                 History.UndoManager.Touch(element);
                 if (unlink) element.state.Name = "";

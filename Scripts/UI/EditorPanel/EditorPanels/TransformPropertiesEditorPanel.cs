@@ -76,15 +76,15 @@ namespace EditorPanels {
             var attachable = GetProceduralPoint();
             if (attachable != null) {
                 attachmentPicker ??= new ElementPlacer.TerrainPointAttachmentPicker(builder);
-                var lowLevel = LowLevelPoint(attachable);
+                var customElement = CustomElementPoint(attachable);
                 p0.IncreaseRow();
                 attachmentStatus = p0.AddLabel("", w);
                 p0.IncreaseRow();
-                attachPointButton = p0.AddButton(SM.Get(lowLevel ? "POINT_ATTACH_LOW_LEVEL" : "POINT_ATTACH"), () => AttachPoint(Target.Anchor), w * 0.65f,
-                    SM.Get(lowLevel ? "POINT_ATTACH_LOW_LEVEL_TOOLTIP" : "POINT_ATTACH_TOOLTIP"));
+                attachPointButton = p0.AddButton(SM.Get(customElement ? "POINT_ATTACH_CUSTOM_ELEMENT" : "POINT_ATTACH"), () => AttachPoint(Target.Anchor), w * 0.65f,
+                    SM.Get(customElement ? "POINT_ATTACH_CUSTOM_ELEMENT_TOOLTIP" : "POINT_ATTACH_TOOLTIP"));
                 detachPointButton = p0.AddButton(SM.Get("POINT_DETACH"), DetachPoint, w * 0.35f, SM.Get("POINT_DETACH_TOOLTIP"));
-                if (lowLevel) {
-                    //the anchors between points (see Operations.LowLevel.AttachToLine and AttachToColumn)
+                if (customElement) {
+                    //the anchors between points (see Operations.CustomElements.AttachToLine and AttachToColumn)
                     p0.IncreaseRow();
                     attachLineButton = p0.AddButton(SM.Get("POINT_ATTACH_LINE"), () => AttachPoint(Target.Line), w * 0.5f, SM.Get("POINT_ATTACH_LINE_TOOLTIP"));
                     attachColumnButton = p0.AddButton(SM.Get("POINT_ATTACH_COLUMN"), () => AttachPoint(Target.Column), w * 0.5f, SM.Get("POINT_ATTACH_COLUMN_TOOLTIP"));
@@ -187,19 +187,19 @@ namespace EditorPanels {
         TerrainPoint GetProceduralPoint() {
             DropDeletedInstance();
             var point = instance == null || notOnHandle ? null : GS.FindRecursive<TerrainPoint>(instance);
-            return point != null && !point.IsDeleted() && point.GetLinks().Exists(e => e is TerrainPatch || e is BuildingLine || e is LowLevelElement) ? point : null;
+            return point != null && !point.IsDeleted() && point.GetLinks().Exists(e => e is TerrainPatch || e is BuildingLine || e is CustomElement) ? point : null;
         }
 
-        //a point of the low-level elements only: it can also be attached to any point, to the line between two points or to
+        //a point of the custom elements only: it can also be attached to any point, to the line between two points or to
         //the vertical line of a point, and it can still be moved on an anchor (it leaves it)
-        static bool LowLevelPoint(TerrainPoint point) {
+        static bool CustomElementPoint(TerrainPoint point) {
             var links = point.GetLinks();
-            return !links.Exists(e => e is TerrainPatch || e is BuildingLine) && links.Exists(e => e is LowLevelElement);
+            return !links.Exists(e => e is TerrainPatch || e is BuildingLine) && links.Exists(e => e is CustomElement);
         }
 
         bool FixedPoint() {
             var point = GetProceduralPoint();
-            return point != null && !LowLevelPoint(point) && !GO.IsNull(point.anchor) && !point.anchor.IsDeleted() && !point.anchor.IsMoveable();
+            return point != null && !CustomElementPoint(point) && !GO.IsNull(point.anchor) && !point.anchor.IsDeleted() && !point.anchor.IsMoveable();
         }
 
         bool Picking() {
@@ -209,17 +209,17 @@ namespace EditorPanels {
         void RefreshAttachmentControls() {
             var point = GetProceduralPoint();
             if (point == null || attachmentStatus == null) return;
-            var lowLevel = LowLevelPoint(point);
+            var customElement = CustomElementPoint(point);
             point.Select(true);
-            point.SetMoveable(true, lowLevel);
+            point.SetMoveable(true, customElement);
             var attached = !GO.IsNull(point.anchor) && !point.anchor.IsDeleted();
             var picking = Picking();
             string key;
             if (picking) {
-                key = !lowLevel ? "POINT_PICKING" : attachmentPicker.CurrentTarget switch {
+                key = !customElement ? "POINT_PICKING" : attachmentPicker.CurrentTarget switch {
                     Target.Line => attachmentPicker.LineStart == null ? "POINT_PICKING_LINE_START" : "POINT_PICKING_LINE_END",
                     Target.Column => "POINT_PICKING_COLUMN",
-                    _ => "POINT_PICKING_LOW_LEVEL"
+                    _ => "POINT_PICKING_CUSTOM_ELEMENT"
                 };
             } else {
                 key = !attached ? "POINT_FREE" : point.anchor is LineAnchor ? "POINT_ON_SEGMENT" : point.anchor is ColumnAnchor ? "POINT_ON_COLUMN"
@@ -240,27 +240,27 @@ namespace EditorPanels {
             var point = GetProceduralPoint();
             if (point == null) return;
             if (CancelAttachment()) return;
-            var lowLevel = LowLevelPoint(point);
-            var owner = lowLevel ? builder.ControlPointOwnerLowLevel : null;
-            if (lowLevel) {
-                //the anchors (also the ones only for the low-level elements) and the points of the other elements are shown,
+            var customElement = CustomElementPoint(point);
+            var owner = customElement ? builder.ControlPointOwnerCustomElement : null;
+            if (customElement) {
+                //the anchors (also the ones only for the custom elements) and the points of the other elements are shown,
                 //and the points of the element can be clicked (they can't be moved meanwhile), as in the click modes
                 builder.helper.elementManager.ShowAnchors(true, true);
                 owner?.SetActive(true, false);
                 owner?.Select(true);
             }
             attachmentPicker.Start(point, () => {
-                if (lowLevel) {
+                if (customElement) {
                     builder.helper.elementManager.ShowAnchors(false, true);
-                    builder.lowLevelEditorPanel.ShowElement(owner);
+                    builder.customElementEditorPanel.ShowElement(owner);
                 }
                 if (!ActiveSelf() || GetProceduralPoint() == null) return;
                 point.Select(true);
-                point.SetMoveable(true, lowLevel);
+                point.SetMoveable(true, customElement);
                 Reselect();
                 RefreshAttachmentControls();
-            }, target, !lowLevel);
-            if (lowLevel) attachmentPicker.onFrame = RefreshAttachmentControls; //the end of the line to click
+            }, target, !customElement);
+            if (customElement) attachmentPicker.onFrame = RefreshAttachmentControls; //the end of the line to click
             RefreshAttachmentControls();
         }
 
@@ -269,7 +269,7 @@ namespace EditorPanels {
             if (point == null) return;
             Operations.TerrainPoints.Detach(point);
             point.Select(true);
-            point.SetMoveable(true, LowLevelPoint(point));
+            point.SetMoveable(true, CustomElementPoint(point));
             builder.NotifyChange();
             Reselect();
             RefreshAttachmentControls();
@@ -614,14 +614,14 @@ namespace EditorPanels {
 
         object GetCurTransform() {
             var point = GetProceduralPoint();
-            return instance != null ? new TransformBinding(instance, point, point != null && LowLevelPoint(point)) : null;
+            return instance != null ? new TransformBinding(instance, point, point != null && CustomElementPoint(point)) : null;
         }
 
         //accessor for the "transform.*" field bindings, Godot nodes have no "transform" member
         class TransformBinding {
             readonly Node3D obj;
             readonly TerrainPoint point;
-            readonly bool leaveAnchor; //a point of the low-level elements leaves its anchor when moved
+            readonly bool leaveAnchor; //a point of the custom elements leaves its anchor when moved
 
             public TransformBinding(Node3D obj, TerrainPoint point, bool leaveAnchor) {
                 this.obj = obj;

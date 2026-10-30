@@ -14,7 +14,7 @@ public partial class ElementManager : Scriptable {
     public List<TerrainPatch> patches = new List<TerrainPatch>();
     public List<MeshInstance> meshes = new List<MeshInstance>();
     public List<BuildingLine> buildings = new List<BuildingLine>();
-    public List<LowLevelElement> lowLevelElements = new List<LowLevelElement>();
+    public List<CustomElement> customElements = new List<CustomElement>();
     public bool worldChanged = false;
     ulong splineTerrainVersion = ulong.MaxValue;
     bool splineProjectionPending, splinePhysicsReady;
@@ -25,16 +25,16 @@ public partial class ElementManager : Scriptable {
     GameObject roadContainer = null;
     GameObject meshContainer = null;
     GameObject buildingContainer = null;
-    GameObject lowLevelContainer = null;
+    GameObject customElementContainer = null;
     GameObject dummyContainer = null;
     GameObject activeDummyContainer = null;
     Dictionary<System.Type, GameObject> dummies = new Dictionary<System.Type, GameObject>();
     public CityBuilderMenuBar builder;
     //the parts of the roads split by the last action, finished at the next update (see RoadSplitter.FinishPart)
     readonly Dictionary<Road, RoadSplitter.Part> splitParts = new Dictionary<Road, RoadSplitter.Part>();
-    readonly List<LowLevelElement> updatedLowLevelElements = new List<LowLevelElement>();
-    int lowLevelAppliedVersion = -1;
-    internal (int roads, int intersections, int lowLevel) lastRebuildCounts;
+    readonly List<CustomElement> updatedCustomElements = new List<CustomElement>();
+    int customElementAppliedVersion = -1;
+    internal (int roads, int intersections, int customElements) lastRebuildCounts;
 
     public GameObject GetDummyContainer<T>() {
         if (typeof(T) == typeof(CityProperties)) {
@@ -68,8 +68,8 @@ public partial class ElementManager : Scriptable {
         return GetObject("Buildings", ref buildingContainer);
     }
 
-    public GameObject GetLowLevelContainer() {
-        return GetObject("LowLevel", ref lowLevelContainer);
+    public GameObject GetCustomElementContainer() {
+        return GetObject("CustomElements", ref customElementContainer);
     }
 
     bool IsDummyPossible<T>() {
@@ -209,28 +209,28 @@ public partial class ElementManager : Scriptable {
         History.ElementRegistry.Register(line, id);
     }
 
-    public void AddLowLevelElement(LowLevelElement element, int id = -1) {
-        lowLevelElements.Add(element);
+    public void AddCustomElement(CustomElement element, int id = -1) {
+        customElements.Add(element);
         History.ElementRegistry.Register(element, id);
     }
 
-    //a new low-level element of the type, without points (named after its type, numbered after the existing ones)
-    public LowLevelElement CreateLowLevelElement(string type, string name = null) {
-        var container = GetLowLevelContainer();
+    //a new custom element of the type, without points (named after its type, numbered after the existing ones)
+    public CustomElement CreateCustomElement(string type, string name = null) {
+        var container = GetCustomElementContainer();
         if (name == null) {
-            var baseName = Operations.LowLevel.GetTypeLabel(type) + " ";
+            var baseName = Operations.CustomElements.GetTypeLabel(type) + " ";
             name = baseName + Actions.Helpers.GetLatestObjectNumber(container, baseName);
         }
-        LowLevelElement element = type == PropPath.TypeId ? GS.Create<PropPath>(name, container) : GS.Create<LowLevelElement>(name, container);
+        CustomElement element = type == PropPath.TypeId ? GS.Create<PropPath>(name, container) : GS.Create<CustomElement>(name, container);
         element.Initialize(type, GetTerrainPointContainer());
-        AddLowLevelElement(element);
+        AddCustomElement(element);
         return element;
     }
 
-    //the low-level elements in the container
-    public List<LowLevelElement> GetLowLevelChildren(LowLevelElement container) {
-        var res = new List<LowLevelElement>();
-        foreach (var element in lowLevelElements) {
+    //the custom elements in the container
+    public List<CustomElement> GetCustomElementChildren(CustomElement container) {
+        var res = new List<CustomElement>();
+        foreach (var element in customElements) {
             if (element.container == container && !element.IsDeleted()) res.Add(element);
         }
         return res;
@@ -255,7 +255,7 @@ public partial class ElementManager : Scriptable {
             if (line.IsDeleted()) continue;
             AddPoints(line.GetPointsComponents());
         }
-        foreach (var element in lowLevelElements) {
+        foreach (var element in customElements) {
             if (element.IsDeleted()) continue;
             AddPoints(element.GetAllPoints());
         }
@@ -287,7 +287,7 @@ public partial class ElementManager : Scriptable {
         foreach (var building in buildings) {
             res.Add(GO.GetObject(building));
         }
-        foreach (var element in lowLevelElements) {
+        foreach (var element in customElements) {
             if (element.container == null) res.Add(element);
         }
         res.Sort((x, y) => Actions.Helpers.PadInts(GO.GetName(x)).CompareTo(Actions.Helpers.PadInts(GO.GetName(y))));
@@ -317,9 +317,9 @@ public partial class ElementManager : Scriptable {
         foreach (var building in buildings) {
             if (!active) building.SetActive(false, false);
         }
-        foreach (var element in lowLevelElements) {
+        foreach (var element in customElements) {
             if (!active) element.SetActive(false, false);
-            ShowLowLevelTraffic(element, false);
+            ShowCustomElementTraffic(element, false);
         }
     }
 
@@ -330,34 +330,34 @@ public partial class ElementManager : Scriptable {
         foreach (var intersection in intersections) {
             intersection.SetActive(true, false);
         }
-        foreach (var element in lowLevelElements) {
-            ShowLowLevelTraffic(element, true);
+        foreach (var element in customElements) {
+            ShowCustomElementTraffic(element, true);
         }
     }
 
-    //the traffic lines of the low-level elements are shown and hidden with the lanes of the roads
-    void ShowLowLevelTraffic(LowLevelElement element, bool show) {
+    //the traffic lines of the custom elements are shown and hidden with the lanes of the roads
+    void ShowCustomElementTraffic(CustomElement element, bool show) {
         if (!IsDestroyed(element) && !element.IsDeleted()) element.generator.ShowTrafficLines(show);
     }
 
     //sets a view toggle of the core (see Rendering.ViewToggles) and shows or hides the lines it controls
     public bool SetViewToggle(string name, bool on) {
         if (!Rendering.ViewToggles.Set(name, on)) return false;
-        foreach (var element in lowLevelElements) {
+        foreach (var element in customElements) {
             if (!IsDestroyed(element) && !element.IsDeleted()) element.generator.RefreshVisibility();
         }
         return true;
     }
 
-    //lowLevel: also the anchors only for the low-level elements
-    public void ShowAnchors(bool active, bool lowLevel = false) {
+    //forCustomElements: also the anchors only for the custom elements
+    public void ShowAnchors(bool active, bool forCustomElements = false) {
         foreach (var road in roads) {
             if (active) road.SetActive(false, false);
-            road.anchorManager.ShowTerrainAnchors(active, lowLevel);
+            road.anchorManager.ShowTerrainAnchors(active, forCustomElements);
         }
         foreach (var intersection in intersections) {
             if (active) intersection.SetActive(false, false);
-            intersection.anchorManager.ShowTerrainAnchors(active, lowLevel);
+            intersection.anchorManager.ShowTerrainAnchors(active, forCustomElements);
         }
         foreach (var patch in patches) {
             patch.SetActive(active, false);
@@ -367,8 +367,8 @@ public partial class ElementManager : Scriptable {
             building.SetActive(active, false);
             building.Select(false);
         }
-        foreach (var element in lowLevelElements) {
-            if (active) ShowLowLevelTraffic(element, false);
+        foreach (var element in customElements) {
+            if (active) ShowCustomElementTraffic(element, false);
             element.SetActive(active, false);
             element.Select(false);
         }
@@ -436,7 +436,7 @@ public partial class ElementManager : Scriptable {
         CleanupList(patches, patch => { return IsDestroyed(patch) || patch.IsDeleted(); });
         CleanupList(meshes, mesh => { return IsDestroyed(mesh); });
         CleanupList(buildings, building => { return IsDestroyed(building); });
-        CleanupList(lowLevelElements, element => { return IsDestroyed(element) || element.IsDeleted(); });
+        CleanupList(customElements, element => { return IsDestroyed(element) || element.IsDeleted(); });
     }
 
     public override void _Ready() {
@@ -450,7 +450,7 @@ public partial class ElementManager : Scriptable {
     public override void _PhysicsProcess(double delta) {
         if (!splineProjectionPending || splinePhysicsReady || History.UndoManager.IsLoading) return;
         splinePhysicsReady = true;
-        foreach (var element in lowLevelElements) element.InvalidateSplineSurface();
+        foreach (var element in customElements) element.InvalidateSplineSurface();
         worldChanged = true;
     }
 
@@ -515,7 +515,7 @@ public partial class ElementManager : Scriptable {
             buildingsRebuilt += building.UpdateLine();
         }
         if (roadsRebuilt + intersectionsRebuilt + patchesRebuilt > 0 || splineTerrainVersion != GameEngine.Terrain.HeightmapVersion) {
-            foreach (var element in lowLevelElements) {
+            foreach (var element in customElements) {
                 if (element.Settings?.spline?.projectSections != true) continue;
                 element.InvalidateSplineSurface();
                 splineProjectionPending = true;
@@ -523,7 +523,7 @@ public partial class ElementManager : Scriptable {
             }
         }
         splineTerrainVersion = GameEngine.Terrain.HeightmapVersion;
-        var lowLevelRebuilt = UpdateLowLevelElements();
+        var customElementsRebuilt = UpdateCustomElements();
         var instancesUpdated = 0;
         foreach (var mesh in meshes) {
             instancesUpdated += mesh.ManualUpdate();
@@ -533,13 +533,13 @@ public partial class ElementManager : Scriptable {
             objectsUpdated += road.UpdateObjects();
         }
         objectsUpdated += GetDummy<CityProperties>().UpdateObjects();
-        lastRebuildCounts = (roadsRebuilt, intersectionsRebuilt, lowLevelRebuilt);
+        lastRebuildCounts = (roadsRebuilt, intersectionsRebuilt, customElementsRebuilt);
         if (GameEngine.IsEditor()) GameEngine.Print(
             "rebuilt " + roadsRebuilt + " roads, "
             + intersectionsRebuilt + " intersections, "
             + patchesRebuilt + " patches, "
             + buildingsRebuilt + " building sides, "
-            + lowLevelRebuilt + " low-level elements, "
+            + customElementsRebuilt + " custom elements, "
             + instancesUpdated + " meshes, "
             + objectsUpdated + " parametric objects"
         );
@@ -552,63 +552,63 @@ public partial class ElementManager : Scriptable {
     //rebuilt
     const int MaxConstraintPasses = 4;
 
-    int UpdateLowLevelElements() {
-        foreach (var element in lowLevelElements) element.BeginUpdate();
+    int UpdateCustomElements() {
+        foreach (var element in customElements) element.BeginUpdate();
         try {
-            return UpdateLowLevelGeometry();
+            return UpdateCustomElementGeometry();
         } finally {
-            foreach (var element in lowLevelElements) element.EndUpdate();
+            foreach (var element in customElements) element.EndUpdate();
         }
     }
 
-    int UpdateLowLevelGeometry() {
+    int UpdateCustomElementGeometry() {
         MoveByHandles();
-        foreach (var element in lowLevelElements) element.RefreshPoints();
+        foreach (var element in customElements) element.RefreshPoints();
         //Check actual inputs before starting the constraint/derived/geometry passes. Membership changes
         //and undo also invalidate sibling inputs even when the surviving elements didn't move.
-        var changed = lowLevelAppliedVersion != History.UndoManager.AppliedVersion
-            || updatedLowLevelElements.Count != lowLevelElements.Count;
-        for (int i = 0; i < lowLevelElements.Count && !changed; i++) {
-            changed = updatedLowLevelElements[i] != lowLevelElements[i] || lowLevelElements[i].NeedsUpdate();
+        var changed = customElementAppliedVersion != History.UndoManager.AppliedVersion
+            || updatedCustomElements.Count != customElements.Count;
+        for (int i = 0; i < customElements.Count && !changed; i++) {
+            changed = updatedCustomElements[i] != customElements[i] || customElements[i].NeedsUpdate();
         }
         if (!changed) {
             PlaceMoveHandles();
             return 0;
         }
-        ApplyLowLevelConstraints();
+        ApplyCustomElementConstraints();
         var derived = false;
-        var sources = new Dictionary<object, List<LowLevelElement>>();
-        foreach (var element in lowLevelElements) {
+        var sources = new Dictionary<object, List<CustomElement>>();
+        foreach (var element in customElements) {
             if (element.source == null) continue;
-            if (!sources.TryGetValue(element.source, out var siblings)) sources[element.source] = siblings = new List<LowLevelElement>();
+            if (!sources.TryGetValue(element.source, out var siblings)) sources[element.source] = siblings = new List<CustomElement>();
             siblings.Add(element);
         }
-        foreach (var element in lowLevelElements) {
+        foreach (var element in customElements) {
             var siblings = element.source != null ? sources[element.source] : null;
-            if (element.UpdateDerivedPoints(siblings ?? lowLevelElements)) derived = true;
+            if (element.UpdateDerivedPoints(siblings ?? customElements)) derived = true;
         }
-        if (derived) ApplyLowLevelConstraints();
+        if (derived) ApplyCustomElementConstraints();
         //Projected splines read generated colliders: rebuild those surfaces first, regardless of creation order.
-        var surfaces = new List<LowLevelElement>();
-        var projected = new List<LowLevelElement>();
-        foreach (var element in lowLevelElements) {
+        var surfaces = new List<CustomElement>();
+        var projected = new List<CustomElement>();
+        foreach (var element in customElements) {
             if (element.Settings?.spline?.projectSections == true) projected.Add(element);
             else surfaces.Add(element);
         }
-        var rebuilt = LowLevelGeometryBatch.Rebuild(surfaces);
+        var rebuilt = CustomElementGeometryBatch.Rebuild(surfaces);
         if (rebuilt > 0 && projected.Count > 0) {
             foreach (var element in projected) element.InvalidateSplineSurface();
             splineProjectionPending = true;
             splinePhysicsReady = false;
         }
-        rebuilt += LowLevelGeometryBatch.Rebuild(projected);
+        rebuilt += CustomElementGeometryBatch.Rebuild(projected);
         if (splinePhysicsReady || projected.Count == 0) splineProjectionPending = false;
-        UpdateLowLevelPlaceholders();
+        UpdateCustomElementPlaceholders();
         PlaceMoveHandles();
-        updatedLowLevelElements.Clear();
-        updatedLowLevelElements.AddRange(lowLevelElements);
-        foreach (var element in lowLevelElements) element.RecordUpdate();
-        lowLevelAppliedVersion = History.UndoManager.AppliedVersion;
+        updatedCustomElements.Clear();
+        updatedCustomElements.AddRange(customElements);
+        foreach (var element in customElements) element.RecordUpdate();
+        customElementAppliedVersion = History.UndoManager.AppliedVersion;
         return rebuilt;
     }
 
@@ -616,39 +616,39 @@ public partial class ElementManager : Scriptable {
     //undo step of the drag or of the change in the panel. The other elements sharing their points (updated before them)
     //follow at the next update
     void MoveByHandles() {
-        foreach (var element in lowLevelElements) {
+        foreach (var element in customElements) {
             var offset = element.TakeMoveHandleOffset();
             if (!offset.HasValue) continue;
-            History.UndoManager.RecordDerived(() => Operations.LowLevel.Move(this, element, offset.Value));
+            History.UndoManager.RecordDerived(() => Operations.CustomElements.Move(this, element, offset.Value));
             worldChanged = true;
         }
     }
 
     //the move handles go to the center of their container and contents, unless selected (e.g. being dragged)
     void PlaceMoveHandles() {
-        foreach (var element in lowLevelElements) {
+        foreach (var element in customElements) {
             var handle = element.GetMoveHandle();
             if (handle == null || GameEngine.Gizmo.IsTarget(handle)) continue;
-            var center = Operations.LowLevel.CenterWithContents(this, element);
+            var center = Operations.CustomElements.CenterWithContents(this, element);
             if (center.HasValue) element.PlaceMoveHandle(center.Value);
         }
     }
 
     //the placeholder meshes of the containers are shown while none of their contents draws a mesh
-    void UpdateLowLevelPlaceholders() {
-        var drawn = new HashSet<LowLevelElement>();
-        foreach (var element in lowLevelElements) {
+    void UpdateCustomElementPlaceholders() {
+        var drawn = new HashSet<CustomElement>();
+        foreach (var element in customElements) {
             if (element.container != null && !element.IsDeleted() && element.generator.DrawsMesh()) drawn.Add(element.container);
         }
-        foreach (var element in lowLevelElements) {
+        foreach (var element in customElements) {
             if (!element.IsDeleted()) element.generator.ShowPlaceholder(element.generator.HasPlaceholder() && !drawn.Contains(element));
         }
     }
 
-    void ApplyLowLevelConstraints() {
+    void ApplyCustomElementConstraints() {
         for (int pass = 0; pass < MaxConstraintPasses; pass++) {
             var moved = false;
-            foreach (var element in lowLevelElements) {
+            foreach (var element in customElements) {
                 if (element.ApplyConstraints()) moved = true;
             }
             if (!moved) break;
@@ -696,12 +696,12 @@ public partial class ElementManager : Scriptable {
         }
         buildings.Clear();
 
-        foreach (var elem in lowLevelElements) {
+        foreach (var elem in customElements) {
             elem.Delete();
         }
-        lowLevelElements.Clear();
-        updatedLowLevelElements.Clear();
-        lowLevelAppliedVersion = -1;
+        customElements.Clear();
+        updatedCustomElements.Clear();
+        customElementAppliedVersion = -1;
 
         GetDummy<CityProperties>().Delete();
 
@@ -732,7 +732,7 @@ public partial class ElementManager : Scriptable {
         var anchors = new List<TerrainAnchor>();
         var doneAnchors = new List<TerrainAnchor>();
         foreach (var anchor in Operations.Anchors.GetAll(this)) {
-            if (anchor.lowLevelOnly) continue;
+            if (anchor.customElementsOnly) continue;
             var notUsed = true;
             foreach (var elem in list) {
                 foreach (var point in pointGetter.Invoke(elem)) {

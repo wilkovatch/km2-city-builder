@@ -10,7 +10,7 @@ public class TerrainAnchorLineManager {
     List<TerrainAnchor> terrainAnchors = new List<TerrainAnchor>();
     List<List<Vector3>> oldAnchors = new List<List<Vector3>>();
     bool recycleAnchors = false;
-    int lowLevelLinesStart = int.MaxValue, oldLowLevelLinesStart = int.MaxValue; //the lines from this one on have low-level only anchors
+    int customElementLinesStart = int.MaxValue, oldCustomElementLinesStart = int.MaxValue; //the lines from this one on have custom element only anchors
     public List<TerrainAnchor> startAnchors = new List<TerrainAnchor>();
     public List<TerrainAnchor> endAnchors = new List<TerrainAnchor>();
     public List<object> startConnections = new List<object>();
@@ -21,10 +21,10 @@ public class TerrainAnchorLineManager {
         parentObj = parent;
     }
 
-    //the low-level only anchors are shown only with lowLevel
-    public void ShowTerrainAnchors(bool active, bool lowLevel = false) {
+    //the custom element only anchors are shown only with forCustomElements
+    public void ShowTerrainAnchors(bool active, bool forCustomElements = false) {
         foreach (var anchor in terrainAnchors) {
-            anchor.SetActive(active && (lowLevel || !anchor.lowLevelOnly));
+            anchor.SetActive(active && (forCustomElements || !anchor.customElementsOnly));
         }
     }
 
@@ -40,8 +40,8 @@ public class TerrainAnchorLineManager {
     }
 
     public void Update(GameObject geo, List<List<Vector3>> generatedAnchorLines, List<object> startConns, List<object> endConns, List<List<Vector3>> centerLines,
-        int lowLevelLinesStart = int.MaxValue) {
-        this.lowLevelLinesStart = lowLevelLinesStart;
+        int customElementLinesStart = int.MaxValue) {
+        this.customElementLinesStart = customElementLinesStart;
         CleanTerrainAnchors(generatedAnchorLines, startConns, endConns);
         if (recycleAnchors) {
             var allPoints = new List<Vector3>();
@@ -54,7 +54,7 @@ public class TerrainAnchorLineManager {
             UpdateTerrainAnchors(terrainAnchors, allPoints, allCenters);
         } else {
             for (int i = 0; i < generatedAnchorLines.Count; i++) {
-                CreateTerrainAnchorLine(geo, terrainAnchors, generatedAnchorLines[i], centerLines[i], i >= lowLevelLinesStart);
+                CreateTerrainAnchorLine(geo, terrainAnchors, generatedAnchorLines[i], centerLines[i], i >= customElementLinesStart);
                 startConnections.Add(startConns[i]);
                 endConnections.Add(endConns[i]);
             }
@@ -123,7 +123,7 @@ public class TerrainAnchorLineManager {
         }
     }
 
-    void CreateTerrainAnchorLine(GameObject gameObject, List<TerrainAnchor> terrainAnchors, List<Vector3> points, List<Vector3> centers, bool lowLevelOnly) {
+    void CreateTerrainAnchorLine(GameObject gameObject, List<TerrainAnchor> terrainAnchors, List<Vector3> points, List<Vector3> centers, bool customElementsOnly) {
         if (points.Count == 0) return;
         var newList = new List<TerrainAnchor>();
         for (int i = 0; i < points.Count; i++) {
@@ -139,7 +139,7 @@ public class TerrainAnchorLineManager {
                 GS.Cast<Handle>(anchor.GetObject()).SetScale(GameEngine.Vector3.one);
             }
             anchor.insideDirection = GameEngine.Vector3.Normalize(centers[i] - points[i]);
-            anchor.lowLevelOnly = lowLevelOnly;
+            anchor.customElementsOnly = customElementsOnly;
         }
         terrainAnchors.AddRange(newList);
         startAnchors.Add(newList[0]);
@@ -147,7 +147,7 @@ public class TerrainAnchorLineManager {
     }
 
     bool CompareAnchors(List<List<Vector3>> anchors, List<object> startConns, List<object> endConns) {
-        if (anchors.Count != oldAnchors.Count || lowLevelLinesStart != oldLowLevelLinesStart) return true;
+        if (anchors.Count != oldAnchors.Count || customElementLinesStart != oldCustomElementLinesStart) return true;
         for (int i = 0; i < anchors.Count; i++) {
             if (anchors[i].Count != oldAnchors[i].Count) {
                 return true;
@@ -191,6 +191,6 @@ public class TerrainAnchorLineManager {
         endConnections.Clear();
 
         oldAnchors = CloneList(anchors);
-        oldLowLevelLinesStart = lowLevelLinesStart;
+        oldCustomElementLinesStart = customElementLinesStart;
     }
 }

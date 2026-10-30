@@ -1,22 +1,22 @@
-# Core Low-Level Elements
+# Core Custom Elements
 
-The procedural elements (roads, intersections, terrain patches, building lines) generate their geometry from a few parameters, which keeps them easy to edit but limits how finely they can be tuned. A core can also define **low-level elements**: elements that map directly to the primitives of its game (for Midtown Madness 2, the attributes of the rooms of the PSDL file), made of control points, an optional mesh and parameters, whose geometry is built by a Lua script of the core.
+The procedural elements (roads, intersections, terrain patches, building lines) are built into the program: they generate their geometry from a few parameters, which keeps them easy to edit but limits them to what those parameters can describe. A core can also define **custom elements**: element types of its own, made of control points, an optional mesh and parameters, whose geometry is built by a Lua script of the core. What they represent is up to the core: they can map directly to the primitives of the game (for Midtown Madness 2, the attributes of the rooms of the PSDL file), or be higher-level objects that have no procedural equivalent (the MM2 decals and trains, built along a spline).
 
-A procedural element is turned into low-level elements by a **converter**: a Python script of the core that receives the element as it would be exported and returns the low-level elements that replace it. The roads and intersections converted stay in the city as hidden **ghosts**, so that the elements connected to them keep their geometry.
+A procedural element can be turned into custom elements by a **converter**: a Python script of the core that receives the element as it would be exported and returns the custom elements that replace it. The roads and intersections converted stay in the city as hidden **ghosts**, so that the elements connected to them keep their geometry.
 
 ```
 <CoreName>/
-├── elements/lowLevel/<type>/     one folder per type (optional folder)
+├── elements/customElements/<type>/   one folder per type (optional folder)
 │   ├── settings.json
 │   ├── parameters.json
 │   └── ui.json
-├── lua/                          the geometry and constraint functions of the types
-└── converters/<name>/            one folder per converter (optional folder)
+├── lua/                               the geometry and constraint functions of the types
+└── converters/<name>/                 one folder per converter (optional folder)
     ├── converter.json
     └── convert.py
 ```
 
-The types can extend each other as the other folder types (see [Core Type Inheritance](Core-Type-Inheritance)); the category is `lowLevel`.
+The types can extend each other as the other folder types (see [Core Type Inheritance](Core-Type-Inheritance)); the category is `customElements`.
 
 ## Types
 
@@ -25,11 +25,11 @@ The types can extend each other as the other folder types (see [Core Type Inheri
 ```json
 {
     "controlPoints": [
-        { "name": "sections", "label": "LL_SECTIONS",
+        { "name": "sections", "label": "CE_SECTIONS",
           "array": { "min": 2, "defaultCount": 2, "defaultStep": [0, 0, 10] },
           "children": [
-              { "name": "left", "label": "LL_LEFT_EDGE", "defaultPosition": [-4, 0, 0] },
-              { "name": "right", "label": "LL_RIGHT_EDGE", "defaultPosition": [4, 0, 0] }
+              { "name": "left", "label": "CE_LEFT_EDGE", "defaultPosition": [-4, 0, 0] },
+              { "name": "right", "label": "CE_RIGHT_EDGE", "defaultPosition": [4, 0, 0] }
           ] }
     ],
     "mesh": null,
@@ -46,15 +46,15 @@ The types can extend each other as the other folder types (see [Core Type Inheri
 |---|---|
 | `controlPoints` | The control points (see below); omitted for spline-driven types. |
 | `spline` | Optional road-style spline settings (see [Spline-driven elements](#spline-driven-elements)); cannot be combined with `controlPoints`, `mesh` or a Lua `geometry` function. |
-| `createMenu` | `{ "direct": true }` lists the type directly using its `ui.json` label. Otherwise `{ "group": "STRING_KEY" }` groups it with types using the same localized group key. Missing: the generic Low-level element group. The creation panel lists only types in the selected group. |
+| `createMenu` | `{ "direct": true }` lists the type directly using its `ui.json` label. Otherwise `{ "group": "STRING_KEY" }` groups it with types using the same localized group key. Missing: the generic Custom element group. The creation panel lists only types in the selected group. |
 | `geometryLayer` | Collision layer index for generated geometry (default `7`). A projected overlay can use another layer and omit that layer from its projection mask, so overlays do not project onto each other. |
 | `mesh` | Set if the element has a mesh: `uvs` (`"none"`, `"editable"`: stored with the element and edited in its panel, `"script"`: given by the geometry script), `defaultVertices` (offsets from where a new element is created) and `defaultTriangles`. |
-| `container` | Set if the elements of the type can contain other low-level elements: `contains`, the types they can contain. |
+| `container` | Set if the elements of the type can contain other custom elements: `contains`, the types they can contain. |
 | `geometry` | `<module>.<function>` of the `lua` folder: builds the geometry shown in the editor (see [Scripts](#scripts)). |
 | `constraints` | `<module>.<function>`: moves points after others were moved (see [Scripts](#scripts)). |
-| `derivedPoints` | `{flag, function}`: while the bool parameter `flag` is on, the control points are computed by `function` (`<module>.<function>`) from the other low-level elements converted from the same element, and can't be edited (see [Derived points](#derived-points)). |
+| `derivedPoints` | `{flag, function}`: while the bool parameter `flag` is on, the control points are computed by `function` (`<module>.<function>`) from the other custom elements converted from the same element, and can't be edited (see [Derived points](#derived-points)). |
 | `creatable` | Listed in Create (default `true`); `createMenu` selects a direct entry or a group. |
-| `presets` | Enable property presets for this type (default `false`), stored in the city's `presets.json` under `lowLevel/<type>`. The standard load/save/reset/unlink/sync controls appear in `mainGroup`, and the type is listed in preset management. |
+| `presets` | Enable property presets for this type (default `false`), stored in the city's `presets.json` under `customElement/<type>`. The standard load/save/reset/unlink/sync controls appear in `mainGroup`, and the type is listed in preset management. |
 | `defaultPreset` | Optional object containing the initial Default preset's property values. When an existing city has no category for this enabled type, these values are combined with the type's built-in defaults and saved as Default. Existing categories are preserved. New-city templates should provide the same Default explicitly. |
 | `propsContainers` | The props containers of the prop rule of the elements (`propRule` in their state, as the prop rules of the roads, see [Core Props and Objects](Core-Props-and-Objects)): the props are placed along the `propLines` of the geometry (see [Geometry](#geometry)) and exported with the element. |
 | `propsPresetType` | The prop rule presets listed in the panel: the ones of this type (e.g. a road type with the same containers); all if not set. |
@@ -72,16 +72,16 @@ Each node of `controlPoints` is a point, or a group of points if it has `childre
 | `rotatable` | The point can be rotated with the gizmo; its rotation is given to the scripts and exported. |
 | `defaultPosition` | The offset of the point from where a new element is created. |
 
-The points are **terrain points**: like the points of the terrain patches and building lines they can be attached to the anchors of roads and intersections, to the segment between two points, or shared with other elements (the same point used by a terrain patch and by two low-level elements moves all of them). Unlike the points of the patches, a point on an anchor can still be moved with the gizmo: it then leaves the anchor (and stays shared). The vertices of the mesh are terrain points too.
+The points are **terrain points**: like the points of the terrain patches and building lines they can be attached to the anchors of roads and intersections, to the segment between two points, or shared with other elements (the same point used by a terrain patch and by two custom elements moves all of them). Unlike the points of the patches, a point on an anchor can still be moved with the gizmo: it then leaves the anchor (and stays shared). The vertices of the mesh are terrain points too.
 
-Besides the anchors along their edges, the intersections have an anchor line across the end of each road whose type has `endAnchors` (see [Core Roads](Core-Roads#settingsjson)), only for the points of the low-level elements: a low-level road converted from a road keeps all the points of its end section on the intersection, and they follow it when it moves or changes. These anchors are shown only by the click modes of the low-level editor and while a point is attached, and come after the other anchors of the intersection, so the indices of those don't change.
+Besides the anchors along their edges, the intersections have an anchor line across the end of each road whose type has `endAnchors` (see [Core Roads](Core-Roads#settingsjson)), only for the points of the custom elements: a road custom element converted from a road keeps all the points of its end section on the intersection, and they follow it when it moves or changes. These anchors are shown only by the click modes of the custom element editor and while a point is attached, and come after the other anchors of the intersection, so the indices of those don't change.
 
 Three more anchors keep points of different elements in place with each other (e.g. the parts of a building):
 - **on a point**: the point follows another terrain point (`PointAnchor`), keeping its identity (it isn't shared with the elements of that point); moved with the gizmo, it leaves it.
 - **on a line**: the point follows the line between two other terrain points (at the same fraction of it); moved, it slides along it.
 - **on a vertical line**: the point follows the x and z of another terrain point (its master) and keeps its own height (also when the constraints of an element change it). Moved horizontally, it moves the master, and so every point on the same vertical line; moved vertically, only its height changes.
 
-As for the points of the terrain patches and building lines, an existing point is attached from its transform panel: select it and press M. *Attach to point/anchor/segment* attaches it to the point, anchor or segment clicked next, *On line* to the line between the next two points clicked, *On vertical line* to the vertical line of the point clicked; *Detach* stops following the anchor (the point stays shared). Meanwhile the anchors (also the ones only for the low-level elements) and the points of the other elements are shown, the status says what to click, and Escape (or the same button) cancels. *End editing* goes back to the editor of the element, with the point selected.
+As for the points of the terrain patches and building lines, an existing point is attached from its transform panel: select it and press M. *Attach to point/anchor/segment* attaches it to the point, anchor or segment clicked next, *On line* to the line between the next two points clicked, *On vertical line* to the vertical line of the point clicked; *Detach* stops following the anchor (the point stays shared). Meanwhile the anchors (also the ones only for the custom elements) and the points of the other elements are shown, the status says what to click, and Escape (or the same button) cancels. *End editing* goes back to the editor of the element, with the point selected.
 
 A point can't follow itself through these anchors (directly or through others).
 
@@ -89,7 +89,7 @@ A point is named by its **path**: the names of the nodes joined by dots, with th
 
 ### `parameters.json` and `ui.json`
 
-As for the other types (see [Parameters and UI](Parameters-and-UI)). Low-level elements have a single saved state: parameters marked `instanceSpecific` stay in that state, but are excluded from presets and preserved when a preset is applied or synced. Reference parameters are always treated as instance-specific. The **reference** parameter type is meant for these elements: its value is another element of the city (`referenceTypes`: the kinds it can reference, `road`, `intersection`, `lowLevel` or `lowLevel/<type>`), stored as `{"kind": ..., "id": ...}`. In the panel it is a reference field (the element is picked with a click, see [Parameters and UI](Parameters-and-UI)), shown where `ui.json` lists it. A reference to a ghost is kept as is: the exporter resolves it to the elements replacing the ghost.
+As for the other types (see [Parameters and UI](Parameters-and-UI)). Custom elements have a single saved state: parameters marked `instanceSpecific` stay in that state, but are excluded from presets and preserved when a preset is applied or synced. Reference parameters are always treated as instance-specific. The **reference** parameter type is meant for these elements: its value is another element of the city (`referenceTypes`: the kinds it can reference, `road`, `intersection`, `customElement` or `customElement/<type>`), stored as `{"kind": ..., "id": ...}`. In the panel it is a reference field (the element is picked with a click, see [Parameters and UI](Parameters-and-UI)), shown where `ui.json` lists it. A reference to a ghost is kept as is: the exporter resolves it to the elements replacing the ghost.
 
 Creation shows the selected type's properties immediately, before the first click. The panel edits a draft: cancelling it adds no element or undo entry. The first click creates the default point/mesh layout at that position using the edited properties; spline types start with one point and continue drawing. Point and container operations become available after placement. Grouped creation keeps its type dropdown above the properties.
 
@@ -105,9 +105,9 @@ The panel has these built-in groups, used by name in `ui.json`:
 | `containerGroup` | The container of the element, with a button to edit it and a *Change* button listing the other containers it can be in (and none) to move it to one with *Change to*; for a container, the list of its contents (the one picked is highlighted: outlined in cyan, with its points selected, and edited with *Edit*) and a *Merge into...* button listing the containers that can hold all its contents, to merge it into one with *Merge* (its contents move there and it is deleted). The lists are shown in place of the editor, which comes back after the action or *Cancel*. |
 | `propsGroup` | The prop rule (types with `propsContainers`): its preset, and for each container a checkbox enabling it and a button editing it, as in the road editor. |
 
-While a container is edited (in the None click mode) a cyan handle at the center of its points and of the points of its contents (and theirs) moves them all together, with the gizmo or the transform panel, as a single undo step. The points shared with other elements move too (the other elements follow), the points on the anchors of roads and intersections stay there (but not the ones on the anchors of a ghost, e.g. the sides of a room converted from a road: they leave them and move; the anchors across the end of a road that isn't a ghost still count), the points on a line follow its ends, the points on a point follow it and the points on a vertical line keep following it (their height changes with the move). The scripting API does the same with `lowLevel.move`.
+While a container is edited (in the None click mode) a cyan handle at the center of its points and of the points of its contents (and theirs) moves them all together, with the gizmo or the transform panel, as a single undo step. The points shared with other elements move too (the other elements follow), the points on the anchors of roads and intersections stay there (but not the ones on the anchors of a ghost, e.g. the sides of a room converted from a road: they leave them and move; the anchors across the end of a road that isn't a ghost still count), the points on a line follow its ends, the points on a point follow it and the points on a vertical line keep following it (their height changes with the move). The scripting API does the same with `customElement.move`.
 
-`convert:<converter>` adds a button converting the element with a converter of the core (shown only if the converter accepts it). It can be used in the `ui.json` of any type, procedural or low-level.
+`convert:<converter>` adds a button converting the element with a converter of the core (shown only if the converter accepts it). It can be used in the `ui.json` of any type, procedural or custom.
 
 ## Scripts
 
@@ -119,9 +119,9 @@ The functions are called as the [script definitions](Core-Lua-Scripts), with `v`
 | `points` | The control points: a table with the structure of `controlPoints` (groups are tables of named nodes, arrays are lists starting from 1, points are `vec3`). |
 | `rotations` | The rotations of the rotatable points (`vec3`, euler angles in degrees), with the same structure. |
 | `vertices`, `triangles`, `uvs` | The mesh: a list of `vec3`, a flat list of indices (from 0) of the vertices, three per triangle, and the editable texture coordinates (`vec2`). |
-| `references` | The low-level elements referenced by the parameters, by parameter name: `typeName`, `name`, `points`, `vertices`, `triangles`. The element is rebuilt when their points move. |
+| `references` | The custom elements referenced by the parameters, by parameter name: `typeName`, `name`, `points`, `vertices`, `triangles`. The element is rebuilt when their points move. |
 | `moved` | Constraints only: what moved since they last ran, `points` (a table with the structure of `controlPoints`, `true` for the points that moved) and `vertices` (`[index] = true`). |
-| `siblings` | Derived points only: the other low-level elements converted from the same procedural element (the same `source`), in the order of their ids: `typeName`, `name`, `points`, `vertices`, `triangles`. |
+| `siblings` | Derived points only: the other custom elements converted from the same procedural element (the same `source`), in the order of their ids: `typeName`, `name`, `points`, `vertices`, `triangles`. |
 
 ### Geometry
 
@@ -214,7 +214,7 @@ Geometry uses the [road component format](Core-Roads), including local definitio
 | `independentSegments` | Evaluate components separately for each span. `z` starts at zero and `totalLength` is that span's length; caps remain at the whole spline's ends. Default `false`: continuous component geometry. |
 | `splitCondition`, `maxSplits` | Optional boolean expression evaluated on each span with its `totalLength` and endpoint vertices (`v<n>_0`, `v<n>_1`). True halves the span, up to `maxSplits` (default `3`, at most `8`). Useful for quantized texture mapping. |
 
-Control points use the existing point tree as `points.spline`; curve parameters (`curveType`, `segments`, `segmentsPer100m`, `hermiteTension`, `subdivideEqually`) use element state. The API kind remains `lowLevel`, so existing creation, point-editing, attachment, import and history commands apply. Empty, one-point and coincident-point splines are editable and produce no invalid mesh.
+Control points use the existing point tree as `points.spline`; curve parameters (`curveType`, `segments`, `segmentsPer100m`, `hermiteTension`, `subdivideEqually`) use element state. The API kind remains `customElement`, so existing creation, point-editing, attachment, import and history commands apply. Empty, one-point and coincident-point splines are editable and produce no invalid mesh.
 
 Exported spline elements additionally have `spline.sections` and `spline.pieces`. Sections contain `center`, `right`, `up`, `vertices` (all in builder coordinates) and cumulative `distance`. Pieces are pairs of evaluated sections, including subdivision, so exporters can use the same edges as the editor. This derived geometry is rebuilt on load rather than saved in the city. Projected splines rebuild after generated surfaces; API replies and export snapshots wait for the physics synchronization needed by newly replaced colliders.
 
@@ -234,7 +234,7 @@ Exported spline elements additionally have `spline.sections` and `spline.pieces`
 | Key | Description |
 |---|---|
 | `label`, `tooltip` | String keys of the conversion button. |
-| `sources` | What it converts: `road`, `intersection`, `terrainPatch`, `buildingLine`, `lowLevel` or `lowLevel/<type>`. |
+| `sources` | What it converts: `road`, `intersection`, `terrainPatch`, `buildingLine`, `customElement` or `customElement/<type>`. |
 | `types` | Only the procedural elements of these types (all if missing). |
 | `script` | The Python script, in the folder of the converter (default `convert.py`). |
 | `enabledWhen` | Optional `<module>.<function>` Lua predicate. Called as `function(_, ctx)`: `ctx.element` and `ctx.neighbors` contain detached `{kind, id, state}` snapshots (roads of an intersection, intersections of a road). Returning false disables an accepted button; availability is rechecked before and after running the converter. |
@@ -242,9 +242,9 @@ Exported spline elements additionally have `spline.sections` and `spline.pieces`
 
 The script runs with the Python of the program and gets three arguments: the `Files/python` folder (to import `DecodeExportedJson`), the input file and the output file. It fails with a non-zero exit code; the last line of its error output is shown to the user (a string key is translated, e.g. `sys.exit("MY_CONVERSION_ERROR")`).
 
-**Input**: the format of the export JSON (see [Input and Output](Input-and-Output)), with the ids of the [scripting API](Scripting-API): `convert` lists the elements to convert (`{kind, id}`), and the lists have them with the elements around them (the intersections of a road and their roads, the roads of an intersection and their intersections, the container and contents of a low-level element, and the low-level elements replacing any of them).
+**Input**: the format of the export JSON (see [Input and Output](Input-and-Output)), with the ids of the [scripting API](Scripting-API): `convert` lists the elements to convert (`{kind, id}`), and the lists have them with the elements around them (the intersections of a road and their roads, the roads of an intersection and their intersections, the container and contents of a custom element, and the custom elements replacing any of them).
 
-**Output**: the low-level elements, in the format of the city save:
+**Output**: the custom elements, in the format of the city save:
 
 ```json
 {
@@ -262,7 +262,7 @@ The script runs with the Python of the program and gets three arguments: the `Fi
           "state": { "startIntersection": { "kind": "intersection", "id": 15 } }, "points": { } }
     ],
     "updates": [
-        { "element": { "kind": "lowLevel", "id": 42 }, "points": { "perimeter": ["p0", "p1", 1207] }, "state": { "simplifyPerimeter": true } }
+        { "element": { "kind": "customElement", "id": 42 }, "points": { "perimeter": ["p0", "p1", 1207] }, "state": { "simplifyPerimeter": true } }
     ],
     "replace": true
 }
@@ -272,23 +272,23 @@ The script runs with the Python of the program and gets three arguments: the `Fi
 |---|---|
 | `points` | The points of the elements, each with a local `id`. With `weld` (default `true`) a point takes the place of an existing point at the same position (within 1 cm), shared from then on, or else is attached to an anchor there (not of a ghost, except the anchors across the end of a road that isn't a ghost, which follow it: e.g. the dividers of a road converted after its intersection; not for a point with `anchor`). `rotation`: of a rotatable point. `anchor`: the point follows other points of the output, `{"line": [id, id]}` (on the line between them) or `{"column": id}` (on the vertical line of that point), see [Control points](#control-points); a point welded to an existing one keeps its own anchor. |
 | `elements` | `id` (local), `type`, `name`, `state` (the parameters), `points` (the structure of the control points of the type with point ids; the missing points get their default position), `mesh` (`vertices`: point ids, `triangles`, `uvs`), `container` and `source` (a local element id, or a reference `{"kind", "id"}` to an existing element). A reference parameter is a local element id or a reference to an existing element. |
-| `updates` | Changes of existing low-level elements (`elements` can then be missing): `element` (a reference `{"kind": "lowLevel", "id"}`, or a local element id), `points` (top-level nodes of the control points, replacing the ones of the element with the same names; a point is a local point id, or the id of an existing terrain point) and `state` (merged into the state of the element). The elements changed are reopened in the editor after a conversion started from it. |
+| `updates` | Changes of existing custom elements (`elements` can then be missing): `element` (a reference `{"kind": "customElement", "id"}`, or a local element id), `points` (top-level nodes of the control points, replacing the ones of the element with the same names; a point is a local point id, or the id of an existing terrain point) and `state` (merged into the state of the element). The elements changed are reopened in the editor after a conversion started from it. |
 | `replace` | Overrides the `replace` of `converter.json`. |
 
-By default the elements replace the converted element: their `source` is the converted element (when a single one is converted) and, when a low-level element is converted, they take its container and its source. The whole conversion is a single undo step. With `replace: false`, generated elements have no implicit source or container; the converter can still give explicit references.
+By default the elements replace the converted element: their `source` is the converted element (when a single one is converted) and, when a custom element is converted, they take its container and its source. The whole conversion is a single undo step. With `replace: false`, generated elements have no implicit source or container; the converter can still give explicit references.
 
 ## Ghosts
 
-A road or intersection converted becomes a ghost: its geometry is hidden and it can't be selected, but it stays in the city with its anchors, so the elements connected to it keep their geometry (an intersection keeps the size it needs for a converted road, a road keeps its end on a converted intersection) and the terrain points on its anchors stay where they are. In the export JSON it has `"ghost": true`: the exporter should not export its geometry, and should use the low-level elements whose `source` it is instead. The panel of such a low-level element can restore the original element (the elements replacing it are deleted). Deleting the last element replacing a ghost deletes the ghost too. The scripting API lists, sets and restores ghosts (`ghosts.*`).
+A road or intersection converted becomes a ghost: its geometry is hidden and it can't be selected, but it stays in the city with its anchors, so the elements connected to it keep their geometry (an intersection keeps the size it needs for a converted road, a road keeps its end on a converted intersection) and the terrain points on its anchors stay where they are. In the export JSON it has `"ghost": true`: the exporter should not export its geometry, and should use the custom elements whose `source` it is instead. The panel of such a custom element can restore the original element (the elements replacing it are deleted). Deleting the last element replacing a ghost deletes the ghost too. The scripting API lists, sets and restores ghosts (`ghosts.*`).
 
 ## Export
 
-The export JSON has `lowLevelElements`: `id`, `type`, `data` (`name`, `fields.state` with the references as `{kind, id}` with the ids of the export, `mesh`: the geometry built by the script), `points` (the structure of the control points, each point `{"id": <terrain point id>, "position": [x, y, z]}`, plus `rotation` for the rotatable ones; the same id for a point shared with other elements), `vertices` (the same for the vertices of the mesh), `triangles`, `uvs`, `containerId` (-1 if none) and `source` (`{kind, id}` of the ghost it replaces, null if none).
+The export JSON has `customElements`: `id`, `type`, `data` (`name`, `fields.state` with the references as `{kind, id}` with the ids of the export, `mesh`: the geometry built by the script), `points` (the structure of the control points, each point `{"id": <terrain point id>, "position": [x, y, z]}`, plus `rotation` for the rotatable ones; the same id for a point shared with other elements), `vertices` (the same for the vertices of the mesh), `triangles`, `uvs`, `containerId` (-1 if none) and `source` (`{kind, id}` of the ghost it replaces, null if none).
 
 ## Midtown Madness 2
 
-The low-level types and converters of the Midtown Madness 2 core (the attributes of the rooms of the PSDL, the BAI roads and intersections) are described in the README of the core.
+The custom element types and converters of the Midtown Madness 2 core (the attributes of the rooms of the PSDL, the BAI roads and intersections) are described in the README of the core.
 
 ## Importing a payload without conversion
 
-Scripts can call `lowLevel.import(data)` with the converter output's `points` and `elements`. Local point IDs preserve shared topology, element IDs resolve containers/references, and the return value maps both sets of IDs to API IDs. Import does not create ghosts or replace procedural geometry. The endpoint rejects updates, replacement directives, procedural sources, invalid references/meshes, and cyclic attachment graphs. Changes participate in the script's transaction. See [Scripting API](Scripting-API#proppaths).
+Scripts can call `customElement.import(data)` with the converter output's `points` and `elements`. Local point IDs preserve shared topology, element IDs resolve containers/references, and the return value maps both sets of IDs to API IDs. Import does not create ghosts or replace procedural geometry. The endpoint rejects updates, replacement directives, procedural sources, invalid references/meshes, and cyclic attachment graphs. Changes participate in the script's transaction. See [Scripting API](Scripting-API#proppaths).

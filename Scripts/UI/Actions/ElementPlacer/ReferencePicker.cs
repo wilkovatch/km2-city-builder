@@ -64,7 +64,7 @@ namespace ElementPlacer {
         }
 
         //the click mode is restored before the value is set: a panel can get the element it edits from it (e.g. the
-        //low-level elements from their placer)
+        //custom elements from their placer)
         void End(System.Action action) {
             if (panel == null) return;
             var end = onEnd;
@@ -102,8 +102,8 @@ namespace ElementPlacer {
         //the element of the city a collider belongs to (as CityBuilderMenuBar.SelectObject finds it), null if none
         public static object ElementOf(Node node) {
             for (var obj = node as Node3D; obj != null; obj = obj.GetParentNode3D()) {
-                var lowLevel = GS.Cast<LowLevelElement>(obj);
-                if (lowLevel != null) return lowLevel;
+                var customElement = GS.Cast<CustomElement>(obj);
+                if (customElement != null) return customElement;
                 var road = GS.Cast<Road>(obj);
                 if (road != null) return road;
                 var intersection = GS.FindRecursive<Intersection.IntersectionComponent>(obj);

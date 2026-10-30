@@ -58,8 +58,8 @@ namespace Api {
                     throw ApiException.InvalidParam("'" + name + "' is a parametric object: use objects.setTransform and objects.setMesh");
                 case "array":
                     throw ApiException.InvalidParam("'" + name + "' is an array: use state.array.* and the array element references");
-                case "customElement":
-                    throw ApiException.InvalidParam("'" + name + "' is a custom element: use state.customElement.ensure and the custom element references");
+                case "customCityProperties":
+                    throw ApiException.InvalidParam("'" + name + "' is a custom city properties parameter: use state.customCityProperties.ensure and the custom city properties references");
                 default:
                     throw ApiException.InvalidParam("parameters of type '" + type + "' can't be edited");
             }
@@ -108,7 +108,7 @@ namespace Api {
                 defaultValue = p.defaultValueInArray,
                 enumValues = p.enumLabels,
                 maxElements = p.arrayProperties?.maxElements,
-                elementParameters = (p.type == "array" || p.type == "customElement") ? SchemaOf(Operations.States.GetSubparams(p)) : null,
+                elementParameters = (p.type == "array" || p.type == "customCityProperties") ? SchemaOf(Operations.States.GetSubparams(p)) : null,
                 objectInstance = p.objectInstanceSettings == null ? null : new { condition = p.objectInstanceSettings.condition, allowCustomModel = p.objectInstanceSettings.allowCustomModel }
             };
         }
@@ -138,7 +138,7 @@ namespace Api {
                 var target = GetStateTarget(@ref);
                 var incoming = values.ToObject<ObjectState>();
                 Operations.States.Normalize(incoming, target.parameters);
-                if (target.owner is LowLevelElement spline && spline.Settings?.spline != null && incoming.properties.ContainsKey("curveType") &&
+                if (target.owner is CustomElement spline && spline.Settings?.spline != null && incoming.properties.ContainsKey("curveType") &&
                     System.Array.IndexOf(spline.Settings.spline.curveTypes, incoming.Int("curveType")) < 0) {
                     throw ApiException.InvalidValue("curve type is not allowed by this spline type");
                 }
@@ -183,7 +183,7 @@ namespace Api {
         public object GetParam(ElementRef @ref, string name) {
             var t = GetStateTarget(@ref);
             var p = t.FindParameter(name);
-            if (p != null) return GetPath(p.instanceSpecific && t.owner is not LowLevelElement ? t.instanceState : t.state, name);
+            if (p != null) return GetPath(p.instanceSpecific && t.owner is not CustomElement ? t.instanceState : t.state, name);
             var b = Operations.Builtins.Find(t.kind, name, t.roadType);
             if (b != null) return GetPath(b.instanceSpecific ? t.instanceState : t.state, name);
             throw ApiException.NotFound("parameter '" + name + "' of " + t.kind);
@@ -196,7 +196,7 @@ namespace Api {
                 var p = t.FindParameter(name);
                 if (p == null) throw ApiException.NotFound("parameter '" + name + "' of " + t.kind + (t.parameters.Length == 0 ? " (it has none)" : ""));
                 var v = ConvertValue(p.type, value, p.enumLabels, name);
-                if (t.owner is LowLevelElement spline && name == "curveType" && spline.Settings?.spline != null &&
+                if (t.owner is CustomElement spline && name == "curveType" && spline.Settings?.spline != null &&
                     System.Array.IndexOf(spline.Settings.spline.curveTypes, System.Convert.ToInt32(v)) < 0) {
                     throw ApiException.InvalidValue("curve type is not allowed by this spline type");
                 }
@@ -204,7 +204,7 @@ namespace Api {
                     throw ApiException.InvalidValue("'" + name + "' can't reference element " + reference.Int("id", -1)
                         + (p.referenceTypes != null ? " (" + string.Join(", ", p.referenceTypes) + ")" : ""));
                 }
-                var target = p.instanceSpecific && t.owner is not LowLevelElement ? t.instanceState : t.state;
+                var target = p.instanceSpecific && t.owner is not CustomElement ? t.instanceState : t.state;
                 if (target == null) throw ApiException.InvalidParam("'" + name + "' is instance specific, but " + t.kind + " has no instance state");
                 History.UndoManager.Touch(t.owner);
                 target.SetProperty(p.fullName(), v);
@@ -317,20 +317,20 @@ namespace Api {
                 History.UndoManager.Touch(e);
                 switch (e) {
                     case Intersection i: GameEngine.GameObject.SetName(i.geo, name); break;
-                    case Road or TerrainPatch or BuildingLine or MeshInstance or LowLevelElement: GameEngine.GameObject.SetName((Godot.Node3D)e, name); break;
-                    default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, meshInstance or lowLevel", KindOf(e));
+                    case Road or TerrainPatch or BuildingLine or MeshInstance or CustomElement: GameEngine.GameObject.SetName((Godot.Node3D)e, name); break;
+                    default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, meshInstance or customElement", KindOf(e));
                 }
                 return name;
             });
         }
 
-        // Arrays and custom elements
+        // Arrays and custom city properties
 
         (StateTarget t, Parameter p) GetArrayParam(ElementRef @ref, string param, string type) {
             var t = GetStateTarget(@ref);
             var p = t.FindParameter(param);
             if (p == null) throw ApiException.NotFound("parameter '" + param + "' of " + t.kind);
-            if (p.type != type) throw ApiException.InvalidParam("'" + param + "' is not a" + (type == "array" ? "n array" : " custom element") + " parameter");
+            if (p.type != type) throw ApiException.InvalidParam("'" + param + "' is not a" + (type == "array" ? "n array" : " custom city properties") + " parameter");
             return (t, p);
         }
 
@@ -381,12 +381,12 @@ namespace Api {
             });
         }
 
-        [ApiMethod("state.customElement.ensure", "Creates the state of a custom element parameter if missing")]
-        public void CustomElementEnsure(ElementRef @ref, string param) {
+        [ApiMethod("state.customCityProperties.ensure", "Creates the state of a custom city properties parameter if missing")]
+        public void CustomCityPropertiesEnsure(ElementRef @ref, string param) {
             ApplyChange("edit element", () => {
-                var (t, p) = GetArrayParam(@ref, param, "customElement");
+                var (t, p) = GetArrayParam(@ref, param, "customCityProperties");
                 History.UndoManager.Touch(t.owner);
-                Operations.States.EnsureCustomElement(t.state, p);
+                Operations.States.EnsureCustomCityProperties(t.state, p);
                 t.afterChange?.Invoke();
             });
         }

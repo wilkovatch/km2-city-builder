@@ -9,13 +9,13 @@ using RuntimeCalculator;
 using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
 
-//TODO: rename and refactor (it's not just for array objects, but for custom elements too)
+//TODO: rename and refactor (it's not just for array objects, but for custom city properties too)
 public partial class ArrayObject : ParametricObjectContainer<CityElements.Types.ArrayProperties>, IObjectWithState {
     public ObjectState state;
     public string paramInParent;
     public CityElements.Types.Runtime.ArrayProperties runtimeProperties;
     VariableContainer vc;
-    public CityElements.Types.CustomElementExclusiveEditing exclusiveEditingInfo;
+    public CityElements.Types.CustomCityPropertiesExclusiveEditing exclusiveEditingInfo;
     public static Dictionary<string, ObjectState> activeElements = new Dictionary<string, ObjectState>();
 
     public override ObjectState[] GetContainerStateArrayForParametricObjects() {
@@ -87,8 +87,8 @@ public partial class ArrayObject : ParametricObjectContainer<CityElements.Types.
         var res = GS.Cast<ArrayObject>(subObj);
         res.runtimeProperties = new CityElements.Types.Runtime.ArrayProperties(properties);
         res.paramInParent = paramName;
-        if (properties.customElementType != null) {
-            var ct = CityElements.Types.Parsers.TypeParser.GetCustomTypes()[properties.customElementType];
+        if (properties.customCityPropertiesType != null) {
+            var ct = CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[properties.customCityPropertiesType];
             if (ct.exclusiveEditing != null) {
                 res.exclusiveEditingInfo = ct.exclusiveEditing;
             }
@@ -102,7 +102,7 @@ public partial class ArrayObject : ParametricObjectContainer<CityElements.Types.
         var res = GS.Cast<ArrayObject>(subObj);
         res.runtimeProperties = CityElements.Types.Runtime.ArrayProperties.FromCustomType(ctName);
         res.paramInParent = paramName;
-        var ct = CityElements.Types.Parsers.TypeParser.GetCustomTypes()[ctName];
+        var ct = CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[ctName];
         if (ct.exclusiveEditing != null) {
             res.exclusiveEditingInfo = ct.exclusiveEditing;
         }

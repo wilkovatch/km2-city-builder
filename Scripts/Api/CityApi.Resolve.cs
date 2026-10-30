@@ -33,7 +33,7 @@ namespace Api {
         public ObjectState state;
     }
 
-    //an element of an array parameter, or a custom element parameter (index null)
+    //an element of an array parameter, or a custom city properties parameter (index null)
     public class ParameterElementPart {
         public StateTarget parent;
         public Parameter param;
@@ -78,14 +78,14 @@ namespace Api {
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
                 case PropPath: return "propPath";
-                case LowLevelElement: return "lowLevel";
+                case CustomElement: return "customElement";
                 case Building: return "building";
                 case BuildingSideGenerator: return "buildingSide";
                 case BlockPart: return "buildingBlock";
                 case BorderMeshPart: return "borderMesh";
                 case PropContainerPart: return "propContainer";
                 case PropElementPart: return "propElement";
-                case ParameterElementPart p: return p.index.HasValue ? "arrayElement" : "customElement";
+                case ParameterElementPart p: return p.index.HasValue ? "arrayElement" : "customCityProperties";
                 default: return element?.GetType().Name ?? "null";
             }
         }
@@ -105,7 +105,7 @@ namespace Api {
             foreach (var e in m.patches) yield return e;
             foreach (var e in m.buildings) yield return e;
             foreach (var e in m.meshes) yield return e;
-            foreach (var e in m.lowLevelElements) yield return e;
+            foreach (var e in m.customElements) yield return e;
         }
 
         //an element of the city (with a registry id)
@@ -180,18 +180,18 @@ namespace Api {
                 if (r.param == null) throw ApiException.InvalidParam("missing param");
                 var param = parent.FindParameter(r.param);
                 if (param == null) throw ApiException.NotFound("parameter '" + r.param + "'");
-                var owner = parent.state; //the editor keeps the arrays and custom elements in the state
+                var owner = parent.state; //the editor keeps the arrays and custom city properties in the state
                 if (param.type == "array") {
                     if (!r.index.HasValue) throw ApiException.InvalidParam("missing index of the array element");
                     var arr = owner?.Array<ObjectState>(param.fullName());
                     if (arr == null || r.index.Value < 0 || r.index.Value >= arr.Length) throw ApiException.NotFound("element " + r.index.Value + " of '" + r.param + "'");
                     return new ParameterElementPart { parent = parent, param = param, index = r.index.Value, state = arr[r.index.Value] };
-                } else if (param.type == "customElement") {
+                } else if (param.type == "customCityProperties") {
                     var sub = owner?.State(param.fullName());
-                    if (sub == null) throw ApiException.NotFound("custom element '" + r.param + "' (create it with state.customElement.ensure)");
+                    if (sub == null) throw ApiException.NotFound("custom city properties '" + r.param + "' (create it with state.customCityProperties.ensure)");
                     return new ParameterElementPart { parent = parent, param = param, state = sub };
                 }
-                throw ApiException.InvalidParam("'" + r.param + "' is not an array or custom element parameter");
+                throw ApiException.InvalidParam("'" + r.param + "' is not an array or custom city properties parameter");
             }
             if (r.owner != null) {
                 var owner = Resolve(r.owner);
@@ -305,13 +305,13 @@ namespace Api {
                     t.applyPreset = x => intersection.state = x;
                     t.types = () => TP.GetIntersectionTypes().Keys;
                     break;
-                case LowLevelElement lowLevel:
-                    t.state = lowLevel.state;
-                    t.parameters = Params(lowLevel.GetLowLevelType()?.parameterContainer);
-                    t.presetCategory = Operations.LowLevelPresets.Category(lowLevel.TypeName);
+                case CustomElement customElement:
+                    t.state = customElement.state;
+                    t.parameters = Params(customElement.GetCustomElementType()?.parameterContainer);
+                    t.presetCategory = Operations.CustomElementPresets.Category(customElement.TypeName);
                     if (t.presetCategory != null) {
-                        t.presetAllowedTypes = new List<string> { lowLevel.TypeName };
-                        t.applyPreset = x => Operations.LowLevelPresets.Apply(lowLevel.state, x, lowLevel.TypeName);
+                        t.presetAllowedTypes = new List<string> { customElement.TypeName };
+                        t.applyPreset = x => Operations.CustomElementPresets.Apply(customElement.state, x, customElement.TypeName);
                     }
                     break;
                 case TerrainPatch patch:

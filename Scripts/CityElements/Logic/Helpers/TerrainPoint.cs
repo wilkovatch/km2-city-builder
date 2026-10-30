@@ -13,15 +13,15 @@ using KeyCommand = GameEngine.Input.KeyCommand;
 public partial class TerrainPoint : PhysicsScriptable {
     public IAnchorable anchor = null;
     Vector3 oldPoint;
-    Vector3 oldRotation; //the rotation of the handle at the last update (rotatable points of the low-level elements)
+    Vector3 oldRotation; //the rotation of the handle at the last update (rotatable points of the custom elements)
     bool isMoveable = false;
-    bool detachable = false; //moved anyway when on a fixed anchor, which it then leaves (the points of the low-level elements)
+    bool detachable = false; //moved anyway when on a fixed anchor, which it then leaves (the points of the custom elements)
     bool big = false;
     public bool dividing = false;
     List<IGroundable> links = new List<IGroundable>();
     bool deleted = false;
     bool selected = true;
-    bool applyingLowLevelState = false;
+    bool applyingCustomElementState = false;
     int updatedCount;
     bool updating = false; //in UpdatePosition (the points it depends on are updated first, see UpdateDependencies)
 
@@ -97,27 +97,27 @@ public partial class TerrainPoint : PhysicsScriptable {
 
     public void Select(bool selected) {
         if (deleted) return;
-        InvalidateLowLevelState();
+        InvalidateCustomElementState();
         this.selected = selected;
         SetupAnchorMode();
     }
 
-    //Direct changes by other users of a shared point must invalidate the low-level elements' cached handle state.
-    void InvalidateLowLevelState() {
-        if (applyingLowLevelState) return;
+    //Direct changes by other users of a shared point must invalidate the custom elements' cached handle state.
+    void InvalidateCustomElementState() {
+        if (applyingCustomElementState) return;
         foreach (var link in links) {
-            if (link is LowLevelElement element) element.InvalidatePointState();
+            if (link is CustomElement element) element.InvalidatePointState();
         }
     }
 
-    internal void ApplyLowLevelState(bool active, bool selected, bool moveable) {
-        applyingLowLevelState = true;
+    internal void ApplyCustomElementState(bool active, bool selected, bool moveable) {
+        applyingCustomElementState = true;
         try {
             SetActive(active);
             Select(selected);
             SetMoveable(moveable, true);
         } finally {
-            applyingLowLevelState = false;
+            applyingCustomElementState = false;
         }
     }
 
@@ -144,7 +144,7 @@ public partial class TerrainPoint : PhysicsScriptable {
         return deleted ? oldPoint : GetPoint();
     }
 
-    //the rotation of the handle (euler angles in degrees), only used by the rotatable points of the low-level elements
+    //the rotation of the handle (euler angles in degrees), only used by the rotatable points of the custom elements
     public Vector3 GetRotation() {
         return deleted ? oldRotation : GO.GetRotation(GetObject());
     }
@@ -238,7 +238,7 @@ public partial class TerrainPoint : PhysicsScriptable {
 
     //detachable: a point on a fixed anchor can be moved too, leaving the anchor
     public void SetMoveable(bool moveable, bool detachable = false) {
-        InvalidateLowLevelState();
+        InvalidateCustomElementState();
         this.detachable = moveable && detachable;
         GO.SetLayer(GetObject(), moveable && (isMoveable || this.detachable) ? 8 : 10);
     }
@@ -255,7 +255,7 @@ public partial class TerrainPoint : PhysicsScriptable {
     }
 
     public void SetActive(bool active) {
-        InvalidateLowLevelState();
+        InvalidateCustomElementState();
         GO.SetEnabled(GetObject(), active);
     }
 

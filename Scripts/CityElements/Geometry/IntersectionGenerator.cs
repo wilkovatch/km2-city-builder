@@ -200,7 +200,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         AddRoadEndLines();
     }
 
-    //a line across the end of each road, with the endAnchors of its type (for the low-level elements only), after the other
+    //a line across the end of each road, with the endAnchors of its type (for the custom elements only), after the other
     //lines so that the indices of their anchors don't change; not connected to the anchors of the roads
     void AddRoadEndLines() {
         roadEndLinesStart = sidePoints.Count;

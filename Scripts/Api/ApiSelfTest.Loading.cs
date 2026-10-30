@@ -15,16 +15,16 @@ namespace Api {
             var roadPanel = Panel("roadEditorPanel");
             var heightPanel = Panel("heightmapEditorPanel");
             var projectPanel = Panel("projectSettingsEditorPanel");
-            var types = CT.Parsers.TypeParser.GetLowLevelTypes();
+            var types = CT.Parsers.TypeParser.GetCustomElementTypes();
             var scripts = LuaScriptHost.Get();
             var parametric = CT.Parsers.TypeParser.GetParametricMeshInstanceSettings();
-            var custom = CT.Parsers.TypeParser.GetCustomTypes();
+            var custom = CT.Parsers.TypeParser.GetCustomCityPropertiesTypes();
             Check("city loading leaves hidden editor panels unbuilt", !roadPanel.IsInitialized
                 && !heightPanel.IsInitialized && !projectPanel.IsInitialized);
-            Check("parametric mesh and custom types are cached", object.ReferenceEquals(parametric, CT.Parsers.TypeParser.GetParametricMeshInstanceSettings())
-                && object.ReferenceEquals(custom, CT.Parsers.TypeParser.GetCustomTypes()));
+            Check("parametric mesh and custom city properties types are cached", object.ReferenceEquals(parametric, CT.Parsers.TypeParser.GetParametricMeshInstanceSettings())
+                && object.ReferenceEquals(custom, CT.Parsers.TypeParser.GetCustomCityPropertiesTypes()));
             builder.Reload();
-            Check("refreshing the UI preserves the runtime types and Lua state", object.ReferenceEquals(types, CT.Parsers.TypeParser.GetLowLevelTypes())
+            Check("refreshing the UI preserves the runtime types and Lua state", object.ReferenceEquals(types, CT.Parsers.TypeParser.GetCustomElementTypes())
                 && object.ReferenceEquals(scripts, LuaScriptHost.Get()));
             heightPanel.SetActive(true);
             Check("a panel can be opened for the first time after loading", heightPanel.IsInitialized && heightPanel.ActiveSelf());
@@ -40,17 +40,17 @@ namespace Api {
             try {
                 CT.Parsers.TypeInheritance.SetAncestries("cacheTest", new Dictionary<string, string[]> { { "child", new[] { "child", "parent" } } });
                 PreferencesManager.Set("core", "__cacheTestMissingCore");
-                var other = CT.Parsers.TypeParser.GetLowLevelTypes(); //low-level folders are optional
+                var other = CT.Parsers.TypeParser.GetCustomElementTypes(); //custom element folders are optional
                 Check("changing core clears the old type and ancestry caches", other.Count == 1 && other.ContainsKey(PropPath.TypeId)
                     && CT.Parsers.TypeInheritance.GetAllAncestries().All(x => x.category != "cacheTest"));
             } finally {
                 PreferencesManager.Set("core", core);
             }
-            var restored = CT.Parsers.TypeParser.GetLowLevelTypes();
+            var restored = CT.Parsers.TypeParser.GetCustomElementTypes();
             Check("returning to the original core reads fresh types", !object.ReferenceEquals(types, restored) && types.Keys.OrderBy(x => x).SequenceEqual(restored.Keys.OrderBy(x => x)));
             var host = LuaScriptHost.Get();
             await Call("city.reload");
-            Check("reloading the city invalidates its types and scripts", !object.ReferenceEquals(restored, CT.Parsers.TypeParser.GetLowLevelTypes())
+            Check("reloading the city invalidates its types and scripts", !object.ReferenceEquals(restored, CT.Parsers.TypeParser.GetCustomElementTypes())
                 && !object.ReferenceEquals(host, LuaScriptHost.Get()) && !roadPanel.IsInitialized);
         }
 
@@ -80,15 +80,15 @@ function M.fail(v, ctx) error('expected worker error') end
 return M
 ");
             using var main = LuaScriptHost.CreateForFolder(dir);
-            CT.Runtime.LowLevelType Type(string function, CT.Definition[] definitions = null) {
-                return new CT.Runtime.LowLevelType(new CT.LowLevelType {
+            CT.Runtime.CustomElementType Type(string function, CT.Definition[] definitions = null) {
+                return new CT.Runtime.CustomElementType(new CT.CustomElementType {
                     parameters = new CT.ParameterContainer { staticDefinitions = definitions },
-                    settings = new CT.LowLevelSettings { geometry = "batch." + function }
+                    settings = new CT.CustomElementSettings { geometry = "batch." + function }
                 }, "batch", main);
             }
             var type = Type("geometry");
-            LowLevelElement.GeometryUpdate Job(CT.Runtime.LowLevelType t, int offset) {
-                return new LowLevelElement.GeometryUpdate {
+            CustomElement.GeometryUpdate Job(CT.Runtime.CustomElementType t, int offset) {
+                return new CustomElement.GeometryUpdate {
                     type = t, variables = new LuaTable { ["offset"] = offset },
                     context = new LuaTable { ["p"] = LuaVectors.ToLua(new Vector3(3, 4, 5)) }
                 };

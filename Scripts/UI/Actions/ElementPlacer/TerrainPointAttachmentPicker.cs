@@ -78,7 +78,7 @@ namespace ElementPlacer {
                     builder.gizmo.ConsumeClick();
                     return true;
                 }
-                var ok = target == Target.Line ? Operations.LowLevel.AttachToLine(point, LineStart, clicked) : Operations.LowLevel.AttachToColumn(point, clicked);
+                var ok = target == Target.Line ? Operations.CustomElements.AttachToLine(point, LineStart, clicked) : Operations.CustomElements.AttachToColumn(point, clicked);
                 if (!ok) return false;
             }
             builder.gizmo.ConsumeClick();

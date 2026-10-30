@@ -7,7 +7,7 @@ namespace EditorPanels {
     public class ArrayElemEditorPanel : EditorPanel {
         CityElements.Types.Parameter param = null;
         ObjectState curState;
-        public int? arrayIndex = null; //null for a custom element
+        public int? arrayIndex = null; //null for custom city properties
 
         public override void Initialize(GameObject canvas) {
             Initialize(canvas, 1);
@@ -30,15 +30,15 @@ namespace EditorPanels {
             p0.AddButton(SM.Get("ARRAY_ELEM_GO_UP"), GoUp, 0.75f);
         }
 
-        CityElements.Types.CustomElementExclusiveEditing GetExclusiveEditingInfo() {
-            CityElements.Types.CustomElement ct = null;
+        CityElements.Types.CustomCityPropertiesExclusiveEditing GetExclusiveEditingInfo() {
+            CityElements.Types.CustomCityPropertiesType ct = null;
             if (param != null) {
                 if (param.arrayProperties != null) {
-                    if (param.arrayProperties.customElementType != null) {
-                        ct = CityElements.Types.Parsers.TypeParser.GetCustomTypes()[param.arrayProperties.customElementType];
+                    if (param.arrayProperties.customCityPropertiesType != null) {
+                        ct = CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[param.arrayProperties.customCityPropertiesType];
                     }
-                } else if (param.customElementType != null) {
-                    ct = CityElements.Types.Parsers.TypeParser.GetCustomTypes()[param.customElementType];
+                } else if (param.customCityPropertiesType != null) {
+                    ct = CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[param.customCityPropertiesType];
                 }
             }
             if (ct != null && ct.exclusiveEditing != null) {

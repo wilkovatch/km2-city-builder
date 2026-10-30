@@ -7,7 +7,7 @@ namespace Operations {
     //The points of the terrain patches and building lines
     public static class TerrainPoints {
         //Procedural points use ordinary generated anchors; building points can also follow patch corners and edges.
-        //Without generatedOnly (the points of the low-level elements) any anchor, segment or terrain point.
+        //Without generatedOnly (the points of the custom elements) any anchor, segment or terrain point.
         public static IAnchorable AttachmentFromClick(Node3D obj, Vector3 position, bool generatedOnly = true, TerrainPoint point = null) {
             if (obj == null) return null;
             var buildingPoint = generatedOnly && point != null && point.GetLinks().Exists(e => e is BuildingLine);
@@ -17,7 +17,7 @@ namespace Operations {
             }
             var anchor = GS.FindRecursive<TerrainAnchor>(obj);
             if (anchor == null && generatedOnly) anchor = GS.FindRecursive<TerrainPoint>(obj)?.anchor as TerrainAnchor;
-            if (anchor != null && !anchor.IsDeleted() && (!generatedOnly || !anchor.lowLevelOnly)) return anchor;
+            if (anchor != null && !anchor.IsDeleted() && (!generatedOnly || !anchor.customElementsOnly)) return anchor;
             var link = GS.Cast<PointLink>(obj);
             if (link == null || GO.IsNull(link.next)) return null;
             var start = GO.GetParent(link);
@@ -30,7 +30,7 @@ namespace Operations {
                     if (!buildingPoint || p == null || q == null || p.IsDeleted() || q.IsDeleted()
                         || !p.GetLinks().Exists(e => e is TerrainPatch && q.IsLinkedTo(e))
                         || DependsOn(p, point) || DependsOn(q, point)) return null;
-                } else if (a.IsDeleted() || b.IsDeleted() || a.lowLevelOnly || b.lowLevelOnly) return null;
+                } else if (a.IsDeleted() || b.IsDeleted() || a.customElementsOnly || b.customElementsOnly) return null;
             }
             return new LineAnchor(start, link.next, position);
         }
@@ -70,7 +70,7 @@ namespace Operations {
 
         //moves the point as with the gizmo: a free point goes to the position, a point on a segment slides along it to
         //the closest position, a point on the vertical line of another one moves that one horizontally, a point on an
-        //anchor can't be moved (unless leaveAnchor: it leaves the anchor, as the points of the low-level elements)
+        //anchor can't be moved (unless leaveAnchor: it leaves the anchor, as the points of the custom elements)
         public static MoveResult Move(TerrainPoint point, Vector3 position, bool leaveAnchor = false) {
             var onAnchor = !GO.IsNull(point.anchor) && !point.anchor.IsDeleted() && !point.anchor.IsMoveable();
             if (onAnchor && !leaveAnchor) return MoveResult.OnAnchor;

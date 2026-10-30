@@ -29,7 +29,7 @@ public partial class Intersection: IObjectWithState {
     List<GameObject> roadsThrough = new List<GameObject>();
 
     public TerrainAnchorLineManager anchorManager;
-    public bool ghost = false; //replaced by low-level elements (see Road.ghost)
+    public bool ghost = false; //replaced by custom elements (see Road.ghost)
 
     public partial class IntersectionComponent : PhysicsScriptable {
         public Intersection intersection;

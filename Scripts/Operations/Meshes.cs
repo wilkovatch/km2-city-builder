@@ -114,7 +114,7 @@ namespace Operations {
         }
 
         //the parametric object of the element for an objectInstance parameter. path: the array elements leading
-        //to it, from the element ("param.index", or "param" for custom elements), empty for the element's own ones
+        //to it, from the element ("param.index", or "param" for custom city properties), empty for the element's own ones
         public static MeshInstance FindParametricObject(IParametricObjectContainer owner, string key, IList<string> path) {
             var parentParams = new List<string>();
             if (path != null) {

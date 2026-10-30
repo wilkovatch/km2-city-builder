@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Parameter = CityElements.Types.Parameter;
 
 namespace Operations {
-    //Editing of element states through the parameters defined by the core: array and custom element parameters,
+    //Editing of element states through the parameters defined by the core: array and custom city properties parameters,
     //types, and where each parameter is stored
     public static class States {
         //JSON numbers do not carry the float/int distinction used by ObjectState. Import against the schema,
@@ -19,7 +19,7 @@ namespace Operations {
                 } else if (p.type == "int" || p.type == "enum") state.SetInt(name, System.Convert.ToInt32(value));
                 else if (p.type == "array") {
                     foreach (var item in state.Array<ObjectState>(name) ?? new ObjectState[0]) Normalize(item, GetSubparams(p));
-                } else if (p.type == "customElement") Normalize(state.State(name), GetSubparams(p));
+                } else if (p.type == "customCityProperties") Normalize(state.State(name), GetSubparams(p));
                 else if (p.type == "objectInstance") {
                     var obj = state.State(name);
                     foreach (var key in new[] { "localPosition", "localRotation", "localScale" }) {
@@ -37,15 +37,15 @@ namespace Operations {
             return (prependState ? (param.instanceSpecific ? "instanceState." : "state.") : "") + "properties." + param.fullName();
         }
 
-        //the parameters of the elements of an array parameter, or of a custom element parameter
+        //the parameters of the elements of an array parameter, or of a custom city properties parameter
         public static Parameter[] GetSubparams(Parameter param) {
             if (param.arrayProperties != null) {
-                if (param.arrayProperties.customElementType != null) {
-                    return CityElements.Types.Parsers.TypeParser.GetCustomTypes()[param.arrayProperties.customElementType].parameters;
+                if (param.arrayProperties.customCityPropertiesType != null) {
+                    return CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[param.arrayProperties.customCityPropertiesType].parameters;
                 }
                 return param.arrayProperties.elementProperties;
-            } else if (param.customElementType != null) {
-                return CityElements.Types.Parsers.TypeParser.GetCustomTypes()[param.customElementType].parameters;
+            } else if (param.customCityPropertiesType != null) {
+                return CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[param.customCityPropertiesType].parameters;
             }
             GameEngine.LogWarning("invalid subparameters for parameter " + param.fullName());
             return null;
@@ -53,8 +53,8 @@ namespace Operations {
 
         public static Parameter[] GetArrayProperties(CityElements.Types.ArrayProperties type) {
             if (type == null) return null;
-            if (type.customElementType != null) {
-                return CityElements.Types.Parsers.TypeParser.GetCustomTypes()[type.customElementType].parameters;
+            if (type.customCityPropertiesType != null) {
+                return CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[type.customCityPropertiesType].parameters;
             }
             return type.elementProperties;
         }
@@ -62,8 +62,8 @@ namespace Operations {
         //the name of the parameter used to label the elements of an array
         public static string GetArrayLabel(CityElements.Types.ArrayProperties type) {
             if (type == null) return null;
-            if (type.customElementType != null) {
-                return CityElements.Types.Parsers.TypeParser.GetCustomTypes()[type.customElementType].label;
+            if (type.customCityPropertiesType != null) {
+                return CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[type.customCityPropertiesType].label;
             }
             return type.elementLabel;
         }
@@ -99,7 +99,7 @@ namespace Operations {
         }
 
         //adds an element to an array of single parametric objects (see GetSingleObjectInstanceSubparam), with the object at
-        //the position relative to its base (which is the origin for the objects of custom elements), returns its index (-1 if not added)
+        //the position relative to its base (which is the origin for the objects of custom city properties), returns its index (-1 if not added)
         public static int AddArrayObjectAt(ObjectState owner, Parameter param, Godot.Vector3 localPosition) {
             var objParam = GetSingleObjectInstanceSubparam(param);
             if (objParam == null || IsArrayFull(owner, param)) return -1;
@@ -154,8 +154,8 @@ namespace Operations {
             return true;
         }
 
-        //the state of a custom element parameter, created empty if missing
-        public static ObjectState EnsureCustomElement(ObjectState owner, Parameter param) {
+        //the state of a custom city properties parameter, created empty if missing
+        public static ObjectState EnsureCustomCityProperties(ObjectState owner, Parameter param) {
             var subObj = owner.State(param.fullName());
             if (subObj == null) {
                 subObj = new ObjectState();
@@ -184,14 +184,14 @@ namespace Operations {
         }
 
         //References: the value of a reference parameter is another element of the city, {"kind": ..., "id": ...} (the
-        //registry id); referenceTypes lists the kinds it accepts (road, intersection, lowLevel, lowLevel/<type>...)
+        //registry id); referenceTypes lists the kinds it accepts (road, intersection, customElement, customElement/<type>...)
 
         //whether a reference parameter of the owner can reference the element (not itself, a ghost or a deleted element)
         public static bool AcceptsReference(Parameter param, object owner, object element) {
             var kind = History.ElementSnapshot.ReferenceKind(element);
-            if (kind == null || element == owner || LowLevel.IsGhost(element) || IsDeleted(element)) return false;
+            if (kind == null || element == owner || CustomElements.IsGhost(element) || IsDeleted(element)) return false;
             if (param.referenceTypes == null || param.referenceTypes.Length == 0) return true;
-            var type = element is LowLevelElement lowLevel ? lowLevel.TypeName : null;
+            var type = element is CustomElement customElement ? customElement.TypeName : null;
             foreach (var t in param.referenceTypes) {
                 if (t == kind || (type != null && t == kind + "/" + type)) return true;
             }
@@ -217,7 +217,7 @@ namespace Operations {
                 case Road road: return road.deleted;
                 case Intersection intersection: return intersection.IsDeleted();
                 case TerrainPatch patch: return patch.IsDeleted();
-                case LowLevelElement lowLevel: return lowLevel.IsDeleted();
+                case CustomElement customElement: return customElement.IsDeleted();
                 default: return false;
             }
         }

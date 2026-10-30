@@ -8,7 +8,7 @@ public interface IPropRuleEditor {
 }
 
 public abstract partial class EditorPanel {
-    //The prop rule of an element (a road, a low-level element of a type with props containers), the panel group
+    //The prop rule of an element (a road, a custom element of a type with props containers), the panel group
     //"propsGroup": the preset of the rule, and for each props container of the type a checkbox enabling it and a button
     //editing it in the props container editor
     protected class PropRuleGroup {

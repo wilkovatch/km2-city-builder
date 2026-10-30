@@ -211,8 +211,8 @@ public abstract partial class EditorPanel {
                         var objBtn = p.AddButton(GetString(param.label), delegate { EditObjectInstanceParameter(param.fullName(), new List<string>() { }); }, elem.width, GetString(param.tooltip));
                         objectInstanceParameters.Add((objBtn, param));
                         break;
-                    case "customElement":
-                        p.AddButton(GetString(param.label), delegate { SelectCustomElement(param); }, elem.width, GetString(param.tooltip), null);
+                    case "customCityProperties":
+                        p.AddButton(GetString(param.label), delegate { SelectCustomCityProperties(param); }, elem.width, GetString(param.tooltip), null);
                         break;
                     case "reference":
                         field = p.AddFieldReferenceField(builder, GetString(param.label), getObject, pFullName, param, getObject, elem.width, GetString(param.tooltip));
@@ -680,7 +680,7 @@ public abstract partial class EditorPanel {
                             ShowArrayElementPanel(param, arr[i], i, stack);
                         }
                     }
-                } else if (param.type == "customElement") {
+                } else if (param.type == "customCityProperties") {
                     var subObj = obj.GetState().State(param.fullName());
                     if (subObj == state) {
                         ShowArrayElementPanel(param, subObj, null, stack);
@@ -694,7 +694,7 @@ public abstract partial class EditorPanel {
         }
     }
 
-    //reopens the panel of an element of an array parameter (index) or of a custom element parameter (no index),
+    //reopens the panel of an element of an array parameter (index) or of a custom city properties parameter (no index),
     //if it still exists
     public EditorPanel OpenArrayElement(string paramFullName, int? index) {
         CityElements.Types.Parameter param = null;
@@ -712,7 +712,7 @@ public abstract partial class EditorPanel {
             if (arr == null || index.Value < 0 || index.Value >= arr.Length) return null;
             ShowArrayElementPanel(param, arr[index.Value], index.Value);
         } else {
-            if (param.type != "customElement") return null;
+            if (param.type != "customCityProperties") return null;
             var subObj = obj.GetState().State(param.fullName());
             if (subObj == null) return null;
             ShowArrayElementPanel(param, subObj, null);
@@ -749,7 +749,7 @@ public abstract partial class EditorPanel {
     }
 
     //the click placement of the elements of an array of single parametric objects (on until clicked again, Escape or
-    //the panel is closed); only for the objects of the city properties and of custom elements, positioned from the origin
+    //the panel is closed); only for the objects of the city properties and of custom city properties, positioned from the origin
     void SwitchArrayClickAddMode(CityElements.Types.Parameter param) {
         var placer = builder?.arrayPointPlacer;
         if (placer == null) return;
@@ -773,10 +773,10 @@ public abstract partial class EditorPanel {
         return Operations.States.GetArrayLabel(type);
     }
 
-    void SelectCustomElement(CityElements.Types.Parameter param, Stack<GameObject> stack = null) {
+    void SelectCustomCityProperties(CityElements.Types.Parameter param, Stack<GameObject> stack = null) {
         var obj = getObject?.Invoke();
         if (obj != null) {
-            var subObj = Operations.States.EnsureCustomElement(obj.GetState(), param);
+            var subObj = Operations.States.EnsureCustomCityProperties(obj.GetState(), param);
             ShowArrayElementPanel(param, subObj, null, stack);
         }
     }

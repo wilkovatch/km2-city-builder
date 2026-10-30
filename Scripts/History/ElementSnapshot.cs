@@ -14,7 +14,7 @@ namespace History {
         TerrainPoint,
         TerrainPatch,
         BuildingLine,
-        LowLevel
+        CustomElement
     }
 
     //Captures single elements in the IO.SavedCity format (shared with the city encoder, with a different id resolution),
@@ -29,7 +29,7 @@ namespace History {
                 case TerrainPoint: return ElementKind.TerrainPoint;
                 case TerrainPatch: return ElementKind.TerrainPatch;
                 case BuildingLine: return ElementKind.BuildingLine;
-                case LowLevelElement: return ElementKind.LowLevel;
+                case CustomElement: return ElementKind.CustomElement;
                 default: return null;
             }
         }
@@ -47,7 +47,7 @@ namespace History {
                 case TerrainPoint point: return !point.IsDeleted() && IsNodeAlive(point);
                 case TerrainPatch patch: return !patch.IsDeleted() && IsNodeAlive(patch);
                 case BuildingLine line: return !line.IsDeleted() && IsNodeAlive(line);
-                case LowLevelElement lowLevel: return !lowLevel.IsDeleted() && IsNodeAlive(lowLevel);
+                case CustomElement customElement: return !customElement.IsDeleted() && IsNodeAlive(customElement);
                 default: return false;
             }
         }
@@ -259,10 +259,10 @@ namespace History {
             return elem;
         }
 
-        //a point of a low-level element whose definition lets it be rotated
+        //a point of a custom element whose definition lets it be rotated
         static bool IsRotatable(TerrainPoint p) {
             foreach (var link in p.GetLinks()) {
-                if (link is LowLevelElement element) {
+                if (link is CustomElement element) {
                     foreach (var (_, leaf) in element.GetLeaves()) {
                         if (leaf.point == p && leaf.def.rotatable) return true;
                     }
@@ -279,16 +279,16 @@ namespace History {
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
                 case PropPath: return "propPath";
-                case LowLevelElement: return "lowLevel";
+                case CustomElement: return "customElement";
                 default: return null;
             }
         }
 
-        //the references of the parameters of a low-level element converted with the given function (a copy of the state
+        //the references of the parameters of a custom element converted with the given function (a copy of the state
         //is made only if it has references); the references are {"kind": ..., "id": ...} states
         public static ObjectState MapReferences(ObjectState state, System.Func<string, int, int> map) {
             if (state == null) return null;
-            var type = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes().TryGetValue(state.Str("type", ""), out var t) ? t : null;
+            var type = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().TryGetValue(state.Str("type", ""), out var t) ? t : null;
             if (type == null) return state;
             ObjectState res = null;
             foreach (var name in type.GetReferenceParameters()) {
@@ -297,6 +297,7 @@ namespace History {
                 if (res == null) res = (ObjectState)state.Clone();
                 var mapped = new ObjectState();
                 var kind = reference.Str("kind", "");
+                if (kind == "lowLevel") kind = "customElement"; //saved before the rename
                 mapped.SetStr("kind", kind);
                 mapped.SetInt("id", map(kind, reference.Int("id", -1)));
                 res.SetState(name, mapped);
@@ -304,14 +305,14 @@ namespace History {
             return res ?? state;
         }
 
-        public static IO.SavedCity.LowLevelElement CaptureLowLevel(LowLevelElement element, int id, System.Func<TerrainPoint, int> pointId,
+        public static IO.SavedCity.CustomElement CaptureCustomElement(CustomElement element, int id, System.Func<TerrainPoint, int> pointId,
             System.Func<object, int> elementId, System.Func<string, int, int> mapReference) {
 
-            var elem = new IO.SavedCity.LowLevelElement();
+            var elem = new IO.SavedCity.CustomElement();
             elem.id = id;
             elem.name = GO.GetName(element);
             elem.state = MapReferences(element.state, mapReference);
-            elem.points = LowLevel.PointTree.ToJson(element.points, pointId);
+            elem.points = CustomElements.PointTree.ToJson(element.points, pointId);
             if (element.meshVertices.Count > 0 || element.triangles.Count > 0) {
                 elem.meshVertices = element.meshVertices.ConvertAll(p => pointId(p)).ToArray();
                 elem.triangles = element.triangles.ToArray();
@@ -360,8 +361,8 @@ namespace History {
                 case ElementKind.BuildingLine:
                     data = CaptureBuildingLine((BuildingLine)element, id, RegistryId);
                     break;
-                case ElementKind.LowLevel:
-                    data = CaptureLowLevel((LowLevelElement)element, id, RegistryId, RegistryId, (kind, refId) => refId);
+                case ElementKind.CustomElement:
+                    data = CaptureCustomElement((CustomElement)element, id, RegistryId, RegistryId, (kind, refId) => refId);
                     break;
                 default:
                     return null;
@@ -429,13 +430,13 @@ namespace History {
                     manager.AddBuildingLine(line, id);
                     return line;
                 }
-                case ElementKind.LowLevel: {
-                    var e = Deserialize<IO.SavedCity.LowLevelElement>(json);
-                    LowLevelElement element = e.state?.Str("type", null) == PropPath.TypeId
-                        ? GS.Create<PropPath>(NameOrDefault(e.name, "Element"), manager.GetLowLevelContainer())
-                        : GS.Create<LowLevelElement>(NameOrDefault(e.name, "Element"), manager.GetLowLevelContainer());
+                case ElementKind.CustomElement: {
+                    var e = Deserialize<IO.SavedCity.CustomElement>(json);
+                    CustomElement element = e.state?.Str("type", null) == PropPath.TypeId
+                        ? GS.Create<PropPath>(NameOrDefault(e.name, "Element"), manager.GetCustomElementContainer())
+                        : GS.Create<CustomElement>(NameOrDefault(e.name, "Element"), manager.GetCustomElementContainer());
                     element.Initialize(e.state?.Str("type", null), manager.GetTerrainPointContainer());
-                    manager.AddLowLevelElement(element, id);
+                    manager.AddCustomElement(element, id);
                     return element;
                 }
                 default:
@@ -568,35 +569,35 @@ namespace History {
                     line.RestoreFromSnapshot(GetPoints(l.linePoints), Changed(l.state), Changed(l.instanceState), buildingStates, sideStates);
                     return line;
                 }
-                case ElementKind.LowLevel: {
-                    var e = Deserialize<IO.SavedCity.LowLevelElement>(json);
-                    var lowLevel = (LowLevelElement)element;
-                    if (!string.IsNullOrEmpty(e.name)) GO.SetName(lowLevel, e.name);
-                    var origin = lowLevel.GetCenter();
-                    var lowLevelState = Changed(e.state);
-                    var newPoints = LowLevelPoints(e.points, lowLevelState, lowLevel, token => GetAlive<TerrainPoint>((int)token), origin);
+                case ElementKind.CustomElement: {
+                    var e = Deserialize<IO.SavedCity.CustomElement>(json);
+                    var customElement = (CustomElement)element;
+                    if (!string.IsNullOrEmpty(e.name)) GO.SetName(customElement, e.name);
+                    var origin = customElement.GetCenter();
+                    var customElementState = Changed(e.state);
+                    var newPoints = CustomElementPoints(e.points, customElementState, customElement, token => GetAlive<TerrainPoint>((int)token), origin);
                     var vertices = new List<TerrainPoint>();
                     if (e.meshVertices != null) {
-                        foreach (var vid in e.meshVertices) vertices.Add(GetAlive<TerrainPoint>(vid) ?? lowLevel.CreatePoint(origin));
+                        foreach (var vid in e.meshVertices) vertices.Add(GetAlive<TerrainPoint>(vid) ?? customElement.CreatePoint(origin));
                     }
                     var uvs = e.uvs != null ? States.SerializableVector2.GetRuntimeList(e.uvs) : new List<Vector2>();
                     object source = e.source.HasValue ? GetAlive<object>(e.source.Value.id) : null;
-                    lowLevel.RestoreFromSnapshot(lowLevelState, newPoints, vertices, new List<int>(e.triangles ?? new int[0]), uvs,
-                        GetAlive<LowLevelElement>(e.containerId), source);
-                    return lowLevel;
+                    customElement.RestoreFromSnapshot(customElementState, newPoints, vertices, new List<int>(e.triangles ?? new int[0]), uvs,
+                        GetAlive<CustomElement>(e.containerId), source);
+                    return customElement;
                 }
                 default:
                     return element;
             }
         }
 
-        //the control points of a low-level element from their JSON (missing points are created, see PointTree.FromJson)
-        public static LowLevel.PointGroup LowLevelPoints(Newtonsoft.Json.Linq.JToken points, ObjectState state, LowLevelElement element,
+        //the control points of a custom element from their JSON (missing points are created, see PointTree.FromJson)
+        public static CustomElements.PointGroup CustomElementPoints(Newtonsoft.Json.Linq.JToken points, ObjectState state, CustomElement element,
             System.Func<Newtonsoft.Json.Linq.JToken, TerrainPoint> getPoint, Vector3 origin) {
 
-            var type = CityElements.Types.Parsers.TypeParser.GetLowLevelTypes().TryGetValue(state?.Str("type", "") ?? "", out var t) ? t : null;
-            var rootDef = LowLevel.PointTree.RootDef(type?.typeData.settings.controlPoints);
-            return (LowLevel.PointGroup)LowLevel.PointTree.FromJson(points, rootDef, getPoint, (def, pos) => element.CreatePoint(pos), origin);
+            var type = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().TryGetValue(state?.Str("type", "") ?? "", out var t) ? t : null;
+            var rootDef = CustomElements.PointTree.RootDef(type?.typeData.settings.controlPoints);
+            return (CustomElements.PointGroup)CustomElements.PointTree.FromJson(points, rootDef, getPoint, (def, pos) => element.CreatePoint(pos), origin);
         }
 
         //same logic as the city decoder, with the registry ids as references
@@ -661,8 +662,8 @@ namespace History {
                 case ElementKind.BuildingLine:
                     ((BuildingLine)element).RemoveForUndo();
                     break;
-                case ElementKind.LowLevel:
-                    ((LowLevelElement)element).RemoveForUndo();
+                case ElementKind.CustomElement:
+                    ((CustomElement)element).RemoveForUndo();
                     break;
             }
         }

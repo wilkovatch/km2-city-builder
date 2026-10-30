@@ -40,9 +40,9 @@ The node that owns every element of the open city, in the lists `roads`, `inters
 * Visibility helpers: `ShowIntersections`, `ShowAnchors`, `ShowAllTrafficLanes`, `GetObjectList`.
 * Creation helpers: `CreateRoad` (a new road with the default preset, numbered after the existing ones) and `CreateIntersection` (a new intersection with no roads at a position), used by the road placer and the road splitter.
 
-An edit still checks the city for changed inputs, including points following anchors, but only changed meshes are rebuilt. Projected road control points reuse their last projection until they move or the terrain heightmap changes. Low-level elements share point-tree snapshots within one update; when their inputs and membership are unchanged, the later constraint, derived-point and geometry passes are skipped. Derived elements look for siblings within their source group. The edit loop leaves garbage collection to the runtime.
+An edit still checks the city for changed inputs, including points following anchors, but only changed meshes are rebuilt. Projected road control points reuse their last projection until they move or the terrain heightmap changes. Custom elements share point-tree snapshots within one update; when their inputs and membership are unchanged, the later constraint, derived-point and geometry passes are skipped. Derived elements look for siblings within their source group. The edit loop leaves garbage collection to the runtime.
 
-For a short synthetic editing benchmark and dependency checks, set `KM2_SELFTEST_INCREMENTAL=1` and run `selftest api <new folder>`. It measures unchanged updates and isolated road control-point edits in a city with 64 roads and 1,024 low-level elements, then checks local mesh rebuilds, anchored followers and terrain projection invalidation.
+For a short synthetic editing benchmark and dependency checks, set `KM2_SELFTEST_INCREMENTAL=1` and run `selftest api <new folder>`. It measures unchanged updates and isolated road control-point edits in a city with 64 roads and 1,024 custom elements, then checks local mesh rebuilds, anchored followers and terrain projection invalidation.
 
 ## Roads
 
@@ -88,7 +88,7 @@ Terrain patches, building lines and the terrain anchors of roads and intersectio
 | Class | Role |
 |---|---|
 | `TerrainPoint` (`Logic/Helpers/TerrainPoint.cs`) | A point used by one or more terrain patches or building lines (`links`). It can be free, or attached to an `IAnchorable` (`anchor`), in which case it follows it. It is deleted when no element uses it any more. `dividing` marks building line points that split two buildings. |
-| `TerrainAnchor` (`Logic/Helpers/TerrainAnchor.cs`) | A point generated along the edges of roads and intersections (from the `anchors` expressions of the core). Anchors are chained (`prev`, `next`), so that a patch can follow a road edge automatically between two clicked anchors (`GetPointListTo`). The anchors with `lowLevelOnly` (the lines across the road ends, from the `endAnchors` of the road types, appended after the other lines of the intersection by `IntersectionGenerator.AddRoadEndLines`) are not chained to the roads, are shown only by the low-level editor (`ShowAnchors(active, lowLevel)`) and are skipped by the city-wide generators. |
+| `TerrainAnchor` (`Logic/Helpers/TerrainAnchor.cs`) | A point generated along the edges of roads and intersections (from the `anchors` expressions of the core). Anchors are chained (`prev`, `next`), so that a patch can follow a road edge automatically between two clicked anchors (`GetPointListTo`). The anchors with `customElementsOnly` (the lines across the road ends, from the `endAnchors` of the road types, appended after the other lines of the intersection by `IntersectionGenerator.AddRoadEndLines`) are not chained to the roads, are shown only by the custom element editor (`ShowAnchors(active, forCustomElements)`) and are skipped by the city-wide generators. |
 | `LineAnchor` (`Logic/Helpers/LineAnchor.cs`) | An anchor on the segment between two points, at a given percentage. |
 | `PointAnchor` (`Logic/Helpers/PointAnchor.cs`) | A fixed attachment to another terrain point (`master`), used by building points following patch corners. Keeps the follower's identity and shared references. Saved as `linkType: Point`, `elementType: TerrainPoint`, with the master in `elementId`. |
 | `IAnchorable` | Common interface of anchors (`GetPoint`, `IsMoveable`, `IsDeleted`). |
@@ -114,22 +114,22 @@ A polygon of perimeter `TerrainPoint`s, with optional internal points (to add ve
 | `Building` (`Logic/Buildings/Building.cs`) | One building of a line, with up to four `BuildingSideGenerator`s (`front`, `left`, `right`, `back`) and a roof. Its state holds the building type parameters, the built-in `front`/`left`/`right`/`back`/`top` switches, `height`, `depth`, `fixAcuteAngles`, `topTexture`, and the states of its sides (`frontState`, ...). `PreUpdateMesh` computes the side splines from the line and the neighboring buildings; `UpdateMesh` rebuilds the sides and the roof. |
 | `BuildingSideGenerator` | See [Geometry Generation](Geometry-Generation#buildings). |
 
-## Low-level elements
+## Custom elements
 
-The elements of the low-level types of the core (see [Core Low-Level Elements](Core-Low-Level-Elements)).
+The elements of the custom element types of the core (see [Core Custom Elements](Core-Custom-Elements)).
 
 | Class | Role |
 |---|---|
-| `LowLevelElement` (`Logic/LowLevelElement.cs`) | The element: `state` (type and parameters), `points` (the control points, a `PointGroup`), the mesh (`meshVertices`, `triangles`, `uvs`; `scriptUVs` given by the geometry script), `container` (another low-level element) and `source` (the ghost it replaces). Its points are `TerrainPoint`s linked to it (it is an `IGroundable`, not projected on the ground), so they can be anchored and shared like the points of the patches. Array editing (`InsertArrayElement`, `RemoveArrayElement`, uniform arrays included), `ReplacePoint` (sharing), `SetMesh`, `SetContainer`/`CanBeIn`. The update (`ElementManager.UpdateLowLevelElements`) refreshes the points (anchors), runs the constraints of every element a few times while they move points (`ApplyConstraints`, comparing with the positions they last saw), then rebuilds the geometry of the changed ones (`UpdateGeometry`: points, points of the referenced elements, state, structure). The scripts get the context built by `CreateScriptContext`. |
-| `LowLevel.PointTree` (`Logic/LowLevel/PointTree.cs`) | The tree of control points (`PointLeaf`, `PointGroup`, `PointList`): default content, paths, array elements (new points between their neighbours), uniform instances, JSON (point ids) and validation. |
-| `LowLevel.LowLevelScripting` (`Logic/LowLevel/LowLevelScripting.cs`) | The Lua tables of the points and the reading of the geometry (`GeometryResult`) and constraints (`ConstraintsResult`) returned by the scripts. |
-| `LowLevelGenerator` (`Geometry/LowLevelGenerator.cs`) | The geometry of the element (layer 7): one submesh per mesh of the script, the lines (shown while the element is edited, unless `always`), and a collider of the meshes, the pick-only meshes and the `always` lines. |
+| `CustomElement` (`Logic/CustomElement.cs`) | The element: `state` (type and parameters), `points` (the control points, a `PointGroup`), the mesh (`meshVertices`, `triangles`, `uvs`; `scriptUVs` given by the geometry script), `container` (another custom element) and `source` (the ghost it replaces). Its points are `TerrainPoint`s linked to it (it is an `IGroundable`, not projected on the ground), so they can be anchored and shared like the points of the patches. Array editing (`InsertArrayElement`, `RemoveArrayElement`, uniform arrays included), `ReplacePoint` (sharing), `SetMesh`, `SetContainer`/`CanBeIn`. The update (`ElementManager.UpdateCustomElements`) refreshes the points (anchors), runs the constraints of every element a few times while they move points (`ApplyConstraints`, comparing with the positions they last saw), then rebuilds the geometry of the changed ones (`UpdateGeometry`: points, points of the referenced elements, state, structure). The scripts get the context built by `CreateScriptContext`. |
+| `CustomElements.PointTree` (`Logic/CustomElements/PointTree.cs`) | The tree of control points (`PointLeaf`, `PointGroup`, `PointList`): default content, paths, array elements (new points between their neighbours), uniform instances, JSON (point ids) and validation. |
+| `CustomElements.CustomElementScripting` (`Logic/CustomElements/CustomElementScripting.cs`) | The Lua tables of the points and the reading of the geometry (`GeometryResult`) and constraints (`ConstraintsResult`) returned by the scripts. |
+| `CustomElementGenerator` (`Geometry/CustomElementGenerator.cs`) | The geometry of the element (layer 7): one submesh per mesh of the script, the lines (shown while the element is edited, unless `always`), and a collider of the meshes, the pick-only meshes and the `always` lines. |
 
-`LowLevelElement.SetActive` and `Select` skip unchanged handle state, so closing an editor doesn't update every terrain point in a large city several times. A changed point structure or a direct handle change by another user of a shared point invalidates that cache. The shared point still takes its visibility, selection and movability from all the low-level elements using it.
+`CustomElement.SetActive` and `Select` skip unchanged handle state, so closing an editor doesn't update every terrain point in a large city several times. A changed point structure or a direct handle change by another user of a shared point invalidates that cache. The shared point still takes its visibility, selection and movability from all the custom elements using it.
 
 ### Ghosts
 
-`Road.ghost` and `Intersection.ghost` (saved with them): a road or intersection replaced by low-level elements. `ApplyGhost` hides its generated meshes (and the roads through an intersection, and the props of a road) and removes them from the collision layer; the intersection handle is hidden; the split line and the free ends of a ghost road are not offered to other roads; ghosts are left out of the object list. Everything else (curves, sizes, anchors, the parametric objects) works as usual, so the elements around keep their geometry. `Operations.LowLevel` sets, lists and restores them.
+`Road.ghost` and `Intersection.ghost` (saved with them): a road or intersection replaced by custom elements. `ApplyGhost` hides its generated meshes (and the roads through an intersection, and the props of a road) and removes them from the collision layer; the intersection handle is hidden; the split line and the free ends of a ghost road are not offered to other roads; ghosts are left out of the object list. Everything else (curves, sizes, anchors, the parametric objects) works as usual, so the elements around keep their geometry. `Operations.CustomElements` sets, lists and restores them.
 
 ## `MeshInstance` (`Logic/MeshInstance.cs`)
 
@@ -143,7 +143,7 @@ A mesh loaded from a file and placed freely in the city (a building, a prop, a p
 
 ## `CityProperties` (`Logic/CityProperties.cs`)
 
-The city-wide parameters defined by the core in `cityProperties/` (city name, traffic settings, races in MM2...). It is a `ParametricObjectContainer`, so `objectInstance`, `array` and `customElement` parameters work as for roads.
+The city-wide parameters defined by the core in `cityProperties/` (city name, traffic settings, races in MM2...). It is a `ParametricObjectContainer`, so `objectInstance`, `array` and `customCityProperties` parameters work as for roads.
 
 Parameters listed as injectable in the core settings are copied into the runtime state of every road as `_GLOBAL_<name>` whenever they change (`InjectParameter`, called by `ElementManager.PropagateCityProperties`), so that road types can use them (see [Core City Properties](Core-City-Properties)).
 

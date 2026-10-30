@@ -77,7 +77,7 @@ myScript/
 | `preset` | Dropdown of the presets of `presetCategory` (`road`, `intersection`, `buildingLine`, `building`, `buildingSide`, ...) | the preset name |
 | `file`, `folder` | Input field with a button opening the file dialog (`extensions`: the file extensions shown, e.g. `[".png"]`) | the path |
 | `array` | Editable list, each element edited in its own panel (`arrayProperties`, as for the core types) | a list of objects |
-| `customElement` | Button opening the panel of a custom type of the core | an object |
+| `customCityProperties` | Button opening the panel of a custom city properties type of the core | an object |
 
 `defaultValue` is the starting value of a parameter (for an `array`, a list of objects). A `preset` without one starts on the default preset of its category. The labels, placeholders, tooltips and enum labels are looked up in `strings/<language>.json` of the script folder first, then in the strings of the core and of the program, and are shown as they are if no string has that key.
 

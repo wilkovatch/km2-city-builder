@@ -26,8 +26,8 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   │   ├── parametric/<type>.json
 │   │   └── meshInstance.json
 │   ├── cityProperties/
-│   ├── customTypes/<type>.json
-│   └── lowLevel/<type>/           optional: low-level element types (see Core Low-Level Elements)
+│   ├── customCityPropertiesTypes/<type>.json
+│   └── customElements/<type>/          optional: custom element types (see Core Custom Elements)
 ├── templates/                   city templates (at least one)
 │   ├── _common/                 copied into every new city
 │   └── <TemplateName>/          one folder per template (presets.json, cityProperties.json...)
@@ -41,7 +41,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   └── export.py
 ├── migrations/<N>.py            city migration scripts
 ├── lua/                         optional: Lua scripts of the definitions (see Core Lua Scripts)
-├── converters/<name>/           optional: converters to low-level elements (see Core Low-Level Elements)
+├── converters/<name>/           optional: converters to custom elements (see Core Custom Elements)
 ├── scripts/                     optional: Python scripts of the Scripts menu (see Python Scripts)
 └── pythonInfo/
     ├── imports.txt              modules checked before loading a city
@@ -49,7 +49,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
     └── licenses.txt             licenses of the Python dependencies
 ```
 
-The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, so **all the folders under `elements` must exist** (except `lowLevel`), even when empty, and `props/meshInstance.json` must be present. A type is identified by its folder (or file) name; avoid underscores in road type names, because junction files are named `<roadTypeA>_<roadTypeB>.json`. A type can extend another type of its folder and give only what differs from it (see [Core Type Inheritance](Core-Type-Inheritance)).
+The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, so **all the folders under `elements` must exist** (except `customElement`), even when empty, and `props/meshInstance.json` must be present. A type is identified by its folder (or file) name; avoid underscores in road type names, because junction files are named `<roadTypeA>_<roadTypeB>.json`. A type can extend another type of its folder and give only what differs from it (see [Core Type Inheritance](Core-Type-Inheritance)).
 
 ## `settings.json`
 
@@ -73,7 +73,7 @@ The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, 
 | `coreFeatureVersion` | Increase it when the core gains features without breaking existing cities. |
 | `programVersion`, `featureVersion` | The program version the core was made for (see below). |
 | `customTextureFormats`, `customMeshFormats` | File extensions (without the dot) read by the core's Python server. Leave both empty (or omit them) if the core only uses the built-in formats; the server is then not started. |
-| `viewToggles` | Optional visibility switches added at the end of the View menu (after a separator): a list of `{"name", "label", "default"}` (`label` is a string key, `default` whether it starts on, true if omitted). Each city saves their values in its `preferences.json` (`viewToggle.<name>`). The lines of the low-level elements with that `toggle` are hidden while it's off (see [Core Low-Level Elements](Core-Low-Level-Elements)). |
+| `viewToggles` | Optional visibility switches added at the end of the View menu (after a separator): a list of `{"name", "label", "default"}` (`label` is a string key, `default` whether it starts on, true if omitted). Each city saves their values in its `preferences.json` (`viewToggle.<name>`). The lines of the custom elements with that `toggle` are hidden while it's off (see [Core Custom Elements](Core-Custom-Elements)). |
 
 ### Versions
 
@@ -86,7 +86,7 @@ Each city stores the `coreVersion` and `coreFeatureVersion` it was last saved wi
 * city `coreVersion` lower than the core's: the user is asked to run the migrations (see [Core Python Integration](Core-Python-Integration#migrations));
 * city `coreVersion` higher than the core's: error, the city needs a newer core.
 
-Cores using [type inheritance](Core-Type-Inheritance) need `featureVersion` 2 or higher. Cores with [low-level elements](Core-Low-Level-Elements) or converters need `programVersion` 3 and `featureVersion` 2 or higher.
+Cores using [type inheritance](Core-Type-Inheritance) need `featureVersion` 2 or higher. Cores with [custom elements](Core-Custom-Elements) or converters need `programVersion` 3 and `featureVersion` 2 or higher.
 
 Cities with no `core` in their preferences predate cores; they are treated as Midtown Madness 2 cities and migrated.
 

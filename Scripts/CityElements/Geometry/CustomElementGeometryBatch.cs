@@ -5,14 +5,14 @@ using RuntimeCalculator.Scripting;
 
 //Only the Lua calculation and decoding run on workers. Constraints, snapshots, rendering, physics and props stay in
 //element order on the main thread. Batches bound the memory used by the Lua contexts and the generated geometry.
-static class LowLevelGeometryBatch {
+static class CustomElementGeometryBatch {
     const int BatchSize = 256;
     const int MinParallelCount = 32;
 
     sealed class Worker : IDisposable {
         readonly Dictionary<string, LuaScriptHost> hosts = new Dictionary<string, LuaScriptHost>();
 
-        public void Calculate(LowLevelElement.GeometryUpdate job) {
+        public void Calculate(CustomElement.GeometryUpdate job) {
             if (job.type?.geometryFunction == null) return;
             var folder = job.type.scriptHost.folder;
             if (!hosts.TryGetValue(folder, out var host)) {
@@ -27,14 +27,14 @@ static class LowLevelGeometryBatch {
         }
     }
 
-    public static int Rebuild(List<LowLevelElement> elements) {
+    public static int Rebuild(List<CustomElement> elements) {
         if (elements.Count < MinParallelCount || Environment.ProcessorCount < 2) {
             var count = 0;
             foreach (var element in elements) count += element.UpdateGeometry();
             return count;
         }
         var workers = new Worker[Math.Min(8, Environment.ProcessorCount - 1)];
-        var jobs = new List<LowLevelElement.GeometryUpdate>(BatchSize);
+        var jobs = new List<CustomElement.GeometryUpdate>(BatchSize);
         var rebuilt = 0;
         void Flush() {
             if (jobs.Count == 0) return;
@@ -59,7 +59,7 @@ static class LowLevelGeometryBatch {
         try {
             foreach (var element in elements) {
                 //subclasses can change their points or state in Rebuild (e.g. a prop path synchronizing its ribbons)
-                if (element.GetType() != typeof(LowLevelElement) || element.GetLowLevelType()?.canBatchGeometryPreparation == false) {
+                if (element.GetType() != typeof(CustomElement) || element.GetCustomElementType()?.canBatchGeometryPreparation == false) {
                     Flush();
                     rebuilt += element.UpdateGeometry();
                     continue;

@@ -25,7 +25,7 @@ Create `Files/cores/<CoreName>/` (the folder name is the core's permanent identi
 │   ├── buildings/  buildingBlocks/
 │   ├── props/elements/  props/containers/  props/parametric/  props/meshInstance.json
 │   ├── cityProperties/
-│   └── customTypes/
+│   └── customCityPropertiesTypes/
 ├── templates/_common/preferences.json
 ├── templates/<Template>/presets.json
 └── pythonInfo/imports.txt, requirements.txt, licenses.txt
@@ -68,7 +68,7 @@ Create a building type (`line_*`, `building_*`, `side_*` files, with `uMult`/`vM
 * `props/meshInstance.json`: the parameters and placement rules of hand-placed meshes.
 * Props element and container types, if roads should get props automatically; add the container names to the road types' `propsContainers`, and the `EDIT_PROP_CONTAINER_<NAME>` strings.
 * Parametric object types in `props/parametric/` for every `objectInstance` parameter.
-* `cityProperties/` (`parameters.json`, `ui.json`, `settings.json` with `injectableParameters: []`) and any custom type.
+* `cityProperties/` (`parameters.json`, `ui.json`, `settings.json` with `injectableParameters: []`) and any custom city properties type.
 
 See [Core Props and Objects](Core-Props-and-Objects) and [Core City Properties](Core-City-Properties).
 

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Rendering {
     //The visibility switches defined by the core (viewToggles in its settings.json), listed in the View menu: the lines of
-    //the low-level elements with a toggle are hidden while it's off (unless the element is edited). Saved in the city
+    //the custom elements with a toggle are hidden while it's off (unless the element is edited). Saved in the city
     //preferences
     public static class ViewToggles {
         public class Toggle {

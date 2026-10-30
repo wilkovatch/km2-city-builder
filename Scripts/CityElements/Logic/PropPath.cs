@@ -1,33 +1,33 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
-using LowLevel;
+using CustomElements;
 using CityElements.Types;
 
-//Standalone prop rules use the same point ownership, attachments and editor as low-level geometry. Their
+//Standalone prop rules use the same point ownership, attachments and editor as custom element geometry. Their
 //built-in type is independent of the core; only the prop containers and placement expressions come from it.
-public partial class PropPath : LowLevelElement {
+public partial class PropPath : CustomElement {
     public const string TypeId = "__propPath";
 
-    public static CityElements.Types.Runtime.LowLevelType CreateType() {
-        var section = new LowLevelPointNode {
+    public static CityElements.Types.Runtime.CustomElementType CreateType() {
+        var section = new CustomElementPointNode {
             name = "sections", label = "PROP_PATH_SECTIONS",
-            array = new LowLevelArraySettings { min = 2, defaultCount = 2, defaultStep = new float[] { 0, 0, 10 } },
+            array = new CustomElementArraySettings { min = 2, defaultCount = 2, defaultStep = new float[] { 0, 0, 10 } },
             children = new[] {
-                new LowLevelPointNode { name = "start", label = "PROP_PATH_START", defaultPosition = new float[] { -1, 0, 0 } },
-                new LowLevelPointNode { name = "end", label = "PROP_PATH_END", defaultPosition = new float[] { 1, 0, 0 } },
-                new LowLevelPointNode { name = "reference", label = "PROP_PATH_REFERENCE" }
+                new CustomElementPointNode { name = "start", label = "PROP_PATH_START", defaultPosition = new float[] { -1, 0, 0 } },
+                new CustomElementPointNode { name = "end", label = "PROP_PATH_END", defaultPosition = new float[] { 1, 0, 0 } },
+                new CustomElementPointNode { name = "reference", label = "PROP_PATH_REFERENCE" }
             }
         };
-        var data = new CityElements.Types.LowLevelType {
-            settings = new LowLevelSettings {
+        var data = new CityElements.Types.CustomElementType {
+            settings = new CustomElementSettings {
                 creatable = false, propsContainers = new[] { "main" },
-                controlPoints = new[] { new LowLevelPointNode {
+                controlPoints = new[] { new CustomElementPointNode {
                     name = "ribbons", label = "PROP_PATH_RIBBONS",
-                    array = new LowLevelArraySettings { min = 1, defaultCount = 1, editable = false },
-                    children = new[] { new LowLevelPointNode {
+                    array = new CustomElementArraySettings { min = 1, defaultCount = 1, editable = false },
+                    children = new[] { new CustomElementPointNode {
                         name = "segments", label = "PROP_PATH_SEGMENTS",
-                        array = new LowLevelArraySettings { min = 1, defaultCount = 1 }, children = new[] { section }
+                        array = new CustomElementArraySettings { min = 1, defaultCount = 1 }, children = new[] { section }
                     } }
                 } }
             },
@@ -39,7 +39,7 @@ public partial class PropPath : LowLevelElement {
                     .Select(n => new TabElement { name = n, width = 1.5f }).ToArray()
             } } }
         };
-        return new CityElements.Types.Runtime.LowLevelType(data, TypeId);
+        return new CityElements.Types.Runtime.CustomElementType(data, TypeId);
     }
 
     public string[] RibbonNames {

@@ -19,8 +19,8 @@ namespace CityElements.Types.Runtime {
 
         static Parameter[] GetParameters(Types.ArrayProperties type) {
             if (type == null) return null;
-            if (type.customElementType != null) {
-                var ct = Parsers.TypeParser.GetCustomTypes()[type.customElementType];
+            if (type.customCityPropertiesType != null) {
+                var ct = Parsers.TypeParser.GetCustomCityPropertiesTypes()[type.customCityPropertiesType];
                 return ct.parameters;
             } else {
                 return type.elementProperties;
@@ -33,7 +33,7 @@ namespace CityElements.Types.Runtime {
 
         public static ArrayProperties FromCustomType(string ct) {
             var auxArrayProperties = new Types.ArrayProperties();
-            auxArrayProperties.customElementType = ct;
+            auxArrayProperties.customCityPropertiesType = ct;
             return new ArrayProperties(auxArrayProperties);
         }
 

@@ -11,7 +11,7 @@ The JSON format itself is documented from the core author's point of view in the
 
 Static entry point. Every getter reads its folder of the current core (`Files/cores/<core>/elements/...`) the first time it is called, caches the result and returns the cache afterwards (pass `reload: true` to force a reload). The dictionary keys are the folder or file names, which are also the type names stored in the elements' state (`"type"` property).
 
-`Reset()` clears all type dictionaries, the stored ancestries and the Lua host. Loading or closing a city calls it; the getters also detect a change of core and invalidate the previous core's caches. Rebuilding or opening an editor panel reuses the loaded types, so it does not recompile expressions or reset the scripts. The parametric mesh settings and custom element getters keep their dictionaries in the same way as the other categories.
+`Reset()` clears all type dictionaries, the stored ancestries and the Lua host. Loading or closing a city calls it; the getters also detect a change of core and invalidate the previous core's caches. Rebuilding or opening an editor panel reuses the loaded types, so it does not recompile expressions or reset the scripts. The parametric mesh settings and custom city properties getters keep their dictionaries in the same way as the other categories.
 
 | Getter | Source | Result |
 |---|---|---|
@@ -26,8 +26,8 @@ Static entry point. Every getter reads its folder of the current core (`Files/co
 | `GetMeshInstanceSettings` | `props/meshInstance.json` | `Runtime.MeshInstanceSettings` |
 | `GetParametricMeshInstanceSettings` | `props/parametric/<name>.json` | `Runtime.MeshInstanceSettings` per object type |
 | `GetCitySettings` | `cityProperties/` | `Runtime.CitySettings` under the key `"city"` |
-| `GetCustomTypes` | `customTypes/<name>.json` | `CustomElement` |
-| `GetLowLevelTypes` | `lowLevel/<name>/` (optional folder) | `Runtime.LowLevelType` |
+| `GetCustomCityPropertiesTypes` | `customCityPropertiesTypes/<name>.json` | `CustomCityPropertiesType` |
+| `GetCustomElementTypes` | `customElement/<name>/` (optional folder) | `Runtime.CustomElementType` |
 
 ### Inheritance (`Types/Parsers/TypeInheritance.cs`)
 
@@ -46,9 +46,9 @@ A type can extend another type of its category (see [Core Type Inheritance](Core
 
 | Class | Purpose |
 |---|---|
-| `Parameter` | One user-editable parameter: `name`, `label`, `placeholder`, `tooltip`, `type`, `container`, `enumLabels`, `instanceSpecific`, and the extra settings of complex types (`arrayProperties`, `customElementType`, `objectInstanceSettings`). `fullName()` is `container_name`, or `name` without a container. |
-| `ArrayProperties` | Settings of an `array` parameter: `maxElements`, `elementLabel`, either `elementProperties` or `customElementType`, and the line through its parametric objects (`drawLine`, `lineSettings`: `LineSettings` and `LineUVSettings`). |
-| `CustomElement`, `CustomElementExclusiveEditing` | A reusable group of parameters (`customTypes/*.json`), optionally shown one at a time per category. |
+| `Parameter` | One user-editable parameter: `name`, `label`, `placeholder`, `tooltip`, `type`, `container`, `enumLabels`, `instanceSpecific`, and the extra settings of complex types (`arrayProperties`, `customCityPropertiesType`, `objectInstanceSettings`). `fullName()` is `container_name`, or `name` without a container. |
+| `ArrayProperties` | Settings of an `array` parameter: `maxElements`, `elementLabel`, either `elementProperties` or `customCityPropertiesType`, and the line through its parametric objects (`drawLine`, `lineSettings`: `LineSettings` and `LineUVSettings`). |
+| `CustomCityPropertiesType`, `CustomCityPropertiesExclusiveEditing` | A reusable group of parameters (`customCityPropertiesTypes/*.json`), optionally shown one at a time per category. |
 | `ObjectInstanceSettings`, `ObjectInstanceDefaultModel`, `ObjectInstaceRoadChoice` | Settings of an `objectInstance` parameter: object type, default model, which definitions give its condition, position, rotation and scale, and which transform axes the user may change. |
 | `Definition`, `LateDefinition` | A named, typed expression (`name`, `type`, `value`), and a named group of them. |
 | `InternalParameterSettings` | Shows or hides a built-in parameter of the program (`name`, `enabled`). |
@@ -76,7 +76,7 @@ Parses an array of expressions that can be written in three forms (see [Expressi
 
 Base class of every runtime type. The constructor:
 
-1. Registers a variable for each parameter: `float`, `int`, `bool` and `enum` parameters are float variables (booleans are 0/1), `vec2`/`vec3` parameters are vector variables. `objectInstance`, `array` and `customElement` parameters are collected in `objectInstanceParams`, `arrayParams` and `customElemParams` instead. Texture, mesh and string parameters are not variables.
+1. Registers a variable for each parameter: `float`, `int`, `bool` and `enum` parameters are float variables (booleans are 0/1), `vec2`/`vec3` parameters are vector variables. `objectInstance`, `array` and `customCityProperties` parameters are collected in `objectInstanceParams`, `arrayParams` and `customCityPropertiesParams` instead. Texture, mesh and string parameters are not variables.
 2. Registers the `loopVariables` (float variables, used as loop indices in expression arrays).
 3. Compiles the static, dynamic and late definitions into `numberDefinitions`, `boolDefinitions`, `vector3Definitions`, `vector2Definitions` (each definition also becomes a variable with its name), keeping the late ones grouped by category in `lateDefinitionsDict`. `CompileNumber/Boolean/Vector3/Vector2` parse the expression of a definition (`value`), or create a script calculator for a definition computed by Lua (`script`, see [Runtime Calculator](Runtime-Calculator#lua-scripts)). The names of the bool parameters and definitions are collected in `boolNames` (subclasses add their boolean built-in variables with `AddBuiltInBools`), so that scripts read them as booleans.
 4. Parses the components' conditions (`subConditions`) and local definitions (`localNumberDefinitions`, ...).
@@ -107,7 +107,7 @@ Subclasses fill the variables in this order, through the protected helpers:
 | `PropsElementType` | `Types.PropsElementType` | Prop placement rules and their variables. |
 | `MeshInstanceSettings` | `Types.MeshInstanceSettings` | Layer, placer mask and automatic Y offset rules of mesh instances. |
 | `CitySettings` | `Types.CitySettings.CitySettings` | City properties. |
-| `ArrayProperties` | `Types.ArrayProperties` | Parameters of the elements of an `array`/`customElement` parameter. |
-| `LowLevelType` | `Types.LowLevelType` (`LowLevelComponents.cs`: `LowLevelSettings`, `LowLevelPointNode`, `LowLevelArraySettings`, `LowLevelMeshSettings`, `LowLevelContainerSettings`) | Parameters and static definitions; resolves the Lua functions of `geometry` and `constraints` when the core is loaded (they are read again with the types, `CityBuilderMenuBar.Reload`), checks the control points (unique names without dots), `CanContain`, `GetReferenceParameters`. See [Core Low-Level Elements](Core-Low-Level-Elements). |
+| `ArrayProperties` | `Types.ArrayProperties` | Parameters of the elements of an `array`/`customCityProperties` parameter. |
+| `CustomElementType` | `Types.CustomElementType` (`CustomElementComponents.cs`: `CustomElementSettings`, `CustomElementPointNode`, `CustomElementArraySettings`, `CustomElementMeshSettings`, `CustomElementContainerSettings`) | Parameters and static definitions; resolves the Lua functions of `geometry` and `constraints` when the core is loaded (they are read again with the types, `CityBuilderMenuBar.Reload`), checks the control points (unique names without dots), `CanContain`, `GetReferenceParameters`. See [Core Custom Elements](Core-Custom-Elements). |
 
 Each runtime type is shared by all the elements of that type. Road and block generators therefore work on a **clone** of `variableContainer` (`VariableContainer.GetClone()`, same layout, separate values). Some short, self-contained evaluations (junction states, mesh instance rules, terrain patches) fill the type's own container or a per-element clone right before using it; since everything runs on the main thread this is safe as long as the values are not kept between elements.

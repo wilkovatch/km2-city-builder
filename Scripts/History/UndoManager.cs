@@ -458,9 +458,9 @@ namespace History {
             var mesh = GameEngine.Scriptable.Cast<MeshInstance>(node);
             if (mesh != null && mesh.objectParameter == null) return mesh;
             //road control points and parametric objects: the first road or city properties among the ancestors (the move
-            //handle of a low-level container: the container)
+            //handle of a custom element container: the container)
             for (var cur = node; cur != null; cur = cur.GetParentNode3D()) {
-                if (cur is Road || cur is CityProperties || cur is LowLevelElement) return cur;
+                if (cur is Road || cur is CityProperties || cur is CustomElement) return cur;
             }
             return null;
         }
@@ -522,7 +522,7 @@ namespace History {
             foreach (var point in manager.GetTerrainPoints()) Touch(point, false);
             foreach (var patch in manager.patches) Touch(patch, false);
             foreach (var line in manager.buildings) Touch(line, false);
-            foreach (var element in manager.lowLevelElements) Touch(element, false);
+            foreach (var element in manager.customElements) Touch(element, false);
         }
 
         public static void FinalizePending() {
@@ -750,7 +750,7 @@ namespace History {
         // Application
 
         static readonly ElementKind[] removalOrder = {
-            ElementKind.LowLevel, ElementKind.BuildingLine, ElementKind.TerrainPatch, ElementKind.TerrainPoint,
+            ElementKind.CustomElement, ElementKind.BuildingLine, ElementKind.TerrainPatch, ElementKind.TerrainPoint,
             ElementKind.Intersection, ElementKind.Road, ElementKind.Mesh
         };
 
@@ -823,7 +823,7 @@ namespace History {
                 var hasTerrainElements = false;
                 foreach (var (change, _) in updates) {
                     if (change.kind == ElementKind.TerrainPoint || change.kind == ElementKind.TerrainPatch || change.kind == ElementKind.BuildingLine
-                        || change.kind == ElementKind.LowLevel) {
+                        || change.kind == ElementKind.CustomElement) {
                         hasTerrainElements = true;
                         break;
                     }
@@ -837,7 +837,7 @@ namespace History {
                     }
                 }
                 ApplyKinds(updates, ElementKind.TerrainPoint);
-                ApplyKinds(updates, ElementKind.TerrainPatch, ElementKind.BuildingLine, ElementKind.LowLevel);
+                ApplyKinds(updates, ElementKind.TerrainPatch, ElementKind.BuildingLine, ElementKind.CustomElement);
             } finally {
                 applying = false;
             }
