@@ -8,7 +8,7 @@ Most element types of a core are described by three files:
 | `ui.json` | How the parameters are laid out in the editor panel. |
 | `settings.json` | Element-specific settings (geometry, components, textures...), described on each element page. |
 
-Building types use `line_*`, `building_*` and `side_*` prefixes for the three parts of a building; props, mesh instance and custom city properties type files embed the same information in a single file (see their pages).
+Building types use `line_*`, `building_*` and `side_*` prefixes for the three parts of a building; props, parametric object and custom city properties type files embed the same information in a single file (see their pages).
 
 ## `parameters.json`
 
@@ -163,7 +163,7 @@ Built-in groups insert the program's own controls (type and preset selectors, pl
 
 Spline-driven custom element types use `splineGroup` for curve mode, resolution and Hermite controls, and `pointsGroup` for road-style point placement. Custom element type `createMenu` settings choose direct Create entries or a localized group; see [Core Custom Elements](Core-Custom-Elements#spline-driven-elements).
 
-Props elements, mesh instance settings and parametric objects have no groups: their `uiInfo` is a flat list of elements (see [Core Props and Objects](Core-Props-and-Objects)).
+Props elements and parametric objects have no groups: their `uiInfo` is a flat list of elements (see [Core Props and Objects](Core-Props-and-Objects)).
 
 ## Strings
 

@@ -20,7 +20,7 @@ namespace Api {
                 case TerrainPatch p: return p.state?.Str("type", null);
                 case BuildingLine l: return l.state?.Str("type", null);
                 case CustomElement e: return e.TypeName;
-                case MeshInstance m: return m.meshPath;
+                case MeshInstance m: return m.objectParameter == null ? m.TypeName : m.meshPath;
                 default: return null;
             }
         }
@@ -252,6 +252,7 @@ namespace Api {
                         quaternion = GO.GetRotationQuaternion(mesh),
                         scale = GO.GetLocalScale(mesh),
                         mesh = mesh.meshPath,
+                        type = mesh.TypeName,
                         layer = GO.GetLayer(mesh)
                     };
                 }

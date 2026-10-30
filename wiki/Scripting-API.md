@@ -486,14 +486,17 @@ The example's prop types are supplied by the core. A rule with no enabled contai
 
 ### `meshes.*`
 
+Every mesh instance has a mesh instance type (see [Core Custom Elements](Core-Custom-Elements#mesh-instance-elements)), in `settings.type`: it is the `type` of the element in `elements.list` and `elements.get`, and `types.list` with kind `meshInstance` lists the types with their parameters, `massPlacement`, `randomRotation` and `compatibleTypes`.
+
 | Method | Parameters | Result | Description |
 |---|---|---|---|
-| `meshes.create` | `mesh: string`<br>`position: vec3`<br>`settings: state = null`<br>`rotation: vec3 = null`<br>`scale: vec3 = null`<br>`randomRotation: bool = false`<br>`onGround: bool = false` | int | Places a mesh instance (onGround: on the layers the mesh instances with these settings are placed on) |
+| `meshes.create` | `mesh: string`<br>`position: vec3`<br>`type: string = null`<br>`settings: state = null`<br>`rotation: vec3 = null`<br>`scale: vec3 = null`<br>`randomRotation: bool = false`<br>`onGround: bool = false` | int | Places a mesh instance of a mesh instance type (type: optional if the core has only one, or if the settings have it; onGround: on the layers the instances of the type are placed on) |
 | `meshes.delete` | `mesh: ref` | - | Deletes a mesh instance |
-| `meshes.eraseInRadius` | `center: vec3`<br>`radius: number`<br>`settings: state = null` | int | Deletes the mesh instances on the layer of the settings within the radius (like the delete mode of the mesh tool), returns how many |
+| `meshes.eraseInRadius` | `center: vec3`<br>`radius: number`<br>`type: string = null`<br>`settings: state = null` | int | Deletes the mesh instances of the type within the radius (like the delete mode of the mesh tool; only for the types with massPlacement), returns how many |
 | `meshes.projectToGround` | `mesh: ref` | - | Puts a mesh instance on the ground under it |
 | `meshes.replaceMesh` | `mesh: ref`<br>`newMesh: string` | int | Replaces the mesh of a mesh instance, keeping its transform (and id) |
-| `meshes.scatter` | `mesh: string`<br>`center: vec3`<br>`radius: number`<br>`count: int`<br>`settings: state = null`<br>`randomRotation: bool = false` | int[] | Places count mesh instances at random points within the radius, on the ground (like the multiple placement of the mesh tool) |
+| `meshes.scatter` | `mesh: string`<br>`center: vec3`<br>`radius: number`<br>`count: int`<br>`type: string = null`<br>`settings: state = null`<br>`randomRotation: bool = false` | int[] | Places count mesh instances at random points within the radius, on the ground (like the multiple placement of the mesh tool; only for the types with massPlacement) |
+| `meshes.setType` | `mesh: ref`<br>`type: string` | - | Switches a mesh instance to one of the compatible types of its type (compatibleTypes): the parameters of both types are kept |
 | `meshes.setTransform` | `mesh: ref`<br>`position: vec3 = null`<br>`rotation: vec3 = null`<br>`quaternion: quaternion = null`<br>`scale: vec3 = null` | - | Sets the position, rotation (euler angles in degrees, or quaternion) and scale of a mesh instance |
 
 ### `objects.*`

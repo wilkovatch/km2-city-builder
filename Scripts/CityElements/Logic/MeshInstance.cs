@@ -16,6 +16,25 @@ public partial class MeshInstance : PhysicsScriptable
     bool initialized = false;
     MeshManager.MeshTransform meshTransform = MeshManager.MeshTransform.identity; //of the mesh from the placement point
 
+    //the mesh instance type of a plain instance, in its settings ("type")
+    public string TypeName => objectParameter == null ? settings?.Str("type", null) : null;
+
+    //settings.type must be a mesh instance type of the core: a missing or unknown one (e.g. a city saved before the
+    //types, or with another core) is replaced by the first type, so that the instance is kept
+    static void EnsureType(ObjectState settings, string name) {
+        var types = CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes();
+        var type = settings.Str("type", null);
+        if (type != null && types.ContainsKey(type)) return;
+        if (types.Count == 0) {
+            GameEngine.LogWarning("The core has no mesh instance types: " + (name ?? "the new mesh instance") + " has no placement rules");
+            return;
+        }
+        var keys = new List<string>(types.Keys);
+        keys.Sort(System.StringComparer.Ordinal);
+        GameEngine.LogWarning("Unknown mesh instance type '" + type + "'" + (name != null ? " of " + name : "") + ", using '" + keys[0] + "'");
+        settings.SetStr("type", keys[0]);
+    }
+
     public static MeshInstance Create(string meshPath, Vector3 curPoint, GameObject container, ObjectState settings, string name = null) {
         MeshInstance mesh = GS.Create<MeshInstance>(name, container);
         var obj = GO.GetObject(mesh);
@@ -24,15 +43,10 @@ public partial class MeshInstance : PhysicsScriptable
         GO.SetPosition(mesh, curPoint);
         mesh.meshPath = meshPath;
         mesh.settings = (ObjectState)settings.Clone();
+        EnsureType(mesh.settings, name);
         if (!string.IsNullOrEmpty(name)) return mesh; //loading: the saved name needs no search through the container
-        if (mesh.AutoOffsetActive()) {
-            var newObjName = "Prop " + Actions.Helpers.GetLatestObjectNumber(container, "Prop ") + " (" + meshPath + ")"; //todo: get name from config
-            GO.SetName(obj, newObjName);
-        }
-        else {
-            var newObjName = "Mesh " + Actions.Helpers.GetLatestObjectNumber(container, "Mesh ") + " (" + meshPath + ")";
-            GO.SetName(obj, newObjName);
-        }
+        var prefix = mesh.GetMeshInstanceType()?.Settings.namePrefix ?? "Mesh";
+        GO.SetName(obj, prefix + " " + Actions.Helpers.GetLatestObjectNumber(container, prefix + " ") + " (" + meshPath + ")");
         return mesh;
     }
 
@@ -100,32 +114,36 @@ public partial class MeshInstance : PhysicsScriptable
         }
     }
 
-    CityElements.Types.Runtime.MeshInstanceSettings GetMeshInstanceSettings() {
+    //the mesh instance type of a plain instance (null for the parametric objects, or a core without mesh instance types)
+    public CityElements.Types.Runtime.MeshInstanceType GetMeshInstanceType() {
+        var type = TypeName;
+        if (type == null) return null;
+        return CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes().TryGetValue(type, out var t) ? t : null;
+    }
+
+    //the placement rules (of the mesh instance type, or of the parametric object type), with the variables of the settings
+    public CityElements.Types.Runtime.IMeshPlacementType GetPlacementType() {
+        CityElements.Types.Runtime.IMeshPlacementType res;
         if (objectParameter != null) {
-            return CityElements.Types.Parsers.TypeParser.GetParametricMeshInstanceSettings()[objectParameter.objectInstanceSettings.type];
+            res = CityElements.Types.Parsers.TypeParser.GetParametricMeshInstanceSettings()[objectParameter.objectInstanceSettings.type];
         } else {
-            return CityElements.Types.Parsers.TypeParser.GetMeshInstanceSettings();
+            res = GetMeshInstanceType();
         }
+        res?.FillInitialVariables(res.VariableContainer, settings);
+        return res;
     }
 
     public int GetLayer() {
-        var meshSettings = GetMeshInstanceSettings();
-        meshSettings.FillInitialVariables(meshSettings.variableContainer, settings);
-        var layer = (int)meshSettings.rules.layer.GetValue(meshSettings.variableContainer);
-        return layer;
-    }
-
-    bool AutoOffsetActive() {
-        var meshSettings = GetMeshInstanceSettings();
-        meshSettings.FillInitialVariables(meshSettings.variableContainer, settings);
-        return meshSettings.rules.autoYOffset.GetValue(meshSettings.variableContainer);
+        var type = GetPlacementType();
+        if (type == null) return 11;
+        return (int)type.Rules.layer.GetValue(type.VariableContainer);
     }
 
     MeshManager.MeshTransform GetMeshTransform() {
-        var meshSettings = GetMeshInstanceSettings();
-        var vc = meshSettings.variableContainer;
-        meshSettings.FillInitialVariables(vc, settings);
-        var rules = meshSettings.rules;
+        var type = GetPlacementType();
+        if (type == null) return MeshManager.GetPlacementTransform(meshPath, false, false);
+        var vc = type.VariableContainer;
+        var rules = type.Rules;
         var useCoreTransform = rules.meshTransform != null && rules.meshTransform.GetValue(vc);
         return MeshManager.GetPlacementTransform(meshPath, useCoreTransform, rules.autoYOffset.GetValue(vc));
     }
@@ -133,12 +151,11 @@ public partial class MeshInstance : PhysicsScriptable
     //puts the object on the layers it is placed on, if its placement rules ask for it (snapToSurface),
     //e.g. after being moved with the gizmo; returns whether it was projected
     public bool SnapToSurface() {
-        var meshSettings = GetMeshInstanceSettings();
-        var rules = meshSettings.rules;
-        if (rules.snapToSurface == null) return false;
-        meshSettings.FillInitialVariables(meshSettings.variableContainer, settings);
-        if (!rules.snapToSurface.GetValue(meshSettings.variableContainer)) return false;
-        var mask = rules.placerLayerMask != null ? (int)rules.placerLayerMask.GetValue(meshSettings.variableContainer) : 1 << 3;
+        var type = GetPlacementType();
+        var rules = type?.Rules;
+        if (rules?.snapToSurface == null) return false;
+        if (!rules.snapToSurface.GetValue(type.VariableContainer)) return false;
+        var mask = rules.placerLayerMask != null ? (int)rules.placerLayerMask.GetValue(type.VariableContainer) : 1 << 3;
         //not on itself (on its layer, or on the moveable one while it is moved)
         mask &= ~((1 << 8) | (1 << GetLayer()));
         GO.SetPosition(this, GeometryHelper.ProjectOnSurface(GO.GetPosition(this), mask));
@@ -152,13 +169,7 @@ public partial class MeshInstance : PhysicsScriptable
         var index = manager.meshes.IndexOf(instance);
         if (index < 0) return;
         
-        History.UndoManager.Touch(instance);
-        var newInstance = Create(newMesh, GO.GetPosition(instance), GO.GetParent(instance), instance.settings);
-        GO.SetRotation(newInstance, GO.GetRotation(instance));
-        GO.SetLocalScale(newInstance, GO.GetLocalScale(instance));
-        GO.Destroy(instance);
-        manager.meshes[index] = newInstance;
-        History.ElementRegistry.Transfer(instance, newInstance);
+        instance.ReplaceMesh(newMesh, manager); //keeps the name
     }
 
     public void Initialize() {
@@ -186,6 +197,8 @@ public partial class MeshInstance : PhysicsScriptable
     public int ManualUpdate() {
         if (settings.HasChanged()) {
             ReloadMeshTransform();
+            //the layer follows the rules too (e.g. after a type change), unless the instance is being moved
+            if (initialized && GO.GetLayer(this) != 8) Actions.Helpers.SetLayerRecursively(GO.GetObject(this), GetLayer());
             settings.FlagAsUnchanged();
             return 1;
         }
@@ -193,7 +206,7 @@ public partial class MeshInstance : PhysicsScriptable
     }
 
     //moves the children (the mesh, and the collider once created) from the placement point as the placement rules ask
-    //(e.g. after the prop flag changed): the position of the instance stays the placement point, which is exported
+    //(e.g. after the type changed): the position of the instance stays the placement point, which is exported
     void ReloadMeshTransform() {
         var newTransform = GetMeshTransform();
         var obj = GO.GetObject(this);

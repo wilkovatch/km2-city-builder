@@ -38,6 +38,10 @@ namespace ElementPlacer {
         public override void Apply(List<RaycastHit?> hits) {
             ShowOnMap(hits);
             if (settings == null) return;
+            //the placement options the type doesn't allow are off
+            var type = Operations.Meshes.GetMeshType(settings.Str("type", null));
+            if (!(type?.Settings.massPlacement ?? false)) multiple = false;
+            if (!(type?.Settings.randomRotation ?? false)) randomRotation = false;
             if (multiple) {
                 if (!Input.GetInputPressed(KeyCommand.Select)) lastMousePos = Vector2.Zero;
                 var mousePos = manager.GetViewport().GetMousePosition();

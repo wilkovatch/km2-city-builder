@@ -2,40 +2,69 @@ using System.Collections.Generic;
 using Godot;
 using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
+using TP = CityElements.Types.Parsers.TypeParser;
+using MeshInstanceType = CityElements.Types.Runtime.MeshInstanceType;
 
 namespace Operations {
     //Mesh instances placed freely in the city, and the parametric objects (objectInstance parameters) of the elements
     public static class Meshes {
-        static CityElements.Types.Runtime.MeshInstanceSettings GetSettingsType(ObjectState settings) {
-            var meshSettings = CityElements.Types.Parsers.TypeParser.GetMeshInstanceSettings();
-            if (meshSettings == null || settings == null) return null;
-            meshSettings.FillInitialVariables(meshSettings.variableContainer, settings);
-            return meshSettings;
+        //the mesh instance type (null if unknown)
+        public static MeshInstanceType GetMeshType(string type) {
+            if (type == null) return null;
+            return TP.GetMeshInstanceTypes().TryGetValue(type, out var t) ? t : null;
         }
 
-        //the layer the mesh instances with the given settings are put on (-1 if unknown)
+        static MeshInstanceType RequireType(string type) {
+            return GetMeshType(type) ?? throw new System.ArgumentException("unknown mesh instance type '" + type + "'");
+        }
+
+        //the settings of a new instance: the given ones (if any) with the type
+        public static ObjectState NewSettings(string type, ObjectState settings = null) {
+            var res = settings != null ? (ObjectState)settings.Clone() : new ObjectState();
+            res.SetStr("type", type);
+            return res;
+        }
+
+        static MeshInstanceType FillType(ObjectState settings) {
+            var t = GetMeshType(settings?.Str("type", null));
+            t?.FillInitialVariables(t.variableContainer, settings);
+            return t;
+        }
+
+        //the layer the mesh instances with the given settings (with their type) are put on (-1 if unknown)
         public static int GetLayer(ObjectState settings) {
-            var meshSettings = GetSettingsType(settings);
-            if (meshSettings == null) return -1;
-            return (int)meshSettings.rules.layer.GetValue(meshSettings.variableContainer);
+            var t = FillType(settings);
+            if (t == null) return -1;
+            return (int)t.rules.layer.GetValue(t.variableContainer);
         }
 
-        //the layers the mesh instances with the given settings are placed on (-1 if unknown)
+        //the layers the mesh instances with the given settings (with their type) are placed on (-1 if unknown)
         public static int GetPlacerLayerMask(ObjectState settings) {
-            var meshSettings = GetSettingsType(settings);
-            if (meshSettings == null) return -1;
-            return (int)meshSettings.rules.placerLayerMask.GetValue(meshSettings.variableContainer);
+            var t = FillType(settings);
+            if (t == null) return -1;
+            return (int)t.rules.placerLayerMask.GetValue(t.variableContainer);
         }
 
+        //settings: with the type ("type"); the random rotation is applied only if the type allows it
         public static MeshInstance Create(ElementManager manager, string meshPath, Vector3 position, ObjectState settings, bool randomRotation = false) {
             var mesh = MeshInstance.Create(meshPath, position, manager.GetMeshContainer(), settings);
-            if (randomRotation) GO.SetRotation(mesh, new Vector3(0, 360 * (float)RandomManager.rnd.NextDouble(), 0));
+            if (randomRotation && (mesh.GetMeshInstanceType()?.Settings.randomRotation ?? false)) {
+                GO.SetRotation(mesh, new Vector3(0, 360 * (float)RandomManager.rnd.NextDouble(), 0));
+            }
             manager.AddMesh(mesh);
             return mesh;
         }
 
+        static MeshInstanceType RequireMassPlacement(ObjectState settings) {
+            var t = RequireType(settings?.Str("type", null));
+            if (!t.Settings.massPlacement) throw new System.ArgumentException("mesh instance type '" + t.name + "' does not allow mass placement");
+            return t;
+        }
+
         //places count instances at random points within the radius, projected on the layers they can be placed on
+        //(only for the types with massPlacement)
         public static List<MeshInstance> Scatter(ElementManager manager, string meshPath, Vector3 center, float radius, int count, ObjectState settings, bool randomRotation) {
+            RequireMassPlacement(settings);
             var points = new List<Vector3>();
             var rnd = RandomManager.rnd;
             var mask = GetPlacerLayerMask(settings);
@@ -51,12 +80,12 @@ namespace Operations {
             return res;
         }
 
-        //deletes the instances on the layer of the given settings within the radius
+        //deletes the instances of the type of the given settings within the radius (only for the types with massPlacement)
         public static int EraseInRadius(ElementManager manager, Vector3 center, float radius, ObjectState settings) {
-            var layer = GetLayer(settings);
+            var type = RequireMassPlacement(settings).name;
             var delList = new List<MeshInstance>();
             foreach (var mesh in manager.meshes) {
-                if (GO.GetLayer(mesh) == layer) {
+                if (mesh.TypeName == type) {
                     // The root sits on the placement point (only its children are raised by the
                     // y offset), so it is compared as is.
                     // center is in program coordinates, so the position must be read through GO.
@@ -70,6 +99,32 @@ namespace Operations {
                 mesh.Delete();
             }
             return delList.Count;
+        }
+
+        //switches a plain instance to one of the compatibleTypes of its type: the parameters of both types are kept, the
+        //others are removed (the new ones get their defaults); the layer and mesh transform follow the new rules
+        public static void SetType(MeshInstance instance, string newType) {
+            if (instance == null || instance.objectParameter != null) throw new System.ArgumentException("only plain mesh instances have a type");
+            if (instance.TypeName == newType) return;
+            var current = instance.GetMeshInstanceType();
+            var target = RequireType(newType);
+            if (current == null || !current.IsCompatibleWith(newType)) {
+                throw new System.ArgumentException("mesh instance type '" + instance.TypeName + "' can't be switched to '" + newType + "'");
+            }
+            History.UndoManager.Touch(instance);
+            var settings = instance.settings;
+            foreach (var key in new List<string>(settings.properties.Keys)) {
+                if (key == "type") continue;
+                if (!HasParameter(target, key)) settings.RemoveProperty(key);
+            }
+            settings.SetStr("type", newType);
+        }
+
+        static bool HasParameter(MeshInstanceType type, string name) {
+            foreach (var p in type.parameterContainer.parameters ?? new CityElements.Types.Parameter[0]) {
+                if (p.fullName() == name) return true;
+            }
+            return false;
         }
 
         //replaces the mesh keeping the transform; returns the new instance (the old one is freed)

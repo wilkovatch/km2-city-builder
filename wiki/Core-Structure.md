@@ -23,11 +23,10 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   ├── props/
 │   │   ├── elements/<type>.json
 │   │   ├── containers/<type>.json
-│   │   ├── parametric/<type>.json
-│   │   └── meshInstance.json
+│   │   └── parametric/<type>.json
 │   ├── cityProperties/
 │   ├── customCityPropertiesTypes/<type>.json
-│   └── customElements/<type>/          optional: custom element types (see Core Custom Elements)
+│   └── customElements/<type>/          optional: custom element types, also the mesh instance types (see Core Custom Elements)
 ├── templates/                   city templates (at least one)
 │   ├── _common/                 copied into every new city
 │   └── <TemplateName>/          one folder per template (presets.json, cityProperties.json...)
@@ -49,7 +48,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
     └── licenses.txt             licenses of the Python dependencies
 ```
 
-The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, so **all the folders under `elements` must exist** (except `customElement`), even when empty, and `props/meshInstance.json` must be present. A type is identified by its folder (or file) name; avoid underscores in road type names, because junction files are named `<roadTypeA>_<roadTypeB>.json`. A type can extend another type of its folder and give only what differs from it (see [Core Type Inheritance](Core-Type-Inheritance)).
+The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, so **all the folders under `elements` must exist** (except `customElement`), even when empty. A type is identified by its folder (or file) name; avoid underscores in road type names, because junction files are named `<roadTypeA>_<roadTypeB>.json`. A type can extend another type of its folder and give only what differs from it (see [Core Type Inheritance](Core-Type-Inheritance)).
 
 ## `settings.json`
 

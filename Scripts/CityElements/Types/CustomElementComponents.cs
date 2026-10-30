@@ -41,10 +41,20 @@ namespace CityElements.Types {
         public string function; //"<module>.<function>": returns {points = the whole tree}, or nil to keep them
     }
 
+    //A mesh instance element: a single mesh placed with a transform (no control points or geometry)
+    public class CustomElementMeshInstanceSettings {
+        public MeshInstancePlacementRules placementRules;
+        public bool massPlacement; //the placer can scatter and erase instances in a radius
+        public bool randomRotation = true; //the placer can give the new instances a random yaw
+        public string namePrefix = "Mesh"; //the names of the new instances: "<prefix> N (<mesh>)"
+        public string[] compatibleTypes; //the mesh instance types an existing instance can be switched to
+    }
+
     public class CustomElementSettings {
         public bool presets; //optional per-type presets, in category customElement/<type>
         public ObjectState defaultPreset; //initial Default when an older city has no category yet
         public CustomElementSplineSettings spline;
+        public CustomElementMeshInstanceSettings meshInstance; //null: not a mesh instance element
         public CustomElementCreateMenu createMenu;
         public int geometryLayer = 7;
         public CustomElementPointNode[] controlPoints;
@@ -99,6 +109,14 @@ namespace CityElements.Types {
             ui = Parsers.TypeInheritance.Load<Panel>(folder, "ui.json");
             parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
             settings = Parsers.TypeInheritance.Load<CustomElementSettings>(folder, "settings.json");
+            if (settings.meshInstance != null) {
+                if (settings.spline != null || (settings.controlPoints?.Length ?? 0) > 0 || settings.mesh != null || settings.geometry != null
+                    || settings.constraints != null || settings.derivedPoints != null || settings.container != null
+                    || (settings.propsContainers?.Length ?? 0) > 0 || settings.presets) {
+                    throw new System.Exception("Mesh instance custom element types cannot also define spline, controlPoints, mesh, geometry, constraints, derivedPoints, container, propsContainers or presets");
+                }
+                if (settings.meshInstance.placementRules == null) throw new System.Exception("Mesh instance custom element types need placementRules");
+            }
             if (settings.spline != null) {
                 var builtins = new[] {
                     new Parameter { name = "curveType", type = "int" },

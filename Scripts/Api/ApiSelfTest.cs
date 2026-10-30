@@ -479,6 +479,7 @@ namespace Api {
             var p = (await Call("objects.get", new { @object = objRef }))["position"].ToObject<float[]>();
             var distance = new Vector3(p[0] - center[0], 0, p[2] - center[2]).Length();
             Check("the traffic light is on a corner of the intersection (" + distance.ToString("0.0") + " m from its center)", distance > 1 && distance < 40);
+            await ParametricObjectPanel(roadA, "endTrafficLight");
             await Set("trafficLightOnOppositeRoad", true);
             var p2 = (await Call("objects.get", new { @object = objRef }))["position"].ToObject<float[]>();
             var distance2 = new Vector3(p2[0] - center[0], 0, p2[2] - center[2]).Length();
@@ -1124,20 +1125,105 @@ namespace Api {
             Check("props element reference", true);
         }
 
+        //the placement panel shows the options of the type, the panel of an instance is built from the ui.json of its type
+        //(the parametric objects keep their own layout)
+        async Task MeshPanels(int mesh) {
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+            var meshList = (EditorPanels.MeshListEditorPanel)typeof(CityBuilderMenuBar).GetField("meshListEditorPanel", flags).GetValue(builder);
+            foreach (var (typeName, mass) in new[] { ("individualProp", true), ("instMesh", false) }) {
+                builder.CreateMeshInstance(typeName, null);
+                await Frames(1);
+                typeof(EditorPanels.MeshListEditorPanel).GetMethod("Select", flags).Invoke(meshList, new object[] { 0 });
+                typeof(EditorPanels.MeshListEditorPanel).GetMethod("SelectAction", flags).Invoke(meshList, null);
+                await Frames(1);
+                var propEditor = meshList.propEditor;
+                object PlacementField(string name) => typeof(EditorPanels.Props.PropMeshEditorPanel).GetField(name, flags).GetValue(propEditor);
+                Check("the placement panel of " + typeName + " " + (mass ? "has" : "has no") + " mass placement", propEditor.ActiveSelf()
+                    && (PlacementField("multipleCheckbox") != null) == mass && PlacementField("rotationCheckbox") != null
+                    && builder.meshPlacer.settings?.Str("type") == typeName && builder.terrainClick.modifier == builder.meshPlacer);
+                propEditor.Terminate();
+                await Frames(1);
+            }
+            var transformPanel = (EditorPanels.TransformPropertiesEditorPanel)typeof(CityBuilderMenuBar).GetField("transformPropertiesEditorPanel", flags).GetValue(builder);
+            bool OnType() => (bool)typeof(EditorPanels.TransformPropertiesEditorPanel).GetField("onMeshInstanceType", flags).GetValue(transformPanel);
+            builder.SelectObject(M.meshes.Single(m => History.ElementRegistry.GetId(m) == mesh), true, null);
+            await Frames(2);
+            Check("the panel of a mesh instance is built from its type", transformPanel.ActiveSelf() && OnType());
+            transformPanel.Terminate();
+            await Frames(1);
+        }
+
+        async Task ParametricObjectPanel(int road, string key) {
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var parametric = Operations.Meshes.FindParametricObject((Road)History.UndoManager.GetAliveElement(road), key, null);
+            if (parametric == null) { Check("the traffic light is found", false); return; }
+            var transformPanel = (EditorPanels.TransformPropertiesEditorPanel)typeof(CityBuilderMenuBar).GetField("transformPropertiesEditorPanel", flags).GetValue(builder);
+            transformPanel.instance = parametric;
+            transformPanel.SetActive(true);
+            await Frames(2);
+            Check("the panel of a parametric object keeps its layout", transformPanel.ActiveSelf()
+                && !(bool)typeof(EditorPanels.TransformPropertiesEditorPanel).GetField("onMeshInstanceType", flags).GetValue(transformPanel));
+            transformPanel.Terminate();
+            await Frames(1);
+        }
+
         async Task Meshes() {
             var assets = (JArray)await Call("assets.list", new { kind = "mesh" });
             Log("     " + assets.Count + " meshes available");
             var meshName = assets.Count > 0 ? assets[0].Value<string>() : "missing.obj";
-            await Expect("a mesh instance without mesh", "invalid_param", "meshes.create", new { mesh = "", position = V(0, 0, 0) });
-            mesh = (await Call("meshes.create", new { mesh = meshName, position = V(-800, 0, -300), onGround = true })).Value<int>();
+            await Expect("a mesh instance without mesh", "invalid_param", "meshes.create", new { mesh = "", position = V(0, 0, 0), type = "instMesh" });
+            await Expect("a mesh instance without type (the core has two)", "invalid_param", "meshes.create", new { mesh = meshName, position = V(0, 0, 0) });
+            await Expect("a mesh instance of an unknown type", "invalid_value", "meshes.create", new { mesh = meshName, position = V(0, 0, 0), type = "decal" });
+            var meshTypes = (JArray)await Call("types.list", new { kind = "meshInstance" });
+            Check("types.list gives the mesh instance types", meshTypes.Count == 2 && meshTypes.Any(t => t["name"].Value<string>() == "individualProp" && t["massPlacement"].Value<bool>())
+                && meshTypes.Any(t => t["name"].Value<string>() == "instMesh" && !t["massPlacement"].Value<bool>()));
+            var ceTypes = (JArray)await Call("types.list", new { kind = "customElement" });
+            Check("the mesh instance types are not custom element types", !ceTypes.Any(t => t["name"].Value<string>() == "instMesh"));
+            mesh = (await Call("meshes.create", new { mesh = meshName, position = V(-800, 0, -300), type = "instMesh", onGround = true })).Value<int>();
             var d = await Derived(mesh);
-            Check("meshes.create places a mesh instance", d["mesh"].Value<string>() == meshName);
+            var saved = (await Call("elements.get", new { @ref = mesh }))["data"];
+            var listed = (JArray)await Call("elements.list", new { kind = "meshInstance", type = "instMesh" });
+            Check("meshes.create places a mesh instance", d["mesh"].Value<string>() == meshName && d["type"].Value<string>() == "instMesh"
+                && saved["settings"]["type"].Value<string>() == "instMesh" && listed.Any(e => e["id"].Value<int>() == mesh));
+            Check("an INST mesh is on layer 11 with the Mesh prefix", d["layer"].Value<int>() == 11 && saved["name"].Value<string>().StartsWith("Mesh "));
+            var geometry = await Call("elements.geometry", new { @ref = mesh });
+            Check("the export has the type of the mesh instance", geometry["element"]["type"].Value<string>() == "instMesh");
+            await MeshPanels(mesh);
             await CheckUndo("mesh moved", () => Call("meshes.setTransform", new { mesh, position = V(-810, 5, -300), rotation = V(0, 45, 0), scale = V(2, 2, 2) }));
             await Call("meshes.projectToGround", new { mesh });
-            var scattered = (JArray)await Call("meshes.scatter", new { mesh = meshName, center = V(-800, 0, 300), radius = 20, count = 3 });
+            await Expect("no mass placement of INST meshes", "invalid_value", "meshes.scatter", new { mesh = meshName, center = V(-800, 0, 300), radius = 20, count = 3, type = "instMesh" });
+            await Expect("no erasing of INST meshes in a radius", "invalid_value", "meshes.eraseInRadius", new { center = V(-800, 0, 300), radius = 25, type = "instMesh" });
+            var inst = (await Call("meshes.create", new { mesh = meshName, position = V(-800, 0, 300), type = "instMesh", onGround = true })).Value<int>();
+            var scattered = (JArray)await Call("meshes.scatter", new { mesh = meshName, center = V(-800, 0, 300), radius = 20, count = 3, type = "individualProp" });
             Check("meshes.scatter places 3 instances", scattered.Count == 3);
-            var erased = (await Call("meshes.eraseInRadius", new { center = V(-800, 0, 300), radius = 25 })).Value<int>();
+            var prop = await Derived(scattered[0].Value<int>());
+            var propSaved = (await Call("elements.get", new { @ref = scattered[0].Value<int>() }))["data"];
+            Check("an individual prop is on layer 13 with the Prop prefix", prop["layer"].Value<int>() == 13 && prop["type"].Value<string>() == "individualProp"
+                && propSaved["name"].Value<string>().StartsWith("Prop "));
+            var erased = (await Call("meshes.eraseInRadius", new { center = V(-800, 0, 300), radius = 25, type = "individualProp" })).Value<int>();
             Check("meshes.eraseInRadius deletes them (" + erased + ")", erased == 3);
+            Check("meshes.eraseInRadius leaves the instances of the other types", (await Derived(inst))["type"].Value<string>() == "instMesh");
+            await Expect("no switch between incompatible types", "invalid_value", "meshes.setType", new { mesh = inst, type = "individualProp" });
+            //a pair of compatible types (MM2 has none)
+            var propType = TP.GetMeshInstanceTypes()["individualProp"];
+            var instType = TP.GetMeshInstanceTypes()["instMesh"];
+            var propCompatible = propType.Settings.compatibleTypes;
+            instType.Settings.compatibleTypes = new[] { "individualProp" };
+            propType.Settings.compatibleTypes = new[] { "instMesh" };
+            try {
+                await Call("state.setParam", new { @ref = inst, name = "instModifiers", value = 3 });
+                await Call("state.setParam", new { @ref = inst, name = "hudmapCategory", value = 4 });
+                await CheckUndo("mesh type changed", () => Call("meshes.setType", new { mesh = inst, type = "individualProp" }));
+                await Call("meshes.setType", new { mesh = inst, type = "individualProp" });
+                await Call("city.flush");
+                var switched = M.meshes.Single(m => History.ElementRegistry.GetId(m) == inst);
+                Check("meshes.setType switches the layer and keeps the shared parameters", GO.GetLayer(switched) == 13 && switched.TypeName == "individualProp"
+                    && switched.settings.Int("hudmapCategory") == 4 && !switched.settings.properties.ContainsKey("instModifiers"));
+            } finally {
+                instType.Settings.compatibleTypes = new string[0];
+                propType.Settings.compatibleTypes = propCompatible;
+            }
+            await Call("meshes.delete", new { mesh = inst });
 
             //parametric objects
             foreach (var r in (JArray)await Call("elements.list", new { kind = "road" })) {

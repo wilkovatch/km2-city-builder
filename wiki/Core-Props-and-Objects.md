@@ -3,15 +3,14 @@
 This page covers everything placed in the city as a mesh loaded from a file:
 
 * **props** placed automatically along roads, according to *prop rules*;
-* **mesh instances** placed by hand;
+* **mesh instances** placed by hand, whose types are [mesh instance custom element types](Core-Custom-Elements#mesh-instance-elements);
 * **parametric objects**: meshes attached to a parameter of a road or of the city properties (traffic lights, checkpoints, ...), positioned by the core.
 
 ```
 elements/props/
 ├── elements/<type>.json        props element types
 ├── containers/<type>.json      props container types
-├── parametric/<type>.json      parametric object types
-└── meshInstance.json           settings of hand-placed mesh instances
+└── parametric/<type>.json      parametric object types
 ```
 
 ## Props along roads
@@ -127,30 +126,21 @@ Prop element `placementRules.iterationScope` is `"path"` by default. `"edge"` re
 
 Saved cities and export JSON have a separate `propPaths` array. Internally these elements reuse custom element point ownership and history; the reserved built-in type `__propPath` is independent of the core. Export records contain rule state, ribbon control points and evaluated `data.propLines`, using the ordinary mesh dictionary. Exporters decide whether to write a procedural path or its evaluated placements; a core's road-specific suppression of generated props must not silently suppress standalone rules.
 
-## Mesh instances (`meshInstance.json`)
+## Placement rules
 
-Settings shared by all hand-placed mesh instances:
+The placement rules of the mesh instances (`meshInstance.placementRules` of their [types](Core-Custom-Elements#mesh-instance-elements)) and of the parametric objects (`placementRules` of `props/parametric/<type>.json`):
 
 ```json
-{
-    "parametersInfo": {
-        "parameters": [
-            { "name": "prop", "label": "MESH_INSTANCE_PROP", "placeholder": "VALUE_PH", "type": "bool" }
-        ]
-    },
-    "uiInfo": [ { "name": "prop", "width": 1.5 } ],
-    "placementRules": {
-        "layer": "if(prop, 13, 11)",
-        "placerLayerMask": "-1-2^if(prop, 13, 7)",
-        "autoYOffset": "prop",
-        "meshTransform": "prop"
-    }
+"placementRules": {
+    "layer": "11",
+    "placerLayerMask": "-1-2^7",
+    "autoYOffset": "false",
+    "meshTransform": "false"
 }
 ```
 
 | Key | Description |
 |---|---|
-| `parametersInfo`, `uiInfo` | Parameters of every mesh instance, shown in the transform panel. Typical use: flags for the exporter (MM2 exports props and buildings to different files). |
 | `placementRules.layer` | Float expression: the [layer](Architecture-Overview#layers-collision-and-render) of the instance. |
 | `placementRules.placerLayerMask` | Float expression: the collision mask (bit *n* = layer *n*) used when placing the instance with the mouse. `-1-2^13` means "everything except layer 13". |
 | `placementRules.autoYOffset` | Boolean expression: if true, the mesh is raised so that its lowest point sits on the placement point (unless `meshTransform` gives a transform). |
@@ -199,7 +189,7 @@ A parameter of type `objectInstance` attaches a mesh to its element. The core de
 
 | Key | Description |
 |---|---|
-| `type` | Name of a file in `props/parametric/`, with the same format as `meshInstance.json` (layer, placer mask, automatic Y offset). |
+| `type` | Name of a file in `props/parametric/`: the `parametersInfo` and `uiInfo` of the object (shown in its panel) and its [placement rules](#placement-rules). |
 | `defaultModel` | The mesh: either `{"model": "<path>"}`, or `{"options": [...], "index": "<variable>"}` where `index` is the **name** of a float variable or definition selecting the option. With `"dynamic": true`, the options are names of state properties containing the path (for example values injected from the city properties, see [Core City Properties](Core-City-Properties#injectable-parameters)), searched in the element's state, instance state and runtime state. |
 | `allowCustomModel` | Whether the user can replace the mesh. |
 | `defaultScale` | Initial scale `[x, y, z]`. |

@@ -112,8 +112,16 @@ namespace Api {
                 case "cityProperties":
                     return TypesOf(kind, TP.GetCitySettings(), t => null, t => Params(t.parameterContainer));
                 case "meshInstance":
-                    var settings = TP.GetMeshInstanceSettings();
-                    return new List<object> { new { name = "", label = (string)null, ancestry = new[] { "" }, parameters = SchemaOf(Params(settings?.typeData.parametersInfo)) } };
+                    var meshTypes = new List<object>();
+                    foreach (var t in TP.GetMeshInstanceTypes()) {
+                        var s = t.Value.Settings;
+                        meshTypes.Add(new {
+                            name = t.Key, label = SM.GetOrKey(t.Value.Label()), ancestry = AncestryOf("customElement", t.Key),
+                            parameters = SchemaOf(Params(t.Value.parameterContainer)), massPlacement = s.massPlacement,
+                            randomRotation = s.randomRotation, compatibleTypes = s.compatibleTypes, creatable = t.Value.typeData.settings.creatable
+                        });
+                    }
+                    return meshTypes;
                 case "customElement":
                     var customElementTypes = new List<object>();
                     foreach (var t in TP.GetCustomElementTypes()) {

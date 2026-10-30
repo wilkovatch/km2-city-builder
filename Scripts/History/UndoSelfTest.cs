@@ -2143,7 +2143,8 @@ namespace History {
                         line.AddPoint(null, new Vector3(60, 0, 40), true);
                     }),
                     ("create mesh", () => {
-                        mesh = MeshInstance.Create("", new Vector3(-60, 0, 60), M.GetMeshContainer(), new ObjectState());
+                        mesh = MeshInstance.Create("", new Vector3(-60, 0, 60), M.GetMeshContainer(),
+                            Operations.Meshes.NewSettings(new List<string>(CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes().Keys)[0]));
                         M.AddMesh(mesh);
                     }),
                     ("move road A point (gizmo)", () => {

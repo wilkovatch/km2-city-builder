@@ -323,7 +323,7 @@ The *High floors count* and *Low floors count* parameters control how many of th
 
 ### Placing meshes
 
-To place a mesh, select *Create→Mesh instance*, select a mesh from the list (you can search it by name), click *Start placement*, then click on the ground to place one or more copies of it.
+To place a mesh, select its type in the *Create* menu (for Midtown Madness 2, *Individual props* or *INST mesh*), select a mesh from the list (you can search it by name), click *Start placement*, then click on the ground to place one or more copies of it.
 
 ![The mesh list](images/mesh-list-panel.png)
 

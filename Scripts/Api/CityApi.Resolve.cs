@@ -363,7 +363,7 @@ namespace Api {
                     t.owner = mesh.objectParameter == null ? mesh : History.UndoManager.ResolveOwner(mesh);
                     t.state = mesh.settings;
                     if (mesh.objectParameter == null) {
-                        t.parameters = Params(TP.GetMeshInstanceSettings()?.typeData.parametersInfo);
+                        t.parameters = Params(mesh.GetMeshInstanceType()?.parameterContainer);
                     } else {
                         var settingsType = TypeOf(TP.GetParametricMeshInstanceSettings(), mesh.objectParameter.objectInstanceSettings.type);
                         t.parameters = Params(settingsType?.typeData.parametersInfo);

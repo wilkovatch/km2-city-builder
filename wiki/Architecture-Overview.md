@@ -122,7 +122,7 @@ Elements are put on numbered layers, used to choose what each mouse tool can hit
 | 8 | Movable handles (road points, selected objects) |
 | 9 | Road end points that can become intersections |
 | 10 | Terrain points and anchors |
-| 11 | Mesh instances not flagged as props (MM2 core) |
+| 11 | Mesh instances that are not props (the MM2 INST meshes) |
 | 12 | Point links (segments between terrain points) |
 | 13 | Props |
 | 14 | Lines along the roads, to connect another road to their middle |

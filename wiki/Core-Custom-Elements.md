@@ -2,6 +2,8 @@
 
 The procedural elements (roads, intersections, terrain patches, building lines) are built into the program: they generate their geometry from a few parameters, which keeps them easy to edit but limits them to what those parameters can describe. A core can also define **custom elements**: element types of its own, made of control points, an optional mesh and parameters, whose geometry is built by a Lua script of the core. What they represent is up to the core: they can map directly to the primitives of the game (for Midtown Madness 2, the attributes of the rooms of the PSDL file), or be higher-level objects that have no procedural equivalent (the MM2 decals and trains, built along a spline).
 
+A type is one of four kinds, given by its settings: **control point-based** (a tree of control points, `controlPoints`), **mesh-based** (an editable mesh, `mesh`), **spline-based** (`spline`, see [Spline-driven elements](#spline-driven-elements)) and **mesh instance-based** (a single mesh placed with a transform, `meshInstance`, see [Mesh instance elements](#mesh-instance-elements)).
+
 A procedural element can be turned into custom elements by a **converter**: a Python script of the core that receives the element as it would be exported and returns the custom elements that replace it. The roads and intersections converted stay in the city as hidden **ghosts**, so that the elements connected to them keep their geometry.
 
 ```
@@ -217,6 +219,43 @@ Geometry uses the [road component format](Core-Roads), including local definitio
 Control points use the existing point tree as `points.spline`; curve parameters (`curveType`, `segments`, `segmentsPer100m`, `hermiteTension`, `subdivideEqually`) use element state. The API kind remains `customElement`, so existing creation, point-editing, attachment, import and history commands apply. Empty, one-point and coincident-point splines are editable and produce no invalid mesh.
 
 Exported spline elements additionally have `spline.sections` and `spline.pieces`. Sections contain `center`, `right`, `up`, `vertices` (all in builder coordinates) and cumulative `distance`. Pieces are pairs of evaluated sections, including subdivision, so exporters can use the same edges as the editor. This derived geometry is rebuilt on load rather than saved in the city. Projected splines rebuild after generated surfaces; API replies and export snapshots wait for the physics synchronization needed by newly replaced colliders.
+
+## Mesh instance elements
+
+A type with `meshInstance` is a type of the **mesh instances**: the meshes placed by hand from the mesh list, with a position, rotation and scale (the gizmo). Each mesh instance has one of these types, in `settings.type`. They replace the single `props/meshInstance.json` of the older cores (it is ignored, with a warning). The instances stay mesh instances: the save key is still `meshes` and the API kind `meshInstance`, and the types are not listed with the other custom element types (`customElement.*`, the converters and the references don't see them). Their `parameters.json` and `ui.json` are as for the other types, and they can extend each other.
+
+```json
+{
+    "createMenu": { "direct": true },
+    "meshInstance": {
+        "placementRules": { "layer": "13", "placerLayerMask": "-1-2^13", "autoYOffset": "true", "meshTransform": "true" },
+        "massPlacement": true,
+        "randomRotation": true,
+        "namePrefix": "Prop",
+        "compatibleTypes": []
+    }
+}
+```
+
+| Setting | Meaning |
+|---|---|
+| `placementRules` | Required: the layer, placer mask, automatic Y offset, mesh transform and snap to surface of the instances, as for the parametric objects (see [Core Props and Objects](Core-Props-and-Objects#placement-rules)). The expressions can use the parameters of the type. |
+| `massPlacement` | Default `false`. The placement panel can place several instances at once in a radius and erase them in a radius (only the instances of the same type); `meshes.scatter` and `meshes.eraseInRadius` need it too. |
+| `randomRotation` | Default `true`. The placement panel can give the new instances a random yaw. |
+| `namePrefix` | Default `"Mesh"`. The names of the new instances are `<prefix> N (<mesh>)`. |
+| `compatibleTypes` | Default none. The types an existing instance can be switched to (from the type dropdown of its panel, or `meshes.setType`): the parameters both types have are kept, the others removed. A name that is not another mesh instance type is ignored with a warning. |
+
+A mesh instance type can't also have `spline`, `controlPoints`, `mesh`, `geometry`, `constraints`, `derivedPoints`, `container`, `propsContainers` or `presets`. `creatable` and `createMenu` work as for the other types: each creatable type is an entry of the Create menu (`direct`), or the types of a group share one entry and the placement panel has a dropdown to choose among them. The entry opens the mesh list; the chosen mesh is then placed as an instance of the type.
+
+The `ui.json` has these built-in groups:
+
+* `mainGroup`: in the placement panel, back, close and the type; in the panel of an instance, end editing, delete and the type (a dropdown of the type and its `compatibleTypes`, if it has any).
+* `placementGroup`: the placement options the type allows (multiple placement with its intensity, radius and delete mode, random rotation). Only in the placement panel.
+* `transformGroup`: the mesh, the gizmo modes, snap to grid, project to ground, the space and the position, rotation and scale fields. Only in the panel of an instance.
+
+The placement panel keeps the parameters of the next instances, one set for each type. A city whose instances have no type, or a type the core doesn't have, gets the first type (by name) with a warning; a core migration should set the type instead (as the MM2 one does from its former `prop` flag).
+
+In the export JSON, `meshInstances` have `type` (null for the parametric objects).
 
 ## Converters
 

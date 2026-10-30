@@ -100,9 +100,9 @@ namespace Api {
             SelectionObj(Path.Combine(folder, rearPath), new[] {
                 new Vector3(-4, -6, -4), new Vector3(4, -6, -4), new Vector3(4, -6, 4), new Vector3(-4, -6, 4)
             }, new[] { new[] { 0, 1, 2, 0, 2, 3 } });
-            var front = (await Call("meshes.create", new { mesh = frontPath, position = V(1400, 60, 1400), settings = new { prop = false } })).Value<int>();
-            var rear = (await Call("meshes.create", new { mesh = rearPath, position = V(1400, 60, 1400), settings = new { prop = false } })).Value<int>();
-            var copy = (await Call("meshes.create", new { mesh = frontPath, position = V(1430, 60, 1400), settings = new { prop = false } })).Value<int>();
+            var front = (await Call("meshes.create", new { mesh = frontPath, position = V(1400, 60, 1400), type = "instMesh" })).Value<int>();
+            var rear = (await Call("meshes.create", new { mesh = rearPath, position = V(1400, 60, 1400), type = "instMesh" })).Value<int>();
+            var copy = (await Call("meshes.create", new { mesh = frontPath, position = V(1430, 60, 1400), type = "instMesh" })).Value<int>();
             await Frames(3);
             var surface = new Vector3(-3, -2, 2);
             var gap = new Vector3(2, -2, 2);
@@ -119,22 +119,33 @@ namespace Api {
             }
             Check("moving a mesh leaves the shared shape and other copies unchanged", SelectionHit(SelectionInstance(copy), surface) == SelectionInstance(copy) && firstShape == SelectionCollider(SelectionInstance(front)).Shape);
             //Exercise autoYOffset independently of optional core transforms (e.g. a core can return zero for an unknown prop).
-            var rules = TP.GetMeshInstanceSettings().rules;
+            //The placement rules change with the type: the two MM2 types are made compatible for the test.
+            var propType = TP.GetMeshInstanceTypes()["individualProp"];
+            var instType = TP.GetMeshInstanceTypes()["instMesh"];
+            var rules = propType.rules;
             var coreTransformRule = rules.meshTransform;
+            var propCompatible = propType.Settings.compatibleTypes;
+            var instCompatible = instType.Settings.compatibleTypes;
             rules.meshTransform = null;
+            propType.Settings.compatibleTypes = new[] { "instMesh" };
+            instType.Settings.compatibleTypes = new[] { "individualProp" };
             try {
-                var prop = (await Call("meshes.create", new { mesh = frontPath, position = V(1450, 60, 1400), settings = new { prop = true } })).Value<int>();
+                var prop = (await Call("meshes.create", new { mesh = frontPath, position = V(1450, 60, 1400), type = "individualProp" })).Value<int>();
                 await Frames(2);
                 Check("initial prop offset is applied to the collider exactly once", SelectionCollider(SelectionInstance(prop)).Position.DistanceTo(new Vector3(0, 2, 0)) < 0.001f
                     && SelectionHit(SelectionInstance(prop), surface + Vector3.Up * 2) == SelectionInstance(prop));
                 await Call("meshes.delete", new { mesh = prop });
-                await Call("state.setParam", new { @ref = copy, name = "prop", value = true });
+                await Call("meshes.setType", new { mesh = copy, type = "individualProp" });
                 await Frames(2);
                 Check("prop placement offset moves the collider with the geometry", SelectionCollider(SelectionInstance(copy)).Position.DistanceTo(new Vector3(0, 2, 0)) < 0.001f && SelectionHit(SelectionInstance(copy), surface + Vector3.Up * 2) == SelectionInstance(copy));
-                await Call("state.setParam", new { @ref = copy, name = "prop", value = false });
+                await Call("meshes.setType", new { mesh = copy, type = "instMesh" });
                 await Frames(2);
                 Check("changing placement rules restores the collider without accumulating offsets", SelectionCollider(SelectionInstance(copy)).Position.IsZeroApprox());
-            } finally { rules.meshTransform = coreTransformRule; }
+            } finally {
+                rules.meshTransform = coreTransformRule;
+                propType.Settings.compatibleTypes = propCompatible;
+                instType.Settings.compatibleTypes = instCompatible;
+            }
             await Call("meshes.replaceMesh", new { mesh = copy, newMesh = rearPath });
             await Frames(2);
             Check("mesh replacement updates the collider", SelectionCollider(SelectionInstance(copy)).Shape == MeshManager.GetSelectionShape(rearPath) && SelectionHit(SelectionInstance(copy), gap) == SelectionInstance(copy));
@@ -166,7 +177,7 @@ namespace Api {
             SelectionSurface(lines, new[] { -Vector3.One, Vector3.One }, primitive: Godot.Mesh.PrimitiveType.Lines);
             const string linePath = "__selection_lines";
             templates.Add(linePath, lines);
-            var fallback = MeshInstance.Create(linePath, new Vector3(1470, 60, 1400), M.GetMeshContainer(), new ObjectState());
+            var fallback = MeshInstance.Create(linePath, new Vector3(1470, 60, 1400), M.GetMeshContainer(), Operations.Meshes.NewSettings("instMesh"));
             fallback.Start();
             try {
                 await Frames(2);
@@ -174,7 +185,7 @@ namespace Api {
                 var shapes = (Dictionary<string, Shape3D>)typeof(MeshManager).GetField("selectionShapes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(MeshManager.GetInstance());
                 Check("unsuccessful selection builds are cached", shapes.ContainsKey(linePath) && shapes[linePath] == null && MeshManager.GetSelectionShape(linePath) == null);
             } finally { fallback.QueueFree(); templates.Remove(linePath); lines.Free(); }
-            var missing = (await Call("meshes.create", new { mesh = "selection_missing.obj", position = V(1490, 60, 1400), settings = new { prop = false } })).Value<int>();
+            var missing = (await Call("meshes.create", new { mesh = "selection_missing.obj", position = V(1490, 60, 1400), type = "instMesh" })).Value<int>();
             await Frames(2);
             Check("missing meshes keep selectable placeholder geometry", SelectionCollider(SelectionInstance(missing)).Shape is ConcavePolygonShape3D && SelectionHit(SelectionInstance(missing), Vector3.Zero) == SelectionInstance(missing));
             await Call("elements.rename", new { @ref = front, name = "Selection transformed" });
@@ -186,6 +197,7 @@ namespace Api {
             var loaded = M.meshes.Single(m => m.Name == "Selection transformed");
             var replaced = M.meshes.Single(m => m.Name == "Selection replaced");
             Check("save/reload rebuilds accurate transformed colliders", SelectionHit(loaded, surface) == loaded && SelectionHit(replaced, gap) == replaced);
+            Check("save/reload keeps the mesh instance type", loaded.TypeName == "instMesh" && GameEngine.GameObject.GetLayer(loaded) == 11);
             Check("city reload invalidates the old selection cache", SelectionCollider(loaded).Shape != firstShape && SelectionCollider(loaded).Shape == MeshManager.GetSelectionShape(frontPath));
         }
 

@@ -4,52 +4,120 @@ using System.IO;
 using System.Text.RegularExpressions;
 using GameObject = Godot.Control;
 using SM = StringManager;
+using TP = CityElements.Types.Parsers.TypeParser;
+using MeshInstanceType = CityElements.Types.Runtime.MeshInstanceType;
 
 namespace EditorPanels.Props {
+    //The placement of the mesh chosen in the mesh list, as an instance of a mesh instance type (a custom element type with
+    //a meshInstance setting). Its panel is the ui.json of the type, with these built-in groups:
+    //mainGroup (back, close, the type: a dropdown when opened for a group of the Create menu), placementGroup (the
+    //placement options the type allows: mass placement, random rotation), transformGroup (only in the edit panel)
     public class PropMeshEditorPanel : EditorPanel {
         ElementPlacer.MeshPlacer placer = null;
         public string selectedMesh = null;
         EditorPanelElements.Slider intSlider, rdSlider;
-        EditorPanelElements.Checkbox delCheckbox;
-        ObjectState tmpState = new ObjectState();
+        EditorPanelElements.Checkbox delCheckbox, multipleCheckbox, rotationCheckbox;
+        //the parameters of the next instances, one draft for each type
+        readonly Dictionary<string, ObjectState> drafts = new Dictionary<string, ObjectState>();
+        public string placementType; //the type to place (null: the ones of placementGroup)
+        public string placementGroup;
+        string builtType;
+        List<string> groupTypes = new List<string>();
+        protected override bool SingleStateParameters => true;
 
-        public override void Initialize(GameObject canvas) {
-            Initialize(canvas, 1);
-            var p0 = GetPage(0);
-            var settings = CityElements.Types.Parsers.TypeParser.GetMeshInstanceSettings(needsReloading);
-            if (settings == null) return;
-            var width = 1.5f;
-
-            //placement settings
-            p0.AddCheckbox(SM.Get("PROP_PLACER_MULTIPLE"), false, SetMultiple, width);
-            p0.IncreaseRow();
-            intSlider = p0.AddSlider(SM.Get("PROP_PLACER_INTENSITY"), 1, 10, SetTerrainIntensity, width);
-            p0.IncreaseRow();
-            rdSlider = p0.AddSlider(SM.Get("PROP_PLACER_RADIUS"), 1, 30, SetTerrainRadius, width);
-            p0.IncreaseRow();
-            delCheckbox = p0.AddCheckbox(SM.Get("PROP_PLACER_DELETE"), false, SetDeleteMode, width);
-            p0.IncreaseRow();
-            p0.AddCheckbox(SM.Get("PROP_PLACER_RAND_ROT"), false, SetRandomRotation, width);
-            p0.IncreaseRow();
-
-            //properties
-            var curW = 0.0f;
-            for (int i = 0; i < settings.typeData.uiInfo.Length; i++) {
-                var uiInfo = settings.typeData.uiInfo[i];
-                var parameters = settings.typeData.parametersInfo.parameters;
-                AddParameters(p0, ref curW, width, parameters, uiInfo, GetCurElem, false);
-                if (i == settings.typeData.uiInfo.Length - 1) p0.IncreaseRow();
+        //the creatable types listed under the group in the Create menu
+        public static List<string> GroupTypes(string group) {
+            var res = new List<string>();
+            foreach (var pair in TP.GetMeshInstanceTypes()) {
+                var settings = pair.Value.typeData.settings;
+                if (settings.creatable && settings.createMenu?.direct != true && (settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT") == group) res.Add(pair.Key);
             }
-
-            p0.AddButton(SM.Get("BACK"), GoUp, 0.75f);
-            p0.AddButton(SM.Get("CLOSE"), Terminate, 0.75f);
-            intSlider.SetInteractable(false);
-            rdSlider.SetInteractable(false);
-            delCheckbox.SetInteractable(false);
+            return res;
         }
 
-        ObjectState GetCurElem() {
-            return tmpState;
+        string CurrentType() {
+            if (placementType != null) return placementType;
+            groupTypes = GroupTypes(placementGroup);
+            var last = PreferencesManager.Get("lastMeshInstanceType", "");
+            return groupTypes.Contains(last) ? last : groupTypes.Count > 0 ? groupTypes[0] : null;
+        }
+
+        ObjectState Draft() {
+            if (builtType == null) return new ObjectState();
+            if (!drafts.TryGetValue(builtType, out var draft)) {
+                draft = Operations.Meshes.NewSettings(builtType);
+                drafts[builtType] = draft;
+            }
+            return draft;
+        }
+
+        public override void Initialize(GameObject canvas) {
+            intSlider = rdSlider = null;
+            delCheckbox = multipleCheckbox = rotationCheckbox = null;
+            builtType = PreferencesManager.workingDirectory == "" ? null : CurrentType();
+            if (builtType == null) {
+                Initialize(canvas, 1);
+                if (PreferencesManager.workingDirectory == "") return;
+                var p = GetPage(0);
+                p.AddLabel(SM.Get("MI_NO_TYPES"), 1.5f);
+                p.IncreaseRow();
+                p.AddButton(SM.Get("BACK"), GoUp, 0.75f);
+                p.AddButton(SM.Get("CLOSE"), Terminate, 0.75f);
+                return;
+            }
+            InitializeWithCustomParameters<MeshInstanceType, CityElements.Types.CustomElementType>(canvas, Draft, null, builtType,
+                TP.GetMeshInstanceTypes, ProcessCustomParts, false, 1.5f, false);
+        }
+
+        bool ProcessCustomParts(CityElements.Types.TabElement elem, EditorPanelPage p, PresetSelector pS,
+            TypeSelector<MeshInstanceType> tS, MeshInstanceType type) {
+
+            var w = elem.width;
+            if (elem.name == "mainGroup") {
+                p.EnsureNewRow();
+                p.AddButton(SM.Get("BACK"), GoUp, w * 0.5f);
+                p.AddButton(SM.Get("CLOSE"), Terminate, w * 0.5f);
+                p.IncreaseRow();
+                if (placementType == null && groupTypes.Count > 1) {
+                    var dropdown = p.AddDropdown(SM.Get("MI_TYPE"), groupTypes.ConvertAll(t => SM.GetOrKey(TP.GetMeshInstanceTypes()[t].Label())), SetType, w);
+                    dropdown.actionEnabled = false;
+                    dropdown.SetValue(groupTypes.IndexOf(type.name));
+                    dropdown.actionEnabled = true;
+                } else {
+                    p.AddLabel(SM.Get("MI_TYPE") + ": " + SM.GetOrKey(type.Label()), w);
+                }
+                p.IncreaseRow();
+                return true;
+            }
+            if (elem.name == "placementGroup") {
+                p.EnsureNewRow();
+                var settings = type.Settings;
+                if (settings.massPlacement) {
+                    multipleCheckbox = p.AddCheckbox(SM.Get("PROP_PLACER_MULTIPLE"), false, SetMultiple, w);
+                    p.IncreaseRow();
+                    intSlider = p.AddSlider(SM.Get("PROP_PLACER_INTENSITY"), 1, 10, SetTerrainIntensity, w);
+                    p.IncreaseRow();
+                    rdSlider = p.AddSlider(SM.Get("PROP_PLACER_RADIUS"), 1, 30, SetTerrainRadius, w);
+                    p.IncreaseRow();
+                    delCheckbox = p.AddCheckbox(SM.Get("PROP_PLACER_DELETE"), false, SetDeleteMode, w);
+                    p.IncreaseRow();
+                    intSlider.SetInteractable(false);
+                    rdSlider.SetInteractable(false);
+                    delCheckbox.SetInteractable(false);
+                }
+                if (settings.randomRotation) {
+                    rotationCheckbox = p.AddCheckbox(SM.Get("PROP_PLACER_RAND_ROT"), false, SetRandomRotation, w);
+                    p.IncreaseRow();
+                }
+                return true;
+            }
+            return elem.name == "transformGroup";
+        }
+
+        void SetType(int i) {
+            if (i < 0 || i >= groupTypes.Count) return;
+            PreferencesManager.Set("lastMeshInstanceType", groupTypes[i]);
+            builder.DoDelayed(() => { if (ActiveSelf()) SetActive(true); });
         }
 
         void SetDeleteMode(bool enabled) {
@@ -78,12 +146,14 @@ namespace EditorPanels.Props {
         public override void SetActive(bool active) {
             if (!PrepareActivation(active)) return;
             if (active) {
+                Initialize(lastCanvas); //the type may have changed
                 placer = builder.meshPlacer;
-                placer.settings = tmpState;
+                placer.settings = builtType != null ? Draft() : null;
                 placer.placeEnabled = true;
-                builder.terrainClick.modifier = placer;
-                delCheckbox.SetValue(false);
+                placer.multiple = false;
                 placer.deleteMode = false;
+                placer.randomRotation = false;
+                builder.terrainClick.modifier = placer;
             } else {
                 builder.SetSelectObjectMode();
             }

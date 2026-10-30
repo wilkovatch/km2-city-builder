@@ -26,6 +26,7 @@ namespace EditorPanels {
         string curVal;
         public Props.PropMeshEditorPanel propEditor;
         public bool disablePlacer = false;
+        public string placementType, placementGroup; //the mesh instance type (or group of types) to place the mesh as
 
         public override void Initialize(GameObject canvas) {
             Initialize(canvas, 1);
@@ -81,6 +82,8 @@ namespace EditorPanels {
                 SelectAndGoBack();
             } else {
                 propEditor.selectedMesh = curVal;
+                propEditor.placementType = placementType;
+                propEditor.placementGroup = placementGroup;
                 Hide(true);
                 propEditor.SetActive(true);
             }

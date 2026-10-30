@@ -19,7 +19,7 @@ namespace CityElements.Types.Parsers {
             intersectionTypes = null;
             buildingTypes = null;
             buildingBlockTypes = null;
-            meshInstanceSettings = null;
+            meshInstanceTypes = null;
             parametricMeshInstanceSettings = null;
             citySettings = null;
             customCityPropertiesTypes = null;
@@ -212,20 +212,6 @@ namespace CityElements.Types.Parsers {
             return LoadFolderTypes(elementsDir, TI.BuildingBlocks, ancestries, (dir, key) => new Runtime.Buildings.BlockType(new Buildings.BlockType(dir), key));
         }
 
-        //MeshInstance (just one)
-        static Runtime.MeshInstanceSettings meshInstanceSettings = null;
-        public static Runtime.MeshInstanceSettings GetMeshInstanceSettings(bool reload = false) {
-            EnsureCore();
-            if (meshInstanceSettings != null && !reload) return meshInstanceSettings;
-            var elementsDir = GetElementsDir();
-            if (elementsDir == null) return null;
-            var file = Path.Combine(elementsDir, "props", "meshInstance.json");
-            var content = File.ReadAllText(file);
-            var typeData = Newtonsoft.Json.JsonConvert.DeserializeObject<MeshInstanceSettings>(content);
-            meshInstanceSettings = new Runtime.MeshInstanceSettings(typeData);
-            return meshInstanceSettings;
-        }
-
         //Parametric MeshInstances
         static Dictionary<string, Runtime.MeshInstanceSettings> parametricMeshInstanceSettings = null;
         public static Dictionary<string, Runtime.MeshInstanceSettings> GetParametricMeshInstanceSettings(bool reload = false) {
@@ -272,17 +258,46 @@ namespace CityElements.Types.Parsers {
             return LoadFileTypes(elementsDir, TI.CustomCityPropertiesTypes, ancestries, (file, key) => TI.LoadSingle<CustomCityPropertiesType>(file));
         }
 
-        //Custom elements (the folder is optional, cores without it have no custom element types)
+        //Custom elements (the folder is optional, cores without it have no custom element types). The mesh instance
+        //types (settings.meshInstance) are loaded with them, but kept in their own dictionary
         static Dictionary<string, Runtime.CustomElementType> customElementTypes;
+        static Dictionary<string, Runtime.MeshInstanceType> meshInstanceTypes;
         public static Dictionary<string, Runtime.CustomElementType> GetCustomElementTypes(bool reload = false) {
             var types = GetTypes(ref customElementTypes, TI.CustomElements, LoadCustomElementTypes, reload);
             if (!types.ContainsKey(PropPath.TypeId)) types.Add(PropPath.TypeId, PropPath.CreateType());
             return types;
         }
 
+        public static Dictionary<string, Runtime.MeshInstanceType> GetMeshInstanceTypes(bool reload = false) {
+            GetCustomElementTypes(reload);
+            return meshInstanceTypes ?? new Dictionary<string, Runtime.MeshInstanceType>();
+        }
+
         public static Dictionary<string, Runtime.CustomElementType> LoadCustomElementTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
-            if (!Directory.Exists(CategoryDir(elementsDir, TI.CustomElements))) return new Dictionary<string, Runtime.CustomElementType>();
-            return LoadFolderTypes(elementsDir, TI.CustomElements, ancestries, (dir, key) => new Runtime.CustomElementType(new CustomElementType(dir), key));
+            if (File.Exists(Path.Combine(elementsDir, "props", "meshInstance.json"))) {
+                GameEngine.LogWarning("props/meshInstance.json is obsolete and ignored: mesh instance types are custom element types with a meshInstance setting");
+            }
+            var res = new Dictionary<string, Runtime.CustomElementType>();
+            var meshTypes = new Dictionary<string, Runtime.MeshInstanceType>();
+            if (Directory.Exists(CategoryDir(elementsDir, TI.CustomElements))) {
+                var loaded = LoadFolderTypes(elementsDir, TI.CustomElements, ancestries, (dir, key) => new CustomElementType(dir));
+                foreach (var pair in loaded) {
+                    if (pair.Value.settings.meshInstance != null) meshTypes.Add(pair.Key, new Runtime.MeshInstanceType(pair.Value, pair.Key));
+                    else res.Add(pair.Key, new Runtime.CustomElementType(pair.Value, pair.Key));
+                }
+            }
+            //the compatible types must be other mesh instance types
+            foreach (var pair in meshTypes) {
+                var settings = pair.Value.Settings;
+                var valid = new List<string>();
+                foreach (var other in settings.compatibleTypes) {
+                    if (other != pair.Key && meshTypes.ContainsKey(other)) valid.Add(other);
+                    else GameEngine.LogWarning("mesh instance type '" + pair.Key + "': compatible type '" + other + "' is not another mesh instance type, ignored");
+                }
+                settings.compatibleTypes = valid.ToArray();
+            }
+            meshInstanceTypes = meshTypes;
+            return res;
         }
 
         //the ancestries of the types of every category of the current core

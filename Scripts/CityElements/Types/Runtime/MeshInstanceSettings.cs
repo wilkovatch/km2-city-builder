@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using RC = RuntimeCalculator;
 
 namespace CityElements.Types.Runtime {
-    public class MeshInstanceSettings : RuntimeType<Types.MeshInstanceSettings> {
+    public class MeshInstanceSettings : RuntimeType<Types.MeshInstanceSettings>, IMeshPlacementType {
         public class PlacementRules {
             public RC.Booleans.Boolean autoYOffset, snapToSurface, meshTransform;
             public RC.Numbers.Number layer, placerLayerMask;
@@ -26,6 +26,9 @@ namespace CityElements.Types.Runtime {
         }
 
         public PlacementRules rules;
+
+        public PlacementRules Rules => rules;
+        public RC.VariableContainer VariableContainer => variableContainer;
 
         static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists() {
             var floatVars = new List<string>();

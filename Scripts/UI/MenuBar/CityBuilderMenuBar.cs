@@ -672,11 +672,25 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     public void ReloadCreateMenu() {
-        var entries = new List<string> { SM.Get("CREATE_ROAD"), SM.Get("CREATE_TERRAIN_PATCH"),
-            SM.Get("CREATE_BUILDING_LINE"), SM.Get("CREATE_MESH_INSTANCE") };
-        var actions = new List<System.Action> { CreateRoad, CreateTerrain, CreateBuildingLine, CreateMeshInstance };
+        var entries = new List<string> { SM.Get("CREATE_ROAD"), SM.Get("CREATE_TERRAIN_PATCH"), SM.Get("CREATE_BUILDING_LINE") };
+        var actions = new List<System.Action> { CreateRoad, CreateTerrain, CreateBuildingLine };
         var groups = new HashSet<string>();
         if (!noCity && PathHelper.CoreAvailable()) {
+            //the mesh instance types: their entries (or groups) open the mesh list to place a mesh as one of them
+            var meshGroups = new HashSet<string>();
+            foreach (var pair in CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes()) {
+                var settings = pair.Value.typeData.settings;
+                if (!settings.creatable) continue;
+                var type = pair.Key;
+                var group = settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT";
+                if (settings.createMenu?.direct == true) {
+                    entries.Add(SM.GetOrKey(pair.Value.Label()));
+                    actions.Add(() => CreateMeshInstance(type, null));
+                } else if (meshGroups.Add(group)) {
+                    entries.Add(SM.Get(group));
+                    actions.Add(() => CreateMeshInstance(null, group));
+                }
+            }
             foreach (var pair in CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()) {
                 var settings = pair.Value.typeData.settings;
                 if (!settings.creatable) continue;
@@ -1129,7 +1143,10 @@ public partial class CityBuilderMenuBar : Control {
         else if (panelObj != null) meshListEditorPanel.Open(panelObj, valueSetter, afterSetAction);
     }
 
-    void CreateMeshInstance() {
+    //type: the mesh instance type of the new instances, or null for the types of the group (chosen in the placement panel)
+    public void CreateMeshInstance(string type, string group) {
+        meshListEditorPanel.placementType = type;
+        meshListEditorPanel.placementGroup = group;
         ShowPanel(meshListEditorPanel);
     }
 

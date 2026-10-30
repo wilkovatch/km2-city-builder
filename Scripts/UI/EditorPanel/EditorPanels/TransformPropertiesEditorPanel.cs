@@ -17,6 +17,8 @@ namespace EditorPanels {
         EditorPanelElements.Label attachmentStatus;
         EditorPanelElements.Button attachPointButton, attachLineButton, attachColumnButton, detachPointButton, projectPointButton;
         EditorPanelElement pointPositionField;
+        bool onMeshInstanceType; //built from the ui.json of the type of a plain mesh instance
+        protected override bool SingleStateParameters => onMeshInstanceType || base.SingleStateParameters;
 
         public override void Initialize(Control canvas) {
             if (PreferencesManager.workingDirectory == "") {
@@ -26,8 +28,6 @@ namespace EditorPanels {
             titleActive = true;
             var width = 1.8f;
             var w = width;
-            Initialize(canvas, 1, w);
-            var p0 = GetPage(0);
             attachmentStatus = null;
             attachPointButton = attachLineButton = attachColumnButton = detachPointButton = null;
             pointPositionField = null;
@@ -35,6 +35,16 @@ namespace EditorPanels {
             CityElements.Types.ObjectInstanceSettings objSettings = null;
             var instComp = instance != null ? GS.Cast<MeshInstance>(instance) : null;
             if (instComp == null) onParametricObject = false;
+            var meshType = notOnHandle && !onParametricObject ? instComp?.GetMeshInstanceType() : null;
+            onMeshInstanceType = meshType != null;
+            if (meshType != null) {
+                //a plain mesh instance: the panel of its type (see ProcessCustomParts)
+                InitializeWithCustomParameters<CityElements.Types.Runtime.MeshInstanceType, CityElements.Types.CustomElementType>(canvas, GetCurState, null,
+                    meshType.name, CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes, ProcessCustomParts, false, width, true);
+                return;
+            }
+            Initialize(canvas, 1, w);
+            var p0 = GetPage(0);
             if (notOnHandle) {
                 if (onParametricObject) {
                     objSettings = GetParametricObjectSettings();
@@ -51,17 +61,7 @@ namespace EditorPanels {
                     p0.AddButton(SM.Get("DELETE"), Delete, w * 0.5f);
                 }
                 p0.IncreaseRow();
-                var meshField = p0.AddMeshField(builder, SM.Get("TRANSF_MESH"), null, instComp?.meshPath, ChangeMesh, false, null, w);
-                p0.IncreaseRow();
-                var scaleBtn = p0.AddButton(SM.Get("TRANSF_P_SCALE"), SetScale, w / 3.0f);
-                var rotBtn = p0.AddButton(SM.Get("TRANSF_P_ROTATE"), SetRotate, w / 3.0f);
-                var moveBtn = p0.AddButton(SM.Get("TRANSF_P_MOVE"), SetMove, w / 3.0f);
-                if (onParametricObject) {
-                    meshField.SetInteractable(objSettings.allowCustomModel);
-                    scaleBtn.SetInteractable(objSettings.allowScale[0] || objSettings.allowScale[1] || objSettings.allowScale[2]);
-                    rotBtn.SetInteractable(objSettings.allowRotation[0] || objSettings.allowRotation[1] || objSettings.allowRotation[2]);
-                    moveBtn.SetInteractable(objSettings.allowPosition[0] || objSettings.allowPosition[1] || objSettings.allowPosition[2]);
-                }
+                AddMeshRows(p0, w, instComp, objSettings);
             } else {
                 p0.AddButton(SM.Get("END_EDITING"), EndHandleEditing, w);
                 if (GetHandleRoad() != null) {
@@ -91,54 +91,12 @@ namespace EditorPanels {
                 }
             }
             p0.IncreaseRow();
-            p0.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), GetGizmo, "snapToGrid", null, w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
-            projectPointButton = p0.AddButton(SM.Get("PROJECT_TO_GROUND"), ProjectToGround, w * 0.5f);
-            p0.IncreaseRow();
-            if (onParametricObject) {
-                p0.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_PARENT"), w);
-                spaceLabel = null;
-                SwitchSpace(); //defaults to parent in this case
-            } else {
-                spaceLabel = p0.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_GLOBAL"), w * 0.5f);
-                p0.AddButton(SM.Get("TRANSF_P_SWITCH_SPACE"), SwitchSpace, w * 0.5f, SM.Get("TRANSF_P_SWITCH_SPACE_TOOLTIP" + (onParametricObject ? "_PARAMETRIC" : "")));
-            }
-            p0.IncreaseRow();
-            var posFieldName = onParametricObject ? "localPosition" : "position";
-            var posField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_POS"), GetCurTransform, "transform." + posFieldName, null, w, null, null, value => { Reselect(); });
-            pointPositionField = posField;
-            p0.IncreaseRow();
-            if (!notOnHandle && GetHandleRoad() != null) {
-                var axes = GetPointRotationAxes();
-                var yawField = p0.AddFieldInputField(SM.Get("TRANSF_P_YAW"), SM.Get("TRANSF_P_YAW"), GameEngine.InputContentType.Decimal, GetCurPointRotation,
-                    "rotation.yaw", null, w * 0.5f, SM.Get("TRANSF_P_YAW_TOOLTIP"));
-                var rollField = p0.AddFieldInputField(SM.Get("TRANSF_P_ROLL"), SM.Get("TRANSF_P_ROLL"), GameEngine.InputContentType.Decimal, GetCurPointRotation,
-                    "rotation.roll", null, w * 0.5f, SM.Get("TRANSF_P_ROLL_TOOLTIP"));
-                yawField.SetInteractable(axes[1]);
-                rollField.SetInteractable(axes[2]);
-                p0.IncreaseRow();
-            }
-            if (notOnHandle) {
-                var rotFieldName = onParametricObject ? "localRotation" : "rotation";
-                var rotField = p0.AddFieldRotationVectorInputField(SM.Get("TRANSF_P_ROT"), GetCurTransform, "transform." + rotFieldName, null, w, null, null, value => { Reselect(); });
-                p0.IncreaseRow();
-                var scaleField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_SCALE_VAL"), GetCurTransform, "transform.localScale", null, w, null, null, value => { Reselect(); });
-                p0.IncreaseRow();
-                if (onParametricObject) {
-                    scaleField.SetInteractable(objSettings.allowScale[0], objSettings.allowScale[1], objSettings.allowScale[2]);
-                    rotField.SetInteractable(objSettings.allowRotation[0], objSettings.allowRotation[1], objSettings.allowRotation[2]);
-                    posField.SetInteractable(objSettings.allowPosition[0], objSettings.allowPosition[1], objSettings.allowPosition[2]);
-                }
-            }
+            AddTransformFields(p0, w, objSettings);
 
-            //mesh instance properties
-            if (notOnHandle) {
-                CityElements.Types.Runtime.MeshInstanceSettings settings = null;
-                if (onParametricObject) {
-                    objSettings = GS.Cast<MeshInstance>(instance).objectParameter.objectInstanceSettings;
-                    settings = CityElements.Types.Parsers.TypeParser.GetParametricMeshInstanceSettings(needsReloading)[objSettings.type];
-                } else {
-                    settings = CityElements.Types.Parsers.TypeParser.GetMeshInstanceSettings(needsReloading);
-                }
+            //parametric object properties
+            if (notOnHandle && onParametricObject) {
+                objSettings = GS.Cast<MeshInstance>(instance).objectParameter.objectInstanceSettings;
+                var settings = CityElements.Types.Parsers.TypeParser.GetParametricMeshInstanceSettings(needsReloading)[objSettings.type];
                 if (settings == null) return;
                 var curW = 0.0f;
                 for (int i = 0; i < settings.typeData.uiInfo.Length; i++) {
@@ -182,6 +140,108 @@ namespace EditorPanels {
                     if (i == settings.typeData.uiInfo.Length - 1) p0.IncreaseRow();
                 }
             }
+        }
+
+        //the mesh and the gizmo mode buttons of a mesh instance
+        void AddMeshRows(EditorPanelPage p0, float w, MeshInstance instComp, CityElements.Types.ObjectInstanceSettings objSettings) {
+            var meshField = p0.AddMeshField(builder, SM.Get("TRANSF_MESH"), null, instComp?.meshPath, ChangeMesh, false, null, w);
+            p0.IncreaseRow();
+            var scaleBtn = p0.AddButton(SM.Get("TRANSF_P_SCALE"), SetScale, w / 3.0f);
+            var rotBtn = p0.AddButton(SM.Get("TRANSF_P_ROTATE"), SetRotate, w / 3.0f);
+            var moveBtn = p0.AddButton(SM.Get("TRANSF_P_MOVE"), SetMove, w / 3.0f);
+            if (onParametricObject) {
+                meshField.SetInteractable(objSettings.allowCustomModel);
+                scaleBtn.SetInteractable(objSettings.allowScale[0] || objSettings.allowScale[1] || objSettings.allowScale[2]);
+                rotBtn.SetInteractable(objSettings.allowRotation[0] || objSettings.allowRotation[1] || objSettings.allowRotation[2]);
+                moveBtn.SetInteractable(objSettings.allowPosition[0] || objSettings.allowPosition[1] || objSettings.allowPosition[2]);
+            }
+        }
+
+        //snap to grid, project to ground, the space and the position, rotation and scale fields
+        void AddTransformFields(EditorPanelPage p0, float w, CityElements.Types.ObjectInstanceSettings objSettings) {
+            p0.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), GetGizmo, "snapToGrid", null, w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
+            projectPointButton = p0.AddButton(SM.Get("PROJECT_TO_GROUND"), ProjectToGround, w * 0.5f);
+            p0.IncreaseRow();
+            if (onParametricObject) {
+                p0.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_PARENT"), w);
+                spaceLabel = null;
+                SwitchSpace(); //defaults to parent in this case
+            } else {
+                spaceLabel = p0.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_GLOBAL"), w * 0.5f);
+                p0.AddButton(SM.Get("TRANSF_P_SWITCH_SPACE"), SwitchSpace, w * 0.5f, SM.Get("TRANSF_P_SWITCH_SPACE_TOOLTIP" + (onParametricObject ? "_PARAMETRIC" : "")));
+            }
+            p0.IncreaseRow();
+            var posFieldName = onParametricObject ? "localPosition" : "position";
+            var posField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_POS"), GetCurTransform, "transform." + posFieldName, null, w, null, null, value => { Reselect(); });
+            pointPositionField = posField;
+            p0.IncreaseRow();
+            if (!notOnHandle && GetHandleRoad() != null) {
+                var axes = GetPointRotationAxes();
+                var yawField = p0.AddFieldInputField(SM.Get("TRANSF_P_YAW"), SM.Get("TRANSF_P_YAW"), GameEngine.InputContentType.Decimal, GetCurPointRotation,
+                    "rotation.yaw", null, w * 0.5f, SM.Get("TRANSF_P_YAW_TOOLTIP"));
+                var rollField = p0.AddFieldInputField(SM.Get("TRANSF_P_ROLL"), SM.Get("TRANSF_P_ROLL"), GameEngine.InputContentType.Decimal, GetCurPointRotation,
+                    "rotation.roll", null, w * 0.5f, SM.Get("TRANSF_P_ROLL_TOOLTIP"));
+                yawField.SetInteractable(axes[1]);
+                rollField.SetInteractable(axes[2]);
+                p0.IncreaseRow();
+            }
+            if (notOnHandle) {
+                var rotFieldName = onParametricObject ? "localRotation" : "rotation";
+                var rotField = p0.AddFieldRotationVectorInputField(SM.Get("TRANSF_P_ROT"), GetCurTransform, "transform." + rotFieldName, null, w, null, null, value => { Reselect(); });
+                p0.IncreaseRow();
+                var scaleField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_SCALE_VAL"), GetCurTransform, "transform.localScale", null, w, null, null, value => { Reselect(); });
+                p0.IncreaseRow();
+                if (onParametricObject) {
+                    scaleField.SetInteractable(objSettings.allowScale[0], objSettings.allowScale[1], objSettings.allowScale[2]);
+                    rotField.SetInteractable(objSettings.allowRotation[0], objSettings.allowRotation[1], objSettings.allowRotation[2]);
+                    posField.SetInteractable(objSettings.allowPosition[0], objSettings.allowPosition[1], objSettings.allowPosition[2]);
+                }
+            }
+        }
+
+        //the built-in groups of the ui.json of a mesh instance type: mainGroup (end editing, delete, the type: a dropdown
+        //of the compatible types if it has any), transformGroup (the mesh and the transform), placementGroup (only placing)
+        bool ProcessCustomParts(CityElements.Types.TabElement elem, EditorPanelPage p, PresetSelector pS,
+            TypeSelector<CityElements.Types.Runtime.MeshInstanceType> tS, CityElements.Types.Runtime.MeshInstanceType type) {
+
+            var w = elem.width;
+            if (elem.name == "mainGroup") {
+                p.EnsureNewRow();
+                p.AddButton(SM.Get("END_EDITING"), Terminate, w * 0.5f);
+                p.AddButton(SM.Get("DELETE"), Delete, w * 0.5f);
+                p.IncreaseRow();
+                var compatible = type.Settings.compatibleTypes;
+                if (compatible.Length == 0) {
+                    p.AddLabel(SM.Get("MI_TYPE") + ": " + SM.GetOrKey(type.Label()), w);
+                } else {
+                    var types = CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes();
+                    var names = new List<string> { type.name };
+                    names.AddRange(compatible);
+                    var dropdown = p.AddDropdown(SM.Get("MI_TYPE"), names.ConvertAll(t => SM.GetOrKey(types[t].Label())), i => ChangeType(names[i]), w);
+                    dropdown.actionEnabled = false;
+                    dropdown.SetValue(0);
+                    dropdown.actionEnabled = true;
+                }
+                p.IncreaseRow();
+                return true;
+            }
+            if (elem.name == "transformGroup") {
+                p.EnsureNewRow();
+                AddMeshRows(p, w, GS.Cast<MeshInstance>(instance), null);
+                p.IncreaseRow();
+                AddTransformFields(p, w, null);
+                return true;
+            }
+            return elem.name == "placementGroup";
+        }
+
+        void ChangeType(string type) {
+            DropDeletedInstance();
+            var instComp = instance != null ? GS.Cast<MeshInstance>(instance) : null;
+            if (instComp == null || instComp.TypeName == type) return;
+            Operations.Meshes.SetType(instComp, type);
+            builder.NotifyChange();
+            builder.DoDelayed(() => { if (ActiveSelf()) SetActive(true); }); //the panel of the new type
         }
 
         TerrainPoint GetProceduralPoint() {

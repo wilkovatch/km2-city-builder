@@ -13,7 +13,7 @@ The classes in `Scripts/IO` save and load cities, export them for the core expor
 | `heightmapResolution`, `terrainSize`, `maxHeight` | Terrain settings. |
 | `heightMap` | Terrain heights: raw bytes from `GameEngine.Terrain.GetHeightBytes`, Deflate-compressed, Base64-encoded (empty for a new city). |
 | `cityProperties` | State of the city properties. |
-| `meshes` | Mesh instances: `id`, `name`, `mesh` (relative path), `settings`, `position`, `scale`, `rotation`. |
+| `meshes` | Mesh instances: `id`, `name`, `mesh` (relative path), `settings` (with the mesh instance type, `type`), `position`, `scale`, `rotation`. |
 | `roads` | `id`, `name`, `state`, `instanceState`, control `points`, `pointRotations` (yaw and roll of each point in degrees, missing when they are all zero), `startIntersectionId`, `endIntersectionId` (-1 if none). |
 | `intersections` | `id`, `name`, `roads` (road ids), `center`, `state`, `instanceState`. |
 | `terrainPoints` | Every terrain point, with what it is anchored to: `linkType` (`None`, `Point`: an anchor of a road or intersection, `Line`: a point on a link between two terrain points), `elementType` + `elementId` + `anchorIndex` to find the anchor, `percent` for line links, and the `dividing` flag. |
@@ -81,7 +81,7 @@ Top-level structure (`ExportedCity`):
 | `intersections` | `data`, `center`, `roads` (ids), `roadsThrough` (road pieces generated across the intersection, same format as roads). |
 | `terrainPatches` | `data`, perimeter and internal points, `borderMeshes` (`fields` + `segment`). |
 | `buildingLines` | `data`, `linePoints`, `sides`, `roof`, `buildings` (each with `front`, `left`, `right`, `back` sides, `roof` and splines). Each side has its merged `data.mesh`, plus `meshDict`, `facades` and `paramMeshes` with the block instancing data. |
-| `meshInstances` | `id`, `name`, `settings`, `reference` (`meshId` into `meshDict`, position, scale, rotation). |
+| `meshInstances` | `id`, `name`, `type` (the mesh instance type, null for the parametric objects), `settings`, `reference` (`meshId` into `meshDict`, position, scale, rotation). |
 | `customElements` | The custom elements, see [Core Custom Elements](Core-Custom-Elements#export). The roads and intersections have `ghost` (replaced by custom elements: their geometry is not to be exported). |
 | `cityProperties` | State of the city properties. |
 | `typeAncestry` | For every type of the core: `category` (its folder in `elements`), `name` and `ancestry` (the type, then the types it extends, nearest first; see [Core Type Inheritance](Core-Type-Inheritance#exporters)). |

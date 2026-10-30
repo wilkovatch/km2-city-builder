@@ -377,8 +377,10 @@ namespace Operations {
                         foreach (var info in updateInfo) {
                             if (info.field != "meshPath") throw new BatchException(BatchException.Part.Update, "invalid field for mesh instance, only meshPath can be changed");
                         }
+                        //the conditions can use the mesh, the type and the parameters of the type
+                        System.Func<string, string> meshPath = f => f == "meshPath" ? f : "settings.properties." + f;
                         foreach (var mesh in new List<MeshInstance>(m.meshes)) {
-                            if (!CheckConditions(mesh, f => f, whereConditions)) continue;
+                            if (!CheckConditions(mesh, meshPath, whereConditions)) continue;
                             foreach (var info in updateInfo) MeshInstance.SetNewMesh(info.value, mesh, m);
                             count++;
                         }
@@ -468,9 +470,11 @@ namespace Operations {
                     }
                     break;
                 case BatchKind.MeshInstance:
-                    var meshRes = new List<(string, string)> { ("meshPath", "string") };
-                    AddParameterContainer(CityElements.Types.Parsers.TypeParser.GetMeshInstanceSettings()?.typeData.parametersInfo, meshRes);
-                    res[""] = meshRes;
+                    foreach (var t in CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes()) {
+                        var subRes = new List<(string, string)> { ("meshPath", "string"), ("type", "string") };
+                        AddParameterContainer(t.Value.parameterContainer, subRes);
+                        res[t.Key] = subRes;
+                    }
                     break;
             }
             return res;

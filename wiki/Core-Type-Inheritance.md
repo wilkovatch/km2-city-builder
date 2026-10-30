@@ -33,7 +33,7 @@ roads/psdlTunnel/
 
 A parent that doesn't exist, a name with a path in it, and a cycle (a type extending itself, directly or through other types) are errors, reported when the types are loaded.
 
-`cityProperties` and `props/meshInstance.json` have a single type each, so they don't support inheritance.
+`cityProperties` has a single type, so it doesn't support inheritance. The mesh instance types are custom element types (`customElements`).
 
 ## How the files are inherited
 

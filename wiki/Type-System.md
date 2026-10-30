@@ -23,11 +23,11 @@ Static entry point. Every getter reads its folder of the current core (`Files/co
 | `GetBuildingBlockTypes` | `buildingBlocks/<name>/` | `Runtime.Buildings.BlockType` |
 | `GetPropsElementTypes` | `props/elements/<name>.json` | `Runtime.PropsElementType` |
 | `GetPropsContainersTypes` | `props/containers/<name>.json` | `PropsContainerType` (no expressions, no runtime type) |
-| `GetMeshInstanceSettings` | `props/meshInstance.json` | `Runtime.MeshInstanceSettings` |
+| `GetMeshInstanceTypes` | `customElements/<name>/` with `meshInstance` (loaded with the custom element types, kept apart) | `Runtime.MeshInstanceType` |
 | `GetParametricMeshInstanceSettings` | `props/parametric/<name>.json` | `Runtime.MeshInstanceSettings` per object type |
 | `GetCitySettings` | `cityProperties/` | `Runtime.CitySettings` under the key `"city"` |
 | `GetCustomCityPropertiesTypes` | `customCityPropertiesTypes/<name>.json` | `CustomCityPropertiesType` |
-| `GetCustomElementTypes` | `customElement/<name>/` (optional folder) | `Runtime.CustomElementType` |
+| `GetCustomElementTypes` | `customElements/<name>/` (optional folder), without the mesh instance types | `Runtime.CustomElementType` |
 
 ### Inheritance (`Types/Parsers/TypeInheritance.cs`)
 
@@ -105,7 +105,8 @@ Subclasses fill the variables in this order, through the protected helpers:
 | `Buildings.BuildingType` | `Types.Buildings.BuildingType` | Three runtime types: `Line`, `Building`, `Side`. |
 | `Buildings.BlockType` (via `MeshType.MeshType<T>`) | `Types.Buildings.BlockType` | Parametric building block meshes, with the `y0`, `y1`, `xMult`, `scale` variables. |
 | `PropsElementType` | `Types.PropsElementType` | Prop placement rules and their variables. |
-| `MeshInstanceSettings` | `Types.MeshInstanceSettings` | Layer, placer mask and automatic Y offset rules of mesh instances. |
+| `MeshInstanceSettings` | `Types.MeshInstanceSettings` | Layer, placer mask and automatic Y offset rules of the parametric objects. |
+| `MeshInstanceType` | `Types.CustomElementType` | A mesh instance type: its parameters and the placement rules of `settings.meshInstance`. Both it and `MeshInstanceSettings` implement `IMeshPlacementType`, used by `MeshInstance` to evaluate the rules. |
 | `CitySettings` | `Types.CitySettings.CitySettings` | City properties. |
 | `ArrayProperties` | `Types.ArrayProperties` | Parameters of the elements of an `array`/`customCityProperties` parameter. |
 | `CustomElementType` | `Types.CustomElementType` (`CustomElementComponents.cs`: `CustomElementSettings`, `CustomElementPointNode`, `CustomElementArraySettings`, `CustomElementMeshSettings`, `CustomElementContainerSettings`) | Parameters and static definitions; resolves the Lua functions of `geometry` and `constraints` when the core is loaded (they are read again with the types, `CityBuilderMenuBar.Reload`), checks the control points (unique names without dots), `CanContain`, `GetReferenceParameters`. See [Core Custom Elements](Core-Custom-Elements). |

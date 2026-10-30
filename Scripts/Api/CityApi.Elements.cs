@@ -669,15 +669,32 @@ namespace Api {
 
         // Mesh instances
 
-        static ObjectState SettingsOrDefault(ObjectState settings) {
-            return settings ?? new ObjectState();
+        //the settings of new instances with their mesh instance type: the type given, or the one in the settings, or the only
+        //type of the core
+        static ObjectState TypedSettings(string type, ObjectState settings) {
+            type ??= settings?.Str("type", null);
+            var types = TP.GetMeshInstanceTypes();
+            if (type == null) {
+                if (types.Count != 1) throw ApiException.InvalidParam("missing type (" + string.Join(", ", types.Keys) + ")");
+                type = new List<string>(types.Keys)[0];
+            }
+            if (!types.ContainsKey(type)) throw ApiException.InvalidValue("unknown mesh instance type '" + type + "' (" + string.Join(", ", types.Keys) + ")");
+            return Operations.Meshes.NewSettings(type, settings);
         }
 
-        [ApiMethod("meshes.create", "Places a mesh instance (onGround: on the layers the mesh instances with these settings are placed on)")]
-        public int CreateMesh(string mesh, Vector3 position, ObjectState settings = null, Vector3? rotation = null, Vector3? scale = null, bool randomRotation = false, bool onGround = false) {
+        static ObjectState MassPlacementSettings(string type, ObjectState settings) {
+            var res = TypedSettings(type, settings);
+            if (!Operations.Meshes.GetMeshType(res.Str("type")).Settings.massPlacement) {
+                throw ApiException.InvalidValue("mesh instance type '" + res.Str("type") + "' does not allow mass placement");
+            }
+            return res;
+        }
+
+        [ApiMethod("meshes.create", "Places a mesh instance of a mesh instance type (type: optional if the core has only one, or if the settings have it; onGround: on the layers the instances of the type are placed on)")]
+        public int CreateMesh(string mesh, Vector3 position, string type = null, ObjectState settings = null, Vector3? rotation = null, Vector3? scale = null, bool randomRotation = false, bool onGround = false) {
             if (string.IsNullOrEmpty(mesh)) throw ApiException.InvalidParam("missing mesh");
             return ApplyChange("create mesh", () => {
-                settings = SettingsOrDefault(settings);
+                settings = TypedSettings(type, settings);
                 var pos = onGround ? GeometryHelper.ProjectPoint(position, Operations.Meshes.GetPlacerLayerMask(settings)) : position;
                 var m = Operations.Meshes.Create(M, mesh, pos, settings, randomRotation);
                 if (rotation.HasValue) GO.SetRotation(m, rotation.Value);
@@ -687,13 +704,14 @@ namespace Api {
             });
         }
 
-        [ApiMethod("meshes.scatter", "Places count mesh instances at random points within the radius, on the ground (like the multiple placement of the mesh tool)")]
-        public List<int> ScatterMeshes(string mesh, Vector3 center, float radius, int count, ObjectState settings = null, bool randomRotation = false) {
+        [ApiMethod("meshes.scatter", "Places count mesh instances at random points within the radius, on the ground (like the multiple placement of the mesh tool; only for the types with massPlacement)")]
+        public List<int> ScatterMeshes(string mesh, Vector3 center, float radius, int count, string type = null, ObjectState settings = null, bool randomRotation = false) {
             if (string.IsNullOrEmpty(mesh)) throw ApiException.InvalidParam("missing mesh");
             if (count < 1 || radius < 0) throw ApiException.InvalidValue("count must be positive and radius not negative");
             return ApplyChange("create meshes", () => {
+                settings = MassPlacementSettings(type, settings);
                 var res = new List<int>();
-                foreach (var m in Operations.Meshes.Scatter(M, mesh, center, radius, count, SettingsOrDefault(settings), randomRotation)) {
+                foreach (var m in Operations.Meshes.Scatter(M, mesh, center, radius, count, settings, randomRotation)) {
                     m.Start();
                     res.Add(IdOf(m));
                 }
@@ -701,9 +719,24 @@ namespace Api {
             });
         }
 
-        [ApiMethod("meshes.eraseInRadius", "Deletes the mesh instances on the layer of the settings within the radius (like the delete mode of the mesh tool), returns how many")]
-        public int EraseMeshes(Vector3 center, float radius, ObjectState settings = null) {
-            return ApplyChange("delete meshes", () => Operations.Meshes.EraseInRadius(M, center, radius, SettingsOrDefault(settings)));
+        [ApiMethod("meshes.eraseInRadius", "Deletes the mesh instances of the type within the radius (like the delete mode of the mesh tool; only for the types with massPlacement), returns how many")]
+        public int EraseMeshes(Vector3 center, float radius, string type = null, ObjectState settings = null) {
+            return ApplyChange("delete meshes", () => Operations.Meshes.EraseInRadius(M, center, radius, MassPlacementSettings(type, settings)));
+        }
+
+        [ApiMethod("meshes.setType", "Switches a mesh instance to one of the compatible types of its type (compatibleTypes): the parameters of both types are kept")]
+        public void SetMeshType(ElementRef mesh, string type) {
+            if (string.IsNullOrEmpty(type)) throw ApiException.InvalidParam("missing type");
+            ApplyChange("change type", () => {
+                var m = Resolve<MeshInstance>(mesh, "meshInstance");
+                var current = m.GetMeshInstanceType();
+                if (Operations.Meshes.GetMeshType(type) == null) throw ApiException.InvalidValue("unknown mesh instance type '" + type + "'");
+                if (m.TypeName != type && (current == null || !current.IsCompatibleWith(type))) {
+                    throw ApiException.InvalidValue("mesh instance type '" + m.TypeName + "' can't be switched to '" + type + "' (compatible: "
+                        + string.Join(", ", current?.Settings.compatibleTypes ?? new string[0]) + ")");
+                }
+                Operations.Meshes.SetType(m, type);
+            });
         }
 
         [ApiMethod("meshes.setTransform", "Sets the position, rotation (euler angles in degrees, or quaternion) and scale of a mesh instance")]

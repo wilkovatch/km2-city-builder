@@ -34,6 +34,7 @@ namespace IO.ExportedCity {
     public class MeshInstance {
         public int id;
         public string name;
+        public string type; //the mesh instance type (null for the parametric objects)
         public ObjectState settings;
         public MeshReference reference;
     }

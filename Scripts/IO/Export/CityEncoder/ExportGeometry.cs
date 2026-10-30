@@ -204,6 +204,7 @@ namespace CityEncoder {
             var elem = new IO.ExportedCity.MeshInstance();
             elem.id = id;
             elem.name = GO.GetName(mesh);
+            elem.type = mesh.TypeName;
             elem.settings = (ObjectState)mesh.settings.Clone();
             if (mesh.objectParameter != null) {
                 elem.settings.SetStr("_parameterName", mesh.objectParameter.name);

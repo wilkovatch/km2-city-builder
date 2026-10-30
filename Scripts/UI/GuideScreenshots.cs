@@ -212,7 +212,7 @@ public partial class GuideScreenshots : Node {
             Frame(city, 55, 20, 1.0f);
 
             //mesh instance placement
-            Call("CreateMeshInstance");
+            builder.CreateMeshInstance(System.Linq.Enumerable.FirstOrDefault(CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes().Keys), null);
             await Shot("mesh-list-panel", PanelRect(Panel<EditorPanel>("meshListEditorPanel")));
             Close();
 
