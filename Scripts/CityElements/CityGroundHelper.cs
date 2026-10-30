@@ -212,6 +212,8 @@ public partial class CityGroundHelper: ThisScriptable {
         return matIsGrid ? mat : mat2;
     }
 
+    public bool OverlayActive => !matIsGrid;
+
     public void SwitchMaterial() {
         matIsGrid = !matIsGrid;
         GameEngine.Terrain.SetMaterial(terrainObj, GetGridMaterial());

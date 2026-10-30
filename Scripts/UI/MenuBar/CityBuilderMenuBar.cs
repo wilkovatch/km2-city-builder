@@ -636,12 +636,12 @@ public partial class CityBuilderMenuBar : Control {
 
     void ReloadViewMenu() {
         var entries = new List<string> {
-            SM.Get("TOGGLE_GROUND_OVERLAY"),
+            SM.Get("VIEW_GROUND_OVERLAY"),
             SM.Get("CHANGE_OVERLAY_TRANSPARENCY"),
             SM.Get("SHOW_ALL_TRAFFIC_LANES"),
-            SM.Get("TOGGLE_GROUND_ONLY"),
+            SM.Get("VIEW_GROUND_ONLY"),
             SM.Get("HIDE_TERRAIN_GRID"),
-            SM.Get("TOGGLE_WIREFRAME"),
+            SM.Get("VIEW_WIREFRAME"),
             SM.Get("RESET_WINDOW")
         };
         var actions = Recorded(entries, new List<System.Action> {
@@ -670,7 +670,11 @@ public partial class CityBuilderMenuBar : Control {
         }
         var menuBar = GetMenuBar();
         menuBar.SetEntries(viewMenuIndex, entries, actions);
+        var cam = GetCameraController();
+        menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("VIEW_GROUND_OVERLAY")), !noCity && helper != null && helper.OverlayActive);
+        menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("VIEW_GROUND_ONLY")), cam != null && cam.GroundOnly);
         menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("HIDE_TERRAIN_GRID")), CityGroundHelper.TerrainHidden);
+        menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("VIEW_WIREFRAME")), cam != null && cam.Wireframe);
         for (int i = 0; i < toggles.Count; i++) menuBar.SetEntryChecked(viewMenuIndex, firstToggle + i, Rendering.ViewToggles.IsOn(toggles[i].name));
     }
 

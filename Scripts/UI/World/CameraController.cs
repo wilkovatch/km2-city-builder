@@ -76,6 +76,10 @@ public partial class CameraController : Camera3D {
 
     bool wireframe = false;
 
+    public bool Wireframe => wireframe;
+
+    public bool GroundOnly => cam.CullMask != defaultCullingMask;
+
     public bool ToggleWireframe() {
         wireframe = !wireframe;
         GetViewport().DebugDraw = wireframe ? Viewport.DebugDrawEnum.Wireframe : Viewport.DebugDrawEnum.Disabled;
