@@ -328,11 +328,11 @@ public class EditorPanelPage {
     }
 
     public EditorPanelElements.InputField AddFieldInputField(string title, string placeholder, GameEngine.InputContentType contentType, System.Func<object> objGetter, string fieldName,
-        Dictionary<string, System.Func<string>> indexGetters, float widthFactor = 1.0f, string tooltip = null, string tag = null, System.Action<string> extraAction = null) {
+        Dictionary<string, System.Func<string>> indexGetters, float widthFactor = 1.0f, string tooltip = null, string tag = null, System.Action<string> extraAction = null, double? fixedDragStep = null) {
 
         var status = new FieldStatus(objGetter, fieldName, valueChangedAction, indexGetters);
         var element = new EditorPanelElements.InputField(title, placeholder, "", contentType, value => Recorded(title, () => { status.SetInputFieldValue(value, contentType); BaseExtraAction(value, extraAction); }),
-            panel, GetPosition(curRow), widthFactor, tooltip, tag);
+            panel, GetPosition(curRow), widthFactor, tooltip, tag, fixedDragStep);
         var fieldElement = AddElement(element, curRow);
         fieldElements.Add(fieldElement, status);
         return element;
@@ -432,11 +432,11 @@ public class EditorPanelPage {
     }
 
     public EditorPanelElements.VectorInputField AddFieldVectorInputField(string title, System.Func<object> objGetter, string fieldName,
-        Dictionary<string, System.Func<string>> indexGetters, float widthFactor = 1.0f, string tooltip = null, string tag = null, System.Action<Vector3> extraAction = null) {
+        Dictionary<string, System.Func<string>> indexGetters, float widthFactor = 1.0f, string tooltip = null, string tag = null, System.Action<Vector3> extraAction = null, double? fixedDragStep = null) {
 
         var status = new FieldStatus(objGetter, fieldName, valueChangedAction, indexGetters);
         var element = new EditorPanelElements.VectorInputField(title, value => Recorded(title, () => { status.SetValue(value); BaseExtraAction(value, extraAction); }),
-            panel, GetPosition(curRow), widthFactor, tooltip, tag);
+            panel, GetPosition(curRow), widthFactor, tooltip, tag, fixedDragStep);
         var fieldElement = AddElement(element, curRow);
         fieldElements.Add(fieldElement, status);
         return element;

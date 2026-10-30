@@ -15,19 +15,19 @@ namespace EditorPanelElements {
             return "VectorInputField";
         }
 
-        public VectorInputField(string title, System.Action<Vector3> vecAction, GameObject parent, Vector2 pos, float widthFactor = 1.0f, string tooltip = null, string tag = null)
+        public VectorInputField(string title, System.Action<Vector3> vecAction, GameObject parent, Vector2 pos, float widthFactor = 1.0f, string tooltip = null, string tag = null, double? fixedDragStep = null)
         : base(title, parent, pos, widthFactor, tooltip, tag) {
             this.vecAction = vecAction;
-            BindFields();
+            BindFields(fixedDragStep);
         }
 
         public VectorInputField(string title, System.Action<Quaternion> rotAction, GameObject parent, Vector2 pos, float widthFactor = 1.0f, string tooltip = null, string tag = null)
         : base(title, parent, pos, widthFactor, tooltip, tag) {
             this.rotAction = rotAction;
-            BindFields();
+            BindFields(0.5); //degrees per pixel
         }
 
-        void BindFields() {
+        void BindFields(double? fixedDragStep) {
             xField = GetControl<LineEdit>("X");
             yField = GetControl<LineEdit>("Y");
             zField = GetControl<LineEdit>("Z");
@@ -40,7 +40,7 @@ namespace EditorPanelElements {
                 NumericFieldDrag.Attach(field, false, delegate {
                     ChangeValue();
                     parentPanel.CheckFieldsInteractabilityDelayed();
-                });
+                }, fixedDragStep);
             }
         }
 

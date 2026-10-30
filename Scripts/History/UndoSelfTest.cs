@@ -1975,14 +1975,15 @@ namespace History {
             UndoManager.Clear();
             var roadPanel = Panel<EditorPanels.RoadEditorPanel>("roadEditorPanel");
 
-            LineEdit FindField(string fieldName) {
-                var pages = (List<EditorPanelPage>)typeof(EditorPanel).GetField("pages", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(roadPanel);
+            LineEdit FindField(string fieldName, EditorPanel panel = null, string axis = "inputField") {
+                panel ??= roadPanel;
+                var pages = (List<EditorPanelPage>)typeof(EditorPanel).GetField("pages", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(panel);
                 for (int i = 0; i < pages.Count; i++) {
                     var elements = (Dictionary<EditorPanelElement, FieldStatus>)Field(pages[i], "fieldElements");
                     foreach (var pair in elements) {
                         if (pair.Value.fieldName != fieldName) continue;
-                        roadPanel.ShowPage(i);
-                        return (LineEdit)Field(pair.Key, "inputField");
+                        panel.ShowPage(i);
+                        return (LineEdit)Field(pair.Key, axis);
                     }
                 }
                 return null;
@@ -2067,7 +2068,7 @@ namespace History {
             Check("escape during a drag leaves the road editor open", roadPanel.IsOpen());
             Check("the drags do not move the camera", camera.GlobalTransform.IsEqualApprox(cameraTransform));
 
-            //decimal field: the step is proportional to the value, Shift makes it 10 times smaller
+            //decimal field: the step is proportional to the value, Ctrl makes it 10 times smaller
             var size = FindField("state.properties.endCrosswalkSize");
             Check("the road editor has the end crosswalk size field", size != null);
             if (size == null) return;
@@ -2091,6 +2092,63 @@ namespace History {
             await Drag(size, new Vector2(-10, 0), 100);
             Log("end crosswalk size after dragging left: " + Size() + " (field '" + size.Text + "')");
             Check("dragging left goes below zero", Size() < 0);
+
+            //transform fields: the same motion gives the same offset near zero and far from the origin
+            var mesh = MeshInstance.Create("", Vector3.Zero, M.GetMeshContainer(),
+                Operations.Meshes.NewSettings(new List<string>(CityElements.Types.Parsers.TypeParser.GetMeshInstanceTypes().Keys)[0]));
+            M.AddMesh(mesh);
+            builder.SelectObject(mesh, true, null);
+            await Frames(6);
+            var transformPanel = Panel<EditorPanels.TransformPropertiesEditorPanel>("transformPropertiesEditorPanel");
+            foreach (var start in new[] { 0f, 5000f, -2500f }) {
+                GO.SetPosition(mesh, new Vector3(start, 0, 0));
+                transformPanel.Refresh();
+                await Frames(3);
+                var x = FindField("transform.position", transformPanel, "xField");
+                await Drag(x, new Vector2(10, 0), 3);
+                Check("position drag adds 3 units starting at " + start, Mathf.Abs(GO.GetPosition(mesh).X - start - 3) < 0.001f);
+                await Drag(x, new Vector2(-10, 0), 3);
+                Check("position drag reverses exactly starting at " + start, Mathf.Abs(GO.GetPosition(mesh).X - start) < 0.001f);
+            }
+            var position = FindField("transform.position", transformPanel, "xField");
+            var position0 = GO.GetPosition(mesh).X;
+            await Drag(position, new Vector2(10, 0), 3, ctrl: true);
+            Check("Ctrl gives 0.01 units per pixel on position", Mathf.Abs(GO.GetPosition(mesh).X - position0 - 0.3f) < 0.001f);
+            await Drag(position, new Vector2(3, 0), 3, shift: true);
+            Check("Shift snaps a position drag to whole units", GO.GetPosition(mesh).X == Mathf.Round(GO.GetPosition(mesh).X));
+            position0 = GO.GetPosition(mesh).X;
+            count = UndoCount();
+            await Drag(position, new Vector2(10, 0), 3, cancel: true);
+            Check("cancel restores a fixed-rate position drag without an undo entry", GO.GetPosition(mesh).X == position0 && UndoCount() == count);
+
+            foreach (var start in new[] { 0f, 120f, -120f }) {
+                GO.SetRotation(mesh, GameEngine.Quaternion.Euler(0, start, 0));
+                transformPanel.Refresh();
+                await Frames(3);
+                var yaw = FindField("transform.rotation", transformPanel, "yField");
+                await Drag(yaw, new Vector2(10, 0), 3);
+                var expected = GameEngine.Quaternion.Euler(0, start + 15, 0);
+                Check("rotation drag adds 15 degrees starting at " + start, GO.GetRotationQuaternion(mesh).AngleTo(expected) < 0.001f);
+            }
+
+            builder.SelectObject(road, true, null);
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(road.points[1]);
+            InvokeBuilder("EditCurSelectedObjectTransform");
+            await Frames(6);
+            foreach (var axis in new[] { "yaw", "roll" }) {
+                var field = FindField("rotation." + axis, transformPanel);
+                if (!field.Editable) continue; //the core determines which axes are allowed
+                foreach (var start in new[] { 0f, 30f }) {
+                    road.SetPointRotation(1, axis == "yaw" ? new Vector2(start, 0) : new Vector2(0, start));
+                    transformPanel.Refresh();
+                    await Frames(3);
+                    await Drag(field, new Vector2(10, 0), 3);
+                    var angles = road.GetPointRotations()[1];
+                    Check("road point " + axis + " drag adds 15 degrees starting at " + start,
+                        Mathf.Abs((axis == "yaw" ? angles.X : angles.Y) - start - 15) < 0.001f);
+                }
+            }
         }
 
         async void Run() {

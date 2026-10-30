@@ -172,15 +172,15 @@ namespace EditorPanels {
             }
             p0.IncreaseRow();
             var posFieldName = onParametricObject ? "localPosition" : "position";
-            var posField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_POS"), GetCurTransform, "transform." + posFieldName, null, w, null, null, value => { Reselect(); });
+            var posField = p0.AddFieldVectorInputField(SM.Get("TRANSF_P_POS"), GetCurTransform, "transform." + posFieldName, null, w, null, null, value => { Reselect(); }, fixedDragStep: 0.1);
             pointPositionField = posField;
             p0.IncreaseRow();
             if (!notOnHandle && GetHandleRoad() != null) {
                 var axes = GetPointRotationAxes();
                 var yawField = p0.AddFieldInputField(SM.Get("TRANSF_P_YAW"), SM.Get("TRANSF_P_YAW"), GameEngine.InputContentType.Decimal, GetCurPointRotation,
-                    "rotation.yaw", null, w * 0.5f, SM.Get("TRANSF_P_YAW_TOOLTIP"));
+                    "rotation.yaw", null, w * 0.5f, SM.Get("TRANSF_P_YAW_TOOLTIP"), fixedDragStep: 0.5);
                 var rollField = p0.AddFieldInputField(SM.Get("TRANSF_P_ROLL"), SM.Get("TRANSF_P_ROLL"), GameEngine.InputContentType.Decimal, GetCurPointRotation,
-                    "rotation.roll", null, w * 0.5f, SM.Get("TRANSF_P_ROLL_TOOLTIP"));
+                    "rotation.roll", null, w * 0.5f, SM.Get("TRANSF_P_ROLL_TOOLTIP"), fixedDragStep: 0.5);
                 yawField.SetInteractable(axes[1]);
                 rollField.SetInteractable(axes[2]);
                 p0.IncreaseRow();

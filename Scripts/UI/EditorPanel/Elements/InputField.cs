@@ -12,7 +12,7 @@ namespace EditorPanelElements {
         }
 
         public InputField(string title, string placeholder, string defaultValue, GameEngine.InputContentType contentType,
-            System.Action<string> action, Control parent, Vector2 pos, float widthFactor = 1.0f, string tooltip = null, string tag = null)
+            System.Action<string> action, Control parent, Vector2 pos, float widthFactor = 1.0f, string tooltip = null, string tag = null, double? fixedDragStep = null)
         : base(title, parent, pos, widthFactor, tooltip, tag) {
             this.action = action;
             inputField = GetControl<Godot.LineEdit>();
@@ -28,7 +28,7 @@ namespace EditorPanelElements {
                 NumericFieldDrag.Attach(inputField, contentType == GameEngine.InputContentType.Integer, delegate {
                     ChangeValue();
                     parentPanel.CheckFieldsInteractabilityDelayed();
-                });
+                }, fixedDragStep);
             }
         }
 

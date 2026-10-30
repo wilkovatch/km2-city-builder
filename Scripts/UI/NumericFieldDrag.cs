@@ -2,7 +2,8 @@ using Godot;
 
 /// <summary>
 /// Middle mouse drag on the numeric input fields: moving the mouse right/up increases the value, left/down decreases it.
-/// - The step is proportional to the current value (Ctrl: x0.1), Shift snaps the value to the nearest integer (as with the gizmo).
+/// - The step is proportional to the current value unless a fixed step is supplied (Ctrl: x0.1),
+///   Shift snaps the value to the nearest integer (as with the gizmo).
 /// - The value is applied at most once per frame, and all the changes of a drag are a single undo step
 ///   (the panels record them with <see cref="CurrentKey"/> as coalesce key).
 /// - Escape or another mouse button during the drag restores the value the field had when it started.
@@ -12,6 +13,7 @@ public static class NumericFieldDrag {
         public readonly object key = new object();
         public LineEdit field;
         public bool integer;
+        public double? fixedStep;
         public System.Action apply;
         public string startText;
         public double startValue;
@@ -37,10 +39,11 @@ public static class NumericFieldDrag {
     public static bool BlocksInput => current != null || endFrame == Engine.GetProcessFrames();
 
     /// <summary>
-    /// Enables the drag on the field, apply is invoked after the field text is changed by the drag
+    /// Enables the drag on the field, apply is invoked after the field text is changed by the drag.
+    /// fixedStep is the change per pixel, independent of the current value; null uses a proportional step.
     /// </summary>
-    public static void Attach(LineEdit field, bool integer, System.Action apply) {
-        field.GuiInput += @event => OnGuiInput(field, integer, apply, @event);
+    public static void Attach(LineEdit field, bool integer, System.Action apply, double? fixedStep = null) {
+        field.GuiInput += @event => OnGuiInput(field, integer, apply, fixedStep, @event);
         field.TreeExiting += () => {
             if (current?.field == field) Stop();
         };
@@ -48,10 +51,10 @@ public static class NumericFieldDrag {
 
     // gui_input is emitted before the LineEdit handles the event, and the press makes the field the mouse focus
     // of the viewport, so the motion and the release come here even outside the field
-    static void OnGuiInput(LineEdit field, bool integer, System.Action apply, InputEvent @event) {
+    static void OnGuiInput(LineEdit field, bool integer, System.Action apply, double? fixedStep, InputEvent @event) {
         if (@event is InputEventMouseButton button) {
             if (button.ButtonIndex == MouseButton.Middle) {
-                if (button.Pressed && current == null && field.Editable) Begin(field, integer, apply);
+                if (button.Pressed && current == null && field.Editable) Begin(field, integer, apply, fixedStep);
                 else if (!button.Pressed && current?.field == field) End(false);
                 else return;
                 field.AcceptEvent();
@@ -75,11 +78,11 @@ public static class NumericFieldDrag {
         return true;
     }
 
-    static void Begin(LineEdit field, bool integer, System.Action apply) {
+    static void Begin(LineEdit field, bool integer, System.Action apply, double? fixedStep) {
         if (field.IsEditing()) field.Unedit(); //commits the text being typed (its own undo step, before the drag)
         if (!double.TryParse(field.Text, out var value)) value = 0;
         current = new Drag {
-            field = field, integer = integer, apply = apply,
+            field = field, integer = integer, apply = apply, fixedStep = fixedStep,
             startText = field.Text, startValue = value, value = value,
             startMousePos = field.GetViewport().GetMousePosition()
         };
@@ -91,7 +94,7 @@ public static class NumericFieldDrag {
         var delta = motion.Relative.X - motion.Relative.Y;
         if (delta == 0) return;
         var magnitude = System.Math.Abs(current.value);
-        var step = current.integer ? System.Math.Max(0.01 * magnitude, 0.2) : 0.01 * System.Math.Max(magnitude, 1);
+        var step = current.fixedStep ?? (current.integer ? System.Math.Max(0.01 * magnitude, 0.2) : 0.01 * System.Math.Max(magnitude, 1));
         if (motion.CtrlPressed) step *= 0.1;
         current.value += delta * step;
         current.snap = motion.ShiftPressed;
