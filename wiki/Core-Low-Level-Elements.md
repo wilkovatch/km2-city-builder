@@ -180,6 +180,8 @@ end
 
 ## Spline-driven elements
 
+Spline-driven types also support [core-defined custom curves](Core-Splines), shared with roads, with per-type allowlists and optional lines without surface geometry.
+
 A type can define `spline` instead of a point tree or an editable mesh. The user places individual points, as for roads: the first click creates one point and drawing continues. The editor supports adding at either end, inserting before or after a selected point, moving and removing points. Splines have no road intersections, splitting or merging.
 
 ```json
@@ -203,7 +205,7 @@ Geometry uses the [road component format](Core-Roads), including local definitio
 
 | Setting | Meaning |
 |---|---|
-| `curveTypes`, `defaultCurveType` | Allowed curve IDs and the initial mode: `0` Bézier, `1` Hermite, `2` low-poly. The list must be nonempty and contain the default. |
+| `curveTypes`, `defaultCurveType` | Allowed curve IDs and the initial mode: `0` Bézier, `1` Hermite, `2` low-poly, or a registered [custom curve ID](Core-Splines). The list must be nonempty and contain the default. |
 | `segments`, `segmentsPer100m` | Initial smooth-curve resolution, fixed or per 100 m. Low-poly uses the control points directly. |
 | `projectPoints`, `projectSections` | Project placed/moved control points and/or evaluated sections onto surfaces. Point projection preserves recorded heights during undo and redo. |
 | `projectionMask` | Surface collision mask, default terrain and generated geometry (`136`). The element's own collider is excluded. |

@@ -181,9 +181,8 @@ namespace EditorPanels {
             if (elem.name == "splineGroup" && settings.spline != null) {
                 p.IncreaseRow();
                 var allowed = settings.spline.curveTypes;
-                var labels = new[] { "RD_SP_T_BEZIER", "RD_SP_T_HERMITE", "RD_SP_T_LOWPOLY" };
                 splineCurveTypes = allowed;
-                var dropdown = splineTypeDropdown = p.AddDropdown(SM.Get("RD_SPLINE_TYPE"), new List<int>(allowed).ConvertAll(i => SM.Get(labels[i])), i => {
+                var dropdown = splineTypeDropdown = p.AddDropdown(SM.Get("RD_SPLINE_TYPE"), new List<int>(allowed).ConvertAll(i => SM.Get(SplineCurves.Label(i))), i => {
                     CurrentState().SetInt("curveType", allowed[i]); builder.NotifyChange();
                 }, w);
                 dropdown.actionEnabled = false;
@@ -194,10 +193,12 @@ namespace EditorPanels {
                     "state.properties.segments", null, w / 2, null);
                 p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetElementState, "state.properties.segmentsPer100m", null, w / 2, null);
                 p.IncreaseRow();
-                p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElementState, "state.properties.subdivideEqually", null, w / 2, null);
-                p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal,
-                    GetElementState, "state.properties.hermiteTension", null, w / 2, null);
-                p.IncreaseRow();
+                if (System.Array.IndexOf(allowed, 1) >= 0) {
+                    p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElementState, "state.properties.subdivideEqually", null, w / 2, null);
+                    p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal,
+                        GetElementState, "state.properties.hermiteTension", null, w / 2, null);
+                    p.IncreaseRow();
+                }
                 return true;
             }
             if (elem.name == "pointsGroup" && settings.spline != null) {

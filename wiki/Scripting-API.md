@@ -567,3 +567,9 @@ See [Images](#images).
 |---|---|---|---|
 | `batch` | `commands: [{method, params}]`<br>`atomic: bool = true` | list | Runs the commands as a single undo step (see [Batches](#batches)) |
 | `api.methods` | - | list | Every method with its parameters |
+
+### Core-defined spline choices
+
+Road curve choices are filtered by their core type. In `state.schema`/`types.list`, the curve builtin has parallel `enumValues` (stable names) and `enumIds` (saved IDs), which need not be consecutive. `state.setBuiltin` accepts either. Existing `bezier`, `hermite` and `lowPoly` names keep their IDs 0?2. Low-level spline types continue to use an integer `curveType` parameter. Custom road split/merge calls use core callbacks and reject unsupported operations. See [Core Spline Types](Core-Splines).
+
+Exporter JSON retains authored low-level spline controls in `points.spline` and road controls in `b64v3a_points` (`points` after decoding); these are distinct from evaluated preview samples.

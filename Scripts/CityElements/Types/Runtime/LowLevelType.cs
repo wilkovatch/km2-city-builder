@@ -25,10 +25,9 @@ namespace CityElements.Types.Runtime {
             var settings = type.settings;
             if (settings.spline != null) {
                 var spline = settings.spline;
-                if (spline.curveTypes == null || spline.curveTypes.Length == 0 ||
-                    System.Array.IndexOf(spline.curveTypes, spline.defaultCurveType) < 0 ||
-                    System.Array.Exists(spline.curveTypes, c => c < 0 || c > 2)) throw new System.Exception("Invalid spline curve types: " + name);
-                if (spline.sectionVertices == null || spline.sectionVertices.Length == 0) throw new System.Exception("Spline has no section vertices: " + name);
+                SplineCurves.ValidateSettings(spline);
+                spline.sectionVertices ??= new object[0];
+                if (spline.sectionVertices.Length == 0 && (spline.components?.Length ?? 0) > 0) throw new System.Exception("Spline has no section vertices: " + name);
                 spline.components ??= new ComponentInfo[0];
                 spline.textures ??= new string[0];
                 spline.texturesMapping ??= new Dictionary<string, int[]>();

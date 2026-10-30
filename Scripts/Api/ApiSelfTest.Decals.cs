@@ -15,7 +15,7 @@ namespace Api {
             Check("manual and automatic decals are no longer city properties", !schema["parameters"].Any(p =>
                 p["name"].Value<string>() == "decals" || p["name"].Value<string>() == "cableCarRailDecals"));
             Check("decals have a direct menu entry and PSDL elements have their own group", types["decal"].typeData.settings.createMenu.direct &&
-                types.Where(p => p.Key != "decal" && p.Value.typeData.settings.creatable).All(p => p.Value.typeData.settings.createMenu?.group == "CREATE_PSDL_ELEMENT"));
+                types.Where(p => p.Key != "decal" && p.Key != "train" && p.Value.typeData.settings.creatable).All(p => p.Value.typeData.settings.createMenu?.group == "CREATE_PSDL_ELEMENT"));
             builder.ReloadCreateMenu();
             var menu = CallBuilder<MenuBar>("GetMenuBar").FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>()
                 .First(b => b.Text == StringManager.Get("CREATE")).GetPopup();

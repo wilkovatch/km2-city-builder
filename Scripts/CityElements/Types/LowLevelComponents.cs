@@ -65,8 +65,10 @@ namespace CityElements.Types {
 
     //Road component geometry without road connections or traffic. Curve ids match GeometryHelper.CurveType.
     public class LowLevelSplineSettings : RoadSettings {
-        public int[] curveTypes = new[] { 0, 1, 2 };
-        public int defaultCurveType = 2;
+        public LowLevelSplineSettings() { curveTypes = new[] { 0, 1, 2 }; defaultCurveType = 2; }
+        public LowLevelSplineLine line, controlLine;
+        public float previewTolerance;
+        public int previewMaxDepth = 8;
         public int segments = 20;
         public bool segmentsPer100m;
         public bool projectPoints;
@@ -78,6 +80,11 @@ namespace CityElements.Types {
         //Optional expressions to subdivide pieces (e.g. a texture's quantized tile length).
         public string splitCondition;
         public int maxSplits = 3;
+    }
+
+    public class LowLevelSplineLine {
+        public string color = "yellow";
+        public bool always;
     }
 
     public class LowLevelType: ITypeWithUI {
@@ -102,6 +109,7 @@ namespace CityElements.Types {
                 };
                 var parametersList = new List<Parameter>(parameters.parameters ?? new Parameter[0]);
                 foreach (var builtin in builtins) {
+                    if ((builtin.name == "hermiteTension" || builtin.name == "subdivideEqually") && !System.Array.Exists(settings.spline.curveTypes, i => i == 1)) continue;
                     if (!parametersList.Exists(p => p.fullName() == builtin.name)) parametersList.Add(builtin);
                 }
                 parameters.parameters = parametersList.ToArray();

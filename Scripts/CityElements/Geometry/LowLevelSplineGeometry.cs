@@ -11,6 +11,7 @@ public static class LowLevelSplineGeometry {
         public float[] center, right, up;
         public float[][] vertices;
         public float distance;
+        public float parameter;
         internal Vector3 Position => Vec(center);
         internal Vector3 Right => Vec(right);
         internal Vector3 Up => Vec(up);
@@ -61,9 +62,29 @@ public static class LowLevelSplineGeometry {
             var length = controls.Zip(controls.Skip(1), (a, b) => a.DistanceTo(b)).Sum();
             segments = Math.Clamp((int)(segments * length / 100), 1, 10000);
         }
-        var samples = Sample(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually"));
+        var custom = SplineCurves.Create(settings, state, controls);
+        var evaluated = custom?.Sample(segments, settings.previewTolerance, settings.previewMaxDepth);
+        var samples = evaluated?.points ?? Sample(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually"));
         if (settings.projectSections) {
             samples = samples.Select(p => GH.ProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
+        }
+        GeometryLine Line(List<Vector3> positions, CityElements.Types.LowLevelSplineLine style) {
+            var line = new GeometryLine { points = positions, always = style?.always == true };
+            if (style?.color != null) line.color = LowLevelScripting.ReadColor(new Lua.LuaValue(style.color), line.color);
+            return line;
+        }
+        if (samples.Count >= 2) result.lines.Add(Line(samples, settings.line));
+        if (settings.controlLine != null && controls.Count >= 2) result.lines.Add(Line(controls, settings.controlLine));
+        if ((settings.components?.Length ?? 0) == 0) {
+            var centerSections = new List<Section>(); float d = 0;
+            for (int i = 0; i < samples.Count; i++) {
+                if (i > 0) d += samples[i].DistanceTo(samples[i-1]);
+                centerSections.Add(new Section { center = Pack(samples[i]), right = Pack(Vector3.Right), up = Pack(Vector3.Up),
+                    vertices = Array.Empty<float[]>(), distance = d, parameter = evaluated?.parameters[i] ?? i / (float)Math.Max(1, samples.Count-1) });
+            }
+            data.sections = centerSections.ToArray();
+            data.pieces = centerSections.Zip(centerSections.Skip(1), (a,b) => new[] { a,b }).ToArray();
+            return result;
         }
         if (samples.Count < 2) return result;
         var total = samples.Zip(samples.Skip(1), (a, b) => a.DistanceTo(b)).Sum();
@@ -87,7 +108,7 @@ public static class LowLevelSplineGeometry {
             var offsets = type.segmentVerticesCalculators.GetValues(gen.variableContainer);
             var vertices = offsets.Select(x => samples[i] + right * x).ToArray();
             sections.Add(new Section { center = Pack(samples[i]), right = Pack(right), up = Pack(Vector3.Up),
-                vertices = vertices.Select(Pack).ToArray(), distance = distance });
+                vertices = vertices.Select(Pack).ToArray(), distance = distance, parameter = evaluated?.parameters[i] ?? i / (float)Math.Max(1, samples.Count-1) });
         }
         data.sections = sections.ToArray();
         if (sections.Count < 2) return result;
@@ -113,7 +134,6 @@ public static class LowLevelSplineGeometry {
         if (settings.independentSegments) {
             for (int i = 0; i < pieces.Count; i++) Generate(pieces[i], i == 0, i == pieces.Count - 1);
         } else Generate(sections.ToArray(), true, true);
-        result.lines.Add(new GeometryLine { points = samples });
         return result;
 
         void Generate(Section[] span, bool startCap, bool endCap) {
@@ -140,6 +160,6 @@ public static class LowLevelSplineGeometry {
 
     static Section Lerp(Section a, Section b, float t) {
         return new Section { center = Pack(a.Position.Lerp(b.Position, t)), right = Pack(a.Right.Lerp(b.Right, t)), up = Pack(a.Up.Lerp(b.Up, t)),
-            vertices = a.Vertices.Zip(b.Vertices, (x, y) => Pack(x.Lerp(y, t))).ToArray(), distance = Mathf.Lerp(a.distance, b.distance, t) };
+            vertices = a.Vertices.Zip(b.Vertices, (x, y) => Pack(x.Lerp(y, t))).ToArray(), distance = Mathf.Lerp(a.distance, b.distance, t), parameter = Mathf.Lerp(a.parameter, b.parameter, t) };
     }
 }

@@ -27,6 +27,7 @@ public static class RoadMerger {
         public Road keep, other;
         public Intersection far; //of the other road
         public bool keepAtEnd, otherAtStart;
+        public SplineCurveOperations.Controls custom;
         public List<Vector3> positions;
         public List<Vector2> rotations;
     }
@@ -56,6 +57,8 @@ public static class RoadMerger {
         foreach (var road in new[] { keep, other }) {
             if (GO.IsNull(road) || road.deleted || road.points.Count < 2) return "both roads need at least two points";
         }
+        if ((int)keep.GetCurveType() > 2 && SplineCurves.Definitions[(int)keep.GetCurveType()].merge == null) return "this custom curve does not support road merging";
+        if ((int)keep.GetCurveType() < 3 && (int)other.GetCurveType() > 2) return "custom curves must be merged through their core callback";
         var keepFar = GetFarIntersection(keep, intersection);
         if (keepFar != null && keepFar == GetFarIntersection(other, intersection)) return "the merged road would start and end on the same intersection";
         return null;
@@ -68,7 +71,13 @@ public static class RoadMerger {
         plan.keepAtEnd = keep.endIntersection == intersection;
         plan.otherAtStart = plan.other.startIntersection == intersection;
         plan.far = GetFarIntersection(plan.other, intersection);
-        JoinPoints(plan);
+        if ((int)keep.GetCurveType() > 2) {
+            plan.custom = SplineCurveOperations.Merge(keep, plan.other, plan.keepAtEnd, plan.otherAtStart, GO.GetPosition(intersection.point));
+            plan.positions = plan.custom.points; plan.rotations = plan.custom.rotations;
+        } else {
+            if ((int)plan.other.GetCurveType() > 2) throw new System.InvalidOperationException("custom curves must be merged through their core callback");
+            JoinPoints(plan);
+        }
         return plan;
     }
 
@@ -455,6 +464,8 @@ public static class RoadMerger {
         var plan = Prepare(joint, keep);
         var other = plan.other;
         var far = plan.far;
+        var originalHandles = new List<Godot.StaticBody3D>(keep.points);
+        originalHandles.AddRange(other.points);
         History.UndoManager.Touch(keep);
         History.UndoManager.Touch(other);
         History.UndoManager.Touch(joint);
@@ -483,7 +494,16 @@ public static class RoadMerger {
             far.forceRemesh = true;
         }
 
-        keep.RestorePoints(plan.positions, plan.rotations);
+        if (plan.custom != null) {
+            //Per-end properties copied above take precedence over the prevalidated curve-specific state patch.
+            var state = (ObjectState)keep.state.Clone();
+            foreach (var p in plan.custom.state.properties) {
+                if (GetEndWord(p.Key) == null && p.Key != "segments") state.SetProperty(p.Key, p.Value);
+            }
+            plan.custom.state = state;
+            SplineCurveOperations.Apply(new[] { (keep, plan.custom) }, originalHandles);
+            other.points.Clear();
+        } else keep.RestorePoints(plan.positions, plan.rotations);
         //the anchors of the road are recreated, so the terrain points anchored to it stay in place
         keep.anchorManager.Invalidate();
         other.Delete();

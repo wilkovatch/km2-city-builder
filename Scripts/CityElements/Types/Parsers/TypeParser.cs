@@ -10,6 +10,7 @@ namespace CityElements.Types.Parsers {
         //loading a city rereads the core files once; panel rebuilds reuse the same runtime types
         public static void Reset() {
             cachedCore = null;
+            SplineCurves.Reset();
             roadTypes = null;
             propsTypes = null;
             propsContainersTypes = null;

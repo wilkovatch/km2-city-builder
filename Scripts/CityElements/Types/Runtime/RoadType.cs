@@ -25,7 +25,7 @@ namespace CityElements.Types.Runtime {
                 "startIntersectionPosition", "endIntersectionPosition",
                 "startDir", "endDir"
             };
-            for (int i = 0; i < type.settings.sectionVertices.Length; i++) {
+            for (int i = 0; i < (type.settings.sectionVertices?.Length ?? 0); i++) {
                 //for use in the spline
                 floatVars.Add("x" + i);
                 floatVars.Add("absX" + i);
@@ -57,6 +57,8 @@ namespace CityElements.Types.Runtime {
         }
 
         public RoadType(Types.RoadType type, string name) : base(type, type.parameters, GetComponents(type.components, type.settings.components), GetVarLists(type), name) {
+            SplineCurves.ValidateSettings(type.settings);
+            type.settings.sectionVertices ??= new object[0];
             AddBuiltInBools("throughIntersection", "hasStartIntersection", "hasEndIntersection");
             anchorsCalculators = new Vector3Array(type.settings.anchors ?? new object[0]);
             endAnchorsCalculators = new Vector3Array(type.settings.endAnchors ?? new object[0]);

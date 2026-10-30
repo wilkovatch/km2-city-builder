@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Operations {
@@ -9,6 +10,7 @@ namespace Operations {
             public string type; //bool, int, float, string, texture or enum
             public bool instanceSpecific; //stored in the instance state (never part of presets)
             public string[] enumValues;
+            public int[] enumIds; //explicit persisted values when an enum is a filtered registry
 
             public Property(string name, string type, bool instanceSpecific = false, string[] enumValues = null) {
                 this.name = name;
@@ -109,6 +111,12 @@ namespace Operations {
             if (!properties.TryGetValue(kind, out var list)) return res;
             foreach (var p in list) {
                 if (kind == "road" && p.name == "makeCoplanar" && (roadType == null || !roadType.InternalParameterVisible("makeCoplanar"))) continue;
+                if (kind == "road" && roadType != null && p.name == "curveType") {
+                    res.Add(new Property("curveType", "enum", false, SplineCurves.Allowed(roadType.typeData.settings).Select(SplineCurves.Name).ToArray()) { enumIds = SplineCurves.Allowed(roadType.typeData.settings) });
+                    continue;
+                }
+                if (kind == "road" && roadType != null && (p.name == "hermiteTension" || p.name == "subdivideEqually") &&
+                    !SplineCurves.Allowed(roadType.typeData.settings).Contains(1)) continue;
                 res.Add(p);
             }
             return res;

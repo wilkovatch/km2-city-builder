@@ -39,6 +39,7 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 3. [Expression Language](Expression-Language): syntax, functions, arrays, definitions.
 4. [Parameters and UI](Parameters-and-UI): `parameters.json`, `ui.json`, parameter types, strings.
 5. [Core Roads](Core-Roads): road types, components, mesh description, lanes, props lines.
+   - [Core Spline Types](Core-Splines): shared built-in and core-defined curves, element allowlists, Lua evaluation and road split/merge callbacks.
 6. [Core Intersections](Core-Intersections): intersection types, junctions, extra terrain pieces.
 7. [Core Terrain Patches](Core-Terrain-Patches): terrain patch types and border meshes.
 8. [Core Buildings](Core-Buildings): building types and building blocks.

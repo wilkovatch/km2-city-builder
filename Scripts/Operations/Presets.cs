@@ -30,6 +30,10 @@ namespace Operations {
         public static void Save(ObjectState state, string category, string name) {
             var type = LowLevelPresets.TypeOfCategory(category);
             if (type != null) LowLevelPresets.Extract(state, type); //validate before changing the link
+            if (category == "road") {
+                var types = CityElements.Types.Parsers.TypeParser.GetRoadTypes();
+                if (types.TryGetValue(state.Str("type"), out var roadType)) SplineCurves.ValidateState(roadType.typeData.settings, state);
+            }
             state.Name = name;
             PresetManager.SavePreset((ObjectState)state.Clone(), category);
         }

@@ -197,6 +197,10 @@ namespace Api {
                 if (focus == "lowLevelPresets") {
                     await NewCity();
                     await LowLevelPresetWorkflow();
+                } else if (focus == "trains") {
+                    await NewCity();
+                    await TrainSplines();
+                    await CustomRoadSplines();
                 } else if (focus == "splines") {
                     await NewCity();
                     await Roads();

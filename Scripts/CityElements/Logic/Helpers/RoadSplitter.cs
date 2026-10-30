@@ -34,6 +34,7 @@ public static class RoadSplitter {
         public List<Vector3> first, second; //the control points of the two parts
         public List<Vector2> firstRotations, secondRotations; //their rotations (yaw, roll)
         public Vector3 point; //where the parts meet
+        public SplineCurveOperations.Controls customFirst, customSecond;
         public Part firstPart, secondPart; //null for Bézier curves, split exactly
     }
 
@@ -41,7 +42,7 @@ public static class RoadSplitter {
     static float GetCurveParameter(Road road, int segment, float fraction) {
         var count = road.curvePoints.Count;
         if (count < 2) return -1;
-        return (segment + fraction) / (count - 1.0f);
+        return road.CurveParameter(segment, fraction);
     }
 
     //the point of the curve of the road closest to the given one (curve segment, position in it and distance)
@@ -100,6 +101,13 @@ public static class RoadSplitter {
         var subdivideEqually = road.state.Bool("subdivideEqually");
         var t = GetCurveParameter(road, segment, fraction);
         if (t <= ParamEpsilon || t >= 1.0f - ParamEpsilon) return null;
+
+        if ((int)curveType > 2) {
+            var custom = SplineCurveOperations.Split(road, t);
+            return new SplitPoints { first = custom.first.points, second = custom.second.points,
+                firstRotations = custom.first.rotations, secondRotations = custom.second.rotations,
+                point = custom.first.points[^1], customFirst = custom.first, customSecond = custom.second };
+        }
 
         if (curveType == GH.CurveType.Bezier) {
             var (left, right) = GH.SplitBezier(controlPoints, t);
@@ -391,8 +399,13 @@ public static class RoadSplitter {
         var newRoad = manager.CreateRoad();
         newRoad.SetState((ObjectState)road.state.Clone());
         newRoad.instanceState = (ObjectState)road.instanceState.Clone();
-        for (int i = 0; i < split.second.Count; i++) newRoad.AddPoint(split.second[i], -1, split.secondRotations[i]);
-        road.RestorePoints(split.first, split.firstRotations);
+        if (split.customFirst != null) {
+            var original = road.points.ToArray();
+            SplineCurveOperations.Apply(new[] { (road, split.customFirst), (newRoad, split.customSecond) }, original);
+        } else {
+            for (int i = 0; i < split.second.Count; i++) newRoad.AddPoint(split.second[i], -1, split.secondRotations[i]);
+            road.RestorePoints(split.first, split.firstRotations);
+        }
 
         //the through road flags of the old end go to the new road, the new intersection has none
         ClearIntersectionFlags(road.instanceState, "end");

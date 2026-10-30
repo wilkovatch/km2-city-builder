@@ -507,7 +507,7 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
             if (!state.properties.ContainsKey("curveType")) state.SetInt("curveType", spline.defaultCurveType);
             if (!state.properties.ContainsKey("segments")) state.SetInt("segments", spline.segments);
             if (!state.properties.ContainsKey("segmentsPer100m")) state.SetBool("segmentsPer100m", spline.segmentsPer100m);
-            if (!state.properties.ContainsKey("hermiteTension")) state.SetFloat("hermiteTension", 0.5f);
+            if (System.Array.IndexOf(spline.curveTypes, 1) >= 0 && !state.properties.ContainsKey("hermiteTension")) state.SetFloat("hermiteTension", 0.5f);
         }
         if (type != curType) {
             variableContainer = type?.variableContainer.GetClone();

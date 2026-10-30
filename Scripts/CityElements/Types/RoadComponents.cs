@@ -23,6 +23,8 @@ namespace CityElements.Types {
     }
 
     public class RoadSettings {
+        public int[] curveTypes; //null: the three built-in curves
+        public int defaultCurveType;
         public bool variableSections;
         public bool allowYaw = true; //whether the control points can rotate the sections around the vertical axis
         public bool allowRoll = true; //whether the control points can bank the sections

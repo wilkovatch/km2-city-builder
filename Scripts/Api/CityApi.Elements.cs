@@ -84,6 +84,9 @@ namespace Api {
                     if (!TP.GetRoadTypes().ContainsKey(type)) throw ApiException.InvalidValue("unknown road type '" + type + "'");
                     Operations.States.SetType(road.state, type);
                 }
+                var curveSettings = TP.GetRoadTypes()[road.state.Str("type")].typeData.settings;
+                if (type != null && System.Array.IndexOf(SplineCurves.Allowed(curveSettings), road.state.Int("curveType")) < 0) road.state.SetInt("curveType", curveSettings.defaultCurveType);
+                SplineCurves.ValidateState(curveSettings, road.state);
                 foreach (var point in points) AddRoadPoint(drawing, point);
                 road = drawing.GetRoad(false);
                 if (Operations.Roads.IsIncomplete(road)) throw ApiException.InvalidValue("the points give a road with less than two points");

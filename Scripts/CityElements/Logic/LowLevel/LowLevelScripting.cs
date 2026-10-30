@@ -149,7 +149,7 @@ namespace LowLevel {
             { "white", new Color(1, 1, 1) }, { "black", new Color(0, 0, 0) }, { "orange", new Color(1, 0.5f, 0) }
         };
 
-        static Color ReadColor(LuaValue value, Color fallback) {
+        public static Color ReadColor(LuaValue value, Color fallback) {
             if (value.TryRead<LuaVec3>(out var v)) return new Color(v.value.X, v.value.Y, v.value.Z);
             var name = String(value);
             if (name != null && namedColors.TryGetValue(name, out var c)) return c;

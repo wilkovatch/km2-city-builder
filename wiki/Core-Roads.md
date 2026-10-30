@@ -292,3 +292,7 @@ Users enable containers and fill them in the road's props tab (`propsGroup`). Ea
 Note that the getters point to definitions: numeric, boolean and vector getters need a definition of the right type (here `widthD` re-exposes the `width` parameter), while string getters point directly to a parameter.
 
 To be usable, the road type also needs an intersection type with a junction for the pair `simple_simple` (see [Core Intersections](Core-Intersections)), the strings used as labels, and road presets in the templates (see [Core Templates and Presets](Core-Templates-and-Presets)).
+
+## Custom spline curves
+
+Road types can select their allowed `curveTypes` and `defaultCurveType`, including curves registered by the core. The shared evaluator covers geometry, editing, banking and custom split/merge operations. See [Core Spline Types](Core-Splines) for the registry and Lua callback contracts.

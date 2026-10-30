@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using Parameter = CityElements.Types.Parameter;
 using SM = StringManager;
+using TP = CityElements.Types.Parsers.TypeParser;
 
 namespace Api {
     //The generic editing of the states: what the parameter fields, the type and preset dropdowns and the array lists
@@ -121,7 +122,7 @@ namespace Api {
 
         static List<object> SchemaOf(List<Operations.Builtins.Property> builtins) {
             var res = new List<object>();
-            foreach (var p in builtins) res.Add(new { name = p.name, type = p.type, instanceSpecific = p.instanceSpecific, enumValues = p.enumValues });
+            foreach (var p in builtins) res.Add(new { name = p.name, type = p.type, instanceSpecific = p.instanceSpecific, enumValues = p.enumValues, enumIds = p.enumIds });
             return res;
         }
 
@@ -218,7 +219,10 @@ namespace Api {
                 var t = GetStateTarget(@ref);
                 var b = Operations.Builtins.Find(t.kind, name, t.roadType);
                 if (b == null) throw ApiException.NotFound("built-in property '" + name + "' of " + t.kind);
-                var v = ConvertValue(b.type, value, b.enumValues, name);
+                object v;
+                try { v = name == "curveType" && t.roadType != null ? SplineCurves.Parse(t.roadType.typeData.settings, value) : ConvertValue(b.type, value, b.enumValues, name); }
+                catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
+                if (name == "hermiteTension" && t.state.Int("curveType") > 2) throw ApiException.InvalidValue("tension is fixed by the custom curve");
                 var target = b.instanceSpecific ? t.instanceState : t.state;
                 History.UndoManager.Touch(t.owner);
                 SetPath(target, name, v);
@@ -235,6 +239,10 @@ namespace Api {
                 if (!new List<string>(t.types()).Contains(type)) throw ApiException.InvalidValue("unknown type '" + type + "' (" + string.Join(", ", t.types()) + ")");
                 History.UndoManager.Touch(t.owner);
                 Operations.States.SetType(t.state, type);
+                if (t.owner is Road road) {
+                    var settings = TP.GetRoadTypes()[type].typeData.settings;
+                    if (System.Array.IndexOf(SplineCurves.Allowed(settings), t.state.Int("curveType")) < 0) t.state.SetInt("curveType", settings.defaultCurveType);
+                }
                 t.afterChange?.Invoke();
                 return type;
             });

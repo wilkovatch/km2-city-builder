@@ -26,7 +26,7 @@ namespace Operations {
                 state.SetInt("curveType", spline.defaultCurveType);
                 state.SetInt("segments", spline.segments);
                 state.SetBool("segmentsPer100m", spline.segmentsPer100m);
-                state.SetFloat("hermiteTension", 0.5f);
+                if (System.Array.IndexOf(spline.curveTypes, 1) >= 0) state.SetFloat("hermiteTension", 0.5f);
             }
             return state;
         }
@@ -46,6 +46,7 @@ namespace Operations {
             var t = TP.GetLowLevelTypes()[type];
             States.Normalize(state, t.parameterContainer.parameters);
             var spline = t.typeData.settings.spline;
+            if (spline != null) SplineCurves.ValidateState(spline, state);
             if (spline != null && state.properties.ContainsKey("curveType") && Array.IndexOf(spline.curveTypes, state.Int("curveType")) < 0) {
                 throw new ArgumentException("curve type is not allowed by this spline type");
             }

@@ -5,7 +5,9 @@ using SM = StringManager;
 
 namespace EditorPanels {
     public class RoadEditorPanel : EditorPanel, IPropRuleEditor {
-        EditorPanelElements.Dropdown pointPlacementModeDropdown;
+        EditorPanelElements.Dropdown pointPlacementModeDropdown, curveTypeDropdown;
+        int[] allowedCurves;
+        System.Action updateCurveFields;
         EditorPanelElements.Button startIntersectionButton, endIntersectionButton;
         readonly PropRuleGroup propRule;
         readonly Dictionary<string, (EditorPanelElements.Button button, EditorPanelElements.Checkbox checkbox)> propControls;
@@ -26,6 +28,7 @@ namespace EditorPanels {
 
         public override void Initialize(GameObject canvas) {
             propControls.Clear();
+            curveTypeDropdown = null; updateCurveFields = null;
             InitializeWithCustomParameters<CityElements.Types.Runtime.RoadType, CityElements.Types.RoadType>(canvas, GetCurRoad, TS,
                 null, CityElements.Types.Parsers.TypeParser.GetRoadTypes, ProcessCustomParts, true);
         }
@@ -71,10 +74,24 @@ namespace EditorPanels {
                 p.AddFieldCheckbox(SM.Get("RD_ADJUST_LOWPOLY_WIDTH"), GetCurRoad, "state.properties.adjustLowPolyWidth", null, w / (1 + (withCoplanar ? 1.0f : 0.0f)));
                 p.IncreaseRow();
 
-                var curveTypes = new List<string> { SM.Get("RD_SP_T_BEZIER"), SM.Get("RD_SP_T_HERMITE"), SM.Get("RD_SP_T_LOWPOLY") };
-                p.AddFieldDropdown(SM.Get("RD_SPLINE_TYPE"), curveTypes, GetCurRoad, "state.properties.curveType", null, w * 0.4f, null);
-                p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetCurRoad, "state.properties.subdivideEqually", null, w * 0.35f, null);
-                p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal, GetCurRoad, "state.properties.hermiteTension", null, w * 0.25f, null);
+                var allowed = allowedCurves = SplineCurves.Allowed(type.typeData.settings);
+                var entries = new List<int>(allowed).ConvertAll(i => SM.Get(SplineCurves.Label(i)));
+                var curveDropdown = curveTypeDropdown = p.AddDropdown(SM.Get("RD_SPLINE_TYPE"), entries, i => {
+                    GetCurRoad().state.SetInt("curveType", allowed[i]);
+                    builder.NotifyChange();
+                    Update();
+                }, w * 0.4f);
+                curveDropdown.actionEnabled = false;
+                curveDropdown.SetValue(System.Array.IndexOf(allowed, GetCurRoad().state.Int("curveType")));
+                curveDropdown.actionEnabled = true;
+                if (System.Array.IndexOf(allowed, 1) >= 0) {
+                    var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetCurRoad, "state.properties.subdivideEqually", null, w * 0.35f, null);
+                    var tensionField = p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal, GetCurRoad, "state.properties.hermiteTension", null, w * 0.25f, null);
+                    updateCurveFields = () => {
+                        var builtin = GetCurRoad(false)?.state.Int("curveType") == 1;
+                        equallyField.SetActive(builtin); tensionField.SetActive(builtin);
+                    };
+                }
                 p.IncreaseRow();
 
             } else if (elem.name == "intersectionGroup") {
@@ -294,6 +311,12 @@ namespace EditorPanels {
 
         //the road can be connected or detached while the editor is open
         public override void Update() {
+            if (curveTypeDropdown != null && GetCurRoad(false) is Road road) {
+                curveTypeDropdown.actionEnabled = false;
+                curveTypeDropdown.SetValue(System.Array.IndexOf(allowedCurves, road.state.Int("curveType")));
+                curveTypeDropdown.actionEnabled = true;
+            }
+            updateCurveFields?.Invoke();
             startIntersectionButton?.SetInteractable(GetIntersection(true) != null);
             endIntersectionButton?.SetInteractable(GetIntersection(false) != null);
         }

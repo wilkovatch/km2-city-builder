@@ -39,6 +39,8 @@ public partial class RoadGenerator : PhysicsScriptable {
     public bool hasEndIntersection = false;
 
     public int segments;
+    public SplineCurves.Curve customCurve;
+    public List<float> curveParameters = new();
     public MeshRenderer mr;
     public Mesh m;
     MeshCollider mc;
@@ -215,12 +217,20 @@ public partial class RoadGenerator : PhysicsScriptable {
         var adjustLowPolyWidth = state.Bool("adjustLowPolyWidth");
         var lpf = state.Int("lpf");
 
+        var controls = new List<Vector3> { start }; controls.AddRange(cps); controls.Add(end);
+        //Intersection through strips have their own forced Hermite construction, independent of the source road's allowlist.
+        customCurve = runtimeState?.Bool("throughIntersection") == true ? null : SplineCurves.Create(curType.typeData.settings, state, controls, startTangent, endTangent);
+        var customSamples = customCurve?.Sample(segments-1);
+        if (customSamples.HasValue) segments = customSamples.Value.points.Count;
+        curveParameters = customSamples?.parameters ?? new List<float>();
+        if (customSamples.HasValue) subGen.Reset(curType, state, instanceState, segments, numMeshes);
         lr.positionCount = segments;
         totalLength = 0.0f;
         var curvePoints = subGen.curvePoints;
 
         for (int i = 0; i < segments; i++) {
-            var pos = GH.GetPointOnCurve(start, cps, end, i / (segments - 1.0f), i, curveType, hermiteTension, subdivideEqually, startTangent, endTangent);
+            var pos = customSamples?.points[i] ?? GH.GetPointOnCurve(start, cps, end, i / (segments - 1.0f), i, curveType, hermiteTension, subdivideEqually, startTangent, endTangent);
+            if (!customSamples.HasValue) curveParameters.Add(i / (segments-1.0f));
             var dontProject = (i == 0 && hasStartIntersection) || (i == segments - 1 && hasEndIntersection);
             if (!dontProject && projectAll) pos = GH.ProjectPoint(pos);
             curvePoints.Add(pos);
@@ -244,9 +254,11 @@ public partial class RoadGenerator : PhysicsScriptable {
                 right = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up)) * GameEngine.Vector3.Magnitude(dir);
                 if (forcedRotations != null && i < forcedRotations.Count) rotation = forcedRotations[i];
             } else {
-                var t = i / (segments - 1.0f);
+                var t = curveParameters[i];
                 var lowPolyWidth = adjustLowPolyWidth || curveType == GH.CurveType.LowPoly;
-                if (i == 0 && startTangent.HasValue) {
+                if (customCurve != null && lpf == 0) {
+                    dir = customCurve.Tangent(t);
+                } else if (i == 0 && startTangent.HasValue) {
                     dir = GameEngine.Vector3.Normalize(startTangent.Value);
                     widthFactor = lowPolyWidth ? GetMiterFactor(dir, curvePoints[i + 1] - curvePoints[i]) : 1.0f;
                 } else if (i == segments - 1 && endTangent.HasValue) {
@@ -288,7 +300,7 @@ public partial class RoadGenerator : PhysicsScriptable {
                     }
                 }
                 right = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up)) * widthFactor;
-                if (hasRotations) rotation = GH.GetValueOnCurve(start, cps, end, cpRotations, t, i, curveType, hermiteTension, subdivideEqually, startTangent, endTangent);
+                if (hasRotations) rotation = customCurve != null ? customCurve.Interpolate(cpRotations, t) : GH.GetValueOnCurve(start, cps, end, cpRotations, t, i, curveType, hermiteTension, subdivideEqually, startTangent, endTangent);
             }
             var up = GameEngine.Vector3.up;
             if (rotation != GameEngine.Vector2.zero) {

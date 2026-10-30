@@ -257,9 +257,9 @@ public partial class LowLevelGenerator : PhysicsScriptable {
                 var a = points[i] + V3.up * line.heightOffset;
                 var b = points[i + 1] + V3.up * line.heightOffset;
                 var dir = b - a;
-                dir.Y = 0;
                 if (dir.LengthSquared() < 1e-8f) continue;
-                var side = V3.Normalize(V3.Cross(V3.up, dir)) * (width * 0.5f);
+                var cross = V3.Cross(V3.up, dir);
+                var side = (cross.LengthSquared() > 1e-8f ? V3.Normalize(cross) : Vector3.Right) * (width * 0.5f);
                 var n = cVertices.Count;
                 cVertices.Add(a - side);
                 cVertices.Add(a + side);
