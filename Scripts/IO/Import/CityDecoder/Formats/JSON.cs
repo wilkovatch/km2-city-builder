@@ -154,10 +154,10 @@ namespace CityDecoder {
                 //the alert of the question must be closed before an error can be shown
                 await caller.ToSignal(caller.GetTree(), "process_frame");
                 var res = Migrate(true);
-                if (res.code != 1) return await Fail("migration_failed", SM.Get(res.message), true);
+                if (res.code != 1) return await Fail("migration_failed", SM.GetOrKey(res.message), true);
                 return await DecodeCityRoutine(caller);
             } else if (checkResult.code != 0) {
-                return await Fail(GetErrorCode(checkResult.message), SM.Get(checkResult.message), true);
+                return await Fail(GetErrorCode(checkResult.message), SM.GetOrKey(checkResult.message), true);
             }
 
             //check python
