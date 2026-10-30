@@ -157,11 +157,17 @@ namespace ElementPlacer {
             ActionHandlerManager.ShowHandle(pos, size, color);
         }
 
+        //An element whose sections are projected (e.g. the MM2 decals) is placed with the same surface rule as its sections
+        //(GeometryHelper.AutoProjectOnSurface), so its points go where its sections go; anchors and point links keep their
+        //own hit priority, and the other elements are placed on what is visible.
         public override bool Raycast(Node3D parent, Vector3 origin, Vector3 direction, out RaycastHit hit, float distance, int mask) {
-            //Anchors and point links retain their own hit priority; only the surface pass uses the core policy.
-            if ((mask & ((1 << 3) | (1 << 7))) == 0) return base.Raycast(parent, origin, direction, out hit, distance, mask);
+            var settings = GetElement()?.Settings ?? (createType != null && CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()
+                .TryGetValue(createType, out var type) ? type.typeData.settings : null);
+            if ((mask & ((1 << 3) | (1 << 7))) == 0 || settings?.spline?.projectSections != true) {
+                return base.Raycast(parent, origin, direction, out hit, distance, mask);
+            }
             var exclude = placementMode == PlacementMode.Create ? null : GetElement()?.generator;
-            return GeometryHelper.RaycastSurface(parent, origin, direction, out hit, distance, mask, exclude);
+            return GeometryHelper.AutoRaycastSurface(parent, origin, direction, out hit, distance, mask, exclude);
         }
 
         //terrain points and anchors, point links, then the terrain and the generated meshes

@@ -153,7 +153,7 @@ States (the values of an element) are plain JSON objects, as in the saved city. 
 
 The result also has `mapping`, from the pixels to the city: for the top view `metersPerPixel` and `origin` (the x, z of the top left corner: `x = origin[0] + px * metersPerPixel`, `z = origin[1] - py * metersPerPixel`); for the others the position, forward and up directions and fov of the camera. `labels` and `overlays` give the pixel of each label and overlay (`inView`: inside the image).
 
-`view.screenshot` is the window as the user sees it, and `view.camera.get`, `view.camera.set` and `view.focus` move the camera of the editor (e.g. to show the user an element). `view.toggles` and `view.setToggle` read and switch the visibility toggles the core adds to the View menu (e.g. the room outlines of MM2).
+`view.screenshot` is the window as the user sees it, and `view.camera.get`, `view.camera.set` and `view.focus` move the camera of the editor (e.g. to show the user an element). `view.toggles` and `view.setToggle` read and switch the visibility toggles the core adds to the View menu (e.g. the room outlines of MM2), and `view.terrainHidden` and `view.setTerrainHidden` the *Hide terrain grid* option.
 
 ### Changes and undo
 
@@ -561,7 +561,9 @@ See [Images](#images).
 | `view.focus` | `ref: ref` | - | Moves the camera of the editor to show an element (as the zoom of the object list) |
 | `view.render` | `camera: string = 'top'`<br>`elements: ref[] = null`<br>`bounds: number[] = null`<br>`center: vec3 = null`<br>`size: number = null`<br>`margin: number = 1.1`<br>`pitch: number = 50`<br>`yaw: number = 30`<br>`distance: number = null`<br>`position: vec3 = null`<br>`target: vec3 = null`<br>`fov: number = 50`<br>`width: int = 1024`<br>`height: int = 1024`<br>`layers: string[] = null`<br>`labels: string[] = null`<br>`labelSize: number = 14`<br>`highlight: ref[] = null`<br>`highlightColor: string = null`<br>`overlays: object[] = null`<br>`grid: number = 0`<br>`scaleBar: bool = false`<br>`background: string = null`<br>`transparent: bool = false`<br>`bestLod: bool = true`<br>`wireframe: bool = false`<br>`format: string = 'png'`<br>`quality: number = 0.9`<br>`path: string = null` | object | Renders the city offscreen and returns the image with the mapping between its pixels and the city coordinates, and the pixel positions of the labels and overlays |
 | `view.screenshot` | `format: string = 'png'`<br>`quality: number = 0.9`<br>`path: string = null` | object | The view of the editor as the user sees it (with its panels) |
+| `view.setTerrainHidden` | `hidden: bool` | object | Hides or shows the terrain (View->Hide terrain grid): a hidden terrain isn't drawn and the clicks and the placement snaps skip it, while the roads and the projected geometry still follow it; saved with the city preferences, not an undo step |
 | `view.setToggle` | `name: string`<br>`on: bool` | object | Turns a visibility toggle of the core (see view.toggles) on or off; saved with the city preferences, not an undo step |
+| `view.terrainHidden` | - | object | Whether the terrain is hidden (View->Hide terrain grid) |
 | `view.toggles` | - | object | The visibility toggles of the core (in the View menu) and whether they're on |
 
 ### Dispatcher

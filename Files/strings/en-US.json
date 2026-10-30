@@ -54,6 +54,7 @@
 	"TOGGLE_WIREFRAME": "Toggle wireframe",
 	"SHOW_ALL_TRAFFIC_LANES": "Show all traffic lanes",
 	"TOGGLE_GROUND_ONLY": "Toggle ground only view mode",
+	"HIDE_TERRAIN_GRID": "Hide terrain grid",
 	"CITY_SAVED_TEXT": "City saved successfully!",
 	"CITY_EXPORTED_TEXT": "City exported successfully!",
 	"CITY_SAVE_ERROR_TEXT": "Error while saving the city: ",

@@ -66,7 +66,7 @@ public static class CustomElementSplineGeometry {
         var evaluated = custom?.Sample(segments, settings.previewTolerance, settings.previewMaxDepth);
         var samples = evaluated?.points ?? Sample(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually"));
         if (settings.projectSections) {
-            samples = samples.Select(p => GH.ProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
+            samples = samples.Select(p => GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
         }
         GeometryLine Line(List<Vector3> positions, CityElements.Types.CustomElementSplineLine style) {
             var line = new GeometryLine { points = positions, always = style?.always == true, heightOffset = style?.heightOffset ?? 0 };
@@ -105,7 +105,7 @@ public static class CustomElementSplineGeometry {
                     (GH.CurveType)mode, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually"))).ToList();
             }
             return settings.projectSections
-                ? positions.Select(p => GH.ProjectOnSurface(p, settings.projectionMask, element.generator)).ToList() : positions;
+                ? positions.Select(p => GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList() : positions;
         }
         var linePositions = LinePositions();
         if (linePositions.Count >= 2) result.lines.Add(Line(linePositions, settings.line));

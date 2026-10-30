@@ -469,8 +469,23 @@ public static class GeometryHelper {
         return minP;
     }
 
+    //the highest surface of the layers (the physics-only projection target bit belongs to AutoProjectOnSurface)
     public static Vector3 ProjectPoint(Vector3 pos, int layerMask = 1 << 3, CollisionObject3D exclude = null) {
-        return ProjectOnSurface(pos, layerMask, exclude);
+        return GameEngine.Raycast.ProjectPoint(pos, layerMask & ~GameEngine.Raycast.ProjectionSurfaceMask, exclude);
+    }
+
+    //for the positions given by the user (clicked or moved points and objects): as ProjectPoint, but a surface other
+    //than the terrain a little under the terrain wins (e.g. a road surface lower than the sidewalks, with the terrain at
+    //the sidewalk height covering it); the terrain is skipped while it's hidden, as for the clicks
+    public static Vector3 ProjectOnSurface(Vector3 pos, int layerMask, CollisionObject3D exclude = null) {
+        const int terrainMask = 1 << 3;
+        const float maxDepthUnderTerrain = 0.5f;
+        layerMask = CityGroundHelper.ExcludeHiddenTerrain(layerMask);
+        var res = ProjectPoint(pos, layerMask, exclude);
+        if ((layerMask & terrainMask) == 0) return res;
+        var otherMask = layerMask & ~terrainMask & ~GameEngine.Raycast.ProjectionSurfaceMask;
+        if (GameEngine.Raycast.TryProjectPoint(pos, out var other, otherMask, exclude) && other.Y > res.Y - maxDepthUnderTerrain) res = other;
+        return res;
     }
 
     //The core can treat the heightmap as a guide: first use city surfaces, even below it, then the heightmap.
@@ -485,14 +500,18 @@ public static class GeometryHelper {
         return (layerMask, 0);
     }
 
-    public static Vector3 ProjectOnSurface(Vector3 pos, int layerMask, CollisionObject3D exclude = null) {
+    //For the automatic projection of derived geometry (e.g. the projected spline sections), not the positions given by
+    //the user: it follows the core's surfaceProjectionTerrainFallbackOnly and the mesh projection targets, and it
+    //doesn't depend on the view (a hidden terrain still counts).
+    public static Vector3 AutoProjectOnSurface(Vector3 pos, int layerMask, CollisionObject3D exclude = null) {
         var masks = SurfaceProjectionMasks(layerMask);
         if (GameEngine.Raycast.TryProjectPoint(pos, out var surface, masks.primary, exclude)) return surface;
         return GameEngine.Raycast.ProjectPoint(pos, masks.fallback, exclude);
     }
 
-    //Use the same policy along the mouse ray, so the preview and click agree even with an oblique camera.
-    public static bool RaycastSurface(Node3D parent, Vector3 origin, Vector3 direction, out GameEngine.Raycast.RaycastHit hit,
+    //AutoProjectOnSurface along the mouse ray, to place the points of an element whose sections are projected with it
+    //where the sections go, so the preview and click agree even with an oblique camera
+    public static bool AutoRaycastSurface(Node3D parent, Vector3 origin, Vector3 direction, out GameEngine.Raycast.RaycastHit hit,
         float distance, int layerMask, CollisionObject3D exclude = null) {
         var masks = SurfaceProjectionMasks(layerMask);
         if (GameEngine.Raycast.DoRaycast(parent, origin, direction, out hit, distance, masks.primary, true, exclude)) return true;

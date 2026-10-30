@@ -79,7 +79,7 @@ namespace ElementPlacer {
             var owner = getOwner?.Invoke();
             if (param == null || owner == null || Operations.States.IsArrayFull(owner.GetState(), param)) return false;
             History.UndoManager.Touch(getUndoTarget?.Invoke());
-            //The core decides whether terrain competes with city surfaces or is only a fallback.
+            //e.g. on a road a little under the terrain covering it, rather than on the terrain
             if (snapToSurface) position = GeometryHelper.ProjectOnSurface(position, layerMask);
             if (Operations.States.AddArrayObjectAt(owner.GetState(), param, position) < 0) return false;
             builder.NotifyChange();

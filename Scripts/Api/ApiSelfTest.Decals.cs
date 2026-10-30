@@ -55,7 +55,7 @@ namespace Api {
             await CheckUndo("moving a spline point", () => Call("customElement.movePoint", new { element = id, path = "spline.1", position = new[] { -500, 12, 3 } }));
             element = Element();
             var point = ((CustomElements.PointLeaf)((CustomElements.PointList)element.points.Get("spline")).items[1]).point;
-            Check("moving a spline point projects it back onto the road", Mathf.Abs(point.GetPoint().Y - GeometryHelper.ProjectOnSurface(point.GetPoint(), 136, element.generator).Y) < 0.001f);
+            Check("moving a spline point projects it back onto the road", Mathf.Abs(point.GetPoint().Y - GeometryHelper.AutoProjectOnSurface(point.GetPoint(), 136, element.generator).Y) < 0.001f);
             var y = point.GetPoint().Y;
             await Call("city.flush"); await Call("city.flush");
             Check("surface projection excludes decals and does not accumulate height", Mathf.Abs(point.GetPoint().Y - y) < 0.001f);
@@ -107,10 +107,11 @@ namespace Api {
                 createType = "decal", placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.Create
             };
             await ToSignal(GetTree(), "physics_frame"); await Frames(2);
+            //the grid covers the intersection (at the sidewalk height): the decals are placed under it, as their sections
             var expected = new List<Vector3>();
             foreach (var offset in new[] { new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 0, 1) }) {
                 var origin = center + offset + Vector3.Up * 100;
-                var found = placer.Raycast(builder.helper, origin, Vector3.Down, out var hit, 200, placer.GetLayerMasks()[2]);
+                var found = ClickRay(placer, origin, Vector3.Down, out var hit, 200, placer.GetLayerMasks()[2]);
                 Check("decal placement ray hits the intersection surface", found && hit.collider == junction.generator);
                 if (!found || hit.collider != junction.generator) continue;
                 expected.Add(hit.point);

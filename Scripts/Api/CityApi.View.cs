@@ -326,7 +326,20 @@ namespace Api {
             return on;
         }
 
-        [ApiMethod("view.focus", "Moves the camera of the editor to show an element (as the zoom of the object list)")]
+        [ApiMethod("view.terrainHidden", "Whether the terrain is hidden (View->Hide terrain grid)")]
+        public object GetTerrainHidden() {
+            RequireCity();
+            return CityGroundHelper.TerrainHidden;
+        }
+
+        [ApiMethod("view.setTerrainHidden", "Hides or shows the terrain (View->Hide terrain grid): a hidden terrain isn't drawn and the clicks and the placement snaps skip it, while the roads and the projected geometry still follow it; saved with the city preferences, not an undo step")]
+        public object SetTerrainHidden(bool hidden) {
+            RequireCity();
+            builder.helper.SetTerrainHidden(hidden);
+            return hidden;
+        }
+
+        [ApiMethod("view.focus","Moves the camera of the editor to show an element (as the zoom of the object list)")]
         public object Focus(ElementRef @ref) {
             RequireCity();
             var b = BoundsOf(Resolve(@ref)) ?? throw ApiException.InvalidValue("the element has nothing to show");

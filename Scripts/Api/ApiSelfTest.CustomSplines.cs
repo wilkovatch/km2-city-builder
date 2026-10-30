@@ -199,7 +199,7 @@ namespace Api {
                     Vector3 Expected(int index) {
                         var p = mode == 2 ? controls[index] : GeometryHelper.GetPointOnCurve(controls[0],controls.GetRange(1,controls.Count-2),controls[^1],knots[index],index,
                             (GeometryHelper.CurveType)mode,element.state.Float("hermiteTension",.5f),element.state.Bool("subdivideEqually"));
-                        return GeometryHelper.ProjectOnSurface(p,settings.projectionMask,element.generator);
+                        return GeometryHelper.AutoProjectOnSurface(p,settings.projectionMask,element.generator);
                     }
                     Check("generic line trimming supports projected curve " + mode, result.lines.Count == 1
                         && result.lines[0].points[0].DistanceTo(Expected(1)) < .001f && result.lines[0].points[^1].DistanceTo(Expected(controls.Count-2)) < .001f);

@@ -42,6 +42,9 @@ public partial class CityGroundHelper: ThisScriptable {
 
     public Node3D terrainObj;
 
+    //View->Hide terrain grid: the terrain isn't drawn and can't be clicked (saved in the city preferences)
+    public static bool TerrainHidden { get; private set; }
+
     public override void _Ready() {
         // The editor's terrain raycasts use layer 3 (Godot physics layer 4).
         CollisionLayer = 1u << 3;
@@ -97,6 +100,7 @@ public partial class CityGroundHelper: ThisScriptable {
         terrainObj = GameEngine.Terrain.CreateTerrainGameObject(heights, heightmapResolution, terrainSize, maxHeight, GetGridMaterial(), this);
         GameEngine.Materials.SetShaderParameter(mat2, "_Size", new Vector4(terrainSize, -terrainSize * 0.5f, terrainSize, -terrainSize * 0.5f));
         RefreshOverlay();
+        RestoreTerrainVisibility();
     }
 
     //creates the terrain with the given heights
@@ -132,6 +136,7 @@ public partial class CityGroundHelper: ThisScriptable {
         terrainObj = GameEngine.Terrain.CreateHeightmap(terrainSize, heightmapResolution, maxHeight, heights, this, GetGridMaterial());
         GameEngine.Materials.SetShaderParameter(mat2, "_Size", new Vector4(terrainSize, -terrainSize * 0.5f, terrainSize, -terrainSize * 0.5f));
         RefreshOverlay();
+        RestoreTerrainVisibility();
         //the progress bar stays visible: the caller goes on loading the city
     }
 
@@ -211,6 +216,21 @@ public partial class CityGroundHelper: ThisScriptable {
         matIsGrid = !matIsGrid;
         GameEngine.Terrain.SetMaterial(terrainObj, GetGridMaterial());
         PreferencesManager.Set("OverlayActive", !matIsGrid);
+    }
+
+    public void SetTerrainHidden(bool hidden) {
+        PreferencesManager.Set("TerrainHidden", hidden);
+        RestoreTerrainVisibility();
+    }
+
+    void RestoreTerrainVisibility() {
+        TerrainHidden = PreferencesManager.workingDirectory != "" && PreferencesManager.Get("TerrainHidden", false);
+        GameEngine.Terrain.SetVisible(terrainObj, !TerrainHidden);
+    }
+
+    //the mask without the terrain while it's hidden, for what the user clicks or places
+    public static int ExcludeHiddenTerrain(int mask) {
+        return TerrainHidden ? mask & ~(1 << 3) : mask;
     }
 
     public void SwitchTransparency() {

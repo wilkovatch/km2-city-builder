@@ -145,9 +145,11 @@ The placement rules of the mesh instances (`meshInstance.placementRules` of thei
 | `placementRules.placerLayerMask` | Float expression: the collision mask (bit *n* = layer *n*) used when placing the instance with the mouse. `-1-2^13` means "everything except layer 13". |
 | `placementRules.autoYOffset` | Boolean expression: if true, the mesh is raised so that its lowest point sits on the placement point (unless `meshTransform` gives a transform). |
 | `placementRules.meshTransform` | Optional boolean expression: if true, the mesh is placed with the transform the core gives for it (see [Mesh transforms](#mesh-transforms)); if the core gives none, `autoYOffset` applies. |
-| `placementRules.snapToSurface` | Optional boolean expression: if true, the object goes back on the surface under it (the layers of `placerLayerMask`, plus flagged mesh projection targets) after being moved with the gizmo. Parametric objects also use it after `objects.projectToGround` and when placed by clicking (array points). The core setting `surfaceProjectionTerrainFallbackOnly` makes city surfaces win over the heightmap at any depth; otherwise the highest supported surface wins. The object's own collider is excluded. Used with `allowPosition` `[true, false, true]` it keeps objects on the ground. |
+| `placementRules.snapToSurface` | Optional boolean expression: if true, the object goes back on the surface under it (the layers of `placerLayerMask`) after being moved with the gizmo. Parametric objects also use it after `objects.projectToGround` and when placed by clicking (array points). The highest surface wins, but a road or another surface less than 0.5 m under the terrain wins over the terrain, so that a point on an MM2 road (15 cm under the sidewalks) isn't put on a terrain covering it. While the terrain is hidden (*View→Hide terrain grid*) it's skipped. The object's own collider is excluded. Used with `allowPosition` `[true, false, true]` it keeps objects on the ground. |
 
 The first three rules are required. They can use the parameters and static definitions.
+
+The mesh placement clicks hit the first surface of `placerLayerMask` under the mouse, and the meshes placed in a radius use the `snapToSurface` rule above. To place on a surface covered by the terrain, hide the terrain (*View→Hide terrain grid*). The core's `surfaceProjectionTerrainFallbackOnly` doesn't apply to placement.
 
 In both cases the position of the instance (the one that is exported) stays the placement point: only the mesh under it is moved.
 

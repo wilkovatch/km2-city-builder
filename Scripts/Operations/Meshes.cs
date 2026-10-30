@@ -71,7 +71,7 @@ namespace Operations {
             for (int i = 0; i < count; i++) {
                 var randomDir = new Vector3((float)rnd.NextDouble() - 0.5f, 0, (float)rnd.NextDouble() - 0.5f).Normalized();
                 var point = center + randomDir * radius * (float)rnd.NextDouble();
-                points.Add(GeometryHelper.ProjectPoint(point, mask));
+                points.Add(GeometryHelper.ProjectOnSurface(point, mask));
             }
             var res = new List<MeshInstance>();
             foreach (var point in points) {

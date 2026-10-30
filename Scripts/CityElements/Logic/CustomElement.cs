@@ -558,7 +558,10 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
                 var position = p.GetPoint();
                 if (!restored && !History.UndoManager.IsLoading && GO.IsNull(p.anchor) &&
                     (!splineProjectedPoints.TryGetValue(p, out var old) || !GeometryHelper.AreVectorsEqual(old, position))) {
-                    var projected = GeometryHelper.ProjectOnSurface(position, Settings.spline.projectionMask, generator);
+                    //with the rule of the sections, if they're projected too (as the clicks placing the points)
+                    var projected = Settings.spline.projectSections
+                        ? GeometryHelper.AutoProjectOnSurface(position, CityGroundHelper.ExcludeHiddenTerrain(Settings.spline.projectionMask), generator)
+                        : GeometryHelper.ProjectOnSurface(position, Settings.spline.projectionMask, generator);
                     if (!GeometryHelper.AreVectorsEqual(projected, position)) {
                         History.UndoManager.Touch(p);
                         GO.SetPosition(p.GetObject(), projected);

@@ -640,6 +640,7 @@ public partial class CityBuilderMenuBar : Control {
             SM.Get("CHANGE_OVERLAY_TRANSPARENCY"),
             SM.Get("SHOW_ALL_TRAFFIC_LANES"),
             SM.Get("TOGGLE_GROUND_ONLY"),
+            SM.Get("HIDE_TERRAIN_GRID"),
             SM.Get("TOGGLE_WIREFRAME"),
             SM.Get("RESET_WINDOW")
         };
@@ -648,6 +649,7 @@ public partial class CityBuilderMenuBar : Control {
             ChangeOverlayTransparency,
             ShowAllTrafficLanes,
             ToggleGroundOnly,
+            HideTerrainGrid,
             ToggleWireframe,
             ResetWindow
         });
@@ -668,6 +670,7 @@ public partial class CityBuilderMenuBar : Control {
         }
         var menuBar = GetMenuBar();
         menuBar.SetEntries(viewMenuIndex, entries, actions);
+        menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("HIDE_TERRAIN_GRID")), CityGroundHelper.TerrainHidden);
         for (int i = 0; i < toggles.Count; i++) menuBar.SetEntryChecked(viewMenuIndex, firstToggle + i, Rendering.ViewToggles.IsOn(toggles[i].name));
     }
 
@@ -941,6 +944,10 @@ public partial class CityBuilderMenuBar : Control {
             var res = cam.ToggleGroundOnly();
             nullModifier.groundOnly = res;
         }
+    }
+
+    void HideTerrainGrid() {
+        helper.SetTerrainHidden(!CityGroundHelper.TerrainHidden);
     }
 
     void ShowQuickstart() {

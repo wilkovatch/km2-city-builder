@@ -2352,6 +2352,11 @@ public static partial class GameEngine {
             if (terrainObj is Terrain3D terrain && GodotObject.IsInstanceValid(terrain)) terrain.SetCamera(camera);
         }
 
+        // Only the rendering: the collision stays, for the projections that follow the heightmap
+        public static void SetVisible(Node3D terrainObj, bool visible) {
+            if (terrainObj != null && GodotObject.IsInstanceValid(terrainObj)) terrainObj.Visible = visible;
+        }
+
         public static void SetMaterial(Node3D terrainObj, ShaderMaterial material) {
             if (!heightmaps.TryGetValue(terrainObj, out var state)) return;
             state.SurfaceMaterial = material;
