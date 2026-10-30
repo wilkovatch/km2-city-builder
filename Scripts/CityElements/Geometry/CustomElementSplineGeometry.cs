@@ -73,7 +73,42 @@ public static class CustomElementSplineGeometry {
             if (style?.color != null) line.color = CustomElementScripting.ReadColor(new Lua.LuaValue(style.color), line.color);
             return line;
         }
-        if (samples.Count >= 2) result.lines.Add(Line(samples, settings.line));
+        //Only the displayed/pickable line is trimmed; the curve and exported sections keep all controls.
+        List<Vector3> LinePositions() {
+            var start = Math.Max(0, settings.line?.trimStart ?? 0);
+            var end = controls.Count - 1 - Math.Max(0, settings.line?.trimEnd ?? 0);
+            if (start == 0 && end == controls.Count - 1) return samples;
+            if (start >= end) return new List<Vector3>();
+            List<Vector3> positions;
+            if (custom != null) {
+                var a = custom.controlParameters[start]; var b = custom.controlParameters[end];
+                if (a >= b) return new List<Vector3>();
+                positions = new List<Vector3> { custom.Position(a) };
+                for (int i = 0; i < evaluated.Value.parameters.Count; i++) {
+                    var t = evaluated.Value.parameters[i];
+                    if (t > a && t < b) positions.Add(evaluated.Value.points[i]);
+                }
+                positions.Add(custom.Position(b));
+            } else if (mode == (int)GH.CurveType.LowPoly) {
+                positions = controls.GetRange(start, end - start + 1);
+            } else {
+                var knots = GH.GetPointParameters(controls, (GH.CurveType)mode, state.Bool("subdivideEqually"));
+                var a = knots[start]; var b = knots[end];
+                if (a >= b) return new List<Vector3>();
+                var parameters = new SortedSet<float> { a, b };
+                for (int i = 1; i < segments; i++) {
+                    var t = i / (float)segments;
+                    if (t > a && t < b) parameters.Add(t);
+                }
+                var inner = controls.GetRange(1, controls.Count - 2);
+                positions = parameters.Select(t => GH.GetPointOnCurve(controls[0], inner, controls[^1], t, 0,
+                    (GH.CurveType)mode, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually"))).ToList();
+            }
+            return settings.projectSections
+                ? positions.Select(p => GH.ProjectOnSurface(p, settings.projectionMask, element.generator)).ToList() : positions;
+        }
+        var linePositions = LinePositions();
+        if (linePositions.Count >= 2) result.lines.Add(Line(linePositions, settings.line));
         if (settings.controlLine != null && controls.Count >= 2) result.lines.Add(Line(controls, settings.controlLine));
         if ((settings.components?.Length ?? 0) == 0) {
             var centerSections = new List<Section>(); float d = 0;

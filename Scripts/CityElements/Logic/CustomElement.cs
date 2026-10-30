@@ -33,6 +33,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     bool active = false;
     bool moveable = false;
     bool selected = false;
+    TerrainPoint placementPoint;
 
     //the positions as the constraints last saw them (null: not run yet, the next update only records them)
     Dictionary<TerrainPoint, Vector3> constraintPositions = null;
@@ -141,14 +142,16 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     //one that can't be moved (or isn't edited) doesn't hide or lock the points of the one that is
     static void ApplySharedPointState(TerrainPoint p) {
         if (p == null || p.IsDeleted()) return;
-        bool any = false, active = false, selected = false, moveable = false;
+        bool any = false, active = false, selected = false, moveable = false, highlighted = false;
         foreach (var link in p.GetLinks()) {
             if (link is not CustomElement e || e.deleted) continue;
             any = true;
             active |= e.active;
             selected |= e.selected;
             moveable |= e.active && e.moveable && !e.derivedFlag;
+            highlighted |= e.active && e.moveable && !e.derivedFlag && e.placementPoint == p;
         }
+        p.SetPlacementHighlighted(highlighted);
         if (!any) return; //only used by other kinds of elements, which set it
         p.ApplyCustomElementState(active, selected, moveable);
     }
@@ -262,6 +265,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     //the point is not used by the element any more (deleted if no other element uses it)
     void ReleasePoint(TerrainPoint point) {
         if (point == null || point.IsDeleted() || HasPoint(point)) return;
+        if (placementPoint == point) SetPlacementPoint(null);
         point.Select(false);
         point.RemoveLink(this);
         ApplySharedPointState(point); //as the other elements using it want it
@@ -369,8 +373,18 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
         pointStateVersion = -1;
     }
 
+    //Transient editor state: only the old and new placement references need their shared handle state refreshed.
+    public void SetPlacementPoint(TerrainPoint point) {
+        if (placementPoint == point) return;
+        var previous = placementPoint;
+        placementPoint = point;
+        ApplySharedPointState(previous);
+        ApplySharedPointState(point);
+    }
+
     public void SetActive(bool active, bool moveable) {
         if (deleted) return;
+        if (!active || !moveable) SetPlacementPoint(null);
         //Global editor resets visit every element, often several times. Only changed elements need to walk their
         //shared points and update the handles. A changed structure still needs its new points initialized.
         if (this.active == active && this.moveable == moveable && pointStateVersion == structureVersion) return;
@@ -451,6 +465,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
 
     public void Delete() {
         if (deleted) return;
+        SetPlacementPoint(null);
         History.UndoManager.Touch(this);
         var all = GetAllPoints();
         foreach (var point in all) point.RemoveLink(this);
@@ -463,6 +478,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
 
     //removes the element without deleting its points (used by undo/redo, which deletes them explicitly)
     public void RemoveForUndo() {
+        SetPlacementPoint(null);
         foreach (var point in GetAllPoints()) point.RemoveLinkSilently(this);
         points = new PointGroup(points.def);
         meshVertices.Clear();
@@ -474,6 +490,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     public void RestoreFromSnapshot(ObjectState newState, PointGroup newPoints, List<TerrainPoint> vertices, List<int> newTriangles,
         List<Vector2> newUVs, CustomElement newContainer, object newSource) {
 
+        SetPlacementPoint(null);
         var oldPoints = new HashSet<TerrainPoint>(GetAllPoints());
         state = newState;
         points = newPoints;

@@ -95,6 +95,7 @@ namespace CityElements.Types {
     public class CustomElementSplineLine {
         public string color = "yellow";
         public bool always;
+        public int trimStart, trimEnd;
     }
 
     public class CustomElementType: ITypeWithUI {

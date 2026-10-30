@@ -22,6 +22,7 @@ public partial class TerrainPoint : PhysicsScriptable {
     bool deleted = false;
     bool selected = true;
     bool applyingCustomElementState = false;
+    bool placementHighlighted;
     int updatedCount;
     bool updating = false; //in UpdatePosition (the points it depends on are updated first, see UpdateDependencies)
 
@@ -91,6 +92,7 @@ public partial class TerrainPoint : PhysicsScriptable {
                 isMoveable = false;
             }
         }
+        if (placementHighlighted) GS.Cast<Handle>(GetObject()).SetColor(GameEngine.Color.yellow);
         if (dividing) curScale *= 2.0f;
         GS.Cast<Handle>(GetObject()).SetScale(GameEngine.Vector3.one * curScale);
     }
@@ -99,6 +101,12 @@ public partial class TerrainPoint : PhysicsScriptable {
         if (deleted) return;
         InvalidateCustomElementState();
         this.selected = selected;
+        SetupAnchorMode();
+    }
+
+    internal void SetPlacementHighlighted(bool highlighted) {
+        if (deleted || placementHighlighted == highlighted) return;
+        placementHighlighted = highlighted;
         SetupAnchorMode();
     }
 

@@ -200,6 +200,7 @@ namespace Api {
                 } else if (focus == "trains") {
                     await NewCity();
                     await TrainSplines();
+                    await SplinePlacementHighlights("train");
                     await CustomRoadSplines();
                 } else if (focus == "splines") {
                     await NewCity();
@@ -207,6 +208,7 @@ namespace Api {
                     await Decals();
                     await SplineComponents();
                     await ReloadSplines();
+                    await SplinePlacementHighlights("decal");
                     await ExportDecalNames("psdl");
                 } else if (focus == "propPaths") {
                     await NewCity();

@@ -490,6 +490,7 @@ namespace EditorPanels {
                 _ => ElementPlacer.CustomElementPlacer.PlacementMode.None
             };
             GetElement()?.SetActive(true, true);
+            placer.UpdatePlacementPoint();
         }
 
         public void SetPointPlacementMode(int mode) {
@@ -768,12 +769,14 @@ namespace EditorPanels {
             HighlightContents(element, true);
             ShowContainerLines(element);
             ShowMoveHandle(element);
+            GetPlacer()?.UpdatePlacementPoint();
         }
 
         void OnFrame() {
             if ((GetElement() != builtElement || (GetElement()?.TypeName ?? draft?.Str("type", null)) != builtType) && lastCanvas != null) Rebuild();
             ShowSelectedPoint();
             UpdateContentOutline();
+            GetPlacer()?.UpdatePlacementPoint();
         }
 
         //built again while open (for another element, or to list what changed, e.g. the ribbons of a prop path): the new

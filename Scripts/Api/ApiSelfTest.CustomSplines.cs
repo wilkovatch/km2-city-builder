@@ -46,6 +46,16 @@ namespace Api {
             CustomElement Element() => (CustomElement)History.UndoManager.GetAliveElement(id);
             var element = Element();
             Check("train creates a line without surface geometry", !element.generator.DrawsMesh() && element.generator.m.GetSurfaceCount() == 0 && element.splineData.sections.Length > controls.Count);
+            var preview = CustomElementSplineGeometry.Build(element, out var fullSpline);
+            var offset = new Vector3(-450,25,-150);
+            Check("train draws only its yellow route, without a cyan control polygon", preview.lines.Count == 1 && preview.lines[0].color == GameEngine.Color.yellow);
+            var displayedRoute = preview.lines[0].points;
+            Check("train preview stops exactly at its second and penultimate controls", displayedRoute[0].DistanceTo(controls[1]+offset) < .0001f
+                && displayedRoute[^1].DistanceTo(controls[^2]+offset) < .0001f);
+            var interior = fullSpline.sections.Where(s => s.parameter >= .25f && s.parameter <= .75f).Select(s => s.Position).ToArray();
+            Check("train trimming preserves the evaluated curve and full derived sections", displayedRoute.SequenceEqual(interior)
+                && fullSpline.sections[0].Position.DistanceTo(controls[0]+offset) < .0001f
+                && fullSpline.sections[^1].Position.DistanceTo(controls[^1]+offset) < .0001f);
             builder.CloseAllPanels(); element.SetActive(false,false); element.Select(false);
             var lines = element.generator.FindChildren("*", "", true, false).OfType<GameEngine.LineRenderer>().ToArray();
             Check("train preview remains visible when deselected", lines.Any(l => l.enabled));
@@ -53,6 +63,22 @@ namespace Api {
             var middle = element.splineData.sections[element.splineData.sections.Length/2].center;
             var position = new Vector3(middle[0],middle[1],middle[2]);
             Check("deselected train can be selected through its line collider",GameEngine.Raycast.DoRaycast(element,position+Vector3.Up*20,Vector3.Down,out var hit,40,1<<7) && hit.collider == element.generator);
+            var omitted = curve.Position(.125f)+offset;
+            Check("trimmed train end spans cannot be picked through the route collider", !GameEngine.Raycast.DoRaycast(element,omitted+Vector3.Up*20,Vector3.Down,out _,40,1<<7));
+            builder.SelectObject(element, true, null);
+            await Frames(2);
+            Check("editing a train does not restore the cyan control polygon", element.generator.FindChildren("*", "", true, false).OfType<GameEngine.LineRenderer>().Count(l => l.enabled) == 1);
+            builder.CloseAllPanels();
+            for (int count = 0; count <= 3; count++) {
+                var incomplete = (await Call("customElement.create", new { type="train", name="Short train " + count,
+                    points=new { spline=controls.Take(count).Select(p => new { position=SplinePosition(p+new Vector3(-600,25,-150)) }).ToArray() } })).Value<int>();
+                var shortTrain = (CustomElement)History.UndoManager.GetAliveElement(incomplete);
+                builder.SelectObject(shortTrain, true, null);
+                await Frames(1);
+                Check("train with " + count + " controls remains editable without a route line", shortTrain.GetAllPoints().Count == count
+                    && builder.customElementEditorPanel.ActiveSelf() && CustomElementSplineGeometry.Build(shortTrain,out _).lines.Count == 0);
+                await Call("customElement.delete",new {element=incomplete});
+            }
             Check("trains have no preset category", Operations.CustomElementPresets.Category("train") == null);
             var schema = await Call("state.schema",new { @ref=id });
             Check("train schema has no presets", schema["presetCategory"].Type == JTokenType.Null);
@@ -77,6 +103,110 @@ namespace Api {
             Check("train save/reload rebuilds the custom preview",element.state.Int("curveType") == 3 && element.GetAllPoints().Count() == authored.Count && element.splineData.sections.Length > authored.Count);
             var json = Path.Combine(folder,"..","trains_export.json");
             await Call("city.exportJson",new {path=json});
+        }
+
+        async Task SplinePlacementHighlights(string type) {
+            Log(type + " placement highlights");
+            var panel = builder.customElementEditorPanel;
+            var placer = builder.customElementPlacer;
+            var colorField = typeof(Handle).GetField("handleColor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Color ColorOf(TerrainPoint p) => (Color)colorField.GetValue(GameEngine.Scriptable.Cast<Handle>(p.GetObject()));
+            bool Yellow(TerrainPoint p) => ColorOf(p) == GameEngine.Color.yellow;
+            TerrainPoint[] Points() => placer.GetElement().GetLeaves().Select(p => p.leaf.point).ToArray();
+            void Place(Vector3 position) => History.UndoManager.Record("place " + type + " point", () =>
+                placer.PlaceAt(new GameEngine.Raycast.RaycastHit { point=position }));
+            builder.CloseAllPanels();
+            History.UndoManager.Record("start " + type, () => CallBuilder<object>("StartCustomElementCreation", type, "CREATE_CUSTOM_ELEMENT"));
+            await Frames(2);
+            var origin = new Vector3(600,0,type == "train" ? 600 : 750);
+            Place(origin); await Frames(2);
+            Check(type + " creation highlights its first placement point", Points().Length == 1 && Yellow(Points()[0]));
+            for (int i = 1; i <= 3; i++) Place(origin+new Vector3(i*20,0,i*5));
+            await Frames(3);
+            var element = placer.GetElement();
+            var id = History.ElementRegistry.GetId(element);
+            var points = Points();
+            Check(type + " append highlights only the last point", points.Take(points.Length-1).All(p => !Yellow(p)) && Yellow(points[^1]));
+            var oldEnd = points[^1];
+            oldEnd.Select(false); oldEnd.UpdateOlds();
+            Check(type + " placement color survives point selection and frame color updates", Yellow(oldEnd));
+            panel.SetPointPlacementMode(2); await Frames(2);
+            Check(type + " prepend changes the highlighted end", Yellow(Points()[0]) && !Yellow(oldEnd));
+            var oldStart = Points()[0];
+            Place(origin-new Vector3(20,0,5)); await Frames(2);
+            Check(type + " prepending moves the highlight to the new first point", Yellow(Points()[0]) && !Yellow(oldStart));
+            var reference = Points()[2];
+            builder.gizmo.ClearTargets(); builder.gizmo.AddTarget(reference.GetObject());
+            foreach (var mode in new[] { 3, 4 }) {
+                panel.SetPointPlacementMode(mode); await Frames(2);
+                Check(type + " insertion mode " + mode + " highlights only the selected reference", Yellow(reference)
+                    && Points().Where(p => p != reference).All(p => !Yellow(p)));
+            }
+            builder.gizmo.ClearTargets(); await Frames(2);
+            Check(type + " insertion without a reference has no yellow point", Points().All(p => !Yellow(p)));
+            panel.SetPointPlacementMode(0); await Frames(1);
+            Check(type + " disabling placement restores all point colors", Points().All(p => !Yellow(p)));
+            panel.SetPointPlacementMode(1); await Frames(1);
+            History.UndoManager.Record("remove highlighted " + type + " endpoint", () => {
+                Operations.CustomElements.RemovePoint(element, Points()[^1]); M.FlagAsChanged();
+            });
+            await Frames(3);
+            Check(type + " removing the highlighted endpoint marks the remaining end", Yellow(Points()[^1]));
+            History.UndoManager.Undo(); await Frames(3);
+            Check(type + " undo restores placement mode and endpoint color", placer.GetElement() == History.UndoManager.GetAliveElement(id)
+                && Points().Length == 5 && Yellow(Points()[^1]));
+            History.UndoManager.Redo(); await Frames(3);
+            Check(type + " redo refreshes endpoint color", Points().Length == 4 && Yellow(Points()[^1]));
+            element = placer.GetElement();
+            var shared = Points()[^1];
+            CustomElement other = null;
+            History.UndoManager.Record("share " + type + " placement point", () => {
+                other = Operations.CustomElements.Create(M,type,origin);
+                Operations.CustomElements.AppendPoint(M,other,"spline",shared.GetObject(),shared.GetPoint());
+            });
+            other.SetActive(false,false); other.Select(false);
+            Check(type + " an inactive shared-point owner preserves the placement color", Yellow(shared));
+            other.SetActive(true,true); other.SetPlacementPoint(shared);
+            panel.SetPointPlacementMode(0);
+            Check(type + " another active owner retains its shared-point highlight", Yellow(shared));
+            other.SetActive(false,false);
+            Check(type + " the shared-point color restores when both owners stop highlighting", !Yellow(shared));
+            panel.SetPointPlacementMode(1); await Frames(2);
+            builder.CloseAllPanels(); await Frames(2);
+            Check(type + " closing the editor clears the placement highlight", !Yellow(shared));
+            builder.SelectObject(element,true,null); panel.SetPointPlacementMode(2); await Frames(2);
+            Check(type + " reopening follows the new placement mode", Yellow(Points()[0]) && !Yellow(shared));
+            if (type == "decal") SplineLineTrimming(element);
+            builder.CloseAllPanels();
+            await Call("customElement.delete",new {element=id});
+            await Call("customElement.delete",new {element=History.ElementRegistry.GetId(other)});
+        }
+
+        void SplineLineTrimming(CustomElement element) {
+            var settings = element.Settings.spline;
+            var oldLine = settings.line;
+            var oldMode = element.state.Int("curveType");
+            try {
+                settings.line = new CityElements.Types.CustomElementSplineLine { trimStart=1, trimEnd=1 };
+                var controls = element.GetLeaves().Select(p => p.leaf.point.GetPoint()).ToList();
+                foreach (var mode in new[] { 0, 1, 2 }) {
+                    element.state.SetInt("curveType",mode);
+                    var result = CustomElementSplineGeometry.Build(element,out _);
+                    var knots = GeometryHelper.GetPointParameters(controls,(GeometryHelper.CurveType)mode,element.state.Bool("subdivideEqually"));
+                    Vector3 Expected(int index) {
+                        var p = mode == 2 ? controls[index] : GeometryHelper.GetPointOnCurve(controls[0],controls.GetRange(1,controls.Count-2),controls[^1],knots[index],index,
+                            (GeometryHelper.CurveType)mode,element.state.Float("hermiteTension",.5f),element.state.Bool("subdivideEqually"));
+                        return GeometryHelper.ProjectOnSurface(p,settings.projectionMask,element.generator);
+                    }
+                    Check("generic line trimming supports projected curve " + mode, result.lines.Count == 1
+                        && result.lines[0].points[0].DistanceTo(Expected(1)) < .001f && result.lines[0].points[^1].DistanceTo(Expected(controls.Count-2)) < .001f);
+                }
+                settings.line.trimStart = int.MaxValue;
+                Check("trimming past the spline hides the line safely",CustomElementSplineGeometry.Build(element,out _).lines.Count == 0);
+            } finally {
+                settings.line = oldLine;
+                element.state.SetInt("curveType",oldMode);
+            }
         }
 
         async Task CustomRoadSplines() {

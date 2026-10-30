@@ -34,6 +34,7 @@ namespace ElementPlacer {
         }
 
         public void SetElement(CustomElement element) {
+            if (!GO.IsNull(curElement) && !curElement.IsDeleted()) curElement.SetPlacementPoint(null);
             curElement = GO.IsNull(element) || (element != null && element.IsDeleted()) ? null : element;
         }
 
@@ -44,6 +45,7 @@ namespace ElementPlacer {
 
         bool Guards(List<RaycastHit?> hits) {
             onFrame?.Invoke();
+            UpdatePlacementPoint();
             if (placementMode == PlacementMode.None) return false;
             if (GetElement()?.Settings?.spline != null && placementMode != PlacementMode.Create &&
                 (GameEngine.Gizmo.IsNearAxis() || (hits[0].HasValue &&
@@ -107,6 +109,26 @@ namespace ElementPlacer {
                     break;
             }
             UnselectPointDelayed();
+            UpdatePlacementPoint();
+        }
+
+        public void UpdatePlacementPoint() {
+            var element = GetElement();
+            if (element?.Settings?.spline == null) return;
+            var list = element.points.Get("spline") as CustomElements.PointList;
+            TerrainPoint point = null;
+            if (element.IsActive() && list?.items.Count > 0) {
+                if (placementMode == PlacementMode.AppendPoint) point = ((CustomElements.PointLeaf)list.items[^1]).point;
+                else if (placementMode == PlacementMode.PrependPoint) point = ((CustomElements.PointLeaf)list.items[0]).point;
+                else if (placementMode == PlacementMode.InsertPoint) {
+                    var target = manager.builder.gizmo.mainTargetRoot;
+                    if (!GO.IsNull(target)) {
+                        var selected = GS.FindRecursive<TerrainPoint>(target);
+                        if (selected != null && !selected.IsDeleted() && element.HasPoint(selected)) point = selected;
+                    }
+                }
+            }
+            element.SetPlacementPoint(point);
         }
 
         //the click is on the first point of the closed array points are added to
@@ -126,6 +148,7 @@ namespace ElementPlacer {
             manager.builder.gizmo.allowDeselect = true;
             manager.builder.gizmo.ClearTargets();
             manager.builder.gizmo.allowDeselect = oldDeselect;
+            UpdatePlacementPoint();
         }
 
         public override void ShowOnMap(List<RaycastHit?> hits) {

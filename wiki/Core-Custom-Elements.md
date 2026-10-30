@@ -186,6 +186,8 @@ Spline-driven types also support [core-defined custom curves](Core-Splines), sha
 
 A type can define `spline` instead of a point tree or an editable mesh. The user places individual points, as for roads: the first click creates one point and drawing continues. The editor supports adding at either end, inserting before or after a selected point, moving and removing points. Splines have no road intersections, splitting or merging.
 
+While placing points, the placement reference is yellow: the last point when appending, the first when prepending, or the selected point when inserting before or after it. With no insertion reference, or when placement is disabled, points keep their normal colors. This editor highlight is not saved in the city.
+
 ```json
 {
     "createMenu": { "direct": true },
@@ -209,6 +211,8 @@ Geometry uses the [road component format](Core-Roads), including local definitio
 |---|---|
 | `curveTypes`, `defaultCurveType` | Allowed curve IDs and the initial mode: `0` Bézier, `1` Hermite, `2` low-poly, or a registered [custom curve ID](Core-Splines). The list must be nonempty and contain the default. |
 | `segments`, `segmentsPer100m` | Initial smooth-curve resolution, fixed or per 100 m. Low-poly uses the control points directly. |
+| `line`, `controlLine` | Optional line styles with `color` (default `"yellow"`) and `always` (default `false`, shown only while editing). `line` styles the evaluated spline; omitting it keeps the default editing line. `controlLine` adds a straight control polygon only when configured. |
+| `line.trimStart`, `line.trimEnd` | Counts of control-point spans to omit from the beginning/end of the displayed spline, default `0`; negative values act as `0`. Boundaries use the curve's control-point parameters (Bernstein weight peaks for Bezier). If no span remains, the line is hidden. Picking follows the displayed line. All controls still shape the curve, and derived sections, meshes and export data are unaffected. |
 | `projectPoints`, `projectSections` | Project placed/moved control points and/or evaluated sections onto surfaces. Point projection preserves recorded heights during undo and redo. |
 | `projectionMask` | Surface collision mask, default terrain and generated geometry (`136`). The element's own collider is excluded. |
 | `maxMiter` | Corner width multiplier limit, default `2`. |
