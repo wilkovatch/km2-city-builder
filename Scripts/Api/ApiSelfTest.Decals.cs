@@ -33,6 +33,7 @@ namespace Api {
             Check("prepend places an individual point at the clicked position", clicked.GetLeaves()[0].leaf.point.GetPoint().Z == -720);
             var clickedId = History.ElementRegistry.GetId(clicked);
             await Call("customElement.delete", new { element = clickedId });
+            await IntersectionDecalPlacement();
             var grouped = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemText(i) == StringManager.Get("CREATE_PSDL_ELEMENT"));
             menu.EmitSignal(PopupMenu.SignalName.IdPressed, menu.GetItemId(grouped));
             var groupedTypes = (List<string>)typeof(EditorPanels.CustomElementEditorPanel).GetField("creatableTypes",
@@ -97,6 +98,56 @@ namespace Api {
                 await Call("view.camera.set", new { position = SplinePosition(previousPosition), target = SplinePosition(previousPosition + Vec(previousCamera["forward"])) });
             }
             await RailDecalGeneration();
+        }
+
+        async Task IntersectionDecalPlacement() {
+            var junction = M.intersections.First(i => !i.IsDeleted() && !Operations.CustomElements.IsGhost(i) && i.roads.Count >= 3);
+            var center = GO.GetPosition(junction.point);
+            var placer = new ElementPlacer.CustomElementPlacer(M) {
+                createType = "decal", placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.Create
+            };
+            await ToSignal(GetTree(), "physics_frame"); await Frames(2);
+            var expected = new List<Vector3>();
+            foreach (var offset in new[] { new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 0, 1) }) {
+                var origin = center + offset + Vector3.Up * 100;
+                var found = placer.Raycast(builder.helper, origin, Vector3.Down, out var hit, 200, placer.GetLayerMasks()[2]);
+                Check("decal placement ray hits the intersection surface", found && hit.collider == junction.generator);
+                if (!found || hit.collider != junction.generator) continue;
+                expected.Add(hit.point);
+                placer.ShowOnMap(new List<GameEngine.Raycast.RaycastHit?> { null, null, hit });
+                var preview = (Node3D)typeof(ActionHandlerManager).GetField("handle",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null);
+                Check("decal hover follows the intersection surface under the mouse", GO.GetPosition(preview).DistanceTo(hit.point) < .002f);
+                History.UndoManager.Record("place decal on intersection", () => placer.PlaceAt(hit));
+                var points = placer.GetElement().GetLeaves().Select(l => l.leaf.point).ToArray();
+                Check("decal points keep their distinct intersection hit positions without corner attachments", points.Length == expected.Count
+                    && points.Select((p, i) => p.anchor == null && p.GetPoint().DistanceTo(expected[i]) < .002f).All(matches => matches));
+            }
+            var element = placer.GetElement();
+            if (element == null) return;
+            try {
+                var anchor = junction.anchorManager.GetTerrainAnchors().First();
+                placer.ShowOnMap(new List<GameEngine.Raycast.RaycastHit?> {
+                    new GameEngine.Raycast.RaycastHit { collider = anchor.GetObject(), point = anchor.GetPoint() }, null, null
+                });
+                Check("deliberate intersection anchor hits still preview the anchor", Actions.Helpers.GetAnchorInfo(anchor.GetObject(), center).pos == anchor.GetPoint());
+                History.UndoManager.Record("snap decal to intersection anchor", () => placer.PlaceAt(new GameEngine.Raycast.RaycastHit {
+                    collider = anchor.GetObject(), point = anchor.GetPoint()
+                }));
+                Check("deliberate intersection anchor hits still attach decal points", element.GetLeaves()[^1].leaf.point.anchor == anchor);
+                var shared = element.GetLeaves()[0].leaf.point;
+                Check("deliberate point hits still share the clicked point", Operations.CustomElements.PointFromClick(M, shared.GetObject(), center) == shared);
+                var link = GameEngine.Scriptable.FindRecursive<PointLink>(anchor.GetObject());
+                if (link != null) {
+                    var position = (anchor.GetPoint() + GO.GetPosition(link.next)) / 2;
+                    History.UndoManager.Record("snap decal to intersection edge", () => placer.PlaceAt(new GameEngine.Raycast.RaycastHit { collider = link, point = position }));
+                    Check("deliberate edge hits still attach decal points to the edge", element.GetLeaves()[^1].leaf.point.anchor is LineAnchor
+                        && element.GetLeaves()[^1].leaf.point.GetPoint().DistanceTo(position) < .002f);
+                }
+            } finally {
+                placer.SetElement(null);
+                await Call("customElement.delete", new { element = History.ElementRegistry.GetId(element) });
+            }
         }
 
         async Task RailDecalGeneration() {

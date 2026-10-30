@@ -967,6 +967,16 @@ public static partial class GameEngine {
             return obj as T;
         }
 
+        //A component of this object, without entering independently pickable child objects (e.g. surface anchors).
+        public static T FindComponent<T>(Node3D obj) where T : Node3D {
+            if (obj == null || !GodotObject.IsInstanceValid(obj)) return null;
+            if (obj is T component) return component;
+            foreach (var child in obj.GetChildren()) {
+                if (child is T result && GodotObject.IsInstanceValid(result)) return result;
+            }
+            return null;
+        }
+
         public static T FindRecursive<T>(Node3D obj) where T : Node3D {
             if (obj == null || !GodotObject.IsInstanceValid(obj)) return null;
             T res = Cast<T>(obj);

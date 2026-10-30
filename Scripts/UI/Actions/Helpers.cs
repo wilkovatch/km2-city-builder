@@ -32,9 +32,9 @@ namespace Actions {
 
         public static (Vector3 pos, float size, Color color) GetAnchorInfo(GameObject obj, Vector3 point) {
             var skipping = Input.GetInputPressed(KeyCommand.Modifier2);
-            var anchor = obj == null ? null : GS.FindRecursive<TerrainAnchor>(obj);
+            var anchor = GS.FindComponent<TerrainAnchor>(obj);
             if (anchor == null) { //check if on anchor
-                var p = obj == null ? null : GS.FindRecursive<TerrainPoint>(obj);
+                var p = GS.FindComponent<TerrainPoint>(obj);
                 if (p != null && p.anchor is TerrainAnchor ta && !GO.IsNull(ta)) {
                     anchor = ta;
                 }
@@ -42,7 +42,7 @@ namespace Actions {
             if (anchor != null) {
                 return (anchor.GetPoint(), 1.2f, skipping ? (GameEngine.Color.yellow + GameEngine.Color.red) * 0.5f : GameEngine.Color.yellow);
             } else {
-                var oldPoint = obj == null ? null : GS.FindRecursive<TerrainPoint>(obj);
+                var oldPoint = GS.FindComponent<TerrainPoint>(obj);
                 if (oldPoint == null) {
                     var pointLink = obj == null ? null : GS.Cast<PointLink>(obj);
                     if (pointLink != null) {

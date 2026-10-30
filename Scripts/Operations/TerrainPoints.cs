@@ -11,12 +11,12 @@ namespace Operations {
         public static IAnchorable AttachmentFromClick(Node3D obj, Vector3 position, bool generatedOnly = true, TerrainPoint point = null) {
             if (obj == null) return null;
             var buildingPoint = generatedOnly && point != null && point.GetLinks().Exists(e => e is BuildingLine);
-            var clicked = GS.FindRecursive<TerrainPoint>(obj);
+            var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked != null && !clicked.IsDeleted() && (!generatedOnly || (buildingPoint && clicked.GetLinks().Exists(e => e is TerrainPatch)))) {
                 return DependsOn(clicked, point) ? null : new PointAnchor(clicked);
             }
-            var anchor = GS.FindRecursive<TerrainAnchor>(obj);
-            if (anchor == null && generatedOnly) anchor = GS.FindRecursive<TerrainPoint>(obj)?.anchor as TerrainAnchor;
+            var anchor = GS.FindComponent<TerrainAnchor>(obj);
+            if (anchor == null && generatedOnly) anchor = clicked?.anchor as TerrainAnchor;
             if (anchor != null && !anchor.IsDeleted() && (!generatedOnly || !anchor.customElementsOnly)) return anchor;
             var link = GS.Cast<PointLink>(obj);
             if (link == null || GO.IsNull(link.next)) return null;

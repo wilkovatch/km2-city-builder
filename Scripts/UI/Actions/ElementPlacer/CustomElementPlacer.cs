@@ -49,7 +49,7 @@ namespace ElementPlacer {
             if (placementMode == PlacementMode.None) return false;
             if (GetElement()?.Settings?.spline != null && placementMode != PlacementMode.Create &&
                 (GameEngine.Gizmo.IsNearAxis() || (hits[0].HasValue &&
-                GS.FindRecursive<TerrainPoint>((Node3D)hits[0].Value.collider) is TerrainPoint p && curElement.HasPoint(p)))) return false;
+                GS.FindComponent<TerrainPoint>((Node3D)hits[0].Value.collider) is TerrainPoint p && curElement.HasPoint(p)))) return false;
             if (!hits[0].HasValue && !hits[1].HasValue && !hits[2].HasValue) return false;
             ShowOnMap(hits);
             if (!Input.GetInputStart(KeyCommand.Select)) return false;
@@ -135,7 +135,7 @@ namespace ElementPlacer {
         bool ClosesArray(Node3D obj) {
             var list = CustomElements.PointTree.Find(curElement.points, arrayPath) as CustomElements.PointList;
             if (list == null || !list.def.array.closed || list.items.Count < 2) return false;
-            var clicked = obj == null ? null : GS.FindRecursive<TerrainPoint>(obj);
+            var clicked = GS.FindComponent<TerrainPoint>(obj);
             return clicked != null && list.items[0] is CustomElements.PointLeaf first && first.point == clicked;
         }
 

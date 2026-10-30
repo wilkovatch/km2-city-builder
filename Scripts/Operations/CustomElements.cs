@@ -156,9 +156,9 @@ namespace Operations {
         //the point for a click on obj (at position): the clicked terrain point itself (shared), a new point on the clicked
         //anchor or segment between two points, or a new free point
         public static TerrainPoint PointFromClick(ElementManager manager, Node3D obj, Vector3 position) {
-            var clicked = obj == null ? null : GameEngine.Scriptable.FindRecursive<TerrainPoint>(obj);
+            var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked != null && !clicked.IsDeleted()) return clicked;
-            IAnchorable anchor = obj == null ? null : GameEngine.Scriptable.FindRecursive<TerrainAnchor>(obj);
+            IAnchorable anchor = GS.FindComponent<TerrainAnchor>(obj);
             if (anchor == null && obj != null) {
                 var link = GameEngine.Scriptable.Cast<PointLink>(obj);
                 if (link != null) anchor = new LineAnchor(GO.GetParent(link), link.next, position);
@@ -232,7 +232,7 @@ namespace Operations {
             }
             if (holders.Count > 0) list = holders[nearest].list;
             //a point is in an array of points once (clicking the first point of a closed array closes it instead)
-            var clicked = obj == null ? null : GameEngine.Scriptable.FindRecursive<TerrainPoint>(obj);
+            var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked != null && list.items.Exists(item => item is global::CustomElements.PointLeaf l && l.point == clicked)) return null;
             if (!element.InsertArrayElement(arrayPath, list.items.Count)) return null;
             for (int i = 0; i < holders.Count; i++) {
@@ -280,7 +280,7 @@ namespace Operations {
         //the point of the element is replaced with the clicked terrain point (shared with its elements from now on), or
         //attached to the clicked anchor or segment; returns the point the element now has, null if nothing was clicked
         public static TerrainPoint AttachPoint(ElementManager manager, CustomElement element, TerrainPoint point, Node3D obj, Vector3 position) {
-            var clicked = obj == null ? null : GameEngine.Scriptable.FindRecursive<TerrainPoint>(obj);
+            var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked != null && !clicked.IsDeleted()) {
                 if (clicked == point) return point;
                 element.ReplacePoint(point, clicked);
