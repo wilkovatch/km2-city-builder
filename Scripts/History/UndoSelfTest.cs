@@ -24,19 +24,21 @@ namespace History {
         //connected to the middle of other roads, on a new city; load: a copy of an existing city, the terrain under its
         //intersections is edited, undone and redone; drag: the middle mouse drag of the numeric fields, on a new city;
         //dropdown: the keyboard navigation of the dropdown lists and the camera under them, on a new city;
-        //selection: selection and deselection timings and handle cleanup, on a copy of an existing city
-        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection" };
+        //selection: selection and deselection timings and handle cleanup, on a copy of an existing city;
+        //placement: control point selection and insertion on the first roads created after startup, on a new city
+        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection", "placement" };
 
         public static void Start(CityBuilderMenuBar builder, string folder, string mode) {
             builder.AddChild(new UndoSelfTest {
                 builder = builder, folder = folder, Name = "UndoSelfTest",
-                propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", loadExisting = mode == "load",
+                propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", placementOnly = mode == "placement", loadExisting = mode == "load",
                 dragOnly = mode == "drag", dropdownOnly = mode == "dropdown", selectionOnly = mode == "selection"
             });
         }
 
         bool propsSelection = false;
         bool splitOnly = false;
+        bool placementOnly = false;
         bool dragOnly = false;
         bool dropdownOnly = false;
         bool selectionOnly = false;
@@ -756,7 +758,7 @@ namespace History {
             else if (uiRestore) RunUIRestore();
             else if (propsSelection) RunPropsSelection();
             else if (loadExisting) RunOnExistingCity();
-            else if (splitOnly) RunSplit();
+            else if (splitOnly || placementOnly) RunSplit();
             else if (dragOnly) RunDrag();
             else if (dropdownOnly) RunDropdown();
             else Run();
@@ -1751,15 +1753,95 @@ namespace History {
             Check("backwards mode: the first point is no longer marked after closing the editor", edited != null && !edited.markFirstPoint);
         }
 
+        //must run before SelectObject or the transform panel is used: selecting an object resets the gizmo's selection state
+        async Task FirstRoadPlacementTests() {
+            var panel = Panel<EditorPanels.RoadEditorPanel>("roadEditorPanel");
+            var cam = GetViewport().GetCamera3D();
+            GO.SetPosition(cam, new Vector3(0, 250, -250));
+            GO.LookAt(cam, Vector3.Zero);
+            await Frames(6);
+
+            async Task<Vector3?> Click(Vector3 point) {
+                GetViewport().WarpMouse(cam.UnprojectPosition(GameEngine.Vector3.DecodePosition(point)));
+                await Frames(3);
+                var mouse = GetViewport().GetMousePosition();
+                var ray = GameEngine.Raycast.GetRayFromScreen(cam, mouse);
+                var onGround = GameEngine.Raycast.DoRaycast(builder.helper, ray.origin, ray.direction, out var hit, 100000f, 1 << 3);
+                InputEventMouseButton Event(bool pressed) => new InputEventMouseButton {
+                    ButtonIndex = MouseButton.Left, Pressed = pressed, Position = mouse, GlobalPosition = mouse
+                };
+                Input.ParseInputEvent(Event(true));
+                await Frames(2);
+                Input.ParseInputEvent(Event(false));
+                await Frames(6);
+                return onGround ? hit.point : null;
+            }
+
+            for (int i = 0; i < 2; i++) {
+                var label = "placement: road " + (i + 1);
+                UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+                await Frames(6);
+                var placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
+                var road = placer.GetRoad(false);
+                var z = i * 80;
+                foreach (var x in new[] { -80, 0, 80 }) await Click(new Vector3(x, 0, z));
+                Check(label + " is drawn with three terrain clicks", road.points.Count == 3);
+                if (road.points.Count != 3) return;
+                var middle = road.points[1];
+
+                foreach (var mode in new[] { ElementPlacer.RoadPlacer.PlacementMode.Insert, ElementPlacer.RoadPlacer.PlacementMode.InsertBefore }) {
+                    panel.SetPointPlacementMode((int)mode);
+                    builder.gizmo.ClearTargets();
+                    await Frames(3);
+                    var count = road.points.Count;
+                    await Click(GO.GetPosition(middle));
+                    Check(label + " selects a control point in " + mode + " mode", builder.gizmo.mainTargetRoot == middle);
+                    Check(label + " selection adds no point in " + mode + " mode", road.points.Count == count);
+                    var index = road.points.IndexOf(middle) + (mode == ElementPlacer.RoadPlacer.PlacementMode.Insert ? 1 : 0);
+                    //away from the gizmo axes; use the actual ray hit since the mouse is rounded to a screen pixel
+                    var position = await Click(new Vector3(mode == ElementPlacer.RoadPlacer.PlacementMode.Insert ? 30 : -30, 0, z - 60));
+                    Check(label + " inserts a point " + (mode == ElementPlacer.RoadPlacer.PlacementMode.Insert ? "after" : "before") + " the selected point", road.points.Count == count + 1
+                        && position.HasValue && GO.GetPosition(road.points[index]).DistanceTo(position.Value) < 0.1f
+                        && road.points[mode == ElementPlacer.RoadPlacer.PlacementMode.Insert ? index - 1 : index + 1] == middle);
+                }
+                InvokeBuilder("DeselectAndCloseCurrentPanel");
+                await Frames(6);
+                if (i == 0) {
+                    builder.SelectObject(road, true, null);
+                    panel.SetPointPlacementMode((int)ElementPlacer.RoadPlacer.PlacementMode.Insert);
+                    await Frames(3);
+                    await Click(GO.GetPosition(middle));
+                    Check(label + " also selects points after reopening", builder.gizmo.mainTargetRoot == middle);
+
+                    InvokeBuilder("EditCurSelectedObjectTransform");
+                    await Frames(6);
+                    var transformPanel = Panel<EditorPanels.TransformPropertiesEditorPanel>("transformPropertiesEditorPanel");
+                    Check("placement: the transform panel locks point selection", transformPanel.ActiveSelf() && !builder.gizmo.allowDeselect);
+                    await Click(GO.GetPosition(road.points[0]));
+                    Check("placement: world clicks keep the point being edited in the transform panel", builder.gizmo.mainTargetRoot == middle);
+                    typeof(EditorPanels.TransformPropertiesEditorPanel).GetMethod("EndHandleEditing",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(transformPanel, null);
+                    await Frames(6);
+                    await Click(GO.GetPosition(road.points[0]));
+                    Check("placement: closing the transform panel restores point selection", panel.ActiveSelf() && builder.gizmo.mainTargetRoot == road.points[0]);
+                    InvokeBuilder("DeselectAndCloseCurrentPanel");
+                    await Frames(6);
+                }
+            }
+        }
+
         async void RunSplit() {
             var lastCity = SettingsManager.Get("LastCity", "");
             try {
                 await LoadNewCity(2048); //room for roads much longer than the size of their intersections (the default road type is 40 m wide)
-                await SplitTests();
-                await SplitLinesScreenshot();
-                await SplitModeTest();
-                await BackwardsTests();
-                await BackwardsModeTest();
+                if (placementOnly) await FirstRoadPlacementTests();
+                else {
+                    await SplitTests();
+                    await SplitLinesScreenshot();
+                    await SplitModeTest();
+                    await BackwardsTests();
+                    await BackwardsModeTest();
+                }
             } catch (System.Exception e) {
                 Log("exception: " + e);
                 failures++;

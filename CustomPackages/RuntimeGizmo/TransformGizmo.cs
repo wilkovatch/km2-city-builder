@@ -38,7 +38,8 @@ namespace RuntimeGizmos {
         public float rotationSnap = 15f;
         public float scaleSnap = .25f;
         public bool snapToGrid = true;
-        public bool allowDeselect = false;
+        //point selection is available from startup; the transform panel locks it while editing one object
+        public bool allowDeselect = true;
 
         public float handleLength = .25f;
         public float handleWidth = .003f;
