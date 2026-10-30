@@ -18,6 +18,9 @@ public partial class ElementManager : Scriptable {
     public bool worldChanged = false;
     ulong splineTerrainVersion = ulong.MaxValue;
     bool splineProjectionPending, splinePhysicsReady;
+    readonly record struct ProjectionMeshState(Vector3 position, Vector3 rotation, Vector3 scale, string mesh, string type, bool enabled);
+    Dictionary<MeshInstance, ProjectionMeshState> projectionMeshes = new();
+    Dictionary<MeshInstance, ProjectionMeshState> nextProjectionMeshes = new();
     public bool propsChanged = false;
     public bool visibilityChanged = false;
     GameObject terrainPointContainer = null;
@@ -470,6 +473,21 @@ public partial class ElementManager : Scriptable {
         History.UndoManager.FinalizePending(); //after the update, so that the recorded state includes what it derived
     }
 
+    bool MeshProjectionSurfacesChanged() {
+        nextProjectionMeshes.Clear();
+        var changed = false;
+        foreach (var mesh in meshes) {
+            if (!mesh.IsProjectionSurface) continue;
+            var state = new ProjectionMeshState(GO.GetPosition(mesh), GO.GetRotation(mesh), GO.GetGlobalScale(mesh),
+                mesh.meshPath, mesh.TypeName, GO.GetEnabled(mesh));
+            nextProjectionMeshes.Add(mesh, state);
+            if (!projectionMeshes.TryGetValue(mesh, out var previous) || previous != state) changed = true;
+        }
+        changed |= nextProjectionMeshes.Count != projectionMeshes.Count;
+        (projectionMeshes, nextProjectionMeshes) = (nextProjectionMeshes, projectionMeshes);
+        return changed;
+    }
+
     public void ProcessUpdate() {
         if (PreferencesManager.workingDirectory == "") return;
         if (visibilityChanged) {
@@ -514,7 +532,13 @@ public partial class ElementManager : Scriptable {
         foreach (var building in buildings) {
             buildingsRebuilt += building.UpdateLine();
         }
-        if (roadsRebuilt + intersectionsRebuilt + patchesRebuilt > 0 || splineTerrainVersion != GameEngine.Terrain.HeightmapVersion) {
+        //Mesh type/layer changes must be applied before the projected splines read their colliders.
+        var instancesUpdated = 0;
+        foreach (var mesh in meshes) {
+            instancesUpdated += mesh.ManualUpdate();
+        }
+        var meshSurfacesChanged = MeshProjectionSurfacesChanged();
+        if (meshSurfacesChanged || roadsRebuilt + intersectionsRebuilt + patchesRebuilt > 0 || splineTerrainVersion != GameEngine.Terrain.HeightmapVersion) {
             foreach (var element in customElements) {
                 if (element.Settings?.spline?.projectSections != true) continue;
                 element.InvalidateSplineSurface();
@@ -524,10 +548,6 @@ public partial class ElementManager : Scriptable {
         }
         splineTerrainVersion = GameEngine.Terrain.HeightmapVersion;
         var customElementsRebuilt = UpdateCustomElements();
-        var instancesUpdated = 0;
-        foreach (var mesh in meshes) {
-            instancesUpdated += mesh.ManualUpdate();
-        }
         var objectsUpdated = 0;
         foreach (var road in roads) {
             objectsUpdated += road.UpdateObjects();
@@ -601,7 +621,14 @@ public partial class ElementManager : Scriptable {
             splineProjectionPending = true;
             splinePhysicsReady = false;
         }
-        rebuilt += CustomElementGeometryBatch.Rebuild(projected);
+        var projectedRebuilt = CustomElementGeometryBatch.Rebuild(projected);
+        //A newly created/loaded spline can follow meshes installed earlier in this same frame, before it existed.
+        //It also needs one synchronized pass even if those surfaces no longer report a change.
+        if (projectedRebuilt > 0 && !splineProjectionPending) {
+            splineProjectionPending = true;
+            splinePhysicsReady = false;
+        }
+        rebuilt += projectedRebuilt;
         if (splinePhysicsReady || projected.Count == 0) splineProjectionPending = false;
         UpdateCustomElementPlaceholders();
         PlaceMoveHandles();
@@ -675,6 +702,9 @@ public partial class ElementManager : Scriptable {
             elem.Delete();
         }
         meshes.Clear();
+        projectionMeshes.Clear();
+        nextProjectionMeshes.Clear();
+        splineProjectionPending = splinePhysicsReady = false;
 
         foreach (var elem in roads) {
             elem.Delete();

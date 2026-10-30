@@ -214,7 +214,7 @@ Geometry uses the [road component format](Core-Roads), including local definitio
 | `line`, `controlLine` | Optional line styles with `color` (default `"yellow"`) and `always` (default `false`, shown only while editing). `line` styles the evaluated spline; omitting it keeps the default editing line. `controlLine` adds a straight control polygon only when configured. |
 | `line.trimStart`, `line.trimEnd` | Counts of control-point spans to omit from the beginning/end of the displayed spline, default `0`; negative values act as `0`. Boundaries use the curve's control-point parameters (Bernstein weight peaks for Bezier). If no span remains, the line is hidden. Picking follows the displayed line. All controls still shape the curve, and derived sections, meshes and export data are unaffected. |
 | `projectPoints`, `projectSections` | Project placed/moved control points and/or evaluated sections onto surfaces. Point projection preserves recorded heights during undo and redo. |
-| `projectionMask` | Surface collision mask, default terrain and generated geometry (`136`). The element's own collider is excluded. |
+| `projectionMask` | Surface collision mask, default terrain and generated geometry (`136`). Surface queries also include mesh instances whose type enables `projectionSurface`. The element's own collider is excluded. The core's `surfaceProjectionTerrainFallbackOnly` setting decides whether terrain competes with city geometry or is only a fallback. An explicitly terrain-only mask stays terrain-only. |
 | `maxMiter` | Corner width multiplier limit, default `2`. |
 | `maxSectionLength` | Split evaluated spans longer than this distance; `0` disables the limit. |
 | `independentSegments` | Evaluate components separately for each span. `z` starts at zero and `totalLength` is that span's length; caps remain at the whole spline's ends. Default `false`: continuous component geometry. |
@@ -244,6 +244,7 @@ A type with `meshInstance` is a type of the **mesh instances**: the meshes place
 | Setting | Meaning |
 |---|---|
 | `placementRules` | Required: the layer, placer mask, automatic Y offset, mesh transform and snap to surface of the instances, as for the parametric objects (see [Core Props and Objects](Core-Props-and-Objects#placement-rules)). The expressions can use the parameters of the type. |
+| `projectionSurface` | Default `false`. All instances of this type are additional targets for mixed/surface auto-projection, using their transformed mesh colliders. This also works while an instance is selected. It adds physics-only bit 20 without changing the normal selection/render layer; reserve that bit for projection targets. It does not make the instance itself snap to a surface. |
 | `massPlacement` | Default `false`. The placement panel can place several instances at once in a radius and erase them in a radius (only the instances of the same type); `meshes.scatter` and `meshes.eraseInRadius` need it too. |
 | `randomRotation` | Default `true`. The placement panel can give the new instances a random yaw. |
 | `namePrefix` | Default `"Mesh"`. The names of the new instances are `<prefix> N (<mesh>)`. |
@@ -260,6 +261,8 @@ The `ui.json` has these built-in groups:
 The placement panel keeps the parameters of the next instances, one set for each type. A city whose instances have no type, or a type the core doesn't have, gets the first type (by name) with a warning; a core migration should set the type instead (as the MM2 one does from its former `prop` flag).
 
 In the export JSON, `meshInstances` have `type` (null for the parametric objects).
+
+Projected spline sections refresh after a target mesh is created, moved, rotated, scaled, replaced, deleted or switched to another type, including undo/redo and reload. API replies and exports wait for physics synchronization before returning the derived geometry. Authored control points keep their existing placement/move projection rules.
 
 ## Converters
 

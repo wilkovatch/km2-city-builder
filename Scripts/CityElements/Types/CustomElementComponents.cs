@@ -43,6 +43,7 @@ namespace CityElements.Types {
 
     //A mesh instance element: a single mesh placed with a transform (no control points or geometry)
     public class CustomElementMeshInstanceSettings {
+        public bool projectionSurface; //instances of this type also receive the physics-only projection target bit
         public MeshInstancePlacementRules placementRules;
         public bool massPlacement; //the placer can scatter and erase instances in a radius
         public bool randomRotation = true; //the placer can give the new instances a random yaw

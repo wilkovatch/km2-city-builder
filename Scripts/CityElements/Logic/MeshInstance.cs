@@ -18,6 +18,7 @@ public partial class MeshInstance : PhysicsScriptable
 
     //the mesh instance type of a plain instance, in its settings ("type")
     public string TypeName => objectParameter == null ? settings?.Str("type", null) : null;
+    public bool IsProjectionSurface => GetMeshInstanceType()?.Settings.projectionSurface == true;
 
     //settings.type must be a mesh instance type of the core: a missing or unknown one (e.g. a city saved before the
     //types, or with another core) is replaced by the first type, so that the instance is kept
@@ -156,9 +157,9 @@ public partial class MeshInstance : PhysicsScriptable
         if (rules?.snapToSurface == null) return false;
         if (!rules.snapToSurface.GetValue(type.VariableContainer)) return false;
         var mask = rules.placerLayerMask != null ? (int)rules.placerLayerMask.GetValue(type.VariableContainer) : 1 << 3;
-        //not on itself (on its layer, or on the moveable one while it is moved)
-        mask &= ~((1 << 8) | (1 << GetLayer()));
-        GO.SetPosition(this, GeometryHelper.ProjectOnSurface(GO.GetPosition(this), mask));
+        //Exclude this collider rather than the whole type's layer, so other mesh targets remain eligible.
+        mask &= ~(1 << 8);
+        GO.SetPosition(this, GeometryHelper.ProjectOnSurface(GO.GetPosition(this), mask, this));
         SyncParametricObjectState();
         return true;
     }
@@ -198,7 +199,7 @@ public partial class MeshInstance : PhysicsScriptable
         if (settings.HasChanged()) {
             ReloadMeshTransform();
             //the layer follows the rules too (e.g. after a type change), unless the instance is being moved
-            if (initialized && GO.GetLayer(this) != 8) Actions.Helpers.SetLayerRecursively(GO.GetObject(this), GetLayer());
+            if (initialized) Actions.Helpers.SetLayerRecursively(GO.GetObject(this), GO.GetLayer(this) == 8 ? 8 : GetLayer());
             settings.FlagAsUnchanged();
             return 1;
         }

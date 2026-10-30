@@ -511,6 +511,10 @@ public static partial class GameEngine {
             // The program uses layer indices; Godot stores a bitmask, so layer n is bit n
             // (layer 0, "Default", is Godot's default layer 1 and is still raycastable).
             obj.CollisionLayer = layer >= 0 && layer < 32 ? 1u << layer : 0u;
+            //Projection targets have an additional physics-only bit; their render/selection layer stays the same.
+            if (layer >= 0 && layer < 32 && obj is MeshInstance mesh && mesh.IsProjectionSurface) {
+                obj.CollisionLayer |= (uint)Raycast.ProjectionSurfaceMask;
+            }
             // The direct GeometryInstance3D children stand for the renderers of the same GameObject
             // (e.g. the generated road mesh), which share its layer for the camera culling mask.
             foreach (var child in obj.GetChildren()) {
@@ -520,6 +524,7 @@ public static partial class GameEngine {
 
         public static int GetLayer(StaticBody3D obj) {
             uint layerMask = obj.CollisionLayer;
+            if (obj is MeshInstance) layerMask &= ~(uint)Raycast.ProjectionSurfaceMask;
             if (layerMask == 0) return 0;
             return System.Numerics.BitOperations.TrailingZeroCount(layerMask);
         }
@@ -1556,12 +1561,20 @@ public static partial class GameEngine {
 
     }
     public static class Raycast {
+        public const int ProjectionSurfaceMask = 1 << 20; //physics only, outside the render layers
         public struct RaycastHit {
             public Godot.Vector3 point;
             public Node collider;
             public CollisionShape3D shape;
         }
         public static Godot.Vector3 ProjectPoint(Godot.Vector3 pos, int collisionMask = 1 << 3, CollisionObject3D exclude = null) {
+            TryProjectPoint(pos, out var projected, collisionMask, exclude);
+            return projected;
+        }
+
+        public static bool TryProjectPoint(Godot.Vector3 pos, out Godot.Vector3 projected, int collisionMask = 1 << 3, CollisionObject3D exclude = null) {
+            projected = pos;
+            if (collisionMask == 0) return false;
             var godotPos = Vector3.DecodePosition(pos);
             var from = godotPos + Godot.Vector3.Up * 1000000;
             var to = godotPos + Godot.Vector3.Down * 1000000;
@@ -1583,26 +1596,32 @@ public static partial class GameEngine {
                 // which moved the projected elements by that much every time they were projected again (e.g. after
                 // undoing a terrain edit): it's refined with a short ray around the hit.
                 var hitPos = (Godot.Vector3)result["position"];
-                rayParams.From = hitPos + Godot.Vector3.Up;
-                rayParams.To = hitPos + Godot.Vector3.Down;
+                //Refine at the requested X/Z as well: a distant hit's lateral error changes Y on tilted surfaces.
+                rayParams.From = new Godot.Vector3(godotPos.X, hitPos.Y + 1, godotPos.Z);
+                rayParams.To = new Godot.Vector3(godotPos.X, hitPos.Y - 1, godotPos.Z);
                 var refined = spaceState.IntersectRay(rayParams);
                 if (refined.Count > 0 && refined.ContainsKey("position")) hitPos = (Godot.Vector3)refined["position"];
                 // The ray is vertical, only the height comes from the hit: its X and Z differ from the point's by a few
                 // 1e-5, which moved the projected elements a little more at every update.
-                return Vector3.EncodePosition(new Godot.Vector3(godotPos.X, hitPos.Y, godotPos.Z));
+                projected = Vector3.EncodePosition(new Godot.Vector3(godotPos.X, hitPos.Y, godotPos.Z));
+                return true;
             }
 
-            return pos;
+            return false;
         }
 
-        public static bool DoRaycast(Node3D parent, Godot.Vector3 origin, Godot.Vector3 direction, out RaycastHit hit, float distance, int collisionMask) {
+        public static bool DoRaycast(Node3D parent, Godot.Vector3 origin, Godot.Vector3 direction, out RaycastHit hit, float distance, int collisionMask,
+            bool includeProjectionSurfaces = false, CollisionObject3D exclude = null) {
             var spaceState = parent.GetWorld3D().DirectSpaceState;
             var godotOrigin = Vector3.DecodePosition(origin);
             var godotDirection = Vector3.DecodePosition(direction);
             var end = godotOrigin + godotDirection * distance;
 
             var query = PhysicsRayQueryParameters3D.Create(godotOrigin, end);
-            query.CollisionMask = unchecked((uint)collisionMask);
+            //The additional target bit belongs to surface projection queries only. Broad editor masks must still
+            //be able to exclude an instance by its normal layer (e.g. click through mesh instances).
+            query.CollisionMask = unchecked((uint)(includeProjectionSurfaces ? collisionMask : collisionMask & ~ProjectionSurfaceMask));
+            if (exclude != null) query.Exclude = new Godot.Collections.Array<Rid> { exclude.GetRid() };
             query.CollideWithAreas = false;
             var result = spaceState.IntersectRay(query);
 

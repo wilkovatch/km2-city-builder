@@ -470,19 +470,33 @@ public static class GeometryHelper {
     }
 
     public static Vector3 ProjectPoint(Vector3 pos, int layerMask = 1 << 3, CollisionObject3D exclude = null) {
-        return GameEngine.Raycast.ProjectPoint(pos, layerMask, exclude);
+        return ProjectOnSurface(pos, layerMask, exclude);
     }
 
-    //as ProjectPoint, but a surface other than the terrain a little under the terrain wins (e.g. a road surface lower
-    //than the sidewalks, with the terrain at the sidewalk height covering it)
-    public static Vector3 ProjectOnSurface(Vector3 pos, int layerMask, CollisionObject3D exclude = null) {
+    //The core can treat the heightmap as a guide: first use city surfaces, even below it, then the heightmap.
+    //Explicit heightmap-only queries keep their meaning; additional mesh targets belong to mixed/surface queries.
+    static (int primary, int fallback) SurfaceProjectionMasks(int layerMask) {
         const int terrainMask = 1 << 3;
-        const float maxDepthUnderTerrain = 0.5f;
-        var res = ProjectPoint(pos, layerMask, exclude);
-        if ((layerMask & terrainMask) == 0) return res;
-        var other = ProjectPoint(pos, layerMask & ~terrainMask, exclude);
-        if (other != pos && other.Y > res.Y - maxDepthUnderTerrain) res = other;
-        return res;
+        if ((layerMask & ~terrainMask) == 0) return (layerMask, 0);
+        layerMask |= GameEngine.Raycast.ProjectionSurfaceMask;
+        if ((layerMask & terrainMask) != 0 && CoreManager.Get("surfaceProjectionTerrainFallbackOnly", false)) {
+            return (layerMask & ~terrainMask, terrainMask);
+        }
+        return (layerMask, 0);
+    }
+
+    public static Vector3 ProjectOnSurface(Vector3 pos, int layerMask, CollisionObject3D exclude = null) {
+        var masks = SurfaceProjectionMasks(layerMask);
+        if (GameEngine.Raycast.TryProjectPoint(pos, out var surface, masks.primary, exclude)) return surface;
+        return GameEngine.Raycast.ProjectPoint(pos, masks.fallback, exclude);
+    }
+
+    //Use the same policy along the mouse ray, so the preview and click agree even with an oblique camera.
+    public static bool RaycastSurface(Node3D parent, Vector3 origin, Vector3 direction, out GameEngine.Raycast.RaycastHit hit,
+        float distance, int layerMask, CollisionObject3D exclude = null) {
+        var masks = SurfaceProjectionMasks(layerMask);
+        if (GameEngine.Raycast.DoRaycast(parent, origin, direction, out hit, distance, masks.primary, true, exclude)) return true;
+        return masks.fallback != 0 && GameEngine.Raycast.DoRaycast(parent, origin, direction, out hit, distance, masks.fallback, true, exclude);
     }
 
     //Sort vertices in clockwise order and return the indices

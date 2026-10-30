@@ -157,6 +157,13 @@ namespace ElementPlacer {
             ActionHandlerManager.ShowHandle(pos, size, color);
         }
 
+        public override bool Raycast(Node3D parent, Vector3 origin, Vector3 direction, out RaycastHit hit, float distance, int mask) {
+            //Anchors and point links retain their own hit priority; only the surface pass uses the core policy.
+            if ((mask & ((1 << 3) | (1 << 7))) == 0) return base.Raycast(parent, origin, direction, out hit, distance, mask);
+            var exclude = placementMode == PlacementMode.Create ? null : GetElement()?.generator;
+            return GeometryHelper.RaycastSurface(parent, origin, direction, out hit, distance, mask, exclude);
+        }
+
         //terrain points and anchors, point links, then the terrain and the generated meshes
         public override List<int> GetLayerMasks() {
             return new List<int> { 1 << 10, 1 << 12, (1 << 3) | (1 << 7) };

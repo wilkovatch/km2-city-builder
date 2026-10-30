@@ -39,7 +39,7 @@ public partial class TerrainClick : Control {
         foreach (var mask in masks) {
             var foundHit = false;
             if (!OnUI()) {
-                var found = GameEngine.Raycast.DoRaycast(helper, ray.origin, ray.direction, out hit, TerrainRayDistance, mask);
+                var found = modifier.Raycast(helper, ray.origin, ray.direction, out hit, TerrainRayDistance, mask);
                 if (found) {
                     foundHit = true;
                     if (Input.GetInputPressed(KeyCommand.Modifier1)) {
@@ -68,7 +68,7 @@ public partial class TerrainClick : Control {
         var pos = hit.point + Vector3.Up * snapRayHeight;
         pos = new Vector3(Mathf.Round(pos.X), pos.Y, Mathf.Round(pos.Z));
         // The ray starts snapRayHeight above the hit, so it must be longer than that to reach it.
-        var found = GameEngine.Raycast.DoRaycast(helper, pos, Vector3.Down, out projectedHit, snapRayHeight * 2, mask);
+        var found = modifier.Raycast(helper, pos, Vector3.Down, out projectedHit, snapRayHeight * 2, mask);
         if (found) {
             hits.Add(projectedHit);
         } else {

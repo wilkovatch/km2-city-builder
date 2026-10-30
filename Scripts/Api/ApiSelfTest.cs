@@ -194,7 +194,10 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "customElementPresets") {
+                if (focus == "projection") {
+                    await NewCity();
+                    await SurfaceProjection();
+                } else if (focus == "customElementPresets") {
                     await NewCity();
                     await CustomElementPresetWorkflow();
                 } else if (focus == "trains") {
@@ -263,6 +266,7 @@ namespace Api {
                     await PointAttachments();
                     await StandalonePropRules();
                     await MeshSelection();
+                    await SurfaceProjection();
                     await CustomElementPresetWorkflow();
                 }
             } catch (Abort e) {

@@ -126,6 +126,7 @@ Elements are put on numbered layers, used to choose what each mouse tool can hit
 | 12 | Point links (segments between terrain points) |
 | 13 | Props |
 | 14 | Lines along the roads, to connect another road to their middle |
+| 20 | Additional physics-only bit for mesh types marked `projectionSurface`; no render layer |
 
 Layers can be referenced by cores in the mesh instance placement rules (see [Core Props and Objects](Core-Props-and-Objects)).
 

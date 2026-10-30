@@ -72,7 +72,10 @@ The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, 
 | `coreFeatureVersion` | Increase it when the core gains features without breaking existing cities. |
 | `programVersion`, `featureVersion` | The program version the core was made for (see below). |
 | `customTextureFormats`, `customMeshFormats` | File extensions (without the dot) read by the core's Python server. Leave both empty (or omit them) if the core only uses the built-in formats; the server is then not started. |
+| `surfaceProjectionTerrainFallbackOnly` | Optional boolean, default `false`. For auto-projection onto mixed surfaces, `true` searches the supported city geometry first and uses the heightmap (layer 3) only if that search misses. A city surface can be any distance below the heightmap. With `false`, the highest supported surface wins, including the heightmap. Heightmap-only queries are unchanged, and a mask excluding the heightmap never falls back to it. Mesh types can opt into surface projection with `meshInstance.projectionSurface` (see [Core Custom Elements](Core-Custom-Elements#mesh-instance-elements)). |
 | `viewToggles` | Optional visibility switches added at the end of the View menu (after a separator): a list of `{"name", "label", "default"}` (`label` is a string key, `default` whether it starts on, true if omitted). Each city saves their values in its `preferences.json` (`viewToggle.<name>`). The lines of the custom elements with that `toggle` are hidden while it's off (see [Core Custom Elements](Core-Custom-Elements)). |
+
+Custom element placement previews and clicks use this same surface priority along the mouse ray, including Ctrl grid snapping. Anchors and point links keep their existing priority. This also applies to placing unprojected spline controls, such as a route whose authored heights are retained after placement.
 
 ### Versions
 
