@@ -69,7 +69,7 @@ public static class CustomElementSplineGeometry {
             samples = samples.Select(p => GH.ProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
         }
         GeometryLine Line(List<Vector3> positions, CityElements.Types.CustomElementSplineLine style) {
-            var line = new GeometryLine { points = positions, always = style?.always == true };
+            var line = new GeometryLine { points = positions, always = style?.always == true, heightOffset = style?.heightOffset ?? 0 };
             if (style?.color != null) line.color = CustomElementScripting.ReadColor(new Lua.LuaValue(style.color), line.color);
             return line;
         }

@@ -60,9 +60,12 @@ namespace Api {
             var lines = element.generator.FindChildren("*", "", true, false).OfType<GameEngine.LineRenderer>().ToArray();
             Check("train preview remains visible when deselected", lines.Any(l => l.enabled));
             await ToSignal(GetTree(), "physics_frame"); await Frames(2);
+            Check("train preview is lifted in world Y above its unchanged spline", lines.Length == 1
+                && Mathf.Abs(lines[0].GetAabb().Position.Y - displayedRoute.Min(p => p.Y) - .25f) < .001f);
             var middle = element.splineData.sections[element.splineData.sections.Length/2].center;
             var position = new Vector3(middle[0],middle[1],middle[2]);
             Check("deselected train can be selected through its line collider",GameEngine.Raycast.DoRaycast(element,position+Vector3.Up*20,Vector3.Down,out var hit,40,1<<7) && hit.collider == element.generator);
+            Check("train selection collider follows the preview lift", hit.collider == element.generator && Mathf.Abs(hit.point.Y-position.Y-.25f) < .001f);
             var omitted = curve.Position(.125f)+offset;
             Check("trimmed train end spans cannot be picked through the route collider", !GameEngine.Raycast.DoRaycast(element,omitted+Vector3.Up*20,Vector3.Down,out _,40,1<<7));
             builder.SelectObject(element, true, null);

@@ -96,6 +96,7 @@ namespace CityElements.Types {
     public class CustomElementSplineLine {
         public string color = "yellow";
         public bool always;
+        public float heightOffset; //world-space Y offset of the displayed line and its picking collider
         public int trimStart, trimEnd;
     }
 
