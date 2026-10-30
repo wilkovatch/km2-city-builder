@@ -454,7 +454,13 @@ public partial class CityBuilderMenuBar : Control {
             if (element == null) {
                 var type = lowLevelEditorPanel.creationType;
                 var group = lowLevelEditorPanel.creationGroup;
-                return _ => { StartLowLevelCreation(type, group); return lowLevelEditorPanel; };
+                var draft = lowLevelEditorPanel.CaptureCreationState();
+                return _ => {
+                    if (editingPresets) EditLowLevelPresets(type);
+                    else StartLowLevelCreation(type, group);
+                    lowLevelEditorPanel.RestoreCreationState(draft);
+                    return lowLevelEditorPanel;
+                };
             }
             var mode = lowLevelEditorPanel.GetPointPlacementMode();
             return CaptureElementReopen(element, lowLevelEditorPanel, () => lowLevelEditorPanel.SetPointPlacementMode(mode));
@@ -1179,6 +1185,7 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     void StartLowLevelCreation(string type, string group = "CREATE_LOW_LEVEL_ELEMENT") {
+        lowLevelEditorPanel.Terminate();
         DisableAllPanels(lowLevelEditorPanel);
         lowLevelEditorPanel.creationType = type;
         lowLevelEditorPanel.creationGroup = group;
@@ -1362,6 +1369,15 @@ public partial class CityBuilderMenuBar : Control {
         DisableAllPanels(roadEditorPanel);
         roadPlacer.SetRoad(null);
         roadEditorPanel.SetActive(true, false);
+    }
+
+    public void EditLowLevelPresets(string type) {
+        lowLevelEditorPanel.Terminate();
+        DisableAllPanels(lowLevelEditorPanel);
+        lowLevelPlacer.SetElement(null);
+        terrainClick.modifier = nullModifier;
+        lowLevelEditorPanel.creationType = type;
+        lowLevelEditorPanel.SetActive(true);
     }
 
     public void EditIntersectionPresets() {

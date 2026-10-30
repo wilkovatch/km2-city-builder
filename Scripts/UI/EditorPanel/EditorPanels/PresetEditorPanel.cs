@@ -19,6 +19,12 @@ namespace EditorPanels {
             p.IncreaseRow();
             p.AddButton(SM.Get("EDIT_BUILDING_PRESETS"), builder.EditBuildingLinePresets, w);
             p.IncreaseRow();
+            foreach (var type in CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()) {
+                if (!type.Value.typeData.settings.presets) continue;
+                var name = type.Key;
+                p.AddButton(SM.Get("EDIT_LOW_LEVEL_PRESETS").Replace("$TYPE", Operations.LowLevel.GetTypeLabel(name)), () => builder.EditLowLevelPresets(name), w);
+                p.IncreaseRow();
+            }
             p.AddButton(SM.Get("CLOSE"), Terminate, w);
         }
 

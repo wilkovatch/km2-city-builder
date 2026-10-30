@@ -7,6 +7,8 @@ static class PresetManager {
         public Dictionary<string, ObjectState[]> presets = new Dictionary<string, ObjectState[]>();
 
         public ObjectState[] GetList(string type) {
+            var lowLevelType = Operations.LowLevelPresets.TypeOfCategory(type);
+            if (lowLevelType != null && !presets.ContainsKey(type)) presets[type] = new[] { Operations.LowLevelPresets.DefaultPreset(lowLevelType) };
             if (!presets.ContainsKey(type)) presets[type] = new ObjectState[1] { new ObjectState() { Name = Operations.Presets.DefaultName } }; //an empty name is an element without preset
             return presets[type];
         }
@@ -83,6 +85,17 @@ static class PresetManager {
             }
             loaded = true;
             lastIntersection = null;
+            Operations.LowLevelPresets.ClearLastPresets();
+            if (PreferencesManager.workingDirectory != "") {
+                var changed = false;
+                foreach (var entry in CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()) {
+                    var category = Operations.LowLevelPresets.Category(entry.Key);
+                    if (category == null || presetList.presets.ContainsKey(category)) continue;
+                    presetList.GetList(category);
+                    changed = true;
+                }
+                if (changed) SavePresets();
+            }
         }
         return presetList;
     }
@@ -139,6 +152,8 @@ static class PresetManager {
 
     public static void SavePreset(ObjectState preset, string type) {
         GetPresets();
+        var lowLevelType = Operations.LowLevelPresets.TypeOfCategory(type);
+        if (lowLevelType != null) preset = Operations.LowLevelPresets.Extract(preset, lowLevelType);
         presetList.SavePreset(preset, type);
         SavePresets();
     }

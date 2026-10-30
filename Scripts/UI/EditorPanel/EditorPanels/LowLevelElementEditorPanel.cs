@@ -17,12 +17,51 @@ namespace EditorPanels {
         public string creationGroup = "CREATE_LOW_LEVEL_ELEMENT";
         public string creationType {
             get => creationTypeValue;
-            set { creationTypeValue = value; builtType = "\0"; }
+            set { creationTypeValue = value; builtType = "\0"; draft = null; creating = true; }
+        }
+        ObjectState draft;
+        bool creating;
+        protected override bool SingleStateParameters => true;
+
+        ObjectState CurrentState() => GetElement()?.state ?? draft;
+
+        internal ObjectState CaptureCreationState() => draft == null ? null : (ObjectState)draft.Clone();
+
+        internal void RestoreCreationState(ObjectState state) {
+            if (state == null) return;
+            draft = (ObjectState)state.Clone();
+            if (GetPlacer() is ElementPlacer.LowLevelPlacer placer) {
+                placer.createType = draft.Str("type");
+                placer.creationState = draft;
+            }
+            Rebuild();
+        }
+
+        void EnsureDraft() {
+            if (!creating || GetElement() != null || PreferencesManager.workingDirectory == "") return;
+            creatableTypes.Clear();
+            foreach (var entry in CityElements.Types.Parsers.TypeParser.GetLowLevelTypes()) {
+                var settings = entry.Value.typeData.settings;
+                if (settings.creatable && settings.createMenu?.direct != true &&
+                    (settings.createMenu?.group ?? "CREATE_LOW_LEVEL_ELEMENT") == creationGroup) creatableTypes.Add(entry.Key);
+            }
+            var type = creationType ?? GetPlacer()?.createType;
+            if (creationType == null && !creatableTypes.Contains(type)) {
+                var last = PreferencesManager.Get("lastLowLevelType", "");
+                type = creatableTypes.Contains(last) ? last : creatableTypes.Count > 0 ? creatableTypes[0] : null;
+            }
+            if (type == null) return;
+            if (draft?.Str("type") != type) draft = Operations.LowLevelPresets.CreationState(type);
+            if (GetPlacer() is ElementPlacer.LowLevelPlacer placer) {
+                placer.createType = type;
+                placer.creationState = draft;
+            }
         }
         int selectedRibbon;
         string builtType = null; //the type the panel was built for
         LowLevelElement builtElement = null; //and the element (its arrays, container and contents are listed)
-        EditorPanelElements.Dropdown createTypeDropdown, placementDropdown;
+        EditorPanelElements.Dropdown createTypeDropdown, placementDropdown, splineTypeDropdown;
+        int[] splineCurveTypes;
         EditorPanelElements.Label selectedLabel;
         EditorPanelElements.ScrollList contentsList;
         EditorPanelElements.Button insertBeforeButton, insertAfterButton, removeButton, detachButton, addInnerButton, removeInnerButton, editContentButton,
@@ -52,8 +91,8 @@ namespace EditorPanels {
         LowLevelElementPickerPanel picker;
 
         public LowLevelElementEditorPanel() {
-            AddComplexElement(new PresetSelector(this)); //for the presets of the prop rule (the element itself has none)
-            propRule = new PropRuleGroup(this, _ => GetElement()?.state, () => {
+            AddComplexElement(new PresetSelector(this));
+            propRule = new PropRuleGroup(this, _ => CurrentState(), () => {
                 if (GetElement() is PropPath path) { path.SynchronizeRule(); builtElement = null; }
                 ReadCurValues();
                 builder.NotifyChange();
@@ -61,11 +100,13 @@ namespace EditorPanels {
         }
 
         public override void Initialize(GameObject canvas) {
+            builder = canvas as CityBuilderMenuBar;
+            EnsureDraft();
             var element = GetElement();
-            builtType = element?.TypeName;
+            builtType = element?.TypeName ?? draft?.Str("type", null);
             builtElement = element;
             //the fields of the previous build are freed, and the groups of this type may not create them again
-            createTypeDropdown = placementDropdown = null;
+            createTypeDropdown = placementDropdown = splineTypeDropdown = null;
             selectedLabel = null;
             contentsList = null;
             insertBeforeButton = insertAfterButton = removeButton = detachButton = addInnerButton = removeInnerButton = editContentButton = changeContainerButton = mergeButton = null;
@@ -82,12 +123,12 @@ namespace EditorPanels {
                 return;
             }
             InitializeWithCustomParameters<CityElements.Types.Runtime.LowLevelType, CityElements.Types.LowLevelType>(canvas, GetElementState, null,
-                builtType, CityElements.Types.Parsers.TypeParser.GetLowLevelTypes, ProcessCustomParts, false);
+                builtType, CityElements.Types.Parsers.TypeParser.GetLowLevelTypes, ProcessCustomParts, true);
             picker = AddChildPanel<LowLevelElementPickerPanel>(canvas);
         }
 
         IObjectWithState GetElementState() {
-            return GetElement();
+            return (IObjectWithState)GetElement() ?? draft;
         }
 
         //the panel shown while choosing the type of a new element
@@ -126,6 +167,10 @@ namespace EditorPanels {
             placer.createType = creatableTypes[i];
             placer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.Create;
             PreferencesManager.Set("lastLowLevelType", creatableTypes[i]);
+            draft = null;
+            EnsureDraft();
+            builtType = "\0";
+            builder.DoDelayed(Rebuild);
         }
 
         bool ProcessCustomParts(CityElements.Types.TabElement elem, EditorPanelPage p, PresetSelector pS,
@@ -137,20 +182,21 @@ namespace EditorPanels {
                 p.IncreaseRow();
                 var allowed = settings.spline.curveTypes;
                 var labels = new[] { "RD_SP_T_BEZIER", "RD_SP_T_HERMITE", "RD_SP_T_LOWPOLY" };
-                var dropdown = p.AddDropdown(SM.Get("RD_SPLINE_TYPE"), new List<int>(allowed).ConvertAll(i => SM.Get(labels[i])), i => {
-                    GetElement().state.SetInt("curveType", allowed[i]); builder.NotifyChange();
+                splineCurveTypes = allowed;
+                var dropdown = splineTypeDropdown = p.AddDropdown(SM.Get("RD_SPLINE_TYPE"), new List<int>(allowed).ConvertAll(i => SM.Get(labels[i])), i => {
+                    CurrentState().SetInt("curveType", allowed[i]); builder.NotifyChange();
                 }, w);
                 dropdown.actionEnabled = false;
-                dropdown.SetValue(System.Array.IndexOf(allowed, GetElement().state.Int("curveType", settings.spline.defaultCurveType)));
+                dropdown.SetValue(System.Array.IndexOf(allowed, CurrentState().Int("curveType", settings.spline.defaultCurveType)));
                 dropdown.actionEnabled = true;
                 p.IncreaseRow();
-                p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetElement,
+                p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetElementState,
                     "state.properties.segments", null, w / 2, null);
-                p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetElement, "state.properties.segmentsPer100m", null, w / 2, null);
+                p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetElementState, "state.properties.segmentsPer100m", null, w / 2, null);
                 p.IncreaseRow();
-                p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElement, "state.properties.subdivideEqually", null, w / 2, null);
+                p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElementState, "state.properties.subdivideEqually", null, w / 2, null);
                 p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal,
-                    GetElement, "state.properties.hermiteTension", null, w / 2, null);
+                    GetElementState, "state.properties.hermiteTension", null, w / 2, null);
                 p.IncreaseRow();
                 return true;
             }
@@ -168,10 +214,32 @@ namespace EditorPanels {
             if (builtIn) p.EnsureNewRow(); //after a parameter sharing its row
             if (elem.name == "mainGroup") {
                 p.AddButton(SM.Get("END_EDITING"), Terminate, w * 0.5f);
-                p.AddButton(SM.Get("DELETE"), Delete, w * 0.5f);
+                p.AddButton(SM.Get("DELETE"), Delete, w * 0.5f).SetInteractable(GetElement() != null);
                 p.IncreaseRow();
-                p.AddLabel(SM.Get("LL_TYPE") + ": " + Operations.LowLevel.GetTypeLabel(type.name), w);
+                if (GetElement() == null && creationType == null && creatableTypes.Count > 0) {
+                    createTypeDropdown = p.AddDropdown(SM.Get("LL_TYPE"), creatableTypes.ConvertAll(Operations.LowLevel.GetTypeLabel), SetCreateType, w);
+                    createTypeDropdown.actionEnabled = false;
+                    createTypeDropdown.SetValue(creatableTypes.IndexOf(type.name));
+                    createTypeDropdown.actionEnabled = true;
+                } else p.AddLabel(SM.Get("LL_TYPE") + ": " + Operations.LowLevel.GetTypeLabel(type.name), w);
                 p.IncreaseRow();
+                if (GetElement() == null && !EditingPreset()) {
+                    p.AddLabel(SM.Get("LL_CLICK_TO_CREATE"), w);
+                    p.IncreaseRow();
+                }
+                var category = Operations.LowLevelPresets.Category(type.name);
+                if (category != null) {
+                    pS.AddPresetLoadAndSaveDropdown(p, SM.Get("PRESET"), true, category,
+                        value => {
+                            Operations.LowLevelPresets.Apply(CurrentState(), value, type.name);
+                            if (!EditingPreset()) Operations.LowLevelPresets.Remember(type.name, value.Name);
+                            return CurrentState();
+                        }, () => Operations.LowLevelPresets.Extract(CurrentState(), type.name), false,
+                        name => {
+                            CurrentState().Name = name;
+                            if (!EditingPreset()) Operations.LowLevelPresets.Remember(type.name, name);
+                        }, null, () => { propRule.Read(); Update(); }, w);
+                }
                 var element = GetElement();
                 if (element?.source != null && Operations.LowLevel.IsGhost(element.source)) {
                     p.AddButton(SM.Get("LL_RESTORE_SOURCE"), RestoreSource, w, SM.Get("LL_RESTORE_SOURCE_TOOLTIP"));
@@ -367,7 +435,7 @@ namespace EditorPanels {
         //when the point is in one array only), or while the points are computed
         void UpdateArrayButtons(LowLevelElement element, TerrainPoint point) {
             var editable = !(element?.IsDerived ?? false);
-            placementDropdown?.SetInteractable(editable);
+            placementDropdown?.SetInteractable(editable && element != null);
             var arrayElement = Operations.LowLevel.ArrayElementOf(element, point, true);
             var innerElement = Operations.LowLevel.ArrayElementOf(element, point, false);
             if (innerElement.HasValue && innerElement.Value.arrayPath == arrayElement?.arrayPath) innerElement = null;
@@ -528,6 +596,11 @@ namespace EditorPanels {
         protected override void ReadCurValues() {
             base.ReadCurValues();
             propRule.Read();
+            if (splineTypeDropdown != null && CurrentState() != null) {
+                splineTypeDropdown.actionEnabled = false;
+                splineTypeDropdown.SetValue(System.Array.IndexOf(splineCurveTypes, CurrentState().Int("curveType")));
+                splineTypeDropdown.actionEnabled = true;
+            }
         }
 
         public EditorPanel OpenPropContainer(string name) {
@@ -660,18 +733,14 @@ namespace EditorPanels {
             if (!PrepareActivation(active)) return;
             if (active && !keepActive) {
                 var element = GetElement();
+                EnsureDraft();
                 //the panel is built for the type of the element (or for the creation)
-                if ((element != builtElement || element?.TypeName != builtType) && lastCanvas != null) Initialize(lastCanvas);
+                if ((element != builtElement || (element?.TypeName ?? draft?.Str("type", null)) != builtType) && lastCanvas != null) Initialize(lastCanvas);
                 var placer = GetPlacer();
                 if (placer != null) {
                     placer.onFrame = OnFrame;
                     placer.onModeEnded = () => SetPointPlacementMode(0);
                     placer.onElementCreated = OnElementCreated;
-                    if (element == null && createTypeDropdown != null && creatableTypes.Count > 0) {
-                        var last = creatableTypes.IndexOf(PreferencesManager.Get("lastLowLevelType", ""));
-                        createTypeDropdown.SetValue(last < 0 ? 0 : last);
-                        SetCreateType(last < 0 ? 0 : last);
-                    }
                 }
                 shownAnything = false;
             } else if (!active && !keepActive && ActiveSelf()) {
@@ -684,7 +753,7 @@ namespace EditorPanels {
                     SetTitle(GO.GetName(element));
                     ShowElement(element);
                 } else {
-                    SetTitle(creationType != null ? Operations.LowLevel.GetTypeLabel(creationType) : SM.Get(creationGroup));
+                    SetTitle(creationType != null ? Operations.LowLevel.GetTypeLabel(creationType) : SM.Get(creationGroup), false);
                 }
             }
         }
@@ -701,7 +770,7 @@ namespace EditorPanels {
         }
 
         void OnFrame() {
-            if (GetElement() != builtElement && lastCanvas != null) Rebuild();
+            if ((GetElement() != builtElement || (GetElement()?.TypeName ?? draft?.Str("type", null)) != builtType) && lastCanvas != null) Rebuild();
             ShowSelectedPoint();
             UpdateContentOutline();
         }
@@ -757,6 +826,9 @@ namespace EditorPanels {
         }
 
         void OnElementCreated() {
+            creating = false;
+            draft = null;
+            GetPlacer().creationState = null;
             builder.NotifyChange();
             SetActive(true);
             if (GetElement()?.Settings?.spline != null) SetPointPlacementMode(1);
@@ -797,7 +869,10 @@ namespace EditorPanels {
                 placer.placementMode = ElementPlacer.LowLevelPlacer.PlacementMode.None;
                 placer.onFrame = null;
                 placer.onModeEnded = null;
+                placer.creationState = null;
             }
+            draft = null;
+            creating = false;
             HighlightContent(null);
             ShowContainerLines(null);
             if (element != null) {

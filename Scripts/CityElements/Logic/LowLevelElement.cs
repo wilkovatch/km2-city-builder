@@ -102,15 +102,8 @@ public partial class LowLevelElement : Scriptable, IGroundable, IObjectWithState
 
     public void Initialize(string type, GameObject pointContainer) {
         this.pointContainer = pointContainer;
-        state = new ObjectState();
-        state.SetStr("type", type);
+        state = Operations.LowLevelPresets.DefaultState(type);
         splineProjectionUndoVersion = History.UndoManager.AppliedVersion;
-        if (Settings?.spline is CityElements.Types.LowLevelSplineSettings spline) {
-            state.SetInt("curveType", spline.defaultCurveType);
-            state.SetInt("segments", spline.segments);
-            state.SetBool("segmentsPer100m", spline.segmentsPer100m);
-            state.SetFloat("hermiteTension", 0.5f);
-        }
         points = new PointGroup(PointTree.RootDef(GetLowLevelType()?.typeData.settings.controlPoints));
         var generatorObj = GS.Create<LowLevelGenerator>("Geometry", this);
         generator = GS.Cast<LowLevelGenerator>(generatorObj);

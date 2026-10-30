@@ -42,6 +42,8 @@ namespace CityElements.Types {
     }
 
     public class LowLevelSettings {
+        public bool presets; //optional per-type presets, in category lowLevel/<type>
+        public ObjectState defaultPreset; //initial Default when an older city has no category yet
         public LowLevelSplineSettings spline;
         public LowLevelCreateMenu createMenu;
         public int geometryLayer = 7;

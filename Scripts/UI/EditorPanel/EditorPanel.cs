@@ -168,6 +168,8 @@ public abstract partial class EditorPanel {
         return parentPanel != null && parentPanel.AllowsScriptParameterTypes();
     }
 
+    protected virtual bool SingleStateParameters => parentPanel?.SingleStateParameters ?? false;
+
     protected void AddParameters(EditorPanelPage p, ref float curW, float totW, CityElements.Types.Parameter[] parameters, CityElements.Types.TabElement elem, System.Func<IObjectWithState> getObject, bool prependstate) {
         //TODO: in practice only processes one parameter, rename to AddParameter and pass directly the correct parameter?
         curW += elem.width;
@@ -178,6 +180,7 @@ public abstract partial class EditorPanel {
         foreach (var param in parameters) {
             if (param.fullName() == elem.name) {
                 var pFullName = Operations.States.GetParameterPath(param, prependstate);
+                if (SingleStateParameters) pFullName = pFullName.Replace("instanceState.", "state.");
                 parameterMap.Add(pFullName, param);
                 EditorPanelElement field = null;
                 switch (param.type) {
@@ -254,7 +257,7 @@ public abstract partial class EditorPanel {
                         break;
                 }
                 //presets never store instance specific values
-                if (prependstate && param.instanceSpecific && EditingPreset()) field?.SetInteractable(false);
+                if (prependstate && EditingPreset() && (param.instanceSpecific || (SingleStateParameters && param.type == "reference"))) field?.SetInteractable(false);
                 break;
             }
         }

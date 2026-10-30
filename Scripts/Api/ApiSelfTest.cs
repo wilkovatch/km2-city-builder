@@ -194,7 +194,10 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "splines") {
+                if (focus == "lowLevelPresets") {
+                    await NewCity();
+                    await LowLevelPresetWorkflow();
+                } else if (focus == "splines") {
                     await NewCity();
                     await Roads();
                     await Decals();
@@ -254,6 +257,7 @@ namespace Api {
                     await PointAttachments();
                     await StandalonePropRules();
                     await MeshSelection();
+                    await LowLevelPresetWorkflow();
                 }
             } catch (Abort e) {
                 Log("aborted: " + e.Message);

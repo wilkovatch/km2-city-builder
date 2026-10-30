@@ -278,13 +278,15 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 
 ### `presets.*`
 
+Low-level types opt in with `settings.json` `presets: true`. Their category is `lowLevel/<type>` (for example `lowLevel/decal`), and the existing `state.schema`, `state.applyPreset` and `state.saveAsPreset` commands support their elements. Applying or syncing a preset preserves geometry, attachments, container/source relationships, element references and parameters marked `instanceSpecific`. Saves reject a mismatched type or a spline curve mode excluded by the type. The editor's remembered preset does not affect `lowLevel.create`, imports or converters.
+
 | Method | Parameters | Result | Description |
 |---|---|---|---|
-| `presets.delete` | `category: string`<br>`name: string` | - | Deletes a preset (not the default one); the roads, intersections, building lines, buildings, building sides and building blocks using it are unlinked from it |
+| `presets.delete` | `category: string`<br>`name: string` | - | Deletes a preset (not the default one); linked elements, including enabled low-level types, are unlinked from it |
 | `presets.get` | `category: string`<br>`name: string` | state | The values of a preset |
 | `presets.list` | `category: string` | string[] | The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, propContainer, propElem, roadPropRule, or a container such as rail); the first one is the default |
 | `presets.save` | `category: string`<br>`name: string`<br>`values: state` | - | Saves a preset with the given values (overwriting the one with the same name) |
-| `presets.sync` | `category: string`<br>`name: string` | - | Gives the current values of a preset to the roads, intersections, building lines, buildings, building sides or building blocks linked to it |
+| `presets.sync` | `category: string`<br>`name: string` | - | Gives the current values of a preset to linked roads, intersections, building parts or enabled low-level types |
 
 ### `assets.*`
 

@@ -20,6 +20,7 @@ namespace ElementPlacer {
 
         public LowLevelElement curElement = null;
         public string createType;
+        public ObjectState creationState;
         public PlacementMode placementMode = PlacementMode.None;
         public string arrayPath;
         public bool atStart;
@@ -69,6 +70,7 @@ namespace ElementPlacer {
                 case PlacementMode.Create:
                     if (createType == null) return;
                     curElement = Operations.LowLevel.Create(manager, createType, hit.point);
+                    if (creationState != null) Operations.LowLevelPresets.Apply(curElement.state, creationState, createType);
                     placementMode = PlacementMode.None;
                     if (curElement.Settings?.spline != null) {
                         arrayPath = "spline";

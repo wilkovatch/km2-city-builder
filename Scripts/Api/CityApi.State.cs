@@ -182,7 +182,7 @@ namespace Api {
         public object GetParam(ElementRef @ref, string name) {
             var t = GetStateTarget(@ref);
             var p = t.FindParameter(name);
-            if (p != null) return GetPath(p.instanceSpecific ? t.instanceState : t.state, name);
+            if (p != null) return GetPath(p.instanceSpecific && t.owner is not LowLevelElement ? t.instanceState : t.state, name);
             var b = Operations.Builtins.Find(t.kind, name, t.roadType);
             if (b != null) return GetPath(b.instanceSpecific ? t.instanceState : t.state, name);
             throw ApiException.NotFound("parameter '" + name + "' of " + t.kind);
@@ -203,7 +203,7 @@ namespace Api {
                     throw ApiException.InvalidValue("'" + name + "' can't reference element " + reference.Int("id", -1)
                         + (p.referenceTypes != null ? " (" + string.Join(", ", p.referenceTypes) + ")" : ""));
                 }
-                var target = p.instanceSpecific ? t.instanceState : t.state;
+                var target = p.instanceSpecific && t.owner is not LowLevelElement ? t.instanceState : t.state;
                 if (target == null) throw ApiException.InvalidParam("'" + name + "' is instance specific, but " + t.kind + " has no instance state");
                 History.UndoManager.Touch(t.owner);
                 target.SetProperty(p.fullName(), v);
@@ -251,7 +251,8 @@ namespace Api {
                     throw ApiException.InvalidValue("the preset '" + name + "' has a type not allowed here");
                 }
                 History.UndoManager.Touch(t.owner);
-                t.applyPreset(preset);
+                try { t.applyPreset(preset); }
+                catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
                 t.afterChange?.Invoke();
                 return name;
             });
@@ -278,7 +279,8 @@ namespace Api {
                 var t = GetStateTarget(@ref);
                 if (t.presetCategory == null) throw ApiException.InvalidOperation(t.kind + " has no presets");
                 History.UndoManager.Touch(t.owner);
-                Operations.Presets.Save(t.state, t.presetCategory, name);
+                try { Operations.Presets.Save(t.state, t.presetCategory, name); }
+                catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
                 t.afterChange?.Invoke();
                 return name;
             });

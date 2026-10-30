@@ -308,6 +308,11 @@ namespace Api {
                 case LowLevelElement lowLevel:
                     t.state = lowLevel.state;
                     t.parameters = Params(lowLevel.GetLowLevelType()?.parameterContainer);
+                    t.presetCategory = Operations.LowLevelPresets.Category(lowLevel.TypeName);
+                    if (t.presetCategory != null) {
+                        t.presetAllowedTypes = new List<string> { lowLevel.TypeName };
+                        t.applyPreset = x => Operations.LowLevelPresets.Apply(lowLevel.state, x, lowLevel.TypeName);
+                    }
                     break;
                 case TerrainPatch patch:
                     t.state = patch.state;

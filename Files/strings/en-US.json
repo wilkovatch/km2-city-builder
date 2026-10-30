@@ -599,6 +599,7 @@
 	"CONVERTING": "Converting...",
 	"CONVERSION_ERROR_TEXT": "The conversion failed: ",
 	"LL_TYPE": "Type",
+	"EDIT_LOW_LEVEL_PRESETS": "Edit $TYPE presets",
 	"LL_NO_TYPES": "The core has no low-level element types",
 	"LL_CLICK_TO_CREATE": "Click on the city to create the element",
 	"LL_NEW_ELEMENT": "New low-level element",

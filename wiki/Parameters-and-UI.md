@@ -35,7 +35,7 @@ Definitions and loop variables are described in [Expression Language](Expression
 | `placeholder` | String key of the placeholder text of input fields. |
 | `tooltip` | String key of the tooltip (optional). |
 | `container` | Optional group name. The parameter's full name becomes `<container>_<name>`, which is the name to use in expressions and in `ui.json`. All parameters of a container can be saved and loaded as one preset with a `PRESET_<container>` UI element (MM2 uses it for railings: `rail_type`, `rail_height`, ...). Do not use underscores in container names or in the names of parameters inside a container. |
-| `instanceSpecific` | If true, the value belongs to this element only: it is stored in the element's *instance state*, which presets never overwrite (for example a block number or a per-road traffic rule). Only available on roads, intersections, building lines and terrain patch border meshes. |
+| `instanceSpecific` | If true, the value belongs to this element only and presets never overwrite it (for example a block number or a per-road traffic rule). Roads, intersections, building lines and terrain patch border meshes store it in a separate *instance state*. Low-level elements keep it in their single state and exclude it from presets; reference parameters of low-level types are always instance-specific. |
 | `enumLabels` | For `enum`: string keys of the options. |
 | `arrayProperties` | For `array`, see below. |
 | `customElementType` | For `customElement`: name of a file in `customTypes/`. |
@@ -159,7 +159,7 @@ Built-in groups insert the program's own controls (type and preset selectors, pl
 | Building | `mainGroup` (enabled sides, height, depth, roof texture, acute angle fix, side selection) |
 | Building side | `mainGroup` (floors), `blocksGroup` (block dictionary) |
 | Building block | `mainGroup` (block type) |
-| Low-level element | `mainGroup` (end editing, delete, type, restoring the ghost it replaces), `pointsGroup` (selected point, click mode, array elements), `splineGroup` (curve mode, resolution and Hermite controls for spline-driven types), `meshGroup` (texture coordinates of the selected vertex), `containerGroup` (container, contents, merge); see [Core Low-Level Elements](Core-Low-Level-Elements#parametersjson-and-uijson) |
+| Low-level element | `mainGroup` (end editing, delete, type, optional property presets, restoring the ghost it replaces), `pointsGroup` (selected point, click mode, array elements), `splineGroup` (curve mode, resolution and Hermite controls for spline-driven types), `meshGroup` (texture coordinates of the selected vertex), `containerGroup` (container, contents, merge); see [Core Low-Level Elements](Core-Low-Level-Elements#parametersjson-and-uijson) |
 
 Spline-driven low-level types use `splineGroup` for curve mode, resolution and Hermite controls, and `pointsGroup` for road-style point placement. Low-level type `createMenu` settings choose direct Create entries or a localized group; see [Core Low-Level Elements](Core-Low-Level-Elements#spline-driven-elements).
 

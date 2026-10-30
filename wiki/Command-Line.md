@@ -45,6 +45,8 @@ When a command is given, the last city is not loaded at startup and nothing is a
 
 For short spline/decal integration checks, set `KM2_SELFTEST_FOCUS=splines` before `selftest api <new folder>` (a window also checks rendering). This covers spline placement, curve modes, core components, rail generation, history and save/reload. `KM2_SELFTEST_FOCUS=propPaths` runs the standalone prop-rule checks in a fresh city. Unset the variable for the full API suite.
 
+`KM2_SELFTEST_FOCUS=lowLevelPresets` checks creation drafts, grouped type switching, property controls before placement, per-type preset management and session memory, sync/history, shared points and attachments, compatibility defaults, and city reload. A window also captures the draft panel, preset management and a manually placed Bézier decal.
+
 ### Parameters as options
 
 The options of `new`, `export`, `export-json` and `generate` are the parameters of their API method, written in lowercase with dashes: `terrainSize` is `--terrain-size`, `heightmapResolution` is `--heightmap-resolution`. `help <command>` lists them with their types and defaults, and new API parameters show up there by themselves. The boolean parameters are flags: `--null-only` sets `nullOnly` to true, `--subdivide=false` sets `subdivide` to false. `export` takes the output path as `--out` (the `path` of `city.export`), and its flags as `--flag id=true` or `--flag id=false`, repeated for each flag (`info` lists the flags of the exporters).

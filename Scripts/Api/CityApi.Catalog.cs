@@ -144,16 +144,19 @@ namespace Api {
             return res;
         }
 
-        [ApiMethod("presets.list", "The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, propContainer, propElem, roadPropRule, or a container such as rail); the first one is the default")]
+        [ApiMethod("presets.list", "The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, propContainer, propElem, roadPropRule, lowLevel/<type> for enabled low-level types, or a container such as rail); the first one is the default")]
         public List<string> ListPresets(string category) {
             RequireCity();
-            return PresetNames(category);
+            try { return PresetNames(category); }
+            catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
         }
 
         [ApiMethod("presets.get", "The values of a preset")]
         public ObjectState GetPreset(string category, string name) {
             RequireCity();
-            var res = PresetManager.GetPresetByName(name, category);
+            ObjectState res;
+            try { res = PresetManager.GetPresetByName(name, category); }
+            catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
             if (res == null) throw ApiException.NotFound("preset '" + name + "' of " + category);
             return res;
         }
@@ -163,25 +166,30 @@ namespace Api {
             RequireCity();
             if (string.IsNullOrWhiteSpace(name)) throw ApiException.InvalidValue("the preset name can't be empty");
             if (values == null) throw ApiException.InvalidParam("missing values");
-            Operations.Presets.Save(values, category, name);
+            try { Operations.Presets.Save(values, category, name); }
+            catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
         }
 
-        [ApiMethod("presets.delete", "Deletes a preset (not the default one); the roads, intersections, building lines, buildings, building sides and building blocks using it are unlinked from it")]
+        [ApiMethod("presets.delete", "Deletes a preset (not the default one); linked roads, intersections, building parts and enabled low-level elements are unlinked from it")]
         public void DeletePreset(string category, string name) {
             RequireCity();
             if (name == Operations.Presets.DefaultName) throw ApiException.InvalidOperation("the default preset can't be deleted");
             ApplyChange("delete preset", () => {
-                if (!Operations.Presets.Exists(category, name)) throw ApiException.NotFound("preset '" + name + "' of " + category);
-                Operations.Presets.Delete(M, category, name);
+                try {
+                    if (!Operations.Presets.Exists(category, name)) throw ApiException.NotFound("preset '" + name + "' of " + category);
+                    Operations.Presets.Delete(M, category, name);
+                } catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
             });
         }
 
-        [ApiMethod("presets.sync", "Gives the current values of a preset to the roads, intersections, building lines, buildings, building sides or building blocks linked to it")]
+        [ApiMethod("presets.sync", "Gives the current values of a preset to the roads, intersections, building parts and enabled low-level elements linked to it")]
         public void SyncPreset(string category, string name) {
             ApplyChange("sync preset", () => {
-                if (!Operations.Presets.CanSync(category)) throw ApiException.InvalidOperation("only road, intersection, buildingLine, building, buildingSide and buildingBlock presets can be synced");
-                if (!Operations.Presets.Exists(category, name)) throw ApiException.NotFound("preset '" + name + "' of " + category);
-                Operations.Presets.Sync(M, category, name);
+                try {
+                    if (!Operations.Presets.CanSync(category)) throw ApiException.InvalidOperation("this preset category does not support sync");
+                    if (!Operations.Presets.Exists(category, name)) throw ApiException.NotFound("preset '" + name + "' of " + category);
+                    Operations.Presets.Sync(M, category, name);
+                } catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
             });
         }
 

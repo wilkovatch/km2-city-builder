@@ -68,6 +68,8 @@ public abstract partial class EditorPanel {
                     if (dropdown.stateGetter == null) continue;
                     var state = dropdown.stateGetter.Invoke();
                     var curPreset = PresetManager.GetPresetByName(state?.Name, key);
+                    var lowLevelType = Operations.LowLevelPresets.TypeOfCategory(key);
+                    if (curPreset != null && lowLevelType != null) curPreset = Operations.LowLevelPresets.Extract(curPreset, lowLevelType);
                     var same = state != null && state.Equals(curPreset);
                     var hasName = state != null && state.Name != "";
                     dropdown.unlinkButton?.SetInteractable(hasName);
