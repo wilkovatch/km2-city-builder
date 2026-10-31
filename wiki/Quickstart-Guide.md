@@ -191,7 +191,7 @@ You can display an image on the ground as a guide for placing roads (e.g. a map 
 
 - *View→Show all traffic lanes* shows the traffic lanes of all the roads.
 - *View→Ground only view mode* hides everything except the ground, which is useful while editing it.
-- *View→Hide terrain grid* hides the terrain, which can't be clicked while hidden: use it to place points or objects on a surface the terrain covers (e.g. a road under it). Elements projected on the city surfaces, such as the MM2 decals, already go under the terrain. Roads and other elements projected on the terrain still follow it, so a road, building line or terrain patch started while the terrain is hidden has its *Project to ground* turned off (it can be turned on again).
+- *View→Hide terrain grid* hides the terrain, which can't be clicked while hidden: use it to place points or objects on a surface the terrain covers (e.g. a road under it). Elements projected on the city surfaces, such as the MM2 decals, already go under the terrain. Roads and other elements projected on the terrain still follow it, so a road, building line or terrain patch started while the terrain is hidden has its *Project to ground* turned off (it can be turned on again). The *Project to ground* button of a mesh instance skips the hidden terrain as well: it puts the instance on the surface it can be placed on under it, or at the zero height if there is none.
 - *View→Wireframe* shows the meshes as wireframe, on a plain background.
 - *View→Reset window* restores the default window size.
 - The rendering mode, the shadows and the props culling distance are in *Edit→Project settings→Graphics*.

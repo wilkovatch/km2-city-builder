@@ -289,6 +289,20 @@ namespace Api {
                 ids.AddRange(scattered);
                 Check("scattered instances use the placement rule", scattered.All(id => Near(GO.GetPosition(SelectionInstance(id)).Y, 20)));
                 Check("a target can exclude itself and fall back to terrain", Near(GeometryHelper.AutoProjectOnSurface(new Vector3(3100, 99, 3000), mixed, Target()).Y, 20));
+                await Call("meshes.setTransform", new { mesh = placed, position = V(3100, 99, 3000) });
+                await Call("meshes.projectToGround", new { mesh = placed });
+                Check("project to ground puts a mesh on the visible grid", Near(GO.GetPosition(SelectionInstance(placed)).Y, 20));
+                await Call("view.setTerrainHidden", new { hidden = true });
+                try {
+                    await Call("meshes.setTransform", new { mesh = placed, position = V(3100, 99, 3000) });
+                    await Call("meshes.projectToGround", new { mesh = placed });
+                    Check("project to ground reaches the mesh under the hidden grid", Near(GO.GetPosition(SelectionInstance(placed)).Y, 6));
+                    await Call("meshes.setTransform", new { mesh = placed, position = V(3200, 99, 3000) });
+                    await Call("meshes.projectToGround", new { mesh = placed });
+                    Check("project to ground falls back to the zero height with only the hidden grid under it", Near(GO.GetPosition(SelectionInstance(placed)).Y, 0));
+                } finally {
+                    await Call("view.setTerrainHidden", new { hidden = false });
+                }
 
                 //Exercise the actual snap rule of a parametric object on the same surfaces.
                 var objectSettings = new ObjectState();

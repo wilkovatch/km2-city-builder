@@ -149,6 +149,15 @@ public partial class MeshInstance : PhysicsScriptable
         return MeshManager.GetPlacementTransform(meshPath, useCoreTransform, rules.autoYOffset.GetValue(vc));
     }
 
+    //the layers the object is placed on (placerLayerMask, the terrain if the type has none), without the layer of the
+    //selection colliders: project with this object excluded instead, so other mesh targets remain eligible
+    public int GetPlacerLayerMask() {
+        var type = GetPlacementType();
+        var rules = type?.Rules;
+        var mask = rules?.placerLayerMask != null ? (int)rules.placerLayerMask.GetValue(type.VariableContainer) : 1 << 3;
+        return mask & ~(1 << 8);
+    }
+
     //puts the object on the layers it is placed on, if its placement rules ask for it (snapToSurface),
     //e.g. after being moved with the gizmo; returns whether it was projected
     public bool SnapToSurface() {
@@ -156,10 +165,7 @@ public partial class MeshInstance : PhysicsScriptable
         var rules = type?.Rules;
         if (rules?.snapToSurface == null) return false;
         if (!rules.snapToSurface.GetValue(type.VariableContainer)) return false;
-        var mask = rules.placerLayerMask != null ? (int)rules.placerLayerMask.GetValue(type.VariableContainer) : 1 << 3;
-        //Exclude this collider rather than the whole type's layer, so other mesh targets remain eligible.
-        mask &= ~(1 << 8);
-        GO.SetPosition(this, GeometryHelper.ProjectOnSurface(GO.GetPosition(this), mask, this));
+        GO.SetPosition(this, GeometryHelper.ProjectOnSurface(GO.GetPosition(this), GetPlacerLayerMask(), this));
         SyncParametricObjectState();
         return true;
     }

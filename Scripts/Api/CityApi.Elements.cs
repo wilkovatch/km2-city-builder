@@ -761,7 +761,7 @@ namespace Api {
             });
         }
 
-        [ApiMethod("meshes.projectToGround", "Puts a mesh instance on the ground under it")]
+        [ApiMethod("meshes.projectToGround", "Puts a mesh instance on the ground under it (with the terrain hidden, on the surfaces it is placed on without the terrain, or at the zero height)")]
         public void ProjectMeshToGround(ElementRef mesh) {
             ApplyChange("project to ground", () => {
                 var m = Resolve<MeshInstance>(mesh, "meshInstance");
@@ -832,7 +832,7 @@ namespace Api {
             });
         }
 
-        [ApiMethod("objects.projectToGround", "Puts a parametric object on the ground under it (on the layers it is placed on, if its type snaps to them)")]
+        [ApiMethod("objects.projectToGround", "Puts a parametric object on the ground under it (on the layers it is placed on, if its type snaps to them; with the terrain hidden, on the surfaces it is placed on without the terrain, or at the zero height)")]
         public void ProjectObjectToGround(ElementRef @object) {
             ApplyChange("project to ground", () => {
                 var m = ResolveObject(@object);
