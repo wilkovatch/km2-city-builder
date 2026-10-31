@@ -548,7 +548,8 @@ class PythonManager {
         try {
             if (client == null || !client.Connected) StartClient();
             if (stream == null) throw new IOException("Python server connection is unavailable.");
-            var data = Encoding.ASCII.GetBytes(message);
+            //UTF-8 like the server decodes it: ASCII would turn non-ASCII characters of the paths into '?'
+            var data = Encoding.UTF8.GetBytes(message);
             stream.Write(data, 0, data.Length);
 
             var lenBytes = new byte[4];

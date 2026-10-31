@@ -44,18 +44,23 @@ def handle_client(conn):
             message = str(data.decode("utf-8"))
             print(message)
             message_parts = message.split("|")
-            if len(message_parts) < 2:
-                response = bytearray(4+1)
-            elif message_parts[0] == "texture" and texture_formats is not None:
-                path = message_parts[1]
-                response = texture_formats.read_file(path)
-            elif message_parts[0] == "mesh" and mesh_formats is not None:
-                path = message_parts[1]
-                response = mesh_formats.read_file(path)
-            elif message_parts[0] == "meshTransform":
-                path = message_parts[1]
-                response = read_transform(path)
-            else:
+            # an error must still get a reply, otherwise the program waits for it until its timeout
+            try:
+                if len(message_parts) < 2:
+                    response = bytearray(4+1)
+                elif message_parts[0] == "texture" and texture_formats is not None:
+                    path = message_parts[1]
+                    response = texture_formats.read_file(path)
+                elif message_parts[0] == "mesh" and mesh_formats is not None:
+                    path = message_parts[1]
+                    response = mesh_formats.read_file(path)
+                elif message_parts[0] == "meshTransform":
+                    path = message_parts[1]
+                    response = read_transform(path)
+                else:
+                    response = bytearray(4+1)
+            except Exception:
+                traceback.print_exc()
                 response = bytearray(4+1)
             length = bytearray((len(response)-4).to_bytes(4, 'little'))
             response[0:4] = length
