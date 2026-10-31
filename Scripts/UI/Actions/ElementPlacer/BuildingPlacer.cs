@@ -59,8 +59,8 @@ namespace ElementPlacer {
             var line = GetLine();
             var firstPoint = line.GetPointCount() == 0;
             Operations.BuildingLines.AddPoint(line, (Node3D)hit.collider, hit.point, pointOnly, placementMode == PlacementMode.DividingPoint);
-            //a raised point (or one on the hidden terrain, on the ground hit) would be put back on the ground
-            if (PlacementHeight.TurnsOffProjection(firstPoint) && !hits[0].HasValue && !hits[1].HasValue && line.IsProjectedToGround()) {
+            //a raised point (on the ground hit), or a line started with the terrain hidden, would be put back on the ground
+            if (PlacementHeight.TurnsOffProjection(firstPoint && line.GetPointCount() > 0, !hits[0].HasValue && !hits[1].HasValue) && line.IsProjectedToGround()) {
                 History.UndoManager.Touch(line);
                 line.state.SetBool("projectToGround", false);
                 manager.builder.RefreshActivePanelValues();

@@ -73,8 +73,9 @@ namespace ElementPlacer {
                     patch.HighlightBorderMesh(curBorderMesh);
                     break;
             }
-            //a raised point (or one on the hidden terrain, on the ground hit) would be put back on the ground
-            if (PlacementHeight.TurnsOffProjection(firstPoint) && placementMode != PlacementMode.BorderMesh && !hits[0].HasValue && !hits[1].HasValue && patch.IsProjectedToGround()) {
+            //a raised point (on the ground hit), or a patch started with the terrain hidden, would be put back on the ground
+            if (placementMode != PlacementMode.BorderMesh && PlacementHeight.TurnsOffProjection(firstPoint && patch.GetPerimeterPointCount() > 0,
+                !hits[0].HasValue && !hits[1].HasValue) && patch.IsProjectedToGround()) {
                 History.UndoManager.Touch(patch);
                 patch.state.SetBool("projectToGround", false);
                 manager.builder.RefreshActivePanelValues();

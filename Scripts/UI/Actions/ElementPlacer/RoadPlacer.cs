@@ -93,6 +93,8 @@ namespace ElementPlacer {
 
             var placeIntersection = GetPlaceIntersection(hits);
             if (placeIntersection == -1) return;
+            var wasEmpty = GetRoad().points.Count == 0;
+            var onGround = false;
             if (placeIntersection == 2) {
                 //as below, the new intersection point would be picked up by the gizmo
                 GameEngine.Gizmo.ConsumeClick();
@@ -104,12 +106,12 @@ namespace ElementPlacer {
                 if (hits[0].HasValue) drawing.ConnectToHandle((Node3D)hits[0].Value.collider, AtStart);
             } else {
                 if (hits[1].HasValue) {
-                    var firstPoint = GetRoad().points.Count == 0;
                     drawing.AddPoint(hits[1].Value.point, GetNewPointIndex(target));
-                    //a raised point (or one on the hidden terrain) would be put back on the ground
-                    if (PlacementHeight.TurnsOffProjection(firstPoint)) DisableProjection(GetRoad());
+                    onGround = true;
                 }
             }
+            //a raised point (or a road started with the terrain hidden) would be put back on the ground
+            if (PlacementHeight.TurnsOffProjection(wasEmpty && GetRoad().points.Count > 0, onGround)) DisableProjection(GetRoad());
         }
 
         void DisableProjection(Road road) {

@@ -15,10 +15,11 @@ public static class PlacementHeight {
     public static bool Active { get; set; }
     public static bool Holding => holding;
 
-    //whether a point placed on the ground hit turns off the projection to the ground of its element (which would move
-    //it): a raised point, or the first point of the element with the terrain hidden (the hidden terrain, where the
-    //projection would put it, can be at another height than the clicked point; the projection can be turned on again)
-    public static bool TurnsOffProjection(bool firstPoint) => Active || (firstPoint && CityGroundHelper.TerrainHidden);
+    //whether a placed point turns off the projection to the ground of its element (which would move it): a raised point
+    //(on the ground hit), or the first point of the element (wherever it is, e.g. on an intersection) with the terrain
+    //hidden (the hidden terrain, where the projection would put the element, can be at another height than the clicked
+    //points; the projection can be turned on again)
+    public static bool TurnsOffProjection(bool firstPoint, bool onGround) => (Active && onGround) || (firstPoint && CityGroundHelper.TerrainHidden);
     public static bool Dragging => holding && dragging;
 
     static bool holding, dragging, cancelled, sessionEnding;

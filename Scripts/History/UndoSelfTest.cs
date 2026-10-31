@@ -2066,6 +2066,22 @@ namespace History {
                 await MoveTo(Screen(new Vector3(-40, 0, -120)));
                 await Button(MouseButton.Left);
                 Check("height: the projection turned on again with the terrain hidden is kept", hiddenRoad.points.Count == 2 && hiddenRoad.state.Bool("project"));
+                UndoManager.Record("project", () => { UndoManager.Touch(hiddenRoad); hiddenRoad.state.SetBool("project", false); });
+                InvokeBuilder("DeselectAndCloseCurrentPanel");
+                await Frames(6);
+                //a road started on the end of another one (an intersection, not the ground) turns it off as well
+                var hiddenEnd = GO.GetPosition(hiddenRoad.points[1]);
+                UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+                await Frames(6);
+                placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
+                UndoManager.Record("project", () => placer.GetRoad().state.SetBool("project", true));
+                await MoveTo(Screen(hiddenEnd));
+                await Button(MouseButton.Left);
+                await MoveTo(Screen(new Vector3(-40, 0, -80)));
+                await Button(MouseButton.Left);
+                var connectedRoad = placer.GetRoad(false);
+                Check("height: a road started on an intersection with the terrain hidden turns off the projection", connectedRoad != null
+                    && connectedRoad.points.Count == 2 && connectedRoad.startIntersection != null && !connectedRoad.state.Bool("project"));
                 InvokeBuilder("DeselectAndCloseCurrentPanel");
                 await Frames(6);
             } finally {

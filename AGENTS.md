@@ -111,7 +111,7 @@ Writes `undo_selftest.log` and restores `LastCity`.
 | `split` | creates one | 0 failures, ~50 s. **Must run windowed.** `SplitModeTest` is flaky on window geometry, so rerun once before blaming a change |
 | `drag` | creates one | numeric field middle-drag, 0 failures, ~15 s. Captures the real mouse, so a moving mouse can fail the Shift check; rerun once |
 | `dropdown` | creates one | dropdown keys/wheel, 0 failures, ~10 s |
-| `height` | creates one | placement height (Shift + mouse movement), hidden terrain placement and snapping toggle, 29 OK, 0 failures, ~20 s. **Must run windowed.** Moves the real mouse, so rerun once before blaming a change |
+| `height` | creates one | placement height (Shift + mouse movement), hidden terrain placement and snapping toggle, 30 OK, 0 failures, ~20 s. **Must run windowed.** Moves the real mouse, so rerun once before blaming a change |
 | `ui`, `load`, `props` | **a copy** of an existing city | the old test city is gone; use a copy of the api self-test city (`<scratch>/api/city`) or ask the maintainer for one |
 
 Load/ui modes catch bugs that the scratch city misses. Reproduce user-reported bugs on a copy of a real city.
