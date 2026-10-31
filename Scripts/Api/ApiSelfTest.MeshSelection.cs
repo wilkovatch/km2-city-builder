@@ -67,6 +67,19 @@ namespace Api {
                 SelectionSurface(empty, triangle, new[] { 0, 0, 0 });
                 Check("no usable triangles gives no selection shape", GameEngine.Mesh.CreateSelectionShape(empty) == null && GameEngine.Mesh.CreateSelectionShape(null) == null);
             } finally { empty.Free(); }
+
+            //a NaN transform once threw at every frame in the LODUpdater (Basis.Scale)
+            var nan = new LODGroup { Position = new Vector3(float.NaN, 0, 0) };
+            try {
+                var nanRenderer = SelectionSurface(nan, triangle);
+                nan.SetLODs(new[] { 0.01f }, new[] { new List<GeometryInstance3D> { nanRenderer } });
+                AddChild(nan);
+                nan.RefreshCache();
+                nan.UpdateLod(new LODUpdater.CameraData { position = Vector3.Zero, halfAngleTan = 1 });
+                Check("LOD group with a NaN transform is culled without throwing", !nanRenderer.Visible);
+            } catch (System.Exception e) {
+                Check("LOD group with a NaN transform is culled without throwing (" + e.Message + ")", false);
+            } finally { nan.Free(); }
         }
 
         //OBJ import mirrors X; write these generated fixtures in program coordinates.

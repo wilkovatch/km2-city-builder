@@ -96,6 +96,7 @@ public partial class LODGroup : Node3D {
     bool visibleInTree;
     Vector3 worldReferencePoint;
     float worldSize;
+    bool invalidTransform = false; //NaN or infinite size or position: the group is culled
 
     public override void _EnterTree() {
         SetNotifyTransform(true);
@@ -115,9 +116,13 @@ public partial class LODGroup : Node3D {
         Dirty = false;
         visibleInTree = IsVisibleInTree();
         var transform = GlobalTransform;
-        var scale = transform.Basis.Scale.Abs();
-        worldSize = Size * Mathf.Max(scale.X, Mathf.Max(scale.Y, scale.Z));
+        //not Basis.Scale: its Mathf.Sign of the determinant throws on NaN, which would stop the updates of every group
+        var basis = transform.Basis;
+        worldSize = Size * Mathf.Max(basis.Column0.Length(), Mathf.Max(basis.Column1.Length(), basis.Column2.Length()));
         worldReferencePoint = transform * LocalReferencePoint;
+        var wasInvalid = invalidTransform;
+        invalidTransform = !float.IsFinite(worldSize) || !worldReferencePoint.IsFinite();
+        if (invalidTransform && !wasInvalid) GameEngine.LogWarning("Invalid transform (NaN or infinite) of the LOD group " + GetPath());
     }
 
     float GetRelativeHeight(in LODUpdater.CameraData cam) {
@@ -135,7 +140,7 @@ public partial class LODGroup : Node3D {
         if (Transitions.Length == 0 || !visibleInTree) return;
         var relativeHeight = GetRelativeHeight(cam);
         var lod = -1; //culled if smaller than the last transition
-        for (int i = 0; i < Transitions.Length; i++) {
+        for (int i = 0; i < Transitions.Length && !invalidTransform; i++) {
             if (relativeHeight >= Transitions[i]) {
                 lod = i;
                 break;
