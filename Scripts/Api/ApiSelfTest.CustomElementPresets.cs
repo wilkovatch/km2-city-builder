@@ -73,19 +73,22 @@ namespace Api {
             Check("cancelling a draft creates no city elements", M.customElements.Count == count);
             Same("draft edits and cancellation create no undo entries", before, await Call("history.state"));
 
-            Start(null, "CREATE_PSDL_ELEMENT");
-            await Frames(2);
-            var grouped = Field<List<string>>(panel, "creatableTypes");
-            var typeDropdown = Field<EditorPanelElements.Dropdown>(panel, "createTypeDropdown");
-            Check("grouped creation shows a type dropdown and a typed draft", typeDropdown != null && Draft() != null && !grouped.Contains("decal"));
-            if (grouped.Count > 1) {
-                var index = (typeDropdown.GetIndex() + 1) % grouped.Count;
-                var next = grouped[index];
-                typeDropdown.SetValue(index);
-                await Frames(3);
-                Check("switching grouped type rebuilds properties without placing anything", Draft().Str("type") == next && M.customElements.Count == count);
-            }
-            builder.CloseAllPanels();
+            var restore = MakeGroupCreatable("CREATE_PSDL_ELEMENT");
+            try {
+                Start(null, "CREATE_PSDL_ELEMENT");
+                await Frames(2);
+                var grouped = Field<List<string>>(panel, "creatableTypes");
+                var typeDropdown = Field<EditorPanelElements.Dropdown>(panel, "createTypeDropdown");
+                Check("grouped creation shows a type dropdown and a typed draft", typeDropdown != null && Draft() != null && !grouped.Contains("decal"));
+                if (grouped.Count > 1) {
+                    var index = (typeDropdown.GetIndex() + 1) % grouped.Count;
+                    var next = grouped[index];
+                    typeDropdown.SetValue(index);
+                    await Frames(3);
+                    Check("switching grouped type rebuilds properties without placing anything", Draft().Str("type") == next && M.customElements.Count == count);
+                }
+                builder.CloseAllPanels();
+            } finally { restore(); }
             Start();
             Draft().SetFloat("width", 5);
             var draftPages = (IList)typeof(EditorPanel).GetField("pages", flags).GetValue(panel);

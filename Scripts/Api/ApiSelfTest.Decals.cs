@@ -8,19 +8,29 @@ using GO = GameEngine.GameObject;
 namespace Api {
     public partial class ApiSelfTest {
         static float[] SplinePosition(Vector3 value) => new[] { value.X, value.Y, value.Z };
+
+        //the PSDL attributes are not in the Create menu: the checks of the grouped creation make their group creatable for a while
+        static System.Action MakeGroupCreatable(string group) {
+            var hidden = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().Values.Select(t => t.typeData.settings)
+                .Where(s => !s.creatable && s.createMenu?.group == group).ToList();
+            foreach (var s in hidden) s.creatable = true;
+            return () => { foreach (var s in hidden) s.creatable = false; };
+        }
+
         async Task Decals() {
             var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
             if (!types.ContainsKey("decal")) return;
             var schema = await Call("state.schema", new { @ref = 0 });
             Check("manual and automatic decals are no longer city properties", !schema["parameters"].Any(p =>
                 p["name"].Value<string>() == "decals" || p["name"].Value<string>() == "cableCarRailDecals"));
-            Check("decals have a direct menu entry and PSDL elements have their own group", types["decal"].typeData.settings.createMenu.direct &&
-                types.Where(p => p.Key != "decal" && p.Key != "train" && p.Value.typeData.settings.creatable).All(p => p.Value.typeData.settings.createMenu?.group == "CREATE_PSDL_ELEMENT"));
+            var psdlTypes = types.Values.Where(t => t.typeData.settings.createMenu?.group == "CREATE_PSDL_ELEMENT").ToList();
+            Check("decals have a direct menu entry and PSDL elements are hidden from the Create menu", types["decal"].typeData.settings.createMenu.direct &&
+                psdlTypes.Count > 0 && psdlTypes.All(t => !t.typeData.settings.creatable));
             builder.ReloadCreateMenu();
             var menu = CallBuilder<MenuBar>("GetMenuBar").FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>()
                 .First(b => b.Text == StringManager.Get("CREATE")).GetPopup();
             var direct = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemText(i) == StringManager.Get("CREATE_DECAL"));
-            Check("Create exposes a direct decal and a PSDL group", Enumerable.Range(0, menu.ItemCount).Any(i => menu.GetItemText(i) == StringManager.Get("CREATE_PSDL_ELEMENT")));
+            Check("Create exposes a direct decal and no PSDL group", !Enumerable.Range(0, menu.ItemCount).Any(i => menu.GetItemText(i) == StringManager.Get("CREATE_PSDL_ELEMENT")));
             menu.EmitSignal(PopupMenu.SignalName.IdPressed, menu.GetItemId(direct));
             History.UndoManager.Record("place first spline point", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-700, 0, -700) }));
             var clicked = builder.customElementPlacer.GetElement();
@@ -34,12 +44,19 @@ namespace Api {
             var clickedId = History.ElementRegistry.GetId(clicked);
             await Call("customElement.delete", new { element = clickedId });
             await IntersectionDecalPlacement();
-            var grouped = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemText(i) == StringManager.Get("CREATE_PSDL_ELEMENT"));
-            menu.EmitSignal(PopupMenu.SignalName.IdPressed, menu.GetItemId(grouped));
-            var groupedTypes = (List<string>)typeof(EditorPanels.CustomElementEditorPanel).GetField("creatableTypes",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder.customElementEditorPanel);
-            Check("the PSDL creation panel excludes direct decal entries", groupedTypes.Count > 0 && !groupedTypes.Contains("decal"));
-            builder.CloseAllPanels();
+            var restore = MakeGroupCreatable("CREATE_PSDL_ELEMENT");
+            try {
+                builder.ReloadCreateMenu();
+                var grouped = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemText(i) == StringManager.Get("CREATE_PSDL_ELEMENT"));
+                menu.EmitSignal(PopupMenu.SignalName.IdPressed, menu.GetItemId(grouped));
+                var groupedTypes = (List<string>)typeof(EditorPanels.CustomElementEditorPanel).GetField("creatableTypes",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder.customElementEditorPanel);
+                Check("the PSDL creation panel excludes direct decal entries", groupedTypes.Count > 0 && !groupedTypes.Contains("decal"));
+                builder.CloseAllPanels();
+            } finally {
+                restore();
+                builder.ReloadCreateMenu();
+            }
             var id = (await Call("customElement.create", new { type = "decal", name = "Spline decal test",
                 state = new { texture = "texture/decal_zigzag_l.tex", width = 3, curveType = 2 },
                 points = new { spline = new[] { new { position = new[] { -560, 0, 0 } }, new { position = new[] { -500, 0, 2 } }, new { position = new[] { -450, 0, -3 } } } }

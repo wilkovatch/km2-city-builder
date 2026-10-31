@@ -718,8 +718,8 @@ public partial class CityBuilderMenuBar : Control {
                 }
             }
         }
-        entries.AddRange(new[] { SM.Get("CREATE_PROP_RULE"), MenuBar.Divider, SM.Get("CREATE_WHOLE_CITY_TERRAIN"), SM.Get("CREATE_WHOLE_CITY_BUILDINGS") });
-        actions.AddRange(new System.Action[] { CreatePropPath, null, CreateCityTerrain, CreateCityBuildings });
+        entries.AddRange(new[] { MenuBar.Divider, SM.Get("CREATE_WHOLE_CITY_TERRAIN"), SM.Get("CREATE_WHOLE_CITY_BUILDINGS") });
+        actions.AddRange(new System.Action[] { null, CreateCityTerrain, CreateCityBuildings });
         GetMenuBar().SetEntries(createMenuIndex, entries, Recorded(entries, actions));
     }
 
