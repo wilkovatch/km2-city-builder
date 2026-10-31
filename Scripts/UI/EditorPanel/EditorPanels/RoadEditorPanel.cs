@@ -81,9 +81,13 @@ namespace EditorPanels {
                     builder.NotifyChange();
                     Update();
                 }, w * 0.4f);
-                curveDropdown.actionEnabled = false;
-                curveDropdown.SetValue(System.Array.IndexOf(allowed, GetCurRoad().state.Int("curveType")));
-                curveDropdown.actionEnabled = true;
+                //no road created while building the panel (with no road to edit yet), Update sets it later
+                var curRoad = GetCurRoad(false);
+                if (curRoad != null) {
+                    curveDropdown.actionEnabled = false;
+                    curveDropdown.SetValue(System.Array.IndexOf(allowed, curRoad.state.Int("curveType")));
+                    curveDropdown.actionEnabled = true;
+                }
                 if (System.Array.IndexOf(allowed, 1) >= 0) {
                     var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetCurRoad, "state.properties.subdivideEqually", null, w * 0.35f, null);
                     var tensionField = p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal, GetCurRoad, "state.properties.hermiteTension", null, w * 0.25f, null);
@@ -171,10 +175,12 @@ namespace EditorPanels {
             return null;
         }
 
+        //no new road if there is none (or the empty one was just deleted)
         void SetPlacePoint(bool value) {
-            GetCurRoad()?.SetPointsMoveable(!value);
+            var road = GetCurRoad(false);
+            road?.SetPointsMoveable(!value);
             builder.helper.elementManager.ShowIntersections(value);
-            GetCurRoad()?.SetActive(true);
+            road?.SetActive(true);
         }
 
         void ClearEmptyRoad() {
@@ -332,7 +338,7 @@ namespace EditorPanels {
             if (road != null) road.markFirstPoint = false;
             SetPlacePoint(false);
             ClearEmptyRoad();
-            GetCurRoad()?.SetActive(false);
+            GetCurRoad(false)?.SetActive(false); //not a new road in place of the empty one just deleted
             builder.helper.elementManager.ShowIntersections(false);
             if (!auto) SetActive(false);
             GameEngine.Gizmo.ClearTargets();

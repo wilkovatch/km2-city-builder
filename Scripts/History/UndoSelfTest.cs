@@ -1786,6 +1786,8 @@ namespace History {
                 await Frames(6);
                 var placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
                 var road = placer.GetRoad(false);
+                //the first opening of the editor builds it, which must not create a road of its own
+                if (i == 0) Check("placement: the first road is the only one", ContainerRoads() == "Road 1:0");
                 var z = i * 80;
                 foreach (var x in new[] { -80, 0, 80 }) await Click(new Vector3(x, 0, z));
                 Check(label + " is drawn with three terrain clicks", road.points.Count == 3);
@@ -1831,6 +1833,26 @@ namespace History {
                     await Frames(6);
                 }
             }
+
+            //an empty road is deleted when its editor closes (or another road is created), without a new one in its place
+            var drawn = ContainerRoads();
+            UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+            await Frames(6);
+            UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+            await Frames(6);
+            Check("placement: creating a road again replaces the empty one", ContainerRoads() == drawn + ",Road 4:0");
+            InvokeBuilder("DeselectAndCloseCurrentPanel");
+            await Frames(6);
+            Check("placement: closing the editor of an empty road leaves no road", ContainerRoads() == drawn);
+        }
+
+        //the roads in the road container (also the deleted ones, until they are freed), with their point counts
+        string ContainerRoads() {
+            var names = new List<string>();
+            foreach (var child in M.GetRoadContainer().GetChildren()) {
+                if (child is Road road) names.Add(road.Name + ":" + road.points.Count);
+            }
+            return string.Join(",", names);
         }
 
         async void RunSplit() {
