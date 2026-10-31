@@ -744,6 +744,12 @@ namespace EditorPanels {
                     placer.onModeEnded = () => SetPointPlacementMode(0);
                     placer.onElementCreated = OnElementCreated;
                 }
+                //the dropdown kept the mode of the last time (e.g. add after last, set on creation), not the placer's
+                if (placementDropdown != null) {
+                    placementDropdown.actionEnabled = false;
+                    placementDropdown.SetValue(GetPointPlacementMode());
+                    placementDropdown.actionEnabled = true;
+                }
                 shownAnything = false;
             } else if (!active && !keepActive && ActiveSelf()) {
                 Terminate(true);
