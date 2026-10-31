@@ -313,7 +313,7 @@ namespace RuntimeGizmos {
         void TransformStep() {
             var mouseRay = GetMouseRay();
             Vector3 mousePosition = Geometry.LinePlaneIntersect(mouseRay.origin, mouseRay.direction, originalPivot, planeNormal);
-            bool isSnapping = Input.GetInputPressed(KeyCommand.Modifier1);
+            bool isSnapping = Snapping.Enabled; //Edit->Snap to grid
             Vector3 axis = dragAxis;
 
             if (previousMousePosition != Vector3.Zero && mousePosition != Vector3.Zero) {

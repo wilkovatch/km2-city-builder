@@ -81,5 +81,11 @@ namespace ElementPlacer {
         public override List<int> GetLayerMasks() {
             return new List<int> { GetLayerMask() };
         }
+
+        public override int GroundHitIndex => 0;
+
+        //single placement only, and not for the types put back on the surface after a move
+        public override bool SupportsPlacementHeight => placeEnabled && settings != null && !multiple && !deleteMode &&
+            !Operations.Meshes.SnapsToSurface(settings);
     }
 }

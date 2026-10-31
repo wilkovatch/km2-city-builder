@@ -88,7 +88,7 @@ Creates an MM2 SF city and drives it only through JSON API commands. It covers e
 <godot console exe> --headless --path . -- selftest api "<scratch>/api/city"               # headless (skips the view checks)
 ```
 
-**Baseline (2026-10-30): 952 OK windowed, 0 failures, ~80 s windowed** (headless skips the view checks). Known and accepted: the full `city.export` reports an `export_failed` error on "Intersection 1" (PSDL perimeter infinite loop at the 3-road origin intersection). The test checks that the error names it and that PSDL/INST/BAI are still written.
+**Baseline (2026-10-31): 953 OK windowed, 0 failures, ~80 s windowed** (headless skips the view checks). Known and accepted: the full `city.export` reports an `export_failed` error on "Intersection 1" (PSDL perimeter infinite loop at the 3-road origin intersection). The test checks that the error names it and that PSDL/INST/BAI are still written.
 
 - `InheritedTypes` temporarily creates `Files/cores/MidtownMadness2/elements/roads/zzInheritTest`. If a run is killed, delete that folder by hand.
 - A run with failures has exited with 132 (SIGILL) during Godot's shutdown finalizers. Clean runs exit 0.
@@ -111,6 +111,7 @@ Writes `undo_selftest.log` and restores `LastCity`.
 | `split` | creates one | 0 failures, ~50 s. **Must run windowed.** `SplitModeTest` is flaky on window geometry, so rerun once before blaming a change |
 | `drag` | creates one | numeric field middle-drag, 0 failures, ~15 s. Captures the real mouse, so a moving mouse can fail the Shift check; rerun once |
 | `dropdown` | creates one | dropdown keys/wheel, 0 failures, ~10 s |
+| `height` | creates one | placement height (Shift + mouse movement), hidden terrain placement and snapping toggle, 29 OK, 0 failures, ~20 s. **Must run windowed.** Moves the real mouse, so rerun once before blaming a change |
 | `ui`, `load`, `props` | **a copy** of an existing city | the old test city is gone; use a copy of the api self-test city (`<scratch>/api/city`) or ask the maintainer for one |
 
 Load/ui modes catch bugs that the scratch city misses. Reproduce user-reported bugs on a copy of a real city.
@@ -139,6 +140,7 @@ Simulating input in self-tests:
 - **Custom elements** (generic element types defined by the core, not necessarily low-level representations: e.g. the MM2 PSDL attributes, but also its decals and trains): core folder `elements/customElements/<type>/`, save key `customElements`, API kind `customElement`, preset/reference/converter prefix `customElement/<type>`. They used to be called "low-level elements": cities saved before the rename (`lowLevelElements`, `lowLevel` references, `lowLevel/<type>` preset categories) are still read. Don't confuse them with the `customCityProperties` parameter type (`customCityPropertiesType`, types in `elements/customCityPropertiesTypes/`), the nested parameter groups of the city properties (formerly `customElement`/`customTypes`). Converted roads/intersections become hidden `ghost`s whose references resolve to their replacements at export. The generic mechanism is in `wiki/Core-Custom-Elements.md`, the core specifics (and the MM2 export-equivalence check) in the core's README and `AGENTS.md`.
 - **Core view toggles:** core `settings.json` `viewToggles`, stored in the city `preferences.json` as `viewToggle.<name>`. Core settings must not be read before a city is loaded (that once cached the wrong settings and broke `.tex` decoding).
 - **Terrain3D** snaps heightmap imports to its region grid; the region size is `min(256, resolution/2)`.
+- An exactly vertical physics ray on an edge of the Terrain3D heightmap cells can miss the terrain (Godot physics: whole coordinates at negative X near the origin, where the snapped clicks are). `DoRaycast` and `TryProjectPoint` retry vertical rays a little off the edges (`IntersectVerticalRay`); raw vertical `IntersectRay` calls need the same.
 - Forward+ wireframe works without `RenderingServer.SetDebugGenerateWireframes` (needed only on the Compatibility renderer).
 - Graphics settings (`renderingMode`, `shadowsEnabled`) are per city in `preferences.json`.
 

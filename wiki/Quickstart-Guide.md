@@ -125,7 +125,7 @@ Objects made of points (roads, terrain patches and building lines) have a *Point
 
 New objects start in *Add* mode; when an existing object is selected again the mode is *None*.
 
-Points are kept on the ground by default. Hold Shift while placing them to snap them to the grid.
+Points are kept on the ground by default. To place them higher, hold Shift and move the mouse up or down: the next points go at that height (a thin green line shows it from the ground, with ticks every 1, 10 and 100 meters like the terrain grid), and the element is no longer projected to the ground. Tap Shift (press and release it without moving the mouse) to go back to the ground; turning *Project to ground* on again in the panel, or ending the placement (closing the editor), does the same. Creating another element right away keeps the height. Press G (or use *Edit* → *Snap to grid*) to snap the points to the grid, and the height to whole meters.
 
 ### Moving points and objects
 
@@ -161,7 +161,8 @@ The rotation blends along the curve from point to point, and a road type can dis
 | Delete | Delete the selected object or point |
 | M | Enter the position of the selected point or object by hand |
 | W / E / R | Move / rotate / scale the selected mesh |
-| Hold Shift | Snap to the grid, transform in incremental steps |
+| G | Snap to the grid (placement, moves), transform in incremental steps (rotation, scale) |
+| Hold Shift + move the mouse | Set the placement height; tap Shift to go back to the ground |
 | Hold Ctrl | Select multiple control points, click through meshes |
 | Up / Down | Navigate the lists (meshes, objects, ...) |
 
@@ -190,7 +191,7 @@ You can display an image on the ground as a guide for placing roads (e.g. a map 
 
 - *View→Show all traffic lanes* shows the traffic lanes of all the roads.
 - *View→Ground only view mode* hides everything except the ground, which is useful while editing it.
-- *View→Hide terrain grid* hides the terrain, which can't be clicked while hidden: use it to place points or objects on a surface the terrain covers (e.g. a road under it). Elements projected on the city surfaces, such as the MM2 decals, already go under the terrain. Roads and other elements projected on the terrain still follow it.
+- *View→Hide terrain grid* hides the terrain, which can't be clicked while hidden: use it to place points or objects on a surface the terrain covers (e.g. a road under it). Elements projected on the city surfaces, such as the MM2 decals, already go under the terrain. Roads and other elements projected on the terrain still follow it, so a road, building line or terrain patch started while the terrain is hidden has its *Project to ground* turned off (it can be turned on again).
 - *View→Wireframe* shows the meshes as wireframe, on a plain background.
 - *View→Reset window* restores the default window size.
 - The rendering mode, the shadows and the props culling distance are in *Edit→Project settings→Graphics*.
@@ -328,7 +329,7 @@ To place a mesh, select its type in the *Create* menu (for Midtown Madness 2, *I
 
 ![The mesh list](images/mesh-list-panel.png)
 
-To change the position, rotation or scale of a placed mesh, exit the placement mode (click *Close* or press Escape) and click on the mesh. You can then move it (click *Move* or press W), rotate it (click *Rotate* or press E) and scale it (click *Scale* or press R), or enter the values by hand in the panel. Hold Shift to apply the transforms in incremental steps (e.g. move snapped to the grid).
+To change the position, rotation or scale of a placed mesh, exit the placement mode (click *Close* or press Escape) and click on the mesh. You can then move it (click *Move* or press W), rotate it (click *Rotate* or press E) and scale it (click *Scale* or press R), or enter the values by hand in the panel. Turn on *Edit* → *Snap to grid* (G) to apply the transforms in incremental steps (e.g. move snapped to the grid).
 
 Some meshes are placed automatically depending on the properties of other objects (depending on the core, e.g. traffic lights at intersections), and some of their transform axes may be locked. The position and rotation you set for them are *relative* to the automatic ones, so moving the parent object keeps your offsets.
 

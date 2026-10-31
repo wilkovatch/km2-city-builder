@@ -58,6 +58,7 @@ namespace ElementPlacer {
             manager.worldChanged = true;
             var hit = GetHit(hits);
             var patch = GetPatch();
+            var firstPoint = patch.GetPerimeterPointCount() == 0;
             switch (placementMode) {
                 case PlacementMode.Perimeter:
                     var pointOnly = !Input.GetInputPressed(KeyCommand.Modifier2);
@@ -71,6 +72,12 @@ namespace ElementPlacer {
                     Operations.TerrainPatches.AddPointToBorderMesh(patch, curBorderMesh, point);
                     patch.HighlightBorderMesh(curBorderMesh);
                     break;
+            }
+            //a raised point (or one on the hidden terrain, on the ground hit) would be put back on the ground
+            if (PlacementHeight.TurnsOffProjection(firstPoint) && placementMode != PlacementMode.BorderMesh && !hits[0].HasValue && !hits[1].HasValue && patch.IsProjectedToGround()) {
+                History.UndoManager.Touch(patch);
+                patch.state.SetBool("projectToGround", false);
+                manager.builder.RefreshActivePanelValues();
             }
             UnselectPointDelayed();
         }
@@ -95,5 +102,9 @@ namespace ElementPlacer {
         public override List<int> GetLayerMasks() {
             return new List<int> { 1 << 10, 1 << 12, 1 << 3 };
         }
+
+        public override int GroundHitIndex => 2;
+
+        public override bool SupportsPlacementHeight => placementMode == PlacementMode.Perimeter || placementMode == PlacementMode.Internal;
     }
 }

@@ -8,6 +8,7 @@ class ActionHandlerManager {
     static Node3D handle = null;
     static Node3D discHandle = null;
     static ShaderMaterial discHandleMaterial = null;
+    static PlacementHeightLine heightLine = null;
 
     static Node3D GetHandle() {
         if (handle == null) {
@@ -34,6 +35,19 @@ class ActionHandlerManager {
             }
         }
         return discHandle;
+    }
+
+    //the vertical line from the ground to a point placed above it (PlacementHeight)
+    public static void ShowHeightLine(Vector3 from, Vector3 to) {
+        if (float.IsNaN(from.Y) || float.IsNaN(to.Y)) return;
+        var cam = GameEngine.Camera.Get(manager);
+        if (cam == null) return;
+        if (heightLine == null || !heightLine.Valid) heightLine = new PlacementHeightLine(manager, MaterialManager.GetHandleMaterial(GameEngine.Color.green));
+        heightLine.Show(from, to, cam);
+    }
+
+    public static void HideHeightLine() {
+        if (heightLine != null && heightLine.Valid) heightLine.Hide();
     }
 
     static void SetColor(Color color) {

@@ -45,6 +45,13 @@ namespace Operations {
             return (int)t.rules.placerLayerMask.GetValue(t.variableContainer);
         }
 
+        //whether the mesh instances with the given settings (with their type) are put back on the placer layers after a
+        //move (their snapToSurface rule)
+        public static bool SnapsToSurface(ObjectState settings) {
+            var t = FillType(settings);
+            return t?.rules.snapToSurface?.GetValue(t.variableContainer) ?? false;
+        }
+
         //settings: with the type ("type"); the random rotation is applied only if the type allows it
         public static MeshInstance Create(ElementManager manager, string meshPath, Vector3 position, ObjectState settings, bool randomRotation = false) {
             var mesh = MeshInstance.Create(meshPath, position, manager.GetMeshContainer(), settings);

@@ -25,14 +25,15 @@ namespace History {
         //intersections is edited, undone and redone; drag: the middle mouse drag of the numeric fields, on a new city;
         //dropdown: the keyboard navigation of the dropdown lists and the camera under them, on a new city;
         //selection: selection and deselection timings and handle cleanup, on a copy of an existing city;
-        //placement: control point selection and insertion on the first roads created after startup, on a new city
-        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection", "placement" };
+        //placement: control point selection and insertion on the first roads created after startup, on a new city;
+        //height: the placement height (Shift + mouse movement) and the snapping toggle, on a new city
+        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection", "placement", "height" };
 
         public static void Start(CityBuilderMenuBar builder, string folder, string mode) {
             builder.AddChild(new UndoSelfTest {
                 builder = builder, folder = folder, Name = "UndoSelfTest",
                 propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", placementOnly = mode == "placement", loadExisting = mode == "load",
-                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown", selectionOnly = mode == "selection"
+                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown", selectionOnly = mode == "selection", heightOnly = mode == "height"
             });
         }
 
@@ -42,6 +43,7 @@ namespace History {
         bool dragOnly = false;
         bool dropdownOnly = false;
         bool selectionOnly = false;
+        bool heightOnly = false;
 
         //Selection on a copy of a large city, including cities with no procedural roads. Times the synchronous work
         //separately from the next frame, which includes the renderer and physics server processing the handle changes.
@@ -761,6 +763,7 @@ namespace History {
             else if (splitOnly || placementOnly) RunSplit();
             else if (dragOnly) RunDrag();
             else if (dropdownOnly) RunDropdown();
+            else if (heightOnly) RunHeight();
             else Run();
         }
 
@@ -1880,6 +1883,225 @@ namespace History {
             Log("finished with " + failures + " failures");
             File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
             GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        async void RunHeight() {
+            var lastCity = SettingsManager.Get("LastCity", "");
+            var snapping = Snapping.Enabled;
+            try {
+                await LoadNewCity();
+                await HeightTests();
+            } catch (System.Exception e) {
+                Log("exception: " + e);
+                failures++;
+            }
+            Snapping.Enabled = snapping;
+            SettingsManager.Set("LastCity", lastCity);
+            Log("finished with " + failures + " failures");
+            File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
+            GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        //the placement height of the road points: Shift + mouse movement raises it, a Shift tap or turning the projection on
+        //again brings it back to the ground, other input while Shift is held does neither; G toggles the snapping
+        async Task HeightTests() {
+            var cam = GetViewport().GetCamera3D();
+            void PlaceCamera() {
+                GO.SetPosition(cam, new Vector3(0, 250, -250));
+                GO.LookAt(cam, Vector3.Zero);
+            }
+            PlaceCamera();
+            Snapping.Enabled = false;
+            await Frames(6);
+            Vector2 Screen(Vector3 p) => cam.UnprojectPosition(GameEngine.Vector3.DecodePosition(p));
+            void Send(InputEvent @event) => Input.ParseInputEvent(@event);
+            async Task MoveTo(Vector2 pos) {
+                GetViewport().WarpMouse(pos);
+                await Frames(2);
+            }
+            async Task Shift(bool pressed) {
+                Send(new InputEventKey { Keycode = Godot.Key.Shift, PhysicalKeycode = Godot.Key.Shift, Pressed = pressed, ShiftPressed = pressed });
+                await Frames(2);
+            }
+            async Task Key(Key key) {
+                Send(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = true });
+                await Frames(2);
+                Send(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = false });
+                await Frames(2);
+            }
+            async Task Button(MouseButton button, bool shift = false) {
+                var mouse = GetViewport().GetMousePosition();
+                Send(new InputEventMouseButton { ButtonIndex = button, Pressed = true, Position = mouse, GlobalPosition = mouse, ShiftPressed = shift });
+                await Frames(2);
+                Send(new InputEventMouseButton { ButtonIndex = button, Pressed = false, Position = mouse, GlobalPosition = mouse, ShiftPressed = shift });
+                await Frames(6);
+            }
+            //Shift held while the mouse moves up from the point on the ground
+            async Task Raise(Vector3 from, float pixels, bool release = true) {
+                var start = Screen(from);
+                await MoveTo(start);
+                await Shift(true);
+                for (int k = 1; k <= 10; k++) await MoveTo(start + new Vector2(0, -pixels * k / 10));
+                if (release) await Shift(false);
+            }
+            bool LineShown() {
+                var line = (PlacementHeightLine)typeof(ActionHandlerManager).GetField("heightLine", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).GetValue(null);
+                return line != null && line.enabled;
+            }
+            float Y(int i, Road r) => GO.GetPosition(r.points[i]).Y;
+
+            UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+            await Frames(6);
+            var placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
+            await MoveTo(Screen(new Vector3(-80, 0, 0)));
+            await Button(MouseButton.Left);
+            var road = placer.GetRoad(false);
+            Check("height: the first point is placed", road != null && road.points.Count == 1);
+            if (road == null || road.points.Count != 1) return;
+            var ground = Operations.Terrain.GetHeight(GO.GetPosition(road.points[0]));
+            Check("height: by default points are placed on the ground (" + Y(0, road) + ", ground " + ground + ")", Mathf.Abs(Y(0, road) - ground) < 0.05f);
+            UndoManager.Record("project", () => { UndoManager.Touch(road); road.state.SetBool("project", true); road.state.SetBool("projectAll", false); });
+            await Frames(3);
+
+            await Raise(new Vector3(0, 0, 0), 80, false);
+            var height = PlacementHeight.Height;
+            Check("height: moving the mouse with Shift raises the placement (" + height + ")", PlacementHeight.Raised && height > ground + 1);
+            Check("height: the height line is shown", LineShown());
+            await Button(MouseButton.Left, true);
+            await Shift(false);
+            Check("height: a click while dragging places a raised point", road.points.Count == 2 && Mathf.Abs(Y(1, road) - height) < 0.05f);
+            Check("height: the raised point is on the vertical line of the drag", road.points.Count == 2
+                && new Vector2(GO.GetPosition(road.points[1]).X, GO.GetPosition(road.points[1]).Z).Length() < 2);
+            Check("height: placing a raised point turns off the projection", !road.state.Bool("project") && !road.state.Bool("projectAll"));
+            Check("height: the placement stays raised after releasing Shift", PlacementHeight.Raised);
+
+            await MoveTo(Screen(new Vector3(80, height, 0)));
+            Check("height: the height line follows the cursor", LineShown());
+            await Button(MouseButton.Left);
+            Check("height: a click after the drag places a point at the same height", road.points.Count == 3 && Mathf.Abs(Y(2, road) - height) < 0.05f);
+
+            //panning the camera with Shift and the wheel (scheme B) is not a tap
+            await Shift(true);
+            await Button(MouseButton.WheelUp, true);
+            await Shift(false);
+            PlaceCamera();
+            await Frames(3);
+            Check("height: Shift + wheel keeps the height", PlacementHeight.Raised && PlacementHeight.Height == height);
+            //a key while Shift is held is not a tap either
+            await Shift(true);
+            await Key(Godot.Key.Down);
+            await Shift(false);
+            Check("height: Shift + another key keeps the height", PlacementHeight.Raised);
+
+            await Shift(true);
+            await Shift(false);
+            Check("height: a Shift tap brings back the ground placement", !PlacementHeight.Raised && !LineShown());
+            await MoveTo(Screen(new Vector3(160, 0, 0)));
+            await Button(MouseButton.Left);
+            Check("height: then points are placed on the ground", road.points.Count == 4 && Mathf.Abs(Y(3, road) - ground) < 0.05f);
+
+            await Key(Godot.Key.G);
+            Check("height: G turns on the snapping", Snapping.Enabled);
+            await Raise(new Vector3(160, 0, 0), 77);
+            Check("height: with snapping the height is a whole number (" + PlacementHeight.Height + ")", PlacementHeight.Raised
+                && PlacementHeight.Height == Mathf.Round(PlacementHeight.Height) && PlacementHeight.Height > ground);
+            await Key(Godot.Key.G);
+            Check("height: G turns off the snapping", !Snapping.Enabled);
+
+            //turning on the projection in the panel
+            var panel = Panel<EditorPanels.RoadEditorPanel>("roadEditorPanel");
+            panel.Update();
+            await Frames(3);
+            CheckBox projectBox = null;
+            foreach (var node in builder.FindChildren("*", nameof(CheckBox), true, false)) {
+                var box = (CheckBox)node;
+                if (box.Text == StringManager.Get("RD_PROJECT_TO_GROUND") && box.IsVisibleInTree()) projectBox = box;
+            }
+            Check("height: the panel shows the projection turned off", projectBox != null && !projectBox.ButtonPressed);
+            if (projectBox != null) {
+                projectBox.ButtonPressed = true;
+                await Frames(3);
+                Check("height: turning on the projection brings back the ground placement", !PlacementHeight.Raised && road.state.Bool("project"));
+            }
+
+            //the transform panel of a point keeps the placement session
+            await Raise(new Vector3(0, 0, 60), 60);
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(road.points[0]);
+            await Frames(3);
+            InvokeBuilder("EditCurSelectedObjectTransform");
+            await Frames(6);
+            var transformPanel = Panel<EditorPanels.TransformPropertiesEditorPanel>("transformPropertiesEditorPanel");
+            typeof(EditorPanels.TransformPropertiesEditorPanel).GetMethod("EndHandleEditing",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(transformPanel, null);
+            await Frames(6);
+            Check("height: editing a point with M keeps the height", PlacementHeight.Raised && builder.terrainClick.modifier == placer);
+            UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+            await Frames(6);
+            Check("height: creating another element keeps the height", PlacementHeight.Raised && LineShown());
+            var line = (PlacementHeightLine)typeof(ActionHandlerManager).GetField("heightLine", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).GetValue(null);
+            var lineMesh = (ImmediateMesh)typeof(PlacementHeightLine).GetField("mesh", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(line);
+            var quads = lineMesh.GetSurfaceCount() == 1 ? ((Vector3[])lineMesh.SurfaceGetArrays(0)[(int)Mesh.ArrayType.Vertex]).Length / 6 : 0;
+            Check("height: the line has height ticks (" + quads + " quads)", quads > 1);
+            await Raise(new Vector3(0, 0, 60), 60);
+            InvokeBuilder("DeselectAndCloseCurrentPanel");
+            await Frames(6);
+            Check("height: ending the placement brings back the ground placement", !PlacementHeight.Raised);
+
+            //with the terrain hidden there is nothing to click: the zero height plane
+            builder.helper.SetTerrainHidden(true);
+            try {
+                UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+                await Frames(6);
+                placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
+                //a new road projected to the ground (e.g. by its preset)
+                UndoManager.Record("project", () => placer.GetRoad().state.SetBool("project", true));
+                await MoveTo(Screen(new Vector3(-80, 0, -120)));
+                await Button(MouseButton.Left);
+                var hiddenRoad = placer.GetRoad(false);
+                Check("height: with the terrain hidden points are placed at zero height", hiddenRoad != null && hiddenRoad.points.Count == 1 && Mathf.Abs(Y(0, hiddenRoad)) < 0.05f);
+                Check("height: the first point with the terrain hidden turns off the projection", hiddenRoad != null && !hiddenRoad.state.Bool("project"));
+                //turned on again, the next points keep it
+                UndoManager.Record("project", () => { UndoManager.Touch(hiddenRoad); hiddenRoad.state.SetBool("project", true); });
+                await MoveTo(Screen(new Vector3(-40, 0, -120)));
+                await Button(MouseButton.Left);
+                Check("height: the projection turned on again with the terrain hidden is kept", hiddenRoad.points.Count == 2 && hiddenRoad.state.Bool("project"));
+                InvokeBuilder("DeselectAndCloseCurrentPanel");
+                await Frames(6);
+            } finally {
+                builder.helper.SetTerrainHidden(false);
+            }
+
+            //the raised point and the projection turned off are one undo step (the undo closes the editor and may replace
+            //the road, so it is looked up again)
+            UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+            await Frames(6);
+            placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
+            await MoveTo(Screen(new Vector3(-80, 0, 120)));
+            await Button(MouseButton.Left);
+            await MoveTo(Screen(new Vector3(-40, 0, 120)));
+            await Button(MouseButton.Left);
+            var undoRoad = placer.GetRoad(false);
+            UndoManager.Record("project", () => { UndoManager.Touch(undoRoad); undoRoad.state.SetBool("project", true); });
+            await Frames(3);
+            await Raise(new Vector3(0, 0, 120), 80, false);
+            height = PlacementHeight.Height;
+            await Button(MouseButton.Left, true);
+            await Shift(false);
+            Check("height: a raised point on another road", undoRoad.points.Count == 3 && !undoRoad.state.Bool("project"));
+            Road Latest() {
+                Road res = null;
+                foreach (var r in M.roads) if (ElementSnapshot.IsAlive(r) && r.points.Count > 0 && Mathf.Abs(GO.GetPosition(r.points[0]).Z - 120) < 2) res = r;
+                return res;
+            }
+            InvokeBuilder("Undo");
+            await Frames(6);
+            var undone = Latest();
+            Check("height: undo removes the point and turns the projection on again", undone != null && undone.points.Count == 2 && undone.state.Bool("project"));
+            InvokeBuilder("Redo");
+            await Frames(6);
+            var redone = Latest();
+            Check("height: redo", redone != null && redone.points.Count == 3 && !redone.state.Bool("project") && Mathf.Abs(Y(2, redone) - height) < 0.05f);
         }
 
         //the item list of a road editor dropdown, opened with a real click: arrow keys move through it, the mouse wheel over it

@@ -56,7 +56,15 @@ namespace ElementPlacer {
             manager.worldChanged = true;
             var hit = GetHit(hits);
             var pointOnly = !Input.GetInputPressed(KeyCommand.Modifier2);
-            Operations.BuildingLines.AddPoint(GetLine(), (Node3D)hit.collider, hit.point, pointOnly, placementMode == PlacementMode.DividingPoint);
+            var line = GetLine();
+            var firstPoint = line.GetPointCount() == 0;
+            Operations.BuildingLines.AddPoint(line, (Node3D)hit.collider, hit.point, pointOnly, placementMode == PlacementMode.DividingPoint);
+            //a raised point (or one on the hidden terrain, on the ground hit) would be put back on the ground
+            if (PlacementHeight.TurnsOffProjection(firstPoint) && !hits[0].HasValue && !hits[1].HasValue && line.IsProjectedToGround()) {
+                History.UndoManager.Touch(line);
+                line.state.SetBool("projectToGround", false);
+                manager.builder.RefreshActivePanelValues();
+            }
         }
 
         public override void ShowOnMap(List<RaycastHit?> hits) {
@@ -68,5 +76,9 @@ namespace ElementPlacer {
         public override List<int> GetLayerMasks() {
             return new List<int> { 1 << 10, 1 << 12, 1 << 3 };
         }
+
+        public override int GroundHitIndex => 2;
+
+        public override bool SupportsPlacementHeight => placementMode != PlacementMode.None;
     }
 }

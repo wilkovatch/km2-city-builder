@@ -409,6 +409,11 @@ public abstract partial class EditorPanel {
     public virtual void Update() {
     }
 
+    //shows the values of the fields again, after a change made elsewhere (e.g. by a placer)
+    public void RefreshValues() {
+        ReadCurValues();
+    }
+
     public void UpdateConversionButtons() {
         foreach (var (button, converter) in conversionButtons) button.SetInteractable(converter.IsEnabled(getObject?.Invoke()));
     }

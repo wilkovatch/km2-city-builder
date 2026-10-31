@@ -103,8 +103,21 @@ namespace ElementPlacer {
                 GameEngine.Gizmo.ConsumeClick();
                 if (hits[0].HasValue) drawing.ConnectToHandle((Node3D)hits[0].Value.collider, AtStart);
             } else {
-                if (hits[1].HasValue) drawing.AddPoint(hits[1].Value.point, GetNewPointIndex(target));
+                if (hits[1].HasValue) {
+                    var firstPoint = GetRoad().points.Count == 0;
+                    drawing.AddPoint(hits[1].Value.point, GetNewPointIndex(target));
+                    //a raised point (or one on the hidden terrain) would be put back on the ground
+                    if (PlacementHeight.TurnsOffProjection(firstPoint)) DisableProjection(GetRoad());
+                }
             }
+        }
+
+        void DisableProjection(Road road) {
+            if (!road.state.Bool("project") && !road.state.Bool("projectAll")) return;
+            History.UndoManager.Touch(road);
+            road.state.SetBool("project", false);
+            road.state.SetBool("projectAll", false);
+            manager.builder.RefreshActivePanelValues();
         }
 
         //where a point clicked on the terrain goes: next to the selected point if any, otherwise at the end (or before the start)
@@ -160,5 +173,9 @@ namespace ElementPlacer {
         public override List<int> GetLayerMasks() {
             return new List<int> { 1 << 9, 1 << 3, 1 << 8, 1 << RoadSplitLine.Layer };
         }
+
+        public override int GroundHitIndex => 1;
+
+        public override bool SupportsPlacementHeight => placementMode != PlacementMode.None && placementMode != PlacementMode.Split;
     }
 }

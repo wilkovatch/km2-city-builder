@@ -98,5 +98,10 @@ namespace ElementPlacer {
         public override List<int> GetLayerMasks() {
             return new List<int> { layerMask };
         }
+
+        public override int GroundHitIndex => 0;
+
+        //not for the types put on the surface under the clicked point
+        public override bool SupportsPlacementHeight => param != null && !snapToSurface;
     }
 }

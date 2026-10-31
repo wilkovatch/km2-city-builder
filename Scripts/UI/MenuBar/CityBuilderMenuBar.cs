@@ -171,11 +171,17 @@ public partial class CityBuilderMenuBar : Control {
         //undo and redo must not run inside a transaction
         entries.InsertRange(0, new List<string> { SM.Get("UNDO"), SM.Get("REDO"), MenuBar.Divider });
         actions.InsertRange(0, new List<System.Action> { Undo, Redo, null });
+        //an editing setting, not an undo step
+        entries.AddRange(new List<string> { MenuBar.Divider, SM.Get("SNAP_TO_GRID") });
+        actions.AddRange(new List<System.Action> { null, ToggleSnapping });
+        var snapEntry = entries.Count - 1;
         menuBar.AddElement(SM.Get("EDIT"), entries, actions, GameEngine.Color.black);
         var editMenuIndex = menuBar.GetElementCount() - 1;
+        menuBar.SetEntryChecked(editMenuIndex, snapEntry, Snapping.Enabled);
         menuBar.SetOnOpen(editMenuIndex, () => {
             menuBar.EnableEntry(editMenuIndex, 0, !noCity && History.UndoManager.CanUndo);
             menuBar.EnableEntry(editMenuIndex, 1, !noCity && History.UndoManager.CanRedo);
+            menuBar.SetEntryChecked(editMenuIndex, snapEntry, Snapping.Enabled);
         });
 
         //View (the entries are listed when it opens: the toggles of the core follow the program ones)
@@ -858,6 +864,11 @@ public partial class CityBuilderMenuBar : Control {
 
     public void SetSelectObjectMode() {
         terrainClick.modifier = nullModifier;
+        PlacementHeight.EndSession();
+    }
+
+    void ToggleSnapping() {
+        Snapping.Toggle();
     }
 
     public void NotifyChange() {
@@ -1748,6 +1759,11 @@ public partial class CityBuilderMenuBar : Control {
             : GO.GetLayer(terrainPoint.GetObject()) == 10 ? RuntimeGizmos.TransformType.None : RuntimeGizmos.TransformType.Move;
     }
 
+    //the values of the open editor read again, after a change of its element made outside of it
+    public void RefreshActivePanelValues() {
+        GetActivePanel()?.RefreshValues();
+    }
+
     EditorPanel GetActivePanel() {
         foreach (var panel in panels) {
             var activePanel = GetActivePanel(panel);
@@ -1823,6 +1839,9 @@ public partial class CityBuilderMenuBar : Control {
             }
             else if (Input.GetInputStart(KeyCommand.ZoomToSelection)) {
                 ZoomToSelection();
+            }
+            else if (Input.GetInputStart(KeyCommand.ToggleSnapping)) {
+                ToggleSnapping();
             }
         }
     }

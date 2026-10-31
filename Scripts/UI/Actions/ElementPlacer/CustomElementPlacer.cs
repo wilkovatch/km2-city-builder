@@ -161,8 +161,7 @@ namespace ElementPlacer {
         //(GeometryHelper.AutoProjectOnSurface), so its points go where its sections go; anchors and point links keep their
         //own hit priority, and the other elements are placed on what is visible.
         public override bool Raycast(Node3D parent, Vector3 origin, Vector3 direction, out RaycastHit hit, float distance, int mask) {
-            var settings = GetElement()?.Settings ?? (createType != null && CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()
-                .TryGetValue(createType, out var type) ? type.typeData.settings : null);
+            var settings = GetSettings();
             if ((mask & ((1 << 3) | (1 << 7))) == 0 || settings?.spline?.projectSections != true) {
                 return base.Raycast(parent, origin, direction, out hit, distance, mask);
             }
@@ -170,9 +169,26 @@ namespace ElementPlacer {
             return GeometryHelper.AutoRaycastSurface(parent, origin, direction, out hit, distance, mask, exclude);
         }
 
+        //the settings of the type of the edited element (or of the one to create)
+        CityElements.Types.CustomElementSettings GetSettings() {
+            return GetElement()?.Settings ?? (createType != null && CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()
+                .TryGetValue(createType, out var type) ? type.typeData.settings : null);
+        }
+
         //terrain points and anchors, point links, then the terrain and the generated meshes
         public override List<int> GetLayerMasks() {
             return new List<int> { 1 << 10, 1 << 12, (1 << 3) | (1 << 7) };
+        }
+
+        public override int GroundHitIndex => 2;
+
+        //not for the elements whose points or sections are always put on the surface
+        public override bool SupportsPlacementHeight {
+            get {
+                if (placementMode == PlacementMode.None) return false;
+                var spline = GetSettings()?.spline;
+                return spline == null || (!spline.projectPoints && !spline.projectSections);
+            }
         }
     }
 }

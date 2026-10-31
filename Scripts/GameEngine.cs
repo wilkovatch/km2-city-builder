@@ -677,6 +677,7 @@ public static partial class GameEngine {
             ZoomOut2,
             ZoomInAndPan2,
             ZoomToSelection,
+            ToggleSnapping,
             Down,
             Up,
             Select,
@@ -700,6 +701,7 @@ public static partial class GameEngine {
             { KeyCommand.ZoomOut, (Key.Pagedown, Key.None) },
             { KeyCommand.ZoomInAndPan, (Key.Home, Key.None) },
             { KeyCommand.ZoomToSelection, (Key.F, Key.None) },
+            { KeyCommand.ToggleSnapping, (Key.G, Key.None) },
             { KeyCommand.Down, (Key.Down, Key.None) },
             { KeyCommand.Up, (Key.Up, Key.None) },
         };
@@ -1600,16 +1602,15 @@ public static partial class GameEngine {
             };
             if (exclude != null) rayParams.Exclude = new Godot.Collections.Array<Rid> { exclude.GetRid() };
 
-            var result = spaceState.IntersectRay(rayParams);
+            var result = IntersectVerticalRay(spaceState, rayParams, from, to);
             if (result.Count > 0 && result.ContainsKey("position")) {
                 // The hit position of a ray starting 1000000 units away is only precise to 1/16 of a unit (float),
                 // which moved the projected elements by that much every time they were projected again (e.g. after
                 // undoing a terrain edit): it's refined with a short ray around the hit.
                 var hitPos = (Godot.Vector3)result["position"];
                 //Refine at the requested X/Z as well: a distant hit's lateral error changes Y on tilted surfaces.
-                rayParams.From = new Godot.Vector3(godotPos.X, hitPos.Y + 1, godotPos.Z);
-                rayParams.To = new Godot.Vector3(godotPos.X, hitPos.Y - 1, godotPos.Z);
-                var refined = spaceState.IntersectRay(rayParams);
+                var refined = IntersectVerticalRay(spaceState, rayParams, new Godot.Vector3(godotPos.X, hitPos.Y + 1, godotPos.Z),
+                    new Godot.Vector3(godotPos.X, hitPos.Y - 1, godotPos.Z));
                 if (refined.Count > 0 && refined.ContainsKey("position")) hitPos = (Godot.Vector3)refined["position"];
                 // The ray is vertical, only the height comes from the hit: its X and Z differ from the point's by a few
                 // 1e-5, which moved the projected elements a little more at every update.
@@ -1618,6 +1619,22 @@ public static partial class GameEngine {
             }
 
             return false;
+        }
+
+        // A vertical ray exactly on an edge of the terrain heightmap cells can go through it (Godot physics, e.g. at even
+        // negative X with a 2 m grid, where the snapped clicks are), a ray a little off the edges doesn't. The offset
+        // isn't on the cell diagonals either.
+        static readonly Godot.Vector3 CellEdgeOffset = new Godot.Vector3(0.001f, 0, 0.002f);
+
+        static Godot.Collections.Dictionary IntersectVerticalRay(PhysicsDirectSpaceState3D spaceState, PhysicsRayQueryParameters3D rayParams,
+            Godot.Vector3 from, Godot.Vector3 to) {
+            rayParams.From = from;
+            rayParams.To = to;
+            var result = spaceState.IntersectRay(rayParams);
+            if (result.Count > 0) return result;
+            rayParams.From = from + CellEdgeOffset;
+            rayParams.To = to + CellEdgeOffset;
+            return spaceState.IntersectRay(rayParams);
         }
 
         public static bool DoRaycast(Node3D parent, Godot.Vector3 origin, Godot.Vector3 direction, out RaycastHit hit, float distance, int collisionMask,
@@ -1633,7 +1650,8 @@ public static partial class GameEngine {
             query.CollisionMask = unchecked((uint)(includeProjectionSurfaces ? collisionMask : collisionMask & ~ProjectionSurfaceMask));
             if (exclude != null) query.Exclude = new Godot.Collections.Array<Rid> { exclude.GetRid() };
             query.CollideWithAreas = false;
-            var result = spaceState.IntersectRay(query);
+            var vertical = godotDirection.X == 0 && godotDirection.Z == 0;
+            var result = vertical ? IntersectVerticalRay(spaceState, query, godotOrigin, end) : spaceState.IntersectRay(query);
 
             Godot.Vector3 hitPoint = Godot.Vector3.Zero;
             Node hitCollider = null;
@@ -1641,7 +1659,10 @@ public static partial class GameEngine {
             bool res = false;
 
             if (result.Count > 0) {
-                hitPoint = Vector3.EncodePosition((Godot.Vector3)result["position"]);
+                var position = (Godot.Vector3)result["position"];
+                //a vertical ray hits under its origin, also when it was moved off the cell edges
+                if (vertical) position = new Godot.Vector3(godotOrigin.X, position.Y, godotOrigin.Z);
+                hitPoint = Vector3.EncodePosition(position);
                 hitCollider = (Node)result["collider"];
                 if (hitCollider is CollisionObject3D body) {
                     var owner = body.ShapeFindOwner((int)result["shape"]);

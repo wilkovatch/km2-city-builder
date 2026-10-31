@@ -1697,6 +1697,18 @@ namespace Api {
             var clamped = await Call("terrain.heights.set", new { x = gx, z = gz, width = 2, depth = 1, heights = tooHigh, encoding = "array" });
             Check("heights out of range are clamped", clamped["clamped"].Value<int>() == 1);
             await Call("history.undo");
+            //a vertical ray exactly on the edges of the heightmap cells (where the snapped clicks are) could go through the
+            //terrain, e.g. at whole negative x near the origin
+            int ex = (int)((-10 - origin) / pixel), ez = (int)((5 - origin) / pixel);
+            var flat = new float[3][];
+            for (int i = 0; i < 3; i++) flat[i] = new float[] { 7, 7, 7 };
+            await Call("terrain.heights.set", new { x = ex - 1, z = ez - 1, width = 3, depth = 3, heights = flat, encoding = "array" });
+            float edgeX = ex * pixel + origin, edgeZ = ez * pixel + origin;
+            var edgeHeight = (await Call("terrain.height", new { x = edgeX, z = edgeZ })).Value<float>();
+            var edgeRay = GameEngine.Raycast.DoRaycast(builder.helper, new Vector3(edgeX, 1000, edgeZ), Vector3.Down, out var edgeHit, 2000, 1 << 3);
+            Check("vertical rays on the heightmap cell edges hit the terrain (" + edgeHeight + ", " + edgeHit.point.Y + ")", System.Math.Abs(edgeHeight - 7) < 0.05f
+                && edgeRay && System.Math.Abs(edgeHit.point.Y - 7) < 0.05f && edgeHit.point.X == edgeX && edgeHit.point.Z == edgeZ);
+            await Call("history.undo");
             await Expect("an area out of the grid", "invalid_value", "terrain.heights.get", new { x = grid - 1, z = 0, width = 4, depth = 1 });
             await Expect("heights of the wrong size", "invalid_value", "terrain.heights.set", new { x = gx, z = gz, width = 4, depth = 3, heights = System.Convert.ToBase64String(new byte[8]) });
         }

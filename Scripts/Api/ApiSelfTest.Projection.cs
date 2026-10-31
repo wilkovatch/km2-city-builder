@@ -41,8 +41,8 @@ namespace Api {
             var snapped = new List<GameEngine.Raycast.RaycastHit?>();
             try {
                 builder.terrainClick.modifier = placer;
-                typeof(TerrainClick).GetMethod("SnapToGrid", BindingFlags.Instance | BindingFlags.NonPublic)
-                    .Invoke(builder.terrainClick, new object[] { hit, snapped, mask });
+                snapped.Add((GameEngine.Raycast.RaycastHit)typeof(TerrainClick).GetMethod("SnapToGrid", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(builder.terrainClick, new object[] { hit, mask }));
             } finally { builder.terrainClick.modifier = oldModifier; }
             return snapped;
         }

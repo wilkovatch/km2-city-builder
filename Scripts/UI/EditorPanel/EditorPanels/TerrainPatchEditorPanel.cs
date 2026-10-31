@@ -48,7 +48,7 @@ namespace EditorPanels {
                 p.AddFieldInputField(SM.Get("TP_SMOOTHING"), SM.Get("TP_SMOOTHING_PH"), GameEngine.InputContentType.Integer, GetCurPatch, "state.properties.smooth", null, 1.5f);
                 p.IncreaseRow();
 
-                p.AddFieldCheckbox(SM.Get("TP_PROJECT_TO_GROUND"), GetCurPatch, "state.properties.projectToGround", null, 1.5f);
+                p.AddFieldCheckbox(SM.Get("TP_PROJECT_TO_GROUND"), GetCurPatch, "state.properties.projectToGround", null, 1.5f, null, null, PlacementHeight.OnProjectionToggled);
                 p.IncreaseRow();
 
                 p.AddButton(SM.Get("TP_AUTOCLOSE"), AutoCloseLoop, 1.5f);

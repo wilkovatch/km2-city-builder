@@ -60,8 +60,8 @@ namespace EditorPanels {
                 if (pS.EditingPreset()) pointPlacementModeDropdown.SetInteractable(false);
                 p.IncreaseRow();
 
-                p.AddFieldCheckbox(SM.Get("RD_PROJECT_ALL_TO_GROUND"), GetCurRoad, "state.properties.projectAll", null, w / 3, null);
-                p.AddFieldCheckbox(SM.Get("RD_PROJECT_TO_GROUND"), GetCurRoad, "state.properties.project", null, w / 3, null);
+                p.AddFieldCheckbox(SM.Get("RD_PROJECT_ALL_TO_GROUND"), GetCurRoad, "state.properties.projectAll", null, w / 3, null, null, PlacementHeight.OnProjectionToggled);
+                p.AddFieldCheckbox(SM.Get("RD_PROJECT_TO_GROUND"), GetCurRoad, "state.properties.project", null, w / 3, null, null, PlacementHeight.OnProjectionToggled);
                 p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetCurRoad, "state.properties.segmentsPer100m", null, w / 3, null);
                 p.IncreaseRow();
 
