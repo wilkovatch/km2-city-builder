@@ -299,9 +299,15 @@ public static class UILayout {
         bar.CustomMinimumSize = new Vector2(width, 0);
         bar.AddThemeStyleboxOverride("scroll", Box(NormalColor));
         bar.AddThemeStyleboxOverride("scroll_focus", Box(NormalColor));
-        bar.AddThemeStyleboxOverride("grabber", Box(PressedColor));
-        bar.AddThemeStyleboxOverride("grabber_highlight", Box(HighlightedColor.Darkened(0.15f)));
-        bar.AddThemeStyleboxOverride("grabber_pressed", Box(PressedColor.Darkened(0.1f)));
+        bar.AddThemeStyleboxOverride("grabber", Grabber(PressedColor));
+        bar.AddThemeStyleboxOverride("grabber_highlight", Grabber(HighlightedColor.Darkened(0.15f)));
+        bar.AddThemeStyleboxOverride("grabber_pressed", Grabber(PressedColor.Darkened(0.1f)));
+    }
+
+    // Godot adds the grabber's minimum size to its proportional length: the 10px margins keep it at least
+    // 20px long in very long lists, like the 20px sizeDelta of the Unity scrollbar handle.
+    static StyleBoxFlat Grabber(Color fill) {
+        return Box(fill, 10, 10, 10, 10);
     }
 
     static Font boldFont;
