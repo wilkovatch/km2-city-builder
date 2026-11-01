@@ -50,8 +50,8 @@ namespace Dummiesman {
                 }
             }
 
-            //not found
-            return null;
+            var fallback = TextureImporter.FindMeshTexture(_objFileInfo?.DirectoryName ?? string.Empty, path);
+            return MaterialManager.GetTexture(fallback, true);
         }
 
         private Texture2D TryLoadTexture(string texturePath, bool normalMap = false) {

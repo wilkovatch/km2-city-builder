@@ -68,8 +68,14 @@ public static class TextureImporter {
     }*/
 
     public static string FindTexture(string nameWithoutExtension, bool absolute = false) {
-        if (!absolute) nameWithoutExtension = PathHelper.FindInFolders(nameWithoutExtension);
         if (fullSupportedFormats == null) ReloadTextureFormats();
+        if (!absolute) {
+            foreach (var folder in PathHelper.GetSearchFolders()) {
+                var candidate = FindTexture(Path.Combine(folder, nameWithoutExtension), true);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return Path.Combine(PathHelper.LocalFilesPath(), nameWithoutExtension);
+        }
         foreach (var format in fullSupportedFormats) {
             var name = PathHelper.ResolveFile(nameWithoutExtension + "." + format);
             if (File.Exists(name)) {
@@ -77,6 +83,37 @@ public static class TextureImporter {
             }
         }
         return nameWithoutExtension;
+    }
+
+    //Mesh readers give a folder beside the mesh, sometimes absolute. Keep that first, then use the same
+    //relative asset path in the city/global/local roots; no game-specific folder names are needed here.
+    public static string FindMeshTexture(string folder, string filename, bool withoutExtension = false) {
+        folder = folder.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+        filename = filename.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+        string Find(string path) {
+            var candidate = withoutExtension ? FindTexture(path, true) : PathHelper.ResolveFile(path);
+            return File.Exists(candidate) ? candidate : null;
+        }
+        var path = Path.GetFullPath(Path.Combine(folder, filename));
+        var result = Find(path);
+        if (result != null) return result;
+        var folders = new List<string>(PathHelper.GetSearchFolders());
+        foreach (var root in folders) {
+            var relative = Path.GetRelativePath(Path.GetFullPath(root), path);
+            if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar)) continue;
+            foreach (var searchFolder in folders) {
+                result = Find(Path.Combine(searchFolder, relative));
+                if (result != null) return result;
+            }
+            break;
+        }
+        if (!Path.IsPathRooted(filename)) {
+            foreach (var searchFolder in folders) {
+                result = Find(Path.Combine(searchFolder, filename));
+                if (result != null) return result;
+            }
+        }
+        return null;
     }
 
     static Texture2D ReadTexture(TextureDecoder.TextureDecoder decoder, string filename, int buffer = 4096) {

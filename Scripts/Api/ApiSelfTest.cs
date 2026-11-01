@@ -194,7 +194,10 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "meshPreviews") {
+                if (focus == "meshTextures") {
+                    await NewCity();
+                    MeshTexturePaths();
+                } else if (focus == "meshPreviews") {
                     await NewCity();
                     await MeshPreviews();
                 } else if (focus == "projection") {
@@ -258,6 +261,7 @@ namespace Api {
                     await SplineComponents();
                     await Props();
                     await Meshes();
+                    MeshTexturePaths();
                     await Batches();
                     await Transactions();
                     await Errors();
@@ -293,6 +297,92 @@ namespace Api {
             Log("finished in " + watch.Elapsed.TotalSeconds.ToString("0.0") + " s with " + failures + " failures");
             File.WriteAllLines(Path.Combine(folder, "..", "api_selftest.log"), log);
             GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        void MeshTexturePaths() {
+            var globalPaths = SettingsManager.GetList<string>("extraFolders", null);
+            var localPaths = PreferencesManager.GetList<string>("extraFolders", null);
+            var assets = Path.Combine(Path.GetDirectoryName(folder), "mesh-texture-assets");
+            var global = Path.Combine(assets, "global");
+            var local = Path.Combine(assets, "local");
+            var modelFolder = Path.Combine(folder, "models");
+            var surfaceFolder = Path.Combine(folder, "surfaces");
+            var globalTexture = Path.Combine(global, "surfaces", "shared.png");
+            var localTexture = Path.Combine(local, "surfaces", "local.png");
+            var cityTexture = Path.Combine(surfaceFolder, "shared.png");
+            void Image(string path, Color color) {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                using var image = Godot.Image.CreateEmpty(2, 2, false, Godot.Image.Format.Rgba8);
+                image.Fill(color);
+                image.SavePng(path);
+            }
+            bool SamePath(string actual, string expected) => actual != null && Path.GetFullPath(actual) == Path.GetFullPath(expected);
+            bool HasColor(Texture2D texture, Color color) {
+                using var image = texture?.GetImage();
+                return image != null && image.GetPixel(0, 0).IsEqualApprox(color);
+            }
+            //Exercise the texture part of a core's binary mesh response, including material texture loading.
+            Texture2D CoreTexture(string directory, string name) {
+                using var bytes = new MemoryStream();
+                using var writer = new BinaryWriter(bytes);
+                foreach (var value in new[] { directory, name }) {
+                    writer.Write((ushort)value.Length);
+                    writer.Write(System.Text.Encoding.ASCII.GetBytes(value));
+                }
+                var type = typeof(MeshImporter).GetNestedType("MeshResponseReader", System.Reflection.BindingFlags.NonPublic);
+                var reader = System.Activator.CreateInstance(type, new object[] { bytes.ToArray() });
+                return (Texture2D)type.GetMethod("ReadTexture", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(reader, null);
+            }
+            try {
+                SettingsManager.SetList("extraFolders", new List<string> { global });
+                PreferencesManager.SetList("extraFolders", new List<string> { local });
+                Directory.CreateDirectory(modelFolder);
+                Image(globalTexture, Colors.Red);
+                Image(localTexture, Colors.Blue);
+                Image(Path.Combine(local, "surfaces", "shared.png"), Colors.Blue);
+                var coreFolder = Path.Combine(modelFolder, "..", "surfaces");
+                Check("core mesh texture in the global paths loads from an extensionless sibling reference",
+                    HasColor(CoreTexture(coreFolder, "shared"), Colors.Red));
+                Check("extensionless texture lookup tries supported extensions in the global paths",
+                    SamePath(TextureImporter.FindTexture("surfaces/shared"), globalTexture));
+                Check("mesh textures also fall back to local paths", SamePath(TextureImporter.FindMeshTexture(coreFolder, "local", true), localTexture));
+                Image(Path.Combine(global, "direct.png"), Colors.Red);
+                Check("a global path can point directly to the texture folder", HasColor(CoreTexture(coreFolder, "direct"), Colors.Red));
+                Check("mesh references accept Windows separators", SamePath(TextureImporter.FindMeshTexture(modelFolder, "surfaces\\shared.png"), globalTexture));
+                Image(cityTexture, Colors.Green);
+                Check("a texture beside the mesh takes priority over global textures",
+                    HasColor(CoreTexture(coreFolder, "shared"), Colors.Green));
+                //All nearby extensions must be tried before falling back to another root's preferred extension.
+                File.WriteAllBytes(Path.Combine(global, "surfaces", "shared.tga"), new byte[] { 0 });
+                Check("nearby textures win regardless of the global texture extension",
+                    SamePath(TextureImporter.FindMeshTexture(coreFolder, "shared", true), cityTexture));
+                File.Delete(Path.Combine(global, "surfaces", "shared.tga"));
+                File.Delete(cityTexture);
+                File.WriteAllText(Path.Combine(modelFolder, "sample.mtl"), "newmtl surface\nmap_Kd surfaces/shared.png\n");
+                var obj = Path.Combine(modelFolder, "sample.obj");
+                File.WriteAllText(obj, "mtllib sample.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl surface\nf 1 2 3\n");
+                var mesh = MeshImporter.LoadMesh(obj, null, true, false);
+                try {
+                    var surface = mesh == null ? null : GameEngine.Scriptable.FindRecursive<MeshInstance3D>(mesh);
+                    var material = GameEngine.Mesh.GetMaterials(surface).FirstOrDefault() as ShaderMaterial;
+                    Check("an OBJ in the city loads its material texture from global paths",
+                        material != null && HasColor(material.GetShaderParameter("_MainTex").AsGodotObject() as Texture2D, Colors.Red));
+                } finally {
+                    mesh?.Free();
+                }
+                Image(cityTexture, Colors.Green);
+                var mtl = new Dummiesman.MTLLoader().Load(Path.Combine(modelFolder, "sample.mtl"));
+                Check("OBJ texture fallback respects city overrides", HasColor(mtl["surface"].GetShaderParameter("_MainTex").AsGodotObject() as Texture2D, Colors.Green));
+                Image(Path.Combine(modelFolder, "surfaces", "shared.png"), Colors.Blue);
+                mtl = new Dummiesman.MTLLoader().Load(Path.Combine(modelFolder, "sample.mtl"));
+                Check("OBJ textures beside the material file keep priority", HasColor(mtl["surface"].GetShaderParameter("_MainTex").AsGodotObject() as Texture2D, Colors.Blue));
+                Check("missing mesh textures still return null", TextureImporter.FindMeshTexture(coreFolder, "missing", true) == null);
+                Check("repeated searches leave global path settings unchanged", SettingsManager.GetList<string>("extraFolders", null).SequenceEqual(new[] { global }));
+            } finally {
+                SettingsManager.SetList("extraFolders", globalPaths);
+                PreferencesManager.SetList("extraFolders", localPaths);
+                MaterialManager.ClearCache();
+            }
         }
 
         //A local edit in a larger city must leave unrelated meshes alone. Run separately with

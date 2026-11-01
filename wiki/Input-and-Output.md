@@ -109,9 +109,11 @@ Top-level structure (`ExportedCity`):
 
 `GetSupportedFormats` returns `obj` plus the core's custom formats (used by the mesh selector). The `MeshDecoder` interface and its empty `Formats` folder are the extension point for meshes decoded directly in C#.
 
+Mesh material textures are checked beside the mesh (beside the material file for OBJ) first. If missing, the same relative asset path is searched in the city folder, then the global and local paths. The texture filename is also searched directly in those roots, so a path can point at a shared texture folder. This applies to OBJ materials and the texture references returned by a core, including references without extensions.
+
 ### `TextureImporter` (`IO/Import/TextureImporter.cs`)
 
-`LoadTexture(path)` dispatches by extension: `tga`, `dds` (DXT1, DXT3, DXT5; loaded flipped, top row at v = 0, like the textures of the cores), `bmp` (uncompressed or bitfields) through the C# decoders in `TextureDecoder/Formats` (`TGA`, `DDS`, `BMP`, implementing the `TextureDecoder` interface), `jpg`/`png` through Godot, and the core's `customTextureFormats` through the Python server (`texture|<path>`). `FindTexture(nameWithoutExtension)` tries every supported extension, in the order `tga, dds, bmp, jpg, jpeg, png`, then the custom formats; it is used when a mesh file references a texture without extension.
+`LoadTexture(path)` dispatches by extension: `tga`, `dds` (DXT1, DXT3, DXT5; loaded flipped, top row at v = 0, like the textures of the cores), `bmp` (uncompressed or bitfields) through the C# decoders in `TextureDecoder/Formats` (`TGA`, `DDS`, `BMP`, implementing the `TextureDecoder` interface), `jpg`/`png` through Godot, and the core's `customTextureFormats` through the Python server (`texture|<path>`). `FindTexture(nameWithoutExtension)` tries every supported extension in each search folder, in the order `tga, dds, bmp, jpg, jpeg, png`, then the custom formats. `FindMeshTexture(folder, filename, withoutExtension)` adds the nearby-folder priority and search-path fallback used by mesh materials.
 
 ### `BufferedBinaryReader` (`IO/BufferedBinaryReader.cs`)
 

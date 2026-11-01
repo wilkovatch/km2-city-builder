@@ -20,6 +20,7 @@ public static class PathHelper {
 
     static List<string> GetExtraFolders() {
         var extraFolders = SettingsManager.GetList<string>("extraFolders", null);
+        if (extraFolders != null) extraFolders = new List<string>(extraFolders);
         var localExtraFolders = PreferencesManager.GetList<string>("extraFolders", null);
         if (extraFolders == null && localExtraFolders != null) {
             extraFolders = localExtraFolders;
@@ -41,6 +42,14 @@ public static class PathHelper {
             trueFolder = FilesPath(true) + "common" + trueFolder;
         }
         return trueFolder;
+    }
+
+    public static IEnumerable<string> GetSearchFolders() {
+        yield return LocalFilesPath();
+        var extraFolders = GetExtraFolders();
+        if (extraFolders != null) {
+            foreach (var folder in extraFolders) yield return GetTrueFolder(folder);
+        }
     }
 
     public static void CreateCommonFolder() {

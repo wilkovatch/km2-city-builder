@@ -95,8 +95,7 @@ public static class MeshImporter {
             var folder = ReadString();
             var filename = ReadString();
             if (filename != null && filename != "") {
-                var texNameWithoutExt = Path.Combine(folder, filename);
-                var texName = TextureImporter.FindTexture(texNameWithoutExt, true);
+                var texName = TextureImporter.FindMeshTexture(folder, filename, true);
                 var tex = MaterialManager.GetTexture(texName, true);
                 return tex;
             } else {
