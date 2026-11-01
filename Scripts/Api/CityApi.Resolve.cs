@@ -311,7 +311,7 @@ namespace Api {
                     t.presetCategory = Operations.CustomElementPresets.Category(customElement.TypeName);
                     if (t.presetCategory != null) {
                         t.presetAllowedTypes = new List<string> { customElement.TypeName };
-                        t.applyPreset = x => Operations.CustomElementPresets.Apply(customElement.state, x, customElement.TypeName);
+                        t.applyPreset = x => Operations.CustomElementPresets.Apply(customElement, x);
                     }
                     break;
                 case TerrainPatch patch:

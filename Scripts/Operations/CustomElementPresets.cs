@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using CityElements.Types;
 using TP = CityElements.Types.Parsers.TypeParser;
+using Vector3 = Godot.Vector3;
 
 namespace Operations {
-    //Property presets never carry point geometry or instance references. Creation memory is local to the loaded city.
+    //Property presets carry only opted-in point transforms, never positions or instance references.
     public static class CustomElementPresets {
         const string Prefix = "customElement/";
         static readonly Dictionary<string, string> lastPresets = new();
@@ -91,7 +92,59 @@ namespace Operations {
             Validate(copy, type);
             copy.SetStr("type", type);
             Filter(copy, null, TP.GetCustomElementTypes()[type].parameterContainer.parameters, false);
+            var point = TP.GetCustomElementTypes()[type].typeData.settings.point;
+            TransformValue(copy, "pointRotation", point?.rotatable == true && point.presetRotation, Vector3.Zero);
+            TransformValue(copy, "pointScale", point?.scalable == true && point.presetScale,
+                global::CustomElements.PointTree.ToVector(point?.defaultScale, Vector3.One));
             return copy;
+        }
+
+        //Canonical vectors also make presets read from JSON compare equal to the live point transforms.
+        static void TransformValue(ObjectState state, string key, bool enabled, Vector3 fallback) {
+            if (!enabled) {
+                state.RemoveProperty(key);
+                return;
+            }
+            var value = state.Vector3(key, fallback);
+            if (state.properties.TryGetValue(key, out var raw)) {
+                if (raw is ObjectState vector) {
+                    foreach (var axis in new[] { "x", "y", "z" }) {
+                        if (!vector.properties.TryGetValue(axis, out var component) || component is not (int or float or double or long)) {
+                            throw new ArgumentException(key + " needs numeric x, y and z components");
+                        }
+                        vector.SetFloat(axis, Convert.ToSingle(component));
+                    }
+                    value = state.Vector3(key, fallback);
+                } else if (raw is not Vector3 && raw is not global::States.SerializableVector3) {
+                    throw new ArgumentException(key + " needs a vector");
+                }
+            }
+            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Z)) throw new ArgumentException(key + " must be finite");
+            state.SetVector3(key, value);
+        }
+
+        public static ObjectState Extract(CustomElement element) {
+            var copy = (ObjectState)element.state.Clone();
+            if (element.Settings?.point is CustomElementPointSettings settings && element.points.Get("center") is global::CustomElements.PointLeaf leaf) {
+                if (settings.rotatable && settings.presetRotation) copy.SetVector3("pointRotation", leaf.point.GetRotation());
+                if (settings.scalable && settings.presetScale) copy.SetVector3("pointScale", leaf.point.GetScale());
+            }
+            return Extract(copy, element.TypeName);
+        }
+
+        public static ObjectState Apply(CustomElement element, ObjectState preset) {
+            var copy = Extract(preset, element.TypeName);
+            History.UndoManager.Touch(element);
+            if (element.Settings?.point is CustomElementPointSettings settings && element.points.Get("center") is global::CustomElements.PointLeaf leaf) {
+                if ((settings.rotatable && settings.presetRotation) || (settings.scalable && settings.presetScale)) History.UndoManager.Touch(leaf.point);
+                if (settings.rotatable && settings.presetRotation) leaf.point.SetRotation(copy.Vector3("pointRotation"));
+                if (settings.scalable && settings.presetScale) leaf.point.SetScale(copy.Vector3("pointScale"));
+            }
+            Apply(element.state, copy, element.TypeName);
+            //The live transforms belong to the point; the state fields are only for presets and creation drafts.
+            element.state.RemoveProperty("pointRotation");
+            element.state.RemoveProperty("pointScale");
+            return element.state;
         }
 
         public static ObjectState Apply(ObjectState original, ObjectState preset, string type) {
@@ -125,7 +178,7 @@ namespace Operations {
                 if (element.IsDeleted() || element.TypeName != type || element.state.Name != name) continue;
                 History.UndoManager.Touch(element);
                 if (unlink) element.state.Name = "";
-                else Apply(element.state, preset, type);
+                else Apply(element, preset);
             }
             return true;
         }

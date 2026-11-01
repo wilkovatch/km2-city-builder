@@ -98,7 +98,7 @@ As for the other types (see [Parameters and UI](Parameters-and-UI)). Custom elem
 
 Creation shows the selected type's properties immediately, before the first click. The panel edits a draft: cancelling it adds no element or undo entry. The first click creates the default point/mesh layout at that position using the edited properties; spline types start with one point and continue drawing. Point and container operations become available after placement. Grouped creation keeps its type dropdown above the properties.
 
-For types with presets, new interactive creation loads the last selected or saved preset for that type in the current city session, or Default initially (and if the remembered preset was deleted). Unsaved property edits are not carried to the next creation. Presets contain properties and prop rules, never point geometry, attachments, container membership or conversion sources. Applying or syncing one keeps those relationships. Imports, converters and API creation do not use the editor's remembered preset.
+For types with presets, new interactive creation loads the last selected or saved preset for that type in the current city session, or Default initially (and if the remembered preset was deleted). Unsaved property edits are not carried to the next creation. Presets contain properties and prop rules, plus the opted-in rotation and scale of point elements (see below), never point positions, attachments, container membership or conversion sources. Applying or syncing one keeps those relationships. Imports, converters and API creation do not use the editor's remembered preset.
 
 The panel has these built-in groups, used by name in `ui.json`:
 
@@ -257,7 +257,9 @@ A type with `point` is a **single point** element: one control point, named `cen
 | `project` | The point is put on the city surfaces (roads, intersections, terrain patches, ... as the points of the projected splines) when it is created or moved, and its height is not editable. Only the point is projected: the geometry stays flat around it. |
 | `projectionMask` | The collision layers `project` searches (default: the terrain and the generated geometry). |
 
-The scale is not part of the parameters, so presets don't carry it. The API creates and edits it as the rotation: `rotation` and `scale` in the point target of `customElement.create` (a new scalable point without it gets `defaultScale`) and the arguments of `customElement.movePoint`. The point is exported as the other rotatable points, with `scale` as well (see [Export](#export)).
+Point transforms are excluded from presets by default. Set `point.presetScale: true` to include the scale of a scalable point, or `point.presetRotation: true` to include the Euler rotation of a rotatable point. The settings are independent; a transform left out of presets keeps its current value on load, reset and sync. Enabled transforms have editable fields before placement and in preset management, respecting `scaleAxes` and `rotationAxes`. They are stored as `pointScale` and `pointRotation` vectors (`{"x": ..., "y": ..., "z": ...}`) in the preset, and are captured from the actual point when saving. Missing values in older presets use `defaultScale` (or 1, 1, 1) and zero rotation. Position is always instance-specific. The *Project to ground* button is hidden when `point.project` is true, since the point already follows the surface automatically.
+
+The API creates and edits the transforms as `rotation` and `scale` in the point target of `customElement.create` (a new scalable point without it gets `defaultScale`) and the arguments of `customElement.movePoint`. The point is exported as the other rotatable points, with `scale` as well (see [Export](#export)).
 
 ## Mesh instance elements
 

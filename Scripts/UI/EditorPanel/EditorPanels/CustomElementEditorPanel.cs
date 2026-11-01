@@ -249,10 +249,12 @@ namespace EditorPanels {
                 if (category != null) {
                     pS.AddPresetLoadAndSaveDropdown(p, SM.Get("PRESET"), true, category,
                         value => {
-                            Operations.CustomElementPresets.Apply(CurrentState(), value, type.name);
+                            if (GetElement() is CustomElement element) Operations.CustomElementPresets.Apply(element, value);
+                            else Operations.CustomElementPresets.Apply(CurrentState(), value, type.name);
                             if (!EditingPreset()) Operations.CustomElementPresets.Remember(type.name, value.Name);
                             return CurrentState();
-                        }, () => Operations.CustomElementPresets.Extract(CurrentState(), type.name), false,
+                        }, () => GetElement() is CustomElement element ? Operations.CustomElementPresets.Extract(element)
+                            : Operations.CustomElementPresets.Extract(CurrentState(), type.name), false,
                         name => {
                             CurrentState().Name = name;
                             if (!EditingPreset()) Operations.CustomElementPresets.Remember(type.name, name);
@@ -808,17 +810,39 @@ namespace EditorPanels {
             return axes[0] || axes[1] || axes[2];
         }
 
+        class PointPresetTransform {
+            readonly ObjectState state;
+            public PointPresetTransform(ObjectState state) { this.state = state; }
+            public Vector3 rotation { get => state.Vector3("pointRotation"); set => state.SetVector3("pointRotation", value); }
+            public Vector3 scale { get => state.Vector3("pointScale"); set => state.SetVector3("pointScale", value); }
+        }
+
+        object GetPointPresetTransform() => draft == null ? null : new PointPresetTransform(draft);
+
         void AddPointTransform(EditorPanelPage p, float w, CityElements.Types.CustomElementPointSettings point) {
             var moveAxes = point.PositionAxes();
             var rotateAxes = point.RotationAxes();
             var scaleAxes = point.ScaleAxes();
+            if (GetElement() == null) {
+                if (point.rotatable && point.presetRotation) {
+                    p.AddFieldVectorInputField(SM.Get("TRANSF_P_ROT"), GetPointPresetTransform, "rotation", null, w)
+                        .SetInteractable(rotateAxes[0], rotateAxes[1], rotateAxes[2]);
+                    p.IncreaseRow();
+                }
+                if (point.scalable && point.presetScale) {
+                    p.AddFieldVectorInputField(SM.Get("TRANSF_P_SCALE_VAL"), GetPointPresetTransform, "scale", null, w)
+                        .SetInteractable(scaleAxes[0], scaleAxes[1], scaleAxes[2]);
+                    p.IncreaseRow();
+                }
+                return;
+            }
             var third = w / 3.0f;
             p.AddButton(SM.Get("TRANSF_P_SCALE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Scale), third).SetInteractable(Any(scaleAxes));
             p.AddButton(SM.Get("TRANSF_P_ROTATE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Rotate), third).SetInteractable(Any(rotateAxes));
             p.AddButton(SM.Get("TRANSF_P_MOVE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Move), third).SetInteractable(Any(moveAxes));
             p.IncreaseRow();
-            p.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), () => builder.gizmo, "snapToGrid", null, w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
-            p.AddButton(SM.Get("PROJECT_TO_GROUND"), ProjectPoint, w * 0.5f);
+            p.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), () => builder.gizmo, "snapToGrid", null, point.project ? w : w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
+            if (!point.project) p.AddButton(SM.Get("PROJECT_TO_GROUND"), ProjectPoint, w * 0.5f);
             p.IncreaseRow();
             spaceLabel = p.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_GLOBAL"), w * 0.5f);
             p.AddButton(SM.Get("TRANSF_P_SWITCH_SPACE"), SwitchSpace, w * 0.5f, SM.Get("TRANSF_P_SWITCH_SPACE_TOOLTIP"));
@@ -860,7 +884,7 @@ namespace EditorPanels {
         void ProjectPoint() {
             var element = GetElement();
             var point = element != null ? PointOf(element) : null;
-            if (point == null) return;
+            if (point == null || element.Settings.point.project) return;
             var mask = element.Settings.PointProjection?.mask ?? element.Settings.point.projectionMask;
             Operations.TerrainPoints.Move(point, GeometryHelper.AutoProjectOnSurface(point.GetPoint(), CityGroundHelper.ExcludeHiddenTerrain(mask), element.generator), false);
             builder.NotifyChange();

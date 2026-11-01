@@ -81,6 +81,8 @@ namespace CityElements.Types {
     public class CustomElementPointSettings {
         public bool rotatable = true;
         public bool scalable;
+        public bool presetRotation; //include the point rotation in property presets (opt-in)
+        public bool presetScale; //include the point scale in property presets (opt-in)
         public bool[] positionAxes; //the axes of the position the gizmo and the fields can change (X, Y, Z), all if not set
         public bool[] rotationAxes; //the same for the rotation (X, Y, Z: pitch, yaw, roll), all if not set
         public bool[] scaleAxes; //the same for the scale, all if not set

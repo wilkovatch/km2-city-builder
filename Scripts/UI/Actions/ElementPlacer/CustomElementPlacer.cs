@@ -72,7 +72,7 @@ namespace ElementPlacer {
                 case PlacementMode.Create:
                     if (createType == null) return;
                     curElement = Operations.CustomElements.Create(manager, createType, hit.point);
-                    if (creationState != null) Operations.CustomElementPresets.Apply(curElement.state, creationState, createType);
+                    if (creationState != null) Operations.CustomElementPresets.Apply(curElement, creationState);
                     placementMode = PlacementMode.None;
                     if (curElement.Settings?.spline != null) {
                         arrayPath = "spline";

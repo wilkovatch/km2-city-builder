@@ -287,7 +287,11 @@ namespace Api {
                 var t = GetStateTarget(@ref);
                 if (t.presetCategory == null) throw ApiException.InvalidOperation(t.kind + " has no presets");
                 History.UndoManager.Touch(t.owner);
-                try { Operations.Presets.Save(t.state, t.presetCategory, name); }
+                try {
+                    var state = t.target is CustomElement custom ? Operations.CustomElementPresets.Extract(custom) : t.state;
+                    Operations.Presets.Save(state, t.presetCategory, name);
+                    t.state.Name = name;
+                }
                 catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
                 t.afterChange?.Invoke();
                 return name;

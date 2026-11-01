@@ -188,6 +188,10 @@ namespace Api {
             builder.SelectObject(Element(), true, null);
             await Frames(3);
             var panel = builder.customElementEditorPanel;
+            var panelPages = panel.GetType().BaseType.GetField("pages", flags).GetValue(panel) as System.Collections.IList;
+            Check("automatic projection omits Project to ground for a single decal", !panelPages.Cast<EditorPanelPage>()
+                .SelectMany(p => p.panel.FindChildren("*", "Button", true, false)).OfType<Godot.Button>()
+                .Any(b => b.Text == StringManager.Get("PROJECT_TO_GROUND")));
             Check("selecting a single decal puts the gizmo on the element with no handle and not in the point transform panel", panel.ActiveSelf() &&
                 builder.gizmo.mainTargetRoot == point.GetObject() && !GameEngine.Scriptable.Cast<Handle>(point.GetObject()).IsHandleActive() &&
                 !((EditorPanels.TransformPropertiesEditorPanel)typeof(CityBuilderMenuBar).GetField("transformPropertiesEditorPanel", flags).GetValue(builder)).ActiveSelf());
@@ -208,10 +212,86 @@ namespace Api {
             builder.customElementEditorPanel.Terminate();
             await Frames(2);
             Check("closing the editor gives the gizmo back", builder.gizmo.mainTargetRoot == null && builder.gizmo.transformPanel == null);
+            await SingleDecalPresets(id);
             await Call("customElement.delete", new { element = id });
             //kept for the export (see ExportDecalNames)
             await Call("customElement.create", new { type = "decalSingle", name = "Single decal export", state = new { texture = "texture/decal_x_inter_l.tex" },
                 points = new { center = new { position = new[] { -560, 0, -560 }, rotation = new[] { 0, 30, 0 }, scale = new[] { 3, 1, 8 } } } });
+        }
+
+        async Task SingleDecalPresets(int id) {
+            const string category = "customElement/decalSingle";
+            const string name = "Single decal size test";
+            const string uiName = "Single decal panel size test";
+            CustomElement Element() => History.UndoManager.GetAliveElement(id) as CustomElement;
+            TerrainPoint Center() => Element().GetLeaves()[0].leaf.point;
+            var position = Center().GetPoint();
+            var size = Center().GetScale();
+            var rotation = Center().GetRotation();
+            var settings = Element().Settings.point;
+            await Call("state.saveAsPreset", new { @ref = id, name });
+            var saved = (await Call("presets.get", new { category, name })).ToObject<ObjectState>();
+            Check("single decal presets capture the actual scale and exclude position and rotation", saved.Vector3("pointScale").DistanceTo(size) < 1e-4f
+                && !saved.properties.ContainsKey("pointRotation") && !saved.properties.ContainsKey("points"));
+            await Call("customElement.movePoint", new { element = id, path = "center", position = SplinePosition(position),
+                scale = new[] { 7, 1, 9 }, rotation = new[] { 0, 45, 0 } });
+            await CheckUndo("applying a single decal scale preset", () => Call("state.applyPreset", new { @ref = id, name }));
+            await Call("state.applyPreset", new { @ref = id, name });
+            Check("loading a single decal preset restores scale and preserves position and rotation", Center().GetScale().DistanceTo(size) < 1e-4f
+                && Center().GetPoint().DistanceTo(position) < 0.01f && Center().GetRotation().DistanceTo(new Vector3(0, 45, 0)) < 0.01f);
+
+            //Save through the panel, then create another decal from the remembered preset and edit its draft scale.
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var panel = builder.customElementEditorPanel;
+            builder.SelectObject(Element(), true, null);
+            await Frames(2);
+            var pages = (System.Collections.IList)typeof(EditorPanel).GetField("pages", flags).GetValue(panel);
+            pages.Cast<EditorPanelPage>().SelectMany(p => p.panel.FindChildren("*", "Button", true, false)).OfType<Godot.Button>()
+                .First(b => b.Text == StringManager.Get("SAVE_PRESET")).EmitSignal(BaseButton.SignalName.Pressed);
+            var popup = (InputFieldPopup)typeof(CityBuilderMenuBar).GetField("inputFieldPopup", flags).GetValue(builder);
+            var input = (LineEdit)typeof(InputFieldPopup).GetField("input", flags).GetValue(popup);
+            input.Text = uiName;
+            input.EmitSignal(LineEdit.SignalName.TextSubmitted, uiName);
+            Check("saving through the single decal panel includes scale", PresetManager.GetPresetByName(uiName, category)?.Vector3("pointScale").DistanceTo(size) < 1e-4f);
+            builder.CloseAllPanels();
+            History.UndoManager.Record("start single decal preset creation", () => CallBuilder<object>("StartCustomElementCreation", "decalSingle", "CREATE_CUSTOM_ELEMENT"));
+            await Frames(2);
+            var draft = (ObjectState)panel.GetType().GetField("draft", flags).GetValue(panel);
+            Check("new single decal creation remembers the selected size preset", draft.Name == uiName && draft.Vector3("pointScale").DistanceTo(size) < 1e-4f);
+            pages = (System.Collections.IList)typeof(EditorPanel).GetField("pages", flags).GetValue(panel);
+            var fields = pages.Cast<EditorPanelPage>().SelectMany(p => (Dictionary<EditorPanelElement, FieldStatus>)p.GetType().GetField("fieldElements", flags).GetValue(p));
+            var scaleField = fields.Single(p => p.Value.fieldName == "scale");
+            var x = (LineEdit)typeof(EditorPanelElements.VectorInputField).GetField("xField", flags).GetValue(scaleField.Key);
+            Check("the draft size fields show the saved scale", float.Parse(x.Text) == size.X);
+            x.EmitSignal(LineEdit.SignalName.EditingToggled, true);
+            x.Text = "5";
+            x.EmitSignal(LineEdit.SignalName.EditingToggled, false);
+            History.UndoManager.Record("place sized single decal", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-660, 0, -660) }));
+            var placed = builder.customElementPlacer.GetElement();
+            Check("one click applies the edited preset scale to the new point", placed.GetAllPoints()[0].GetScale().DistanceTo(new Vector3(5, size.Y, size.Z)) < 1e-4f);
+            await Call("customElement.delete", new { element = History.ElementRegistry.GetId(placed) });
+
+            await Call("state.applyPreset", new { @ref = id, name });
+            await Call("presets.save", new { category, name, values = new { type = "decalSingle", pointScale = new { x = 6, y = 1, z = 8 } } });
+            await CheckUndo("syncing single decal scale presets", () => Call("presets.sync", new { category, name }));
+            await Call("presets.sync", new { category, name });
+            Check("sync restores the saved scale while retaining the current rotation", Center().GetScale().DistanceTo(new Vector3(6, 1, 8)) < 1e-4f
+                && Center().GetRotation().DistanceTo(new Vector3(0, 45, 0)) < 0.01f);
+            try {
+                settings.presetScale = false;
+                settings.presetRotation = true;
+                var configured = Operations.CustomElementPresets.Extract(Element());
+                Check("rotation and scale preset inclusion are independently configurable", !configured.properties.ContainsKey("pointScale")
+                    && configured.Vector3("pointRotation").DistanceTo(Center().GetRotation()) < 0.01f);
+                configured.SetVector3("pointRotation", rotation);
+                Operations.CustomElementPresets.Apply(Element(), configured);
+                Check("an excluded scale is preserved while an opted-in rotation is applied", Center().GetScale().DistanceTo(new Vector3(6, 1, 8)) < 1e-4f
+                    && Center().GetRotation().DistanceTo(rotation) < 0.01f);
+            } finally { settings.presetScale = true; settings.presetRotation = false; }
+            var legacy = new ObjectState();
+            legacy.SetStr("type", "decalSingle");
+            Operations.CustomElementPresets.Apply(Element(), legacy);
+            Check("older size-less presets use the type's default scale", Center().GetScale().DistanceTo(new Vector3(2, 1, 10)) < 1e-4f);
         }
 
         //saved and reloaded: the rotation and scale of the point
@@ -221,6 +301,8 @@ namespace Api {
                 points = new { center = new { position = new[] { -610, 0, -590 }, rotation = new[] { 10, 20, 30 }, scale = new[] { 3, 1, 5 } } } })).Value<int>();
             await Call("city.save");
             await Call("city.reload");
+            var preset = PresetManager.GetPresetByName("Single decal size test", "customElement/decalSingle");
+            Check("single decal scale presets survive save and reload", preset != null && preset.Vector3("pointScale").DistanceTo(new Vector3(6, 1, 8)) < 1e-4f);
             var loaded = M.customElements.FirstOrDefault(e => !e.IsDeleted() && GO.GetName(e) == "Single decal reload");
             var p = loaded?.GetLeaves()[0].leaf.point;
             Check("save/reload keeps the rotation and scale of a single decal", p != null && p.GetRotation().DistanceTo(new Vector3(10, 20, 30)) < 1e-2f &&
