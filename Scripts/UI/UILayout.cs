@@ -151,6 +151,9 @@ public static class UILayout {
         panel.SetCornerRadiusAll(0);
         popup.AddThemeStyleboxOverride("panel", panel);
         popup.AddThemeStyleboxOverride("hover", Flat(ListSelectedColor));
+        var arrow = SubmenuArrowTexture();
+        popup.AddThemeIconOverride("submenu", arrow);
+        popup.AddThemeIconOverride("submenu_mirrored", arrow);
         popup.AddThemeConstantOverride("item_start_padding", 10);
         popup.AddThemeConstantOverride("item_end_padding", 10);
         popup.AddThemeConstantOverride("v_separation", 3);
@@ -173,7 +176,7 @@ public static class UILayout {
         slider.AddThemeIconOverride("grabber_disabled", HandleTexture(true));
     }
 
-    static ImageTexture checkerboard, whiteTexture;
+    static ImageTexture checkerboard, whiteTexture, submenuArrow;
     static readonly ImageTexture[] handleTextures = new ImageTexture[2];
     static readonly ImageTexture[] checkboxTextures = new ImageTexture[4];
 
@@ -251,6 +254,30 @@ public static class UILayout {
                     img.SetPixel(x, y, img.GetPixel(x, y) * tint);
         }
         return checkboxTextures[index] = ImageTexture.CreateFromImage(img);
+    }
+
+    /// <summary>Right-pointing chevron of the menu entries that open a submenu (the default theme one is too faint on the light list).</summary>
+    static ImageTexture SubmenuArrowTexture() {
+        if (submenuArrow != null) return submenuArrow;
+        const int width = 8, height = 12;
+        var img = Godot.Image.CreateEmpty(width, height, false, Godot.Image.Format.Rgba8);
+        var color = new Color(TextColor, 0.75f);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                //distance from the pixel centre to the two segments of the chevron
+                var p = new Vector2(x + 0.5f, y + 0.5f);
+                var d = Mathf.Min(DistanceToSegment(p, new Vector2(1.5f, 1.5f), new Vector2(6, 6)),
+                    DistanceToSegment(p, new Vector2(6, 6), new Vector2(1.5f, 10.5f)));
+                img.SetPixel(x, y, new Color(color, color.A * Mathf.Clamp(1.5f - d, 0f, 1f)));
+            }
+        }
+        return submenuArrow = ImageTexture.CreateFromImage(img);
+    }
+
+    static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b) {
+        var ab = b - a;
+        var t = Mathf.Clamp((p - a).Dot(ab) / ab.LengthSquared(), 0f, 1f);
+        return p.DistanceTo(a + ab * t);
     }
 
     /// <summary>
