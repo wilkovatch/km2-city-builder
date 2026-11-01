@@ -21,6 +21,8 @@ The script of the `Editor` control and the central coordinator of the editor.
 
 `MenuBar` is the white strip at the top of the window. `AddElement(title, entries, actions, color)` adds a `MenuBarElement`: a button that opens a popup menu with the given entries.
 
+An entry can open a submenu (an arrow on its right, the nested list opens on hover). Entries and actions stay two parallel lists, and the optional `submenus` argument of `AddElement`/`SetEntries` maps an entry index to a `MenuSubmenu`, which has the same shape (`entries`, `actions`, `MenuBar.Divider` separators) plus the `checks`/`checkedEntries`/`disabled` sets (the menus are rebuilt each time they open, so the check marks are data too) and can contain further submenus. The entry at that index is the submenu label and its action is `null`. Cores use it through the optional `submenu` key (a string key) of `createMenu` ([Core Custom Elements](Core-Custom-Elements#spline-driven-elements)) and of the `viewToggles` ([Core Structure](Core-Structure)).
+
 ## Editor panels
 
 What the panels and the mouse tools do to the city is implemented in the operations layer (`Scripts/Operations`, see [Scripting API](Scripting-API)), shared with the scripting API: the panels and tools read the user input, call the operations and show their results (alerts, refreshed fields).

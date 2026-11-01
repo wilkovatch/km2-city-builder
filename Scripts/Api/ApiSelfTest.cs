@@ -3052,6 +3052,7 @@ road(-750)
             viewMenu.EmitSignal(PopupMenu.SignalName.IdPressed, viewMenu.GetItemId(outlinesItem));
             await Frames(2);
             Check("the View menu item switches the toggle (off " + offFromMenu + ", unchecked " + uncheckedInMenu + ")", offFromMenu && uncheckedInMenu && OutlineShown());
+            await Submenus();
             //a closed array: the element added after the last one is between it and the first one
             await Call("customElement.insert", new { element = room, array = "perimeter" });
             var perimeter = (await Derived(room))["points"]["perimeter"];

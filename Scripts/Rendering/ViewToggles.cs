@@ -9,6 +9,7 @@ namespace Rendering {
             public string name;
             public string label;
             public bool @default = true;
+            public string submenu; //string key: the toggle is listed in the View submenu with that name
         }
 
         static List<Toggle> toggles;

@@ -268,11 +268,13 @@ public partial class CityBuilderMenuBar : Control {
     static List<System.Action> Recorded(List<string> labels, List<System.Action> actions) {
         var res = new List<System.Action>();
         for (int i = 0; i < actions.Count; i++) {
-            var label = labels[i];
-            var action = actions[i];
-            res.Add(action == null ? null : () => History.UndoManager.Record(label, action));
+            res.Add(actions[i] == null ? null : RecordedAction(labels[i], actions[i]));
         }
         return res;
+    }
+
+    static System.Action RecordedAction(string label, System.Action action) {
+        return () => History.UndoManager.Record(label, action);
     }
 
     void PrepareForUndo() {
@@ -668,26 +670,61 @@ public partial class CityBuilderMenuBar : Control {
             entries.Add(MenuBar.Divider);
             actions.Add(null);
         }
-        var firstToggle = entries.Count;
+        //the toggles with a submenu (a string key) are grouped in the submenu of that name
+        var submenus = new Dictionary<int, MenuSubmenu>();
+        var submenuIndices = new Dictionary<string, int>();
+        var topLevelToggles = new Dictionary<int, string>(); //entry -> name, of the toggles outside the submenus
         foreach (var toggle in toggles) {
             var name = toggle.name;
-            entries.Add(SM.Get(toggle.label ?? name));
-            actions.Add(() => helper.elementManager.SetViewToggle(name, !Rendering.ViewToggles.IsOn(name)));
+            var label = SM.Get(toggle.label ?? name);
+            System.Action action = () => helper.elementManager.SetViewToggle(name, !Rendering.ViewToggles.IsOn(name));
+            if (string.IsNullOrEmpty(toggle.submenu)) {
+                entries.Add(label);
+                actions.Add(action);
+                topLevelToggles[entries.Count - 1] = name;
+                continue;
+            }
+            if (!submenuIndices.TryGetValue(toggle.submenu, out var index)) {
+                entries.Add(SM.Get(toggle.submenu));
+                actions.Add(null);
+                index = entries.Count - 1;
+                submenuIndices[toggle.submenu] = index;
+                submenus[index] = new MenuSubmenu();
+            }
+            submenus[index].AddCheck(label, action, Rendering.ViewToggles.IsOn(name));
         }
         var menuBar = GetMenuBar();
-        menuBar.SetEntries(viewMenuIndex, entries, actions);
+        menuBar.SetEntries(viewMenuIndex, entries, actions, submenus);
         var cam = GetCameraController();
         menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("VIEW_GROUND_OVERLAY")), !noCity && helper != null && helper.OverlayActive);
         menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("VIEW_GROUND_ONLY")), cam != null && cam.GroundOnly);
         menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("HIDE_TERRAIN_GRID")), CityGroundHelper.TerrainHidden);
         menuBar.SetEntryChecked(viewMenuIndex, entries.IndexOf(SM.Get("VIEW_WIREFRAME")), cam != null && cam.Wireframe);
-        for (int i = 0; i < toggles.Count; i++) menuBar.SetEntryChecked(viewMenuIndex, firstToggle + i, Rendering.ViewToggles.IsOn(toggles[i].name));
+        foreach (var pair in topLevelToggles) menuBar.SetEntryChecked(viewMenuIndex, pair.Key, Rendering.ViewToggles.IsOn(pair.Value));
     }
 
     public void ReloadCreateMenu() {
         var entries = new List<string> { SM.Get("CREATE_ROAD"), SM.Get("CREATE_TERRAIN_PATCH"), SM.Get("CREATE_BUILDING_LINE") };
         var actions = new List<System.Action> { CreateRoad, CreateTerrain, CreateBuildingLine };
         var groups = new HashSet<string>();
+        //the entries of the types with a createMenu submenu (a string key) are grouped in the submenu of that name
+        var submenus = new Dictionary<int, MenuSubmenu>();
+        var submenuIndices = new Dictionary<string, int>();
+        void AddEntry(string label, System.Action action, string submenuKey) {
+            if (string.IsNullOrEmpty(submenuKey)) {
+                entries.Add(label);
+                actions.Add(action);
+                return;
+            }
+            if (!submenuIndices.TryGetValue(submenuKey, out var index)) {
+                entries.Add(SM.Get(submenuKey));
+                actions.Add(null);
+                index = entries.Count - 1;
+                submenuIndices[submenuKey] = index;
+                submenus[index] = new MenuSubmenu();
+            }
+            submenus[index].Add(label, action);
+        }
         if (!noCity && PathHelper.CoreAvailable()) {
             //the mesh instance types: their entries (or groups) open the mesh list to place a mesh as one of them
             var meshGroups = new HashSet<string>();
@@ -697,11 +734,9 @@ public partial class CityBuilderMenuBar : Control {
                 var type = pair.Key;
                 var group = settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT";
                 if (settings.createMenu?.direct == true) {
-                    entries.Add(SM.GetOrKey(pair.Value.Label()));
-                    actions.Add(() => CreateMeshInstance(type, null));
+                    AddEntry(SM.GetOrKey(pair.Value.Label()), () => CreateMeshInstance(type, null), settings.createMenu.submenu);
                 } else if (meshGroups.Add(group)) {
-                    entries.Add(SM.Get(group));
-                    actions.Add(() => CreateMeshInstance(null, group));
+                    AddEntry(SM.Get(group), () => CreateMeshInstance(null, group), settings.createMenu?.submenu);
                 }
             }
             foreach (var pair in CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()) {
@@ -710,17 +745,17 @@ public partial class CityBuilderMenuBar : Control {
                 var type = pair.Key;
                 var group = settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT";
                 if (settings.createMenu?.direct == true) {
-                    entries.Add(Operations.CustomElements.GetTypeLabel(type));
-                    actions.Add(() => StartCustomElementCreation(type));
+                    AddEntry(Operations.CustomElements.GetTypeLabel(type), () => StartCustomElementCreation(type), settings.createMenu.submenu);
                 } else if (groups.Add(group)) {
-                    entries.Add(SM.Get(group));
-                    actions.Add(() => StartCustomElementCreation(null, group));
+                    AddEntry(SM.Get(group), () => StartCustomElementCreation(null, group), settings.createMenu?.submenu);
                 }
             }
         }
         entries.AddRange(new[] { MenuBar.Divider, SM.Get("CREATE_WHOLE_CITY_TERRAIN"), SM.Get("CREATE_WHOLE_CITY_BUILDINGS") });
         actions.AddRange(new System.Action[] { null, CreateCityTerrain, CreateCityBuildings });
-        GetMenuBar().SetEntries(createMenuIndex, entries, Recorded(entries, actions));
+        var recordedSubmenus = new Dictionary<int, MenuSubmenu>();
+        foreach (var pair in submenus) recordedSubmenus[pair.Key] = pair.Value.Wrapped(RecordedAction);
+        GetMenuBar().SetEntries(createMenuIndex, entries, Recorded(entries, actions), recordedSubmenus);
     }
 
     // Scripts

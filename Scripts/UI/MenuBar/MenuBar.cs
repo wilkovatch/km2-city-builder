@@ -55,13 +55,18 @@ public partial class MenuBar : Control {
         elements[i].SetText(newText);
     }
 
-    public void SetEntries(int i, List<string> entries, List<System.Action> actions) {
-        elements[i].SetEntries(entries, actions);
+    //submenus: the entries (by index) that open a submenu instead of running an action
+    public void SetEntries(int i, List<string> entries, List<System.Action> actions, Dictionary<int, MenuSubmenu> submenus = null) {
+        elements[i].SetEntries(entries, actions, submenus);
     }
 
-    public void AddElement(string title, List<string> entries, List<System.Action> actions, Color color) {
+    public void AddElement(string title, List<string> entries, List<System.Action> actions, Color color, Dictionary<int, MenuSubmenu> submenus = null) {
         var pos = elements.Count == 0 ? 0 : elements[elements.Count - 1].GetNextPosition();
-        elements.Add(new MenuBarElement(title, entries, actions, row, pos, color));
+        elements.Add(new MenuBarElement(title, entries, actions, row, pos, color, submenus));
+    }
+
+    public PopupMenu GetPopup(int i) {
+        return elements[i].GetPopup();
     }
 
     public void SetAsLastSibling() {

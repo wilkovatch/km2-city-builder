@@ -7,7 +7,7 @@ public class MenuBarElement {
     List<System.Action> actions;
     PopupMenu dropdown;
 
-    public MenuBarElement(string text, List<string> options, List<System.Action> actions, Control parent, float pos, Color color) {
+    public MenuBarElement(string text, List<string> options, List<System.Action> actions, Control parent, float pos, Color color, Dictionary<int, MenuSubmenu> submenus = null) {
         this.actions = actions;
         // Flat white button, 14px label centred, 20px tall and
         // as wide as the label's preferred width + 20 (rounded down to an even number).
@@ -30,11 +30,8 @@ public class MenuBarElement {
         UpdateWidth();
         obj.SetDisableShortcuts(true); //the accelerators are only displayed, the shortcuts are handled by CityBuilderMenuBar
         dropdown = obj.GetPopup();
-        UILayout.StylePopup(dropdown);
-        dropdown.AddThemeColorOverride("font_accelerator_color", new Color(UILayout.TextColor, 0.55f));
-        var divider = new StyleBoxLine { Color = new Color(UILayout.TextColor, 0.25f), Thickness = 1, GrowBegin = -6, GrowEnd = -6 };
-        dropdown.AddThemeStyleboxOverride("separator", divider);
-        SetEntries(options, actions);
+        StyleMenuPopup(dropdown);
+        SetEntries(options, actions, submenus);
         dropdown.IdPressed += OnItemPressed;
     }
 
@@ -44,6 +41,10 @@ public class MenuBarElement {
         var width = Mathf.Ceil(font.GetStringSize(obj.Text, HorizontalAlignment.Left, -1, fontSize).X + 20);
         if (width % 2 != 0) width -= 1;
         obj.CustomMinimumSize = new Vector2(width, MenuBar.Height);
+    }
+
+    public PopupMenu GetPopup() {
+        return dropdown;
     }
 
     public void SetInteractable(bool interactable) {
@@ -80,17 +81,53 @@ public class MenuBarElement {
         // PopupMenu sizes itself from the widest item label.
     }
 
-    public void SetEntries(List<string> options, List<System.Action> actions) {
+    //the entries at the keys of submenus open a submenu instead (see MenuSubmenu)
+    public void SetEntries(List<string> options, List<System.Action> actions, Dictionary<int, MenuSubmenu> submenus = null) {
         this.actions = actions;
-        dropdown.Clear();
+        Populate(dropdown, new MenuSubmenu { entries = options, actions = actions, submenus = submenus ?? new Dictionary<int, MenuSubmenu>() });
+    }
+
+    static void StyleMenuPopup(PopupMenu popup) {
+        UILayout.StylePopup(popup);
+        popup.AddThemeColorOverride("font_accelerator_color", new Color(UILayout.TextColor, 0.55f));
+        var divider = new StyleBoxLine { Color = new Color(UILayout.TextColor, 0.25f), Thickness = 1, GrowBegin = -6, GrowEnd = -6 };
+        popup.AddThemeStyleboxOverride("separator", divider);
+    }
+
+    static void Populate(PopupMenu popup, MenuSubmenu menu) {
+        popup.Clear();
+        //Clear doesn't free the popups of the submenus
+        foreach (var child in popup.GetChildren()) {
+            if (child is not PopupMenu) continue;
+            popup.RemoveChild(child);
+            child.QueueFree();
+        }
+        var options = menu.entries;
         for (var i = 0; i < options.Count; i++) {
             //the item index matches the entry index also for dividers, so EnableEntry indices stay valid
             if (options[i] == MenuBar.Divider) {
-                dropdown.AddSeparator("", i);
+                popup.AddSeparator("", i);
                 continue;
             }
-            SplitShortcut(options[i], out var label, out var accel);
-            dropdown.AddItem(label, i, accel);
+            if (menu.submenus.TryGetValue(i, out var submenu)) {
+                var child = new PopupMenu { Name = "Submenu" + i };
+                StyleMenuPopup(child);
+                popup.AddChild(child);
+                Populate(child, submenu);
+                var childActions = submenu.actions;
+                child.IdPressed += id => {
+                    if (id >= 0 && id < childActions.Count) childActions[(int)id]?.Invoke();
+                };
+                popup.AddSubmenuNodeItem(options[i], child, i);
+            } else {
+                SplitShortcut(options[i], out var label, out var accel);
+                popup.AddItem(label, i, accel);
+            }
+            if (menu.checks.Contains(i)) {
+                popup.SetItemAsCheckable(i, true);
+                popup.SetItemChecked(i, menu.checkedEntries.Contains(i));
+            }
+            if (menu.disabled.Contains(i)) popup.SetItemDisabled(i, true);
         }
     }
 

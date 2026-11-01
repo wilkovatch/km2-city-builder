@@ -72,6 +72,7 @@ namespace CityElements.Types {
     public class CustomElementCreateMenu {
         public bool direct;
         public string group = "CREATE_CUSTOM_ELEMENT";
+        public string submenu; //string key: the entry (direct or group) is listed in the Create submenu with that name
     }
 
     //Road component geometry without road connections or traffic. Curve ids match GeometryHelper.CurveType.
