@@ -205,6 +205,11 @@ namespace Api {
                     await TrainSplines();
                     await SplinePlacementHighlights("train");
                     await CustomRoadSplines();
+                } else if (focus == "boats") {
+                    await NewCity();
+                    await BoatSplines();
+                    await ClosedSplines();
+                    await SplinePlacementHighlights("movingObject");
                 } else if (focus == "splines") {
                     await NewCity();
                     await Roads();

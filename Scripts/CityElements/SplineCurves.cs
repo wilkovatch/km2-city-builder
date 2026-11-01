@@ -103,9 +103,11 @@ public static class SplineCurves {
         readonly LuaValue variables;
         readonly Dictionary<float, (Vector3 position, Vector3? tangent)> evaluated = new();
 
-        public Curve(Settings settings, ObjectState state, List<Vector3> points, Vector3? start = null, Vector3? end = null) {
+        //closed: a loop. The control parameters have one more entry than the points (the last, 1, is the first point again).
+        public Curve(Settings settings, ObjectState state, List<Vector3> points, Vector3? start = null, Vector3? end = null, bool closed = false) {
             ValidateState(settings, state);
             definition = Definitions[state.Int("curveType", settings.defaultCurveType)];
+            closed &= points.Count >= 3;
             this.points = new List<Vector3>(points);
             host = LuaScriptHost.Get();
             variables = ToLua(JObject.FromObject(state));
@@ -114,6 +116,7 @@ public static class SplineCurves {
             context["startTangent"] = start.HasValue ? LuaVectors.ToLua(start.Value) : LuaValue.Nil;
             context["endTangent"] = end.HasValue ? LuaVectors.ToLua(end.Value) : LuaValue.Nil;
             context["state"] = variables;
+            context["closed"] = closed;
             if (definition.prepare != null) context["data"] = Call(definition.prepare);
             var knots = Table(Call(definition.controlParameters), "controlParameters");
             controlParameters = new List<float>();
@@ -122,7 +125,7 @@ public static class SplineCurves {
                     (i > 1 && k < controlParameters[^1])) throw new ArgumentException("invalid custom spline control parameters");
                 controlParameters.Add((float)k);
             }
-            if (controlParameters.Count != points.Count || (points.Count > 1 && (controlParameters[0] != 0 || controlParameters[^1] != 1))) {
+            if (controlParameters.Count != points.Count + (closed ? 1 : 0) || (points.Count > 1 && (controlParameters[0] != 0 || controlParameters[^1] != 1))) {
                 throw new ArgumentException("custom spline control parameters must match its points and span 0..1");
             }
         }
@@ -186,8 +189,8 @@ public static class SplineCurves {
         }
     }
 
-    public static Curve Create(Settings settings, ObjectState state, List<Vector3> points, Vector3? start = null, Vector3? end = null) {
+    public static Curve Create(Settings settings, ObjectState state, List<Vector3> points, Vector3? start = null, Vector3? end = null, bool closed = false) {
         ValidateState(settings, state);
-        return state.Int("curveType", settings?.defaultCurveType ?? 0) > 2 ? new Curve(settings, state, points, start, end) : null;
+        return state.Int("curveType", settings?.defaultCurveType ?? 0) > 2 ? new Curve(settings, state, points, start, end, closed) : null;
     }
 }

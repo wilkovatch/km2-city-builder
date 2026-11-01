@@ -83,6 +83,7 @@ namespace CityElements.Types {
         public int previewMaxDepth = 8;
         public int segments = 20;
         public bool segmentsPer100m;
+        public bool closed; //a loop: the last control point connects back to the first (curve types: hermite, low poly or core curves)
         public bool projectPoints;
         public bool projectSections;
         public int projectionMask = (1 << 3) | (1 << 7);
@@ -138,7 +139,10 @@ namespace CityElements.Types {
                 if (settings.mesh != null || (settings.controlPoints?.Length ?? 0) > 0 || settings.geometry != null) {
                     throw new System.Exception("Spline custom element types cannot also define mesh, controlPoints or geometry");
                 }
-                settings.controlPoints = SplinePoints();
+                if (settings.spline.closed && System.Array.Exists(settings.spline.curveTypes, i => i == 0)) {
+                    throw new System.Exception("Closed spline custom element types cannot allow the Bézier curve type");
+                }
+                settings.controlPoints = SplinePoints(settings.spline.closed);
                 var components = settings.spline.components ?? new ComponentInfo[0];
                 splineComponents = new RoadComponent[components.Length];
                 var common = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(folder)), "sharedComponents");
@@ -149,9 +153,9 @@ namespace CityElements.Types {
             if (settings.controlPoints == null) settings.controlPoints = new CustomElementPointNode[0];
         }
 
-        public static CustomElementPointNode[] SplinePoints() {
+        public static CustomElementPointNode[] SplinePoints(bool closed = false) {
             return new[] { new CustomElementPointNode { name = "spline", label = "CE_SPLINE_POINTS",
-                array = new CustomElementArraySettings { min = 0, defaultCount = 0 } } };
+                array = new CustomElementArraySettings { min = 0, defaultCount = 0, closed = closed } } };
         }
 
         public ParameterContainer GetParameters() {

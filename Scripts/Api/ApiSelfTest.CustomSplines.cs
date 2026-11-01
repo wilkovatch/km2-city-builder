@@ -108,6 +108,112 @@ namespace Api {
             await Call("city.exportJson",new {path=json});
         }
 
+        //Cardinal spline through a loop of controls with tangents 0.5 * (next - previous), on X, Y and Z
+        static Vector3 LoopReference(List<Vector3> c, float t) {
+            int n = c.Count, span = Math.Min(n - 1, (int)Math.Floor(t * n));
+            float u = t * n - span, u2 = u * u, u3 = u2 * u;
+            Vector3 a = c[(span + n - 1) % n], b = c[span % n], p2 = c[(span + 1) % n], d = c[(span + 2) % n];
+            return b * (2 * u3 - 3 * u2 + 1) + p2 * (-2 * u3 + 3 * u2) + (p2 - a) * .5f * (u3 - 2 * u2 + u) + (d - b) * .5f * (u3 - u2);
+        }
+
+        async Task BoatSplines() {
+            Log("boat splines");
+            var settings = TP.GetCustomElementTypes()["movingObject"].typeData.settings.spline;
+            Check("boat is a closed spline restricted to its own curve", settings.closed && settings.curveTypes.SequenceEqual(new[] { 4 }) &&
+                !SplineCurves.Allowed(TP.GetRoadTypes()["psdl"].typeData.settings).Contains(4) &&
+                !TP.GetCustomElementTypes()["train"].typeData.settings.spline.curveTypes.Contains(4));
+            var controls = new List<Vector3> { new(0,-2,0), new(40,3,10), new(50,-2,50), new(10,6,60), new(-20,-2,30) };
+            var state = new ObjectState(); state.SetInt("curveType",4);
+            var curve = SplineCurves.Create(settings,state,controls,closed:true);
+            Check("closed boat curve has one control parameter more than its points", curve.controlParameters.Count == controls.Count + 1
+                && curve.controlParameters[^1] == 1 && Mathf.Abs(curve.controlParameters[2] - 2f/controls.Count) < .0001f);
+            Check("boat curve passes through every control", Enumerable.Range(0,controls.Count).All(i => curve.Position(i/(float)controls.Count).DistanceTo(controls[i]) < .001f));
+            Check("boat loop ends where it starts", curve.Position(0).DistanceTo(curve.Position(1)) < .001f);
+            Check("boat curve is cubic on X, Y and Z with wrapped neighbors", new[] { .05f, .3f, .49f, .75f, .95f }.All(t => curve.Position(t).DistanceTo(LoopReference(controls,t)) < .001f));
+            Check("boat loop tangent is continuous at the seam", curve.Tangent(0).DistanceTo(curve.Tangent(1)) < .01f);
+            var open = SplineCurves.Create(settings,state,controls.Take(2).ToList(),closed:true);
+            Check("a loop of two points stays an open line", open.controlParameters.Count == 2);
+            var offset = new Vector3(-450,25,-250);
+            var id = (await Call("customElement.create", new { type="movingObject", name="Boat loop", state=new { model=2, speed=3 },
+                points=new { spline=controls.Select(p => new { position=SplinePosition(p+offset) }).ToArray() } })).Value<int>();
+            var element = (CustomElement)History.UndoManager.GetAliveElement(id);
+            var data = element.splineData;
+            Check("boat spline data is marked closed and ends at its first section", data.closed && data.sections.Length > controls.Count + 1
+                && data.sections[0].Position.DistanceTo(data.sections[^1].Position) < .0001f);
+            Check("boat spline pieces close the loop", data.pieces.Length == data.sections.Length - 1
+                && data.pieces[^1][1].Position.DistanceTo(data.sections[0].Position) < .0001f);
+            Check("boat sections follow the loop at the controls", controls.All(c => data.sections.Any(s => s.Position.DistanceTo(c+offset) < .01f)));
+            var preview = CustomElementSplineGeometry.Build(element, out _);
+            Check("boat draws one closed route line", preview.lines.Count == 1 && preview.lines[0].points.Count >= controls.Count + 1
+                && preview.lines[0].points[0].DistanceTo(preview.lines[0].points[^1]) < .0001f);
+            Check("boat has no surface geometry", !element.generator.DrawsMesh() && element.generator.m.GetSurfaceCount() == 0);
+            builder.SelectObject(element, true, null); await Frames(2);
+            var panelParameters = ((System.Collections.IDictionary)typeof(EditorPanel).GetField("parameterMap", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .GetValue(builder.customElementEditorPanel)).Values.Cast<CityElements.Types.Parameter>().Select(p => p.name).ToArray();
+            Check("boat panel opens with its model and speed fields", builder.customElementEditorPanel.ActiveSelf()
+                && panelParameters.Contains("model") && panelParameters.Contains("speed"));
+            builder.CloseAllPanels();
+            var schema = await Call("state.schema",new { @ref=id });
+            Check("boat schema has a model, a speed and no presets", schema["presetCategory"].Type == JTokenType.Null
+                && schema["parameters"].Any(p => p["name"].Value<string>() == "model") && schema["parameters"].Any(p => p["name"].Value<string>() == "speed"));
+            await Expect("boat rejects the train curve", "invalid_value", "state.setParam",new { @ref=id,name="curveType",value=3 });
+            for (int count = 0; count <= 2; count++) {
+                var incomplete = (await Call("customElement.create", new { type="movingObject", name="Short boat " + count,
+                    points=new { spline=controls.Take(count).Select(p => new { position=SplinePosition(p+offset+new Vector3(100,0,0)) }).ToArray() } })).Value<int>();
+                var shortBoat = (CustomElement)History.UndoManager.GetAliveElement(incomplete);
+                CustomElementSplineGeometry.Build(shortBoat, out var shortData);
+                Check("boat with " + count + " controls stays editable and open", shortBoat.GetAllPoints().Count == count && !shortData.closed);
+                await Call("customElement.delete",new {element=incomplete});
+            }
+            await CheckUndo("adding a boat point", () => Call("customElement.insert", new { element=id,array="spline",position=SplinePosition(new Vector3(-40,0,20)+offset) }));
+            var export = await Call("elements.geometry",new { @ref=id });
+            Check("exported boat spline is closed and keeps the authored controls", export["element"]["spline"]["closed"].Value<bool>()
+                && export["element"]["points"]["spline"].Count() == controls.Count + 1);
+            if (DisplayServer.GetName() != "headless") {
+                await Call("view.camera.set",new {position=new[] {-430,80,-215},target=new[] {-430,20,-215} });
+                await Frames(5); Screenshot("boat_loop.png");
+            }
+            await Call("city.save"); await Call("city.reload");
+            element = M.customElements.First(e => GO.GetName(e) == "Boat loop");
+            Check("boat save/reload keeps the loop and its state", element.state.Int("curveType") == 4 && element.state.Int("model") == 2
+                && element.splineData.closed && element.GetAllPoints().Count() == controls.Count + 1);
+            var json = Path.Combine(folder,"..","boats_export.json");
+            await Call("city.exportJson",new {path=json});
+        }
+
+        //The generic closed loop with the built-in curves and a generated strip (a synthetic type based on the decal)
+        async Task ClosedSplines() {
+            Log("closed splines");
+            var types = TP.GetCustomElementTypes();
+            var source = JsonConvert.DeserializeObject<CityElements.Types.CustomElementType>(JsonConvert.SerializeObject(types["decal"].typeData));
+            var settings = source.settings.spline;
+            settings.closed = true; settings.curveTypes = new[] { 1, 2 }; settings.defaultCurveType = 1;
+            settings.projectPoints = settings.projectSections = false;
+            source.settings.controlPoints = CityElements.Types.CustomElementType.SplinePoints(true);
+            const string key = "__testClosedSpline";
+            types[key] = new CityElements.Types.Runtime.CustomElementType(source, key);
+            var controls = new[] { new[] { 600,0,600 }, new[] { 630,0,600 }, new[] { 630,0,630 }, new[] { 600,0,630 } };
+            try {
+                foreach (var mode in new[] { 1, 2 }) {
+                    var id = (await Call("customElement.create", new { type = key, name = "Closed " + mode, state = new { curveType = mode, width = 3, texture = "texture/decal_zigzag_l.tex" },
+                        points = new { spline = controls.Select(p => new { position = p }).ToArray() } })).Value<int>();
+                    var element = (CustomElement)History.UndoManager.GetAliveElement(id);
+                    var data = element.splineData;
+                    var name = "closed curve " + mode;
+                    Check(name + " ends where it starts", data.closed && data.sections.Length >= 5 && data.sections[0].Position.DistanceTo(data.sections[^1].Position) < .0001f);
+                    Check(name + " passes through the controls", controls.All(c => data.sections.Any(s => s.Position.DistanceTo(new Vector3(c[0],c[1],c[2])) < .01f)));
+                    Check(name + " closes its last piece", data.pieces.Length >= 4 && data.pieces[^1][1].Position.DistanceTo(data.sections[0].Position) < .0001f);
+                    Check(name + " generates its strip", element.generator.m.GetSurfaceCount() > 0);
+                    if (mode == 2) Check("closed low-poly curve has the controls and the closing point", data.sections.Length == controls.Length + 1);
+                    var line = CustomElementSplineGeometry.Build(element, out _).lines[0].points;
+                    Check(name + " draws a closed line", line[0].DistanceTo(line[^1]) < .0001f);
+                    await Call("customElement.delete",new {element=id});
+                }
+            } finally {
+                types.Remove(key);
+            }
+        }
+
         async Task SplinePlacementHighlights(string type) {
             Log(type + " placement highlights");
             var panel = builder.customElementEditorPanel;
@@ -223,13 +329,13 @@ namespace Api {
             try {
                 File.Copy(Path.Combine(PathHelper.BasePath(),"Files","tests","customSplines.lua"),module);
                 var definitions = JArray.Parse(File.ReadAllText(registry));
-                definitions.Add(JObject.FromObject(new SplineCurves.Definition {id=4,name="syntheticCubic",label="RD_SP_T_BEZIER",prepare="zzSplineSelfTest.prepare",evaluate="zzSplineSelfTest.evaluate",
+                definitions.Add(JObject.FromObject(new SplineCurves.Definition {id=90,name="syntheticCubic",label="RD_SP_T_BEZIER",prepare="zzSplineSelfTest.prepare",evaluate="zzSplineSelfTest.evaluate",
                     controlParameters="zzSplineSelfTest.controlParameters",interpolateValues="zzSplineSelfTest.interpolateValues",split="zzSplineSelfTest.split",merge="zzSplineSelfTest.merge"}));
                 File.WriteAllText(registry,definitions.ToString());
                 SplineCurves.Reset();
                 Directory.CreateDirectory(typeDir);
                 File.WriteAllText(Path.Combine(typeDir,"type.json"),"{\"extends\":\"psdl\"}");
-                File.WriteAllText(Path.Combine(typeDir,"settings.json"),"{\"curveTypes\":[4],\"defaultCurveType\":4}");
+                File.WriteAllText(Path.Combine(typeDir,"settings.json"),"{\"curveTypes\":[90],\"defaultCurveType\":90}");
                 File.WriteAllText(Path.Combine(typeDir,"parameters.json"),"{\"parameters\":[{\"name\":\"originalCurve\",\"type\":\"string\"},{\"name\":\"originalRotations\",\"type\":\"string\"}]}");
                 TP.GetRoadTypes(true);
                 var validRegistry = File.ReadAllText(registry);
@@ -243,7 +349,7 @@ namespace Api {
                 } finally { File.WriteAllText(registry,validRegistry); SplineCurves.Reset(); }
                 var settings = TP.GetRoadTypes()["zzSplineTest"].typeData.settings;
                 var points = new List<Vector3> { new(500,5,500),new(530,20,520),new(590,10,580),new(620,5,600) };
-                var state = new ObjectState(); state.SetInt("curveType",4);
+                var state = new ObjectState(); state.SetInt("curveType",90);
                 var startTangent = (points[1]-points[0])*3;
                 var endTangent = (points[3]-points[2])*3;
                 var curve = SplineCurves.Create(settings,state,points,startTangent,endTangent);
@@ -281,7 +387,7 @@ namespace Api {
                     var reverse = SplineCurveOperations.Merge(firstRoad,secondRoad,true,false,split.first.points[^1]);
                     Check("custom merge supports a reversed second road",reverse.points.Count == points.Count && reverse.points.Zip(points).All(p => p.First.DistanceTo(p.Second) < .001f));
                 } finally { foreach (var r in temporary) r.Delete(); M.FlagAsChanged(); }
-                var definition = SplineCurves.Definitions[4];
+                var definition = SplineCurves.Definitions[90];
                 var evaluate = definition.evaluate; var splitCallback = definition.split;
                 try {
                     definition.evaluate = "zzSplineSelfTest.invalid";
@@ -315,11 +421,11 @@ namespace Api {
                 Check("retained road endpoint keeps its identity",Road().points[0] == originalHandle);
                 Check("custom split/merge restores banking controls",Road().GetPointRotations().Zip(originalRotations).All(p => p.First.DistanceTo(p.Second)<.001f));
                 await Call("history.undo"); await Call("history.redo");
-                Check("custom road topology supports undo/redo",Road().points.Count == 4 && Road().state.Int("curveType") == 4);
+                Check("custom road topology supports undo/redo",Road().points.Count == 4 && Road().state.Int("curveType") == 90);
                 await Call("presets.save",new { category="road",name="Custom road",values=JObject.FromObject(Road().state) });
                 await Call("city.save"); await Call("city.reload");
                 road = M.roads.First(r => r.state.Str("type") == "zzSplineTest");
-                Check("custom road survives save/reload",road.customCurve != null && road.state.Int("curveType") == 4);
+                Check("custom road survives save/reload",road.customCurve != null && road.state.Int("curveType") == 90);
                 var geometry = await Call("elements.geometry",new { @ref=History.ElementRegistry.GetId(road) });
                 Check("custom road export retains authored control count",(geometry["element"]["b64v3a_points"] ?? geometry["element"]["points"]) != null);
                 await Call("presets.delete",new {category="road",name="Custom road"});

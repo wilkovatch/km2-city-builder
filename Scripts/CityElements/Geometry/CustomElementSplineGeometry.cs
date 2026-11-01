@@ -22,6 +22,9 @@ public static class CustomElementSplineGeometry {
         public Section[] sections = Array.Empty<Section>();
         //Independent component spans, including any expression-driven subdivision. Exporters use these exact edges.
         public Section[][] pieces = Array.Empty<Section[]>();
+        //A loop: the last section is at the position of the first and the last piece closes it.
+        [Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Ignore)]
+        public bool closed;
     }
 
     static Vector3 Vec(float[] v) => new Vector3(v[0], v[1], v[2]);
@@ -47,6 +50,35 @@ public static class CustomElementSplineGeometry {
         return result;
     }
 
+    //A loop through the controls, ending at the first one again: a cardinal spline (tangents tension * (next - previous), as
+    //the open Hermite curve) in the same number of segments per control, or the controls for a low-poly curve
+    public static List<Vector3> SampleClosed(List<Vector3> controls, GeometryHelper.CurveType mode, int segments, float tension = 0.5f) {
+        var distinct = new List<Vector3>();
+        foreach (var p in controls) {
+            if (Finite(p) && (distinct.Count == 0 || p.DistanceTo(distinct[^1]) > GH.epsilon)) distinct.Add(p);
+        }
+        if (distinct.Count > 1 && distinct[0].DistanceTo(distinct[^1]) <= GH.epsilon) distinct.RemoveAt(distinct.Count - 1);
+        controls = distinct;
+        if (controls.Count < 3 || mode == GH.CurveType.LowPoly) {
+            var open = new List<Vector3>(controls);
+            if (controls.Count >= 3) open.Add(controls[0]);
+            return open;
+        }
+        int n = controls.Count, perSpan = Math.Clamp((int)Math.Ceiling(Math.Clamp(segments, 1, 10000) / (float)n), 1, 10000);
+        var result = new List<Vector3> { controls[0] };
+        for (int s = 0; s < n; s++) {
+            var p0 = controls[(s + n - 1) % n]; var p1 = controls[s]; var p2 = controls[(s + 1) % n]; var p3 = controls[(s + 2) % n];
+            var t1 = tension * (p2 - p0); var t2 = tension * (p3 - p1);
+            for (int i = 1; i <= perSpan; i++) {
+                var a = i / (float)perSpan; var a2 = a * a; var a3 = a2 * a;
+                var p = (2 * a3 - 3 * a2 + 1) * p1 + (-2 * a3 + 3 * a2) * p2 + (a3 - 2 * a2 + a) * t1 + (a3 - a2) * t2;
+                result.Add(i == perSpan ? p2 : p);
+            }
+        }
+        result[^1] = controls[0];
+        return result;
+    }
+
     public static GeometryResult Build(CustomElement element, out Data data) {
         data = new Data();
         var result = new GeometryResult();
@@ -57,17 +89,21 @@ public static class CustomElementSplineGeometry {
         if (Array.IndexOf(settings.curveTypes, mode) < 0) throw new ArgumentException("Curve type is not allowed by " + element.TypeName);
         if (element.points.Get("spline") is not PointList list) return result;
         var controls = list.items.Cast<PointLeaf>().Select(p => p.point.GetPoint()).ToList();
+        var closed = settings.closed && controls.Count >= 3;
+        data.closed = closed;
         var segments = Math.Clamp(state.Int("segments", settings.segments), 1, 10000);
         if (state.Bool("segmentsPer100m", settings.segmentsPer100m)) {
-            var length = controls.Zip(controls.Skip(1), (a, b) => a.DistanceTo(b)).Sum();
+            var length = controls.Zip(controls.Skip(1), (a, b) => a.DistanceTo(b)).Sum() + (closed ? controls[^1].DistanceTo(controls[0]) : 0);
             segments = Math.Clamp((int)(segments * length / 100), 1, 10000);
         }
-        var custom = SplineCurves.Create(settings, state, controls);
+        var custom = SplineCurves.Create(settings, state, controls, closed: closed);
         var evaluated = custom?.Sample(segments, settings.previewTolerance, settings.previewMaxDepth);
-        var samples = evaluated?.points ?? Sample(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually"));
+        var samples = evaluated?.points ?? (closed ? SampleClosed(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f))
+            : Sample(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually")));
         if (settings.projectSections) {
             samples = samples.Select(p => GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
         }
+        if (closed && samples.Count >= 3) samples[^1] = samples[0]; //the loop ends exactly where it starts, even when projected
         GeometryLine Line(List<Vector3> positions, CityElements.Types.CustomElementSplineLine style) {
             var line = new GeometryLine { points = positions, always = style?.always == true, heightOffset = style?.heightOffset ?? 0 };
             if (style?.color != null) line.color = CustomElementScripting.ReadColor(new Lua.LuaValue(style.color), line.color);
@@ -75,6 +111,7 @@ public static class CustomElementSplineGeometry {
         }
         //Only the displayed/pickable line is trimmed; the curve and exported sections keep all controls.
         List<Vector3> LinePositions() {
+            if (closed) return samples; //a loop has no ends to trim
             var start = Math.Max(0, settings.line?.trimStart ?? 0);
             var end = controls.Count - 1 - Math.Max(0, settings.line?.trimEnd ?? 0);
             if (start == 0 && end == controls.Count - 1) return samples;
@@ -109,7 +146,11 @@ public static class CustomElementSplineGeometry {
         }
         var linePositions = LinePositions();
         if (linePositions.Count >= 2) result.lines.Add(Line(linePositions, settings.line));
-        if (settings.controlLine != null && controls.Count >= 2) result.lines.Add(Line(controls, settings.controlLine));
+        if (settings.controlLine != null && controls.Count >= 2) {
+            var controlLine = Line(controls, settings.controlLine);
+            controlLine.closed = closed;
+            result.lines.Add(controlLine);
+        }
         if ((settings.components?.Length ?? 0) == 0) {
             var centerSections = new List<Section>(); float d = 0;
             for (int i = 0; i < samples.Count; i++) {
@@ -129,8 +170,8 @@ public static class CustomElementSplineGeometry {
         var sections = new List<Section>();
         float distance = 0;
         for (int i = 0; i < samples.Count; i++) {
-            var prev = i > 0 ? samples[i] - samples[i - 1] : samples[1] - samples[0];
-            var next = i < samples.Count - 1 ? samples[i + 1] - samples[i] : prev;
+            var prev = i > 0 ? samples[i] - samples[i - 1] : closed ? samples[0] - samples[^2] : samples[1] - samples[0];
+            var next = i < samples.Count - 1 ? samples[i + 1] - samples[i] : closed ? samples[1] - samples[0] : prev;
             prev.Y = next.Y = 0;
             if (prev.LengthSquared() < GH.epsilon || next.LengthSquared() < GH.epsilon) continue;
             prev = prev.Normalized(); next = next.Normalized();
@@ -167,8 +208,8 @@ public static class CustomElementSplineGeometry {
         }
         data.pieces = pieces.ToArray();
         if (settings.independentSegments) {
-            for (int i = 0; i < pieces.Count; i++) Generate(pieces[i], i == 0, i == pieces.Count - 1);
-        } else Generate(sections.ToArray(), true, true);
+            for (int i = 0; i < pieces.Count; i++) Generate(pieces[i], i == 0 && !closed, i == pieces.Count - 1 && !closed);
+        } else Generate(sections.ToArray(), !closed, !closed);
         return result;
 
         void Generate(Section[] span, bool startCap, bool endCap) {

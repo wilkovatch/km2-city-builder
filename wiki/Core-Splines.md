@@ -39,9 +39,12 @@ Callbacks run on the main thread under the standard Lua instruction budget, as `
 | `startTangent`, `endTangent` | Optional imposed road-end tangents, used by seamless intersections. |
 | `data` | The result of `prepare`, when supplied, reused during this rebuild. |
 | `t` | Normalized curve parameter, from 0 to 1. |
+| `closed` | `true` for a loop (custom element splines with `closed`, at least three points), otherwise `false`. |
 | `values` | A 1-based array of `vec2` attributes, for `interpolateValues` (road yaw/roll). |
 
 `prepare` is called once for a prepared curve. `controlParameters` returns a nondecreasing numeric array with one entry per authored point; for two or more points it must begin at 0 and end at 1. These parameters locate handles and attributes on the curve. They do not require the curve to pass through every control point, as with Bézier controls.
+
+For a closed loop (`ctx.closed`) the array has one more entry than there are points: the last, 1, is the first point again, so the loop has as many spans as points. `evaluate` must then be periodic (the position at 1 is the one at 0) and use the wrapped neighbours at the seam. A curve that ignores `closed` leaves a gap. See `closed` in [Core Custom Elements](Core-Custom-Elements).
 
 `evaluate` returns `{position = vec3(...), tangent = vec3(...)}`. The tangent is optional; when absent, the builder estimates it with nearby position queries. A road evaluator must account for imposed endpoint tangents when present. It must handle the incomplete inputs encountered during point placement. Non-finite positions, tangents and attributes are rejected; callback errors never silently select another curve.
 
