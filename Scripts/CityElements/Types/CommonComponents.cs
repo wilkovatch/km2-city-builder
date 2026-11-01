@@ -41,6 +41,7 @@ namespace CityElements.Types {
     //the look of the line through the parametric objects of an array (e.g. a strip textured as it is exported); the
     //expressions can use the variables of the element owning the array
     public class LineSettings {
+        public string arrowDirection; //positive follows point order, negative reverses it, zero or omitted draws no arrows
         public string width; //float expression, the width in metres (if not set, a thin line growing with the camera distance)
         public string texture; //the texture parameter of the element (if not set or empty, the color of the handles)
         public string heightOffset; //float expression, the height of the line above the points

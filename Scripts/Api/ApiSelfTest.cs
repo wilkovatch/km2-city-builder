@@ -194,7 +194,10 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "meshTextures") {
+                if (focus == "arrows") {
+                    await NewCity();
+                    await DirectionArrows();
+                } else if (focus == "meshTextures") {
                     await NewCity();
                     MeshTexturePaths();
                 } else if (focus == "meshPreviews") {

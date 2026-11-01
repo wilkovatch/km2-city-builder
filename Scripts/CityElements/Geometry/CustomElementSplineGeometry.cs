@@ -104,8 +104,17 @@ public static class CustomElementSplineGeometry {
             samples = samples.Select(p => GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
         }
         if (closed && samples.Count >= 3) samples[^1] = samples[0]; //the loop ends exactly where it starts, even when projected
+        var total = samples.Zip(samples.Skip(1), (a, b) => a.DistanceTo(b)).Sum();
+        var gen = new RoadLikeGenerator<CityElements.Types.RoadType>(state, null, samples.Count, settings.textures.Length) { owner = element };
+        gen.Reset(type, state, null, samples.Count, settings.textures.Length);
+        type.FillInitialVariables(gen.variableContainer, state, null, element.cityPropertiesState, total, samples.Count);
         GeometryLine Line(List<Vector3> positions, CityElements.Types.CustomElementSplineLine style) {
             var line = new GeometryLine { points = positions, always = style?.always == true, heightOffset = style?.heightOffset ?? 0 };
+            if (style?.arrowDirection != null) {
+                var expression = RuntimeCalculator.Parsers.FloatParser.ParseExpression(style.arrowDirection);
+                expression.SetIndices(gen.variableContainer);
+                line.arrowDirection = expression.GetValue(gen.variableContainer);
+            }
             if (style?.color != null) line.color = CustomElementScripting.ReadColor(new Lua.LuaValue(style.color), line.color);
             return line;
         }
@@ -163,10 +172,6 @@ public static class CustomElementSplineGeometry {
             return result;
         }
         if (samples.Count < 2) return result;
-        var total = samples.Zip(samples.Skip(1), (a, b) => a.DistanceTo(b)).Sum();
-        var gen = new RoadLikeGenerator<CityElements.Types.RoadType>(state, null, samples.Count, settings.textures.Length) { owner = element };
-        gen.Reset(type, state, null, samples.Count, settings.textures.Length);
-        type.FillInitialVariables(gen.variableContainer, state, null, null, total, samples.Count);
         var sections = new List<Section>();
         float distance = 0;
         for (int i = 0; i < samples.Count; i++) {
@@ -194,7 +199,7 @@ public static class CustomElementSplineGeometry {
         void AddPiece(Section a, Section b, int depth) {
             var length = a.Position.DistanceTo(b.Position);
             if (length < GH.epsilon) return;
-            type.FillInitialVariables(gen.variableContainer, state, null, null, length, 2);
+            type.FillInitialVariables(gen.variableContainer, state, null, element.cityPropertiesState, length, 2);
             type.FillCommonLateVariables(gen.variableContainer, a.Position, b.Position, a.Vertices, b.Vertices);
             if (depth < Math.Clamp(settings.maxSplits, 0, 8) && split?.GetValue(gen.variableContainer) == true) {
                 var middle = Lerp(a, b, 0.5f);
@@ -220,7 +225,7 @@ public static class CustomElementSplineGeometry {
                 gen.sectionRights.Add(section.Right); gen.sectionUps.Add(section.Up); gen.sectionVertices.Add(section.Vertices);
                 gen.sectionMarkers.Add(section.distance - span[0].distance);
             }
-            type.FillInitialVariables(gen.variableContainer, state, null, null, length, span.Length);
+            type.FillInitialVariables(gen.variableContainer, state, null, element.cityPropertiesState, length, span.Length);
             gen.InitBaseSectionsInfo();
             type.FillCommonLateVariables(gen.variableContainer, span[0].Position, span[^1].Position, span[0].Vertices, span[^1].Vertices);
             for (int i = 0; i < span.Length; i++) {

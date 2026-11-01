@@ -1713,6 +1713,16 @@ public static partial class GameEngine {
         private ImmediateMesh immediateMesh;
         private float _startWidth = 0.1f;
         private float _endWidth = 0.1f;
+        private float _arrowDirection;
+        public float arrowDirection {
+            get => _arrowDirection;
+            set {
+                var direction = float.IsFinite(value) ? System.Math.Sign(value) : 0;
+                if (_arrowDirection == direction) return;
+                _arrowDirection = direction;
+                rebuilt = false;
+            }
+        }
         private int _positionCount = 0;
 
         private bool _enabled = true;
@@ -1943,8 +1953,56 @@ public static partial class GameEngine {
                 immediateMesh.SurfaceAddVertex(a[i]);
             }
             immediateMesh.SurfaceEnd();
+            var arrows = ArrowTriangles(points, _startWidth, _endWidth, _arrowDirection);
+            if (arrows.Length > 0) {
+                immediateMesh.SurfaceBegin(Godot.Mesh.PrimitiveType.Triangles);
+                foreach (var vertex in arrows) {
+                    immediateMesh.SurfaceSetNormal(Godot.Vector3.Up);
+                    if (_uvs.HasValue) immediateMesh.SurfaceSetUV(new Godot.Vector2(0.5f, 0.5f));
+                    immediateMesh.SurfaceAddVertex(vertex + Godot.Vector3.Up * 0.002f);
+                }
+                immediateMesh.SurfaceEnd();
+            }
             UpdateCollider(points, a, b);
             rebuilt = true;
+        }
+
+        //Distance along the displayed polyline, independent of its sampling density. Centers stay away from both ends
+        //and from the seam of a closed line. This is shared with the focused geometry checks.
+        internal static Godot.Vector3[] ArrowTriangles(IReadOnlyList<Godot.Vector3> points, float startWidth, float endWidth, float direction) {
+            if (!float.IsFinite(direction) || direction == 0 || points.Count < 2) return System.Array.Empty<Godot.Vector3>();
+            var distances = new float[points.Count];
+            for (int i = 1; i < points.Count; i++) {
+                if (!points[i-1].IsFinite() || !points[i].IsFinite()) return System.Array.Empty<Godot.Vector3>();
+                distances[i] = distances[i-1] + points[i-1].DistanceTo(points[i]);
+            }
+            var total = distances[^1];
+            var width = Mathf.Max(startWidth, endWidth);
+            if (!float.IsFinite(total) || total < 1e-5f || !float.IsFinite(width) || width <= 0) return System.Array.Empty<Godot.Vector3>();
+            var spacing = Mathf.Max(10, 24 * width);
+            var count = (int)Mathf.Clamp(Mathf.Floor(total / spacing), 1, 1024);
+            var vertices = new List<Godot.Vector3>(count * 3);
+            int segment = 1;
+            for (int i = 0; i < count; i++) {
+                var distance = total * ((i + 0.5f) / count);
+                while (segment < points.Count - 1 && distances[segment] <= distance) segment++;
+                var span = distances[segment] - distances[segment-1];
+                if (span < 1e-6f) continue;
+                var center = points[segment-1].Lerp(points[segment], (distance - distances[segment-1]) / span);
+                var tangent = (points[segment] - points[segment-1]).Normalized() * System.Math.Sign(direction);
+                var side = tangent.Cross(Godot.Vector3.Up);
+                if (side.LengthSquared() < 1e-8f) side = tangent.Cross(Godot.Vector3.Right);
+                side = side.Normalized();
+                var lineWidth = Mathf.Max(0, Mathf.Lerp(startWidth, endWidth, distance / total));
+                var length = Mathf.Min(6 * lineWidth, total / count * 0.5f);
+                if (length <= 0) continue;
+                var tip = center + tangent * (length * 0.5f);
+                var back = center - tangent * (length * 0.5f);
+                vertices.Add(tip);
+                vertices.Add(back + side * (length / 3));
+                vertices.Add(back - side * (length / 3));
+            }
+            return vertices.ToArray();
         }
 
         // The collider is the ribbon (both sides), in a body child of the line (top level, so in world space too).

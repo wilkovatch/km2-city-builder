@@ -391,6 +391,12 @@ public partial class ElementManager : Scriptable {
                             road.state.FlagAsChanged();
                         }
                     }
+                    if (param.onCustomElements) {
+                        foreach (var element in customElements) {
+                            cityProperties.InjectParameter(key, element.cityPropertiesState);
+                            element.state.FlagAsChanged();
+                        }
+                    }
                 }
             }
             cityProperties.state.FlagAsUnchanged();
@@ -406,6 +412,14 @@ public partial class ElementManager : Scriptable {
                 }
                 road.cityPropertiesInjected = true;
                 road.state.FlagAsChanged();
+            }
+            foreach (var element in customElements) {
+                if (element.cityPropertiesInjected) continue;
+                foreach (var key in cityProperties.injectableParamMap.Keys) {
+                    if (cityProperties.injectableParamMap[key].injection.onCustomElements) cityProperties.InjectParameter(key, element.cityPropertiesState);
+                }
+                element.cityPropertiesInjected = true;
+                element.state.FlagAsChanged();
             }
         }
     }

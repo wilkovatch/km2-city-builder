@@ -196,10 +196,11 @@ To get hard edges or texture seams, repeat a vertex: in MM2's `sidewalk_right`, 
 |---|---|
 | `type` | Float expression: index into `trafficTypes`. |
 | `condition` | Optional boolean expression (evaluated once per road). |
+| `arrowDirection` | Optional float expression, evaluated once per lane group. Positive draws repeated arrows along the road's point order, negative reverses them, zero or omitted draws none. Available in both road settings and components. Arrows follow the existing lane visibility and do not change exported lane points. |
 | `bounds` | Two vec3 expressions: the two edges of the lane group, evaluated at each section. |
 | `lanes` | Float expression array: one lane per value, at that position between the two bounds (0 = first bound, 1 = second bound). |
 
-The direction of a lane is the direction of the road; lanes going the opposite way are usually given by swapping the bounds and using another traffic type (MM2 uses `forward` and `backward` types). The lanes are drawn on the road while editing and exported as polylines named `traffic_<type>_<component>_<group>_<lane>` in the road's `fields.lanes` (see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)), where the exporter turns them into the game's AI paths.
+Lane points follow the road's point order. Swapping the bounds changes the placement across the road; traffic types let the exporter distinguish their meaning. Set `arrowDirection` to show their travel direction in the editor, for example `"if(_GLOBAL_driveOnLeft, -1, 1)"` with an [injectable city property](Core-City-Properties#injectable-parameters). The lanes are drawn on the road while editing and exported as polylines named `traffic_<type>_<component>_<group>_<lane>` in the road's `fields.lanes` (see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)), where the exporter turns them into the game's AI paths. Arrowheads are visual overlays; they never reverse the exported point order.
 
 ## Props lines
 

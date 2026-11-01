@@ -15,6 +15,8 @@ using CustomElements;
 //custom element whose type lists its type, e.g. a room of a PSDL file).
 public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     public ObjectState state;
+    internal readonly ObjectState cityPropertiesState = new ObjectState(); //runtime injection, never saved
+    internal bool cityPropertiesInjected;
     public PointGroup points;
     public readonly List<TerrainPoint> meshVertices = new List<TerrainPoint>();
     public readonly List<int> triangles = new List<int>();
@@ -533,7 +535,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
             variableContainer = type?.variableContainer.GetClone();
             curType = type;
         }
-        if (type != null && type.splineType == null) type.FillInitialVariables(variableContainer, state);
+        if (type != null && type.splineType == null) type.FillInitialVariables(variableContainer, state, cityPropertiesState);
     }
 
     //the points follow their anchors (removing the points deleted meanwhile)

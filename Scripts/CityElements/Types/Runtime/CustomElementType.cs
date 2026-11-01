@@ -16,7 +16,7 @@ namespace CityElements.Types.Runtime {
         }
 
         //scriptHost: the host of the scripts (by default the one of the core; the tests use their own)
-        public CustomElementType(Types.CustomElementType type, string name, RC.Scripting.LuaScriptHost scriptHost = null) : base(type, type.parameters, null, GetVarLists(type), name) {
+        public CustomElementType(Types.CustomElementType type, string name, RC.Scripting.LuaScriptHost scriptHost = null) : base(type, type.parameters, null, GetVarLists(type), name, "customElements") {
             //preparing a later element must not advance the shared random sequence or print ahead of an earlier one
             canBatchGeometryPreparation = true;
             foreach (var definition in type.parameters.staticDefinitions ?? new Definition[0]) {
@@ -49,7 +49,7 @@ namespace CityElements.Types.Runtime {
         }
 
         sealed class SplineType : RoadType {
-            public SplineType(Types.RoadType type, string name) : base(type, name) { }
+            public SplineType(Types.RoadType type, string name) : base(type, name, true) { }
             //The sampler has already applied its bounded miter to the section frame.
             public override bool NeedsLowPolyFix(ObjectState state, int segments) => false;
         }
@@ -77,8 +77,8 @@ namespace CityElements.Types.Runtime {
             return contains != null && System.Array.IndexOf(contains, typeName) >= 0;
         }
 
-        public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state) {
-            FillBaseInitialVariables(variableContainer, state, null);
+        public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState injectedState = null) {
+            FillBaseInitialVariables(variableContainer, state, null, injectedState);
         }
 
         //the parameters referencing other elements (their values are {"kind": ..., "id": ...} states)

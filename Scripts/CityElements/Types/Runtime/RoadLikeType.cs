@@ -46,12 +46,14 @@ namespace CityElements.Types.Runtime {
 
         public class TrafficLaneContainer {
             public RC.Numbers.Number type;
+            public RC.Numbers.Number arrowDirection;
             public RC.Booleans.Boolean condition;
             public RC.Vector3s.Vector startBound, endBound;
             public NumberArray lanes;
 
             public TrafficLaneContainer(TrafficLane lane) {
                 type = RC.Parsers.FloatParser.ParseExpression(lane.type);
+                if (lane.arrowDirection != null) arrowDirection = RC.Parsers.FloatParser.ParseExpression(lane.arrowDirection);
                 if (lane.condition != null) condition = RC.Parsers.BooleanParser.ParseExpression(lane.condition);
                 startBound = RC.Parsers.Vector3Parser.ParseExpression(lane.bounds[0]);
                 endBound = RC.Parsers.Vector3Parser.ParseExpression(lane.bounds[1]);
@@ -68,6 +70,7 @@ namespace CityElements.Types.Runtime {
 
             public void SetIndices(RC.VariableContainer vc) {
                 if (condition != null) condition.SetIndices(vc);
+                arrowDirection?.SetIndices(vc);
                 lanes.SetIndices(vc);
                 type.SetIndices(vc);
                 startBound.SetIndices(vc);
@@ -138,7 +141,7 @@ namespace CityElements.Types.Runtime {
             public List<ComponentMeshCalculatorContainer> componentMeshes = new List<ComponentMeshCalculatorContainer>();
 
             public RoadLikeType(T type, ParameterContainer parameterContainer, (SubObjectWithLocalDefinitions obj, string condition)[] components,
-                (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) vars, string name) : base(type, parameterContainer, components, vars, name) {
+                (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) vars, string name, string injectionTarget = null) : base(type, parameterContainer, components, vars, name, injectionTarget) {
             }
 
             public abstract void FillInitialSegmentVariables(RC.VariableContainer variableContainer, Vector3 right0, Vector3 right1, Vector3 up0, Vector3 up1,

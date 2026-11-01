@@ -26,8 +26,8 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
     Dictionary<string, LineRenderer> arrayLines = new Dictionary<string, LineRenderer>();
     HashSet<string> fixedWidthArrayLines = new HashSet<string>(); //the ones with a width set by their settings
     //the expressions of the line settings, compiled for the variables of the container
-    Dictionary<string, (RC.Numbers.Number width, RC.Numbers.Number heightOffset, RC.Numbers.Number uScale, RC.Numbers.Number vLength)> arrayLineExpressions =
-        new Dictionary<string, (RC.Numbers.Number, RC.Numbers.Number, RC.Numbers.Number, RC.Numbers.Number)>();
+    Dictionary<string, (RC.Numbers.Number width, RC.Numbers.Number heightOffset, RC.Numbers.Number uScale, RC.Numbers.Number vLength, RC.Numbers.Number arrowDirection)> arrayLineExpressions =
+        new Dictionary<string, (RC.Numbers.Number, RC.Numbers.Number, RC.Numbers.Number, RC.Numbers.Number, RC.Numbers.Number)>();
     const float MinArrayLineWidth = 0.1f;
 
     public abstract RC.VariableContainer GetParametricObjectVariableContainer();
@@ -300,12 +300,13 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
         var vc = GetLineVariableContainer();
         if (!arrayLineExpressions.TryGetValue(key, out var exprs)) {
             exprs = (CompileLineExpression(settings?.width, vc), CompileLineExpression(settings?.heightOffset, vc),
-                CompileLineExpression(settings?.uvs?.uScale, vc), CompileLineExpression(settings?.uvs?.vLength, vc));
+                CompileLineExpression(settings?.uvs?.uScale, vc), CompileLineExpression(settings?.uvs?.vLength, vc), CompileLineExpression(settings?.arrowDirection, vc));
             arrayLineExpressions[key] = exprs;
         }
         var texture = settings?.texture != null ? state?.Str(settings.texture) : null;
         lr.material = !string.IsNullOrEmpty(texture) ? MaterialManager.GetMaterial(texture) : MaterialManager.GetHandleMaterial(GameEngine.Color.yellow);
         lr.heightOffset = exprs.heightOffset?.GetValue(vc) ?? 0;
+        lr.arrowDirection = exprs.arrowDirection?.GetValue(vc) ?? 0;
         lr.miterCorners = settings?.miterCorners ?? false;
         if (settings?.uvs != null) {
             lr.uvs = new LineRenderer.UVs {

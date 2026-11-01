@@ -158,6 +158,7 @@ public partial class CustomElementGenerator : PhysicsScriptable {
             var texture = line.texture != null ? MaterialManager.GetTextureName(state, line.texture) : null;
             lr.material = !string.IsNullOrEmpty(texture) ? MaterialManager.GetMaterial(texture) : MaterialManager.GetHandleMaterial(line.color);
             lr.heightOffset = line.heightOffset;
+            lr.arrowDirection = line.arrowDirection;
             if (line.width.HasValue) {
                 lr.startWidth = line.width.Value;
                 lr.endWidth = line.width.Value;

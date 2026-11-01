@@ -11,6 +11,139 @@ using TP = CityElements.Types.Parsers.TypeParser;
 
 namespace Api {
     public partial class ApiSelfTest {
+        async Task DirectionArrows() {
+            Log("direction arrows");
+            var cityType = TP.GetCitySettings()["city"].typeData;
+            var savedParameters = cityType.parametersInfo.parameters;
+            var savedInjections = cityType.settings.injectableParameters;
+            try {
+                cityType.parametersInfo.parameters = savedParameters.Append(new CityElements.Types.Parameter {name="arrowCount",type="int"}).ToArray();
+                cityType.settings.injectableParameters = savedInjections.Concat(new[] {
+                    new CityElements.Types.CitySettings.ParameterInjection {parameter="arrowCount",onCustomElements=true},
+                    new CityElements.Types.CitySettings.ParameterInjection {parameter="speedLimit",onCustomElements=true}
+                }).ToArray();
+                var definitionType = new CityElements.Types.Runtime.CustomElementType(new CityElements.Types.CustomElementType {
+                    settings = new CityElements.Types.CustomElementSettings(),
+                    parameters = new CityElements.Types.ParameterContainer {parameters=Array.Empty<CityElements.Types.Parameter>(),staticDefinitions=new[] {
+                        new CityElements.Types.Definition {name="sum",type="float",value="if(_GLOBAL_driveOnLeft, _GLOBAL_arrowCount+_GLOBAL_speedLimit, 0)"}
+                    }}
+                },"arrow globals test");
+                var vc = definitionType.variableContainer.GetClone();
+                var injected = new ObjectState(); injected.SetBool("_GLOBAL_driveOnLeft",true); injected.SetInt("_GLOBAL_arrowCount",3); injected.SetFloat("_GLOBAL_speedLimit",2.5f);
+                definitionType.FillInitialVariables(vc,new ObjectState(),injected);
+                Check("typed bool/int/float globals are populated before static definitions", vc.floats[vc.floatIndex["sum"]] == 5.5f && vc.boolNames.Contains("_GLOBAL_driveOnLeft"));
+            } finally {
+                cityType.parametersInfo.parameters = savedParameters;
+                cityType.settings.injectableParameters = savedInjections;
+            }
+            Vector3[] Arrows(Vector3[] p, float direction = 1, float width = .1f) => GameEngine.LineRenderer.ArrowTriangles(p, width, width, direction);
+            var straight = new[] { Vector3.Zero, new Vector3(0, 0, 40) };
+            var forward = Arrows(straight); var backward = Arrows(straight, -1);
+            Check("arrows repeat by distance and reverse without moving their centers", forward.Length == 12 && backward.Length == 12
+                && forward[0].Z > forward[1].Z && backward[0].Z < backward[1].Z
+                && Mathf.Abs((forward[0].Z + forward[1].Z) - (backward[0].Z + backward[1].Z)) < .0001f);
+            Check("arrow placement does not depend on sampling density", forward.SequenceEqual(Arrows(new[] { Vector3.Zero, new Vector3(0,0,7), new Vector3(0,0,40) })));
+            Check("zero direction and zero-length lines have no arrows", Arrows(straight,0).Length == 0 && Arrows(new[] { Vector3.Zero,Vector3.Zero }).Length == 0);
+            Check("duplicate points do not change arrows", forward.SequenceEqual(Arrows(new[] { Vector3.Zero,Vector3.Zero,new Vector3(0,0,40),new Vector3(0,0,40) })));
+            var shortArrow = Arrows(new[] { Vector3.Zero,new Vector3(0,0,.1f) });
+            Check("a short path has one shortened centered arrow", shortArrow.Length == 3 && shortArrow.All(v => v.Z > 0 && v.Z < .1f));
+            Check("arrows scale with line width and retain bounded spacing", Arrows(straight,1,1).Length == 3 && Arrows(straight,1,1)[0].Z-Arrows(straight,1,1)[1].Z == 6);
+            var corner = Arrows(new[] { Vector3.Zero,new Vector3(0,0,20),new Vector3(20,5,20) });
+            Check("arrows follow bent and sloped paths", corner.Length >= 9 && corner.All(v => v.IsFinite()) && corner[^3].X > corner[^2].X);
+            var loop = Arrows(new[] { Vector3.Zero,new Vector3(20,0,0),new Vector3(20,0,20),new Vector3(0,0,20),Vector3.Zero });
+            Check("closed loops have evenly spaced arrows away from their seam", loop.Length == 24 && loop.All(v => v.IsFinite()) && loop.Where((_,i) => i%3 == 0).All(v => v.Length() > 1));
+
+            var roadId = (await Call("roads.create",new { points=new[] { new {position=new[] {-65f,0f,-30f}},new {position=new[] {65f,0f,-30f}} } })).Value<int>();
+            await Call("state.import",new { @ref=roadId,values=new { forwardLanes=2,backwardLanes=2,pedestrianStreet=false,disableTraffic=false,cableCarLine=true } });
+            Road Road() => M.roads[0];
+            GameEngine.LineRenderer[] RoadLines() => Road().generator.lanesRenderersContainer.GetChildren().OfType<GameEngine.LineRenderer>().ToArray();
+            GameEngine.LineRenderer[] Traffic() => RoadLines().Where(l => l.Name.ToString().StartsWith("traffic_")).ToArray();
+            Check("procedural forward/backward and cable-car lanes have opposing arrows", Traffic().Any(l => l.Name.ToString().StartsWith("traffic_1_") && l.arrowDirection == 1)
+                && Traffic().Any(l => l.Name.ToString().StartsWith("traffic_2_") && l.arrowDirection == -1)
+                && Traffic().Any(l => l.Name.ToString().StartsWith("traffic_3_") && l.arrowDirection == 1)
+                && Traffic().Any(l => l.Name.ToString().StartsWith("traffic_4_") && l.arrowDirection == -1));
+            Check("sidewalk and prop-bound lines have no arrows", RoadLines().Where(l => !l.Name.ToString().StartsWith("traffic_") || l.Name.ToString().StartsWith("traffic_0_")).All(l => l.arrowDirection == 0));
+            var lanesBefore = Traffic().Select(l => Enumerable.Range(0,l.positionCount).Select(l.GetPosition).ToArray()).ToArray();
+            var baiId = (await Call("customElement.create",new {type="baiRoad",name="Arrow BAI"})).Value<int>();
+            CustomElement Bai() => M.customElements.First(e => e.TypeName == "baiRoad");
+            GameEngine.LineRenderer[] BaiLines() => Bai().generator.GetChildren().OfType<GameEngine.LineRenderer>().ToArray();
+            Check("Lua BAI lanes read injected values as booleans", BaiLines().Any(l => l.arrowDirection == 1) && BaiLines().Any(l => l.arrowDirection == -1));
+            await Call("state.setParam",new { @ref=0,name="driveOnLeft",value=true });
+            Check("city traffic reversal updates procedural and Lua BAI lane arrows", Traffic().Where(l => l.Name.ToString().StartsWith("traffic_1_")).All(l => l.arrowDirection == -1)
+                && Bai().cityPropertiesState.Bool("_GLOBAL_driveOnLeft") && BaiLines().First(l => l.arrowDirection != 0).arrowDirection == 1);
+            Check("reversing arrows preserves lane point order", lanesBefore.Zip(Traffic(),(p,l) => p.SequenceEqual(Enumerable.Range(0,l.positionCount).Select(l.GetPosition))).All(x => x));
+            Check("injected custom-element values are not authored properties", !Bai().state.properties.ContainsKey("_GLOBAL_driveOnLeft"));
+            await Call("history.undo");
+            Check("undo restores traffic arrow directions", Traffic().Any(l => l.Name.ToString().StartsWith("traffic_1_") && l.arrowDirection == 1) && !Bai().cityPropertiesState.Bool("_GLOBAL_driveOnLeft"));
+            await Call("history.redo");
+            Check("redo restores reversed traffic arrows", Traffic().Any(l => l.Name.ToString().StartsWith("traffic_1_") && l.arrowDirection == -1) && Bai().cityPropertiesState.Bool("_GLOBAL_driveOnLeft"));
+            await Call("roads.create",new {points=new[] {new {position=new[] {-65f,0f,-50f}},new {position=new[] {65f,0f,-50f}}}});
+            Check("new roads inherit the current city traffic side", M.roads[1].runtimeState.Bool("_GLOBAL_driveOnLeft"));
+            await Call("state.setParam",new { @ref=roadId,name="pedestrianStreet",value=true });
+            Check("pedestrian streets have no vehicle arrowheads", Traffic().Where(l => l.Name.ToString().StartsWith("traffic_0_")).All(l => l.arrowDirection == 0));
+            await Call("state.setParam",new { @ref=roadId,name="pedestrianStreet",value=false });
+            await Call("state.setParam",new { @ref=baiId,name="alley",value=true });
+            Check("BAI pedestrian alleys have no directional arrows", BaiLines().All(l => l.arrowDirection == 0));
+            await Call("state.setParam",new { @ref=baiId,name="alley",value=false });
+
+            var controls = new[] { new[] {-35f,2f,5f},new[] {35f,2f,5f},new[] {35f,2f,65f},new[] {-35f,2f,65f} };
+            var boatId = (await Call("customElement.create",new { type="movingObject",name="Arrow loop",points=new {spline=controls.Select(p => new {position=p}).ToArray()} })).Value<int>();
+            CustomElement Boat() => M.customElements.First(e => e.TypeName == "movingObject");
+            GameEngine.LineRenderer BoatLine() => Boat().generator.GetChildren().OfType<GameEngine.LineRenderer>().Single();
+            Check("moving-object spline without mesh components has forward arrows", BoatLine().arrowDirection == 1 && Boat().splineData.closed);
+            var boatStyle = Boat().Settings.spline.line;
+            var boatDirection = boatStyle.arrowDirection;
+            try {
+                boatStyle.arrowDirection = "if(_GLOBAL_driveOnLeft, -1, 1)";
+                Check("component-free spline line expressions can read city properties", CustomElementSplineGeometry.Build(Boat(),out _).lines.Single().arrowDirection == -1);
+            } finally { boatStyle.arrowDirection = boatDirection; }
+            var boatPoints = (await Call("elements.geometry",new { @ref=boatId }))["element"]["points"].DeepClone();
+            var trainId = (await Call("customElement.create",new {type="train",points=new {spline=controls.Select(p => new {position=new[] {p[0]+160,p[1],p[2]}}).ToArray()} })).Value<int>();
+            var train = (CustomElement)History.UndoManager.GetAliveElement(trainId);
+            Check("trains remain without arrows", train.generator.GetChildren().OfType<GameEngine.LineRenderer>().All(l => l.arrowDirection == 0));
+            builder.CloseAllPanels(); M.ShowIntersections(false); await Frames(2);
+            Check("traffic arrows hide with their existing lines", !GO.GetEnabled(Road().generator.lanesRenderersContainer) && BaiLines().Where(l => l.arrowDirection != 0).All(l => !l.enabled));
+            M.ShowAllTrafficLanes(); await Frames(3);
+            Check("Show all traffic lanes includes arrows on both road kinds", GO.GetEnabled(Road().generator.lanesRenderersContainer) && BaiLines().Any(l => l.enabled && l.arrowDirection != 0));
+            Check("moving-object arrows remain visible while deselected", BoatLine().enabled);
+            await ToSignal(GetTree(),"physics_frame"); await Frames(2);
+            var hitPosition = (BoatLine().GetPosition(0)+BoatLine().GetPosition(1))*.5f;
+            Check("arrowed spline retains its existing selection collider", GameEngine.Raycast.DoRaycast(Boat(),hitPosition+Vector3.Up*20,Vector3.Down,out var hit,40,1<<7) && hit.collider == Boat().generator);
+            Check("arrow visibility leaves authored spline controls unchanged", JToken.DeepEquals(boatPoints,(await Call("elements.geometry",new { @ref=boatId }))["element"]["points"]));
+            if (DisplayServer.GetName() != "headless") {
+                await Call("view.camera.set",new {position=new[] {0f,120f,15f},target=new[] {0f,0f,15f}});
+                await Frames(5); Screenshot("direction_arrows.png");
+                Check("visible direction arrows produce an additional mesh surface", Traffic().Any(l => l.Mesh.GetSurfaceCount() == 2) && BoatLine().Mesh.GetSurfaceCount() == 2);
+            }
+            await Call("state.import",new { @ref=0,values=new {checkpointRaces=new[] {new {name="Arrow opponents",opponents=new {opponents=new[] {new {
+                waypoints=new[] {new {waypoint=new {localPosition=new {x=-20f,y=5f,z=100f}}},new {waypoint=new {localPosition=new {x=20f,y=5f,z=100f}}}}
+            }}}}}} });
+            CallBuilder<object>("ToggleCityProperties");
+            CallBuilder<EditorPanel>("FindShownPanel").OpenArrayElement("checkpointRaces",0)
+                .OpenArrayElement("opponents",null).OpenArrayElement("opponents",0);
+            await Frames(3);
+            var opponentLines = M.GetDummy<CityProperties>().FindChildren("*","",true,false).OfType<GameEngine.LineRenderer>().ToArray();
+            Check("opponent waypoint arrays draw forward arrows in authored order", opponentLines.Any(l => l.arrowDirection == 1 && l.positionCount == 2
+                && l.GetPosition(0).X < l.GetPosition(1).X));
+            builder.CloseAllPanels();
+            var exportPath = Path.Combine(folder,"..","arrows_export.json");
+            await Call("city.exportJson",new {path=exportPath});
+            var exportBefore = JObject.Parse(File.ReadAllText(exportPath));
+            var renderers = RoadLines().Concat(BaiLines()).Append(BoatLine()).ToArray();
+            var directions = renderers.Select(l => l.arrowDirection).ToArray();
+            foreach (var renderer in renderers) renderer.arrowDirection = 0;
+            await Call("city.exportJson",new {path=exportPath});
+            var exportAfter = JObject.Parse(File.ReadAllText(exportPath));
+            Check("arrow rendering does not change exported road or spline data", JToken.DeepEquals(exportBefore["roads"],exportAfter["roads"])
+                && JToken.DeepEquals(exportBefore["customElements"],exportAfter["customElements"]));
+            for (int i = 0; i < renderers.Length; i++) renderers[i].arrowDirection = directions[i];
+            await Call("city.save"); await Call("city.reload");
+            Check("reload restores city-dependent directions on procedural and custom roads", Road().runtimeState.Bool("_GLOBAL_driveOnLeft")
+                && Bai().cityPropertiesState.Bool("_GLOBAL_driveOnLeft") && Traffic().Any(l => l.Name.ToString().StartsWith("traffic_1_") && l.arrowDirection == -1));
+            Check("reload restores moving-object arrows without injected authored state", BoatLine().arrowDirection == 1 && !Boat().state.properties.ContainsKey("_GLOBAL_driveOnLeft"));
+            await Call("city.exportJson",new {path=exportPath});
+        }
+
         async Task TrainSplines() {
             Log("train splines");
             var settings = TP.GetCustomElementTypes()["train"].typeData.settings.spline;
@@ -61,11 +194,11 @@ namespace Api {
             Check("train preview remains visible when deselected", lines.Any(l => l.enabled));
             await ToSignal(GetTree(), "physics_frame"); await Frames(2);
             Check("train preview is lifted in world Y above its unchanged spline", lines.Length == 1
-                && Mathf.Abs(lines[0].GetAabb().Position.Y - displayedRoute.Min(p => p.Y) - .25f) < .001f);
+                && Mathf.Abs(lines[0].GetAabb().Position.Y - displayedRoute.Min(p => p.Y) - settings.line.heightOffset) < .001f);
             var middle = element.splineData.sections[element.splineData.sections.Length/2].center;
             var position = new Vector3(middle[0],middle[1],middle[2]);
             Check("deselected train can be selected through its line collider",GameEngine.Raycast.DoRaycast(element,position+Vector3.Up*20,Vector3.Down,out var hit,40,1<<7) && hit.collider == element.generator);
-            Check("train selection collider follows the preview lift", hit.collider == element.generator && Mathf.Abs(hit.point.Y-position.Y-.25f) < .001f);
+            Check("train selection collider follows the preview lift", hit.collider == element.generator && Mathf.Abs(hit.point.Y-position.Y-settings.line.heightOffset) < .001f);
             var omitted = curve.Position(.125f)+offset;
             Check("trimmed train end spans cannot be picked through the route collider", !GameEngine.Raycast.DoRaycast(element,omitted+Vector3.Up*20,Vector3.Down,out _,40,1<<7));
             builder.SelectObject(element, true, null);

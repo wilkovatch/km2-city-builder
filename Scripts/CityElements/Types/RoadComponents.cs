@@ -17,6 +17,7 @@ namespace CityElements.Types {
 
     public class TrafficLane {
         public string type;
+        public string arrowDirection;
         public string condition;
         public string[] bounds;
         public object lanes;

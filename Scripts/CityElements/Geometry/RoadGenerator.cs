@@ -21,6 +21,7 @@ public partial class RoadGenerator : PhysicsScriptable {
         public string name;
         public RC.VariableContainer vars;
         public int component;
+        public float arrowDirection;
 
         public LaneInfo(float pos, RC.Vector3s.Vector startBound, RC.Vector3s.Vector endBound, Color color, string name, RC.VariableContainer vars, int component) {
             this.pos = pos;
@@ -349,7 +350,9 @@ public partial class RoadGenerator : PhysicsScriptable {
                     var trafficLane = trafficLanes[ti];
                     lanes.Add(new List<Vector3>());
                     var laneName = "traffic_" + type + "_" + component + "_" + li + "_" + ti;
-                    lanesInfo.Add(new LaneInfo(trafficLane, lane.startBound, lane.endBound, color, laneName, vars, component));
+                    lanesInfo.Add(new LaneInfo(trafficLane, lane.startBound, lane.endBound, color, laneName, vars, component) {
+                        arrowDirection = lane.arrowDirection?.GetValue(vars) ?? 0
+                    });
                 }
             }
         }
@@ -396,7 +399,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     void GenerateLanesPost() {
         //create the renderers
         for (int i = 0; i < lanes.Count; i++) {
-            CreateLineRenderer(lanes[i], lanesInfo[i].color, lanesInfo[i].name);
+            CreateLineRenderer(lanes[i], lanesInfo[i].color, lanesInfo[i].name).arrowDirection = lanesInfo[i].arrowDirection;
         }
         GO.SetEnabled(lanesRenderersContainer, lr.enabled);
     }

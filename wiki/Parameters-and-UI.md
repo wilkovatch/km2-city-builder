@@ -97,6 +97,7 @@ Array rows show mesh thumbnails when their label parameter is a `mesh` or `objec
 | `width` | Float expression: the width in metres. If not set, the line is thin and its width grows with the camera distance. |
 | `texture` | The parameter (of type `texture`) of the element holding the texture of the line. If not set or empty, the line has the color of the handles. |
 | `heightOffset` | Float expression: the height of the line above the points (0 if not set). |
+| `arrowDirection` | Float expression: positive draws repeated arrows in point order, negative reverses them, zero or omitted draws none. Also works on the default thin handle line, without `width` or `texture`. Arrows follow the line's visibility and camera-dependent width. |
 | `miterCorners` | If true, the sides keep the width at the corners (otherwise the line gets narrower there). |
 | `uvs` | The texture coordinates (none if not set): `uScale` (float expression, u goes from 0 on the left side to this on the right one, 1 if not set), `vLength` (float expression, the length of the line for each unit of v; if not set or 0, v goes from 0 to 1 along the whole line) and `vRoundPerSegment` (with `vLength`, each segment between two points gets the whole number of units of v closest to its length, at least 1). |
 

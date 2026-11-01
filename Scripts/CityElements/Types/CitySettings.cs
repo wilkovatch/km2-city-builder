@@ -6,6 +6,7 @@ namespace CityElements.Types.CitySettings {
     public class ParameterInjection {
         public string parameter;
         public bool onRoads;
+        public bool onCustomElements;
         /*public bool onIntersections; //TODO
         public bool onTerrain;
         public bool onBuildings;*/

@@ -24,6 +24,7 @@ namespace CustomElements {
         public Color color = new Color(1, 1, 0);
         public string texture; //a texture parameter of the element (null: the color)
         public float heightOffset;
+        public float arrowDirection;
         public bool closed;
         public bool always; //shown also while the element is not being edited
         public string toggle; //a view toggle of the core (see Rendering.ViewToggles) hiding it, when always, while it's off
@@ -190,6 +191,7 @@ namespace CustomElements {
                         points = Vector3s(l["points"], "lines[" + i + "].points"),
                         texture = String(l["texture"]),
                         heightOffset = Number(l["heightOffset"], 0),
+                        arrowDirection = Number(l["arrowDirection"], 0),
                         color = ReadColor(l["color"], new Color(1, 1, 0)),
                         closed = l["closed"].TryRead<bool>(out var closed) && closed,
                         always = l["always"].TryRead<bool>(out var always) && always,

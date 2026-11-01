@@ -56,7 +56,7 @@ namespace CityElements.Types.Runtime {
             return res;
         }
 
-        public RoadType(Types.RoadType type, string name) : base(type, type.parameters, GetComponents(type.components, type.settings.components), GetVarLists(type), name) {
+        public RoadType(Types.RoadType type, string name, bool customElement = false) : base(type, type.parameters, GetComponents(type.components, type.settings.components), GetVarLists(type), name, customElement ? "customElements" : "roads") {
             SplineCurves.ValidateSettings(type.settings);
             type.settings.sectionVertices ??= new object[0];
             AddBuiltInBools("throughIntersection", "hasStartIntersection", "hasEndIntersection");
@@ -134,7 +134,7 @@ namespace CityElements.Types.Runtime {
                     FillVector3(variableContainer, variable, runtimeState.Vector3(variable));
                 }
             }
-            FillBaseInitialVariables(variableContainer, state, instanceState);
+            FillBaseInitialVariables(variableContainer, state, instanceState, runtimeState);
         }
 
         public GeometryHelper.CurveType GetCurveType(ObjectState state) {

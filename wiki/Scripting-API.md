@@ -43,6 +43,8 @@ Creates a city in the folder (from the SF template of the Midtown Madness 2 core
 
 The suite also checks mesh-instance selection with generated fixtures: clicks through gaps, double-sided triangles, multiple surfaces, nested LODs, placement offsets, transformed instances, shared shapes, replacement, undo/redo, fallbacks and save/reload. Set the environment variable `KM2_SELFTEST_MESH_SELECTION=test` to run just these checks in a new test city. Unset it to run the full suite.
 
+Set `KM2_SELFTEST_FOCUS=arrows` for the short direction-arrow checks: lane and spline geometry, typed city-property injection, traffic-side changes, undo/redo, reload, opponent paths, visibility, picking and unchanged export data. Run windowed to also check the rendered arrow surfaces and save `direction_arrows.png` next to the test city.
+
 `KM2_SELFTEST_MESH_SELECTION=benchmark` runs a separate bounded comparison instead: ten available local mesh assets chosen with seed 42, 100 copies each, comparing the old boxes against shared triangle shapes. Mesh loading is warmed before timing. The log reports cold shape construction, warm instance creation, median/p95 ray query times and Godot's static allocator memory delta (not total process memory). Both cases use identical rays across overlapping objects and empty space; lower triangle hit counts can be expected where rays pass through geometric gaps. Camera LOD changes and copies must retain the cached shapes. Back up the program's `settings.json` before either test mode and restore it afterward, as for the full suite.
 
 ## Protocol

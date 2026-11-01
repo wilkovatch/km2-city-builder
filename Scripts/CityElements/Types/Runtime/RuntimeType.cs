@@ -26,6 +26,7 @@ namespace CityElements.Types.Runtime {
 
         //the bool variables (parameters and definitions), stored as floats: the scripts read them as booleans
         HashSet<string> boolNames = new HashSet<string>();
+        readonly List<Parameter> injectedParameters = new List<Parameter>();
 
         //A definition is an expression (value) or a function of a Lua script of the core (script)
         static void CheckDefinition(Definition def) {
@@ -71,11 +72,23 @@ namespace CityElements.Types.Runtime {
         }
 
         public RuntimeType(T typeData, ParameterContainer parameterContainer, (SubObjectWithLocalDefinitions obj, string condition)[] components,
-            (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) vars, string name) {
+            (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) vars, string name, string injectionTarget = null) {
 
             this.name = name;
             this.typeData = typeData;
             this.parameterContainer = parameterContainer;
+
+            if (injectionTarget != null && Parsers.TypeParser.GetCitySettings().TryGetValue("city", out var city)) {
+                foreach (var injection in city.typeData.settings.injectableParameters ?? new Types.CitySettings.ParameterInjection[0]) {
+                    if (!(injectionTarget == "roads" ? injection.onRoads : injection.onCustomElements)) continue;
+                    var parameter = System.Array.Find(city.typeData.parametersInfo.parameters, p => p.name == injection.parameter);
+                    if (parameter == null || (parameter.type != "bool" && parameter.type != "int" && parameter.type != "float")) continue;
+                    injectedParameters.Add(parameter);
+                    var global = "_GLOBAL_" + parameter.name;
+                    vars.floatVars.Add(global);
+                    if (parameter.type == "bool") boolNames.Add(global);
+                }
+            }
 
             if (parameterContainer.parameters != null) {
                 foreach (var param in parameterContainer.parameters) {
@@ -229,7 +242,13 @@ namespace CityElements.Types.Runtime {
             FillDefinitionsCommon(variableContainer, parameterContainer.staticDefinitions);
         }
 
-        protected void FillBaseInitialVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState) {
+        protected void FillBaseInitialVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState, ObjectState injectedState = null) {
+            foreach (var parameter in injectedParameters) {
+                var global = "_GLOBAL_" + parameter.name;
+                var value = parameter.type == "bool" ? (injectedState?.Bool(global) == true ? 1f : 0f)
+                    : parameter.type == "int" ? injectedState?.Int(global) ?? 0 : injectedState?.Float(global) ?? 0;
+                FillFloat(variableContainer, global, value);
+            }
             if (parameterContainer.parameters != null) {
                 foreach (var param in parameterContainer.parameters) {
                     //elements without an instance state (e.g. terrain patches, props, blocks) keep every value in the state

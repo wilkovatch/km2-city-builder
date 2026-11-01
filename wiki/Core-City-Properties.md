@@ -35,7 +35,9 @@ One parameter name has a special meaning:
 
 Each parameter listed in `injectableParameters` with `onRoads: true` is copied into the runtime state of every road as `_GLOBAL_<parameter>` whenever it changes, and the roads are rebuilt. Supported parameter types: `string`, `mesh`, `bool`, `float`, `int`.
 
-Injected values are not expression variables: they are state properties, meant to be used where the program reads state properties by name, most notably the dynamic default model of a [parametric object](Core-Props-and-Objects#parametric-objects). MM2 uses this to let the user choose the two traffic light models once for the whole city:
+Set `onCustomElements: true` to also inject a parameter into custom elements, including their Lua geometry and spline definitions. Custom-element injection is runtime-only and does not add authored state properties. Changed injected parameters rebuild the targeted elements; new, restored and loaded elements receive the current values too.
+
+Injected `bool`, `int` and `float` parameters are also available as `_GLOBAL_<parameter>` expression variables on their targets, populated before static definitions. Boolean values are booleans in Lua. For example, a lane's `arrowDirection` can be `"if(_GLOBAL_driveOnLeft, -1, 1)"` when `driveOnLeft` is injectable with `onRoads: true`; a custom-element geometry script can read `v._GLOBAL_driveOnLeft` with `onCustomElements: true`. Other injectable types remain state properties, most notably for the dynamic default model of a [parametric object](Core-Props-and-Objects#parametric-objects). MM2 uses this to let the user choose the two traffic light models once for the whole city:
 
 ```json
 "defaultModel": {
