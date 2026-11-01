@@ -88,6 +88,8 @@ Values not set yet read as 0, false, an empty string or a zero vector. Default v
 | `drawLine` | Draws a line through the parametric objects of the elements, in order (for example the points of a path). By default it is a thin yellow line whose width grows with the camera distance. Clicking the line selects the element that owns the array. Its collider is on the layer of the objects, so the placers that skip the objects (their `placerLayerMask`) skip the line too. |
 | `lineSettings` | With `drawLine`, optional: how the line is drawn, see below. |
 
+Array rows show mesh thumbnails when their label parameter is a `mesh` or `objectInstance`, or when the element has exactly one parameter of either type. This also works with parameters supplied by `customCityPropertiesType`. Display labels stay unchanged. If an element has several mesh parameters, choose one as `elementLabel` to show its thumbnail; otherwise the list stays text-only. Empty mesh paths have no thumbnail. Opening a mesh selector to change a value preselects that value and starts its rotating preview.
+
 `lineSettings` turns the line into a strip lying on the points, facing up (e.g. something exported as a textured strip). The expressions can use the parameters of the element owning the array:
 
 | Field | Description |

@@ -1189,10 +1189,12 @@ public partial class CityBuilderMenuBar : Control {
         textureListEditorPanel.Open(panel, valueSetter, afterSetAction);
     }
 
-    public void OpenMeshSelector(EditorPanel panel, Control panelObj, System.Action<string> valueSetter, System.Action afterSetAction, bool disablePlacer = false) {
+    public void OpenMeshSelector(EditorPanel panel, Control panelObj, System.Action<string> valueSetter, System.Action afterSetAction, bool disablePlacer = false, string currentMesh = null) {
         if (disablePlacer) meshListEditorPanel.disablePlacer = true;
         if (panel != null) meshListEditorPanel.Open(panel, valueSetter, afterSetAction);
         else if (panelObj != null) meshListEditorPanel.Open(panelObj, valueSetter, afterSetAction);
+        else return;
+        meshListEditorPanel.SetSelection(currentMesh);
     }
 
     //type: the mesh instance type of the new instances, or null for the types of the group (chosen in the placement panel)

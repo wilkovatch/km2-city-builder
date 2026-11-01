@@ -16,6 +16,7 @@ namespace EditorPanels {
         List<string> absolutePaths = new List<string>();
         Dictionary<string, int> indices = new Dictionary<string, int>();
         EditorPanelElements.InputField curMesh;
+        EditorPanelElements.MeshPreview preview;
         ElementPlacer.MeshPlacer placer = null;
         System.Action<string> valueSetter = null;
         EditorPanel panel = null;
@@ -36,8 +37,11 @@ namespace EditorPanels {
             var p0 = GetPage(0);
             searchBar = p0.AddInputField(SM.Get("MESH_SEL_SEARCH"), SM.Get("MESH_SEL_SEARCH_PH"), "", GameEngine.InputContentType.Standard, Search, 1.5f);
             p0.IncreaseRow();
-            lst = p0.AddScrollList(SM.Get("MESH_SEL_LST_TITLE"), new List<string>(), Select, 1.5f, SM.Get("MESH_SEL_LST_TOOLTIP"));
+            lst = p0.AddScrollList(SM.Get("MESH_SEL_LST_TITLE"), new List<string>(), new List<string>(), Select, 1.5f, SM.Get("MESH_SEL_LST_TOOLTIP"));
             p0.IncreaseRow(5.0f);
+            preview = p0.AddMeshPreview(SM.Get("MESH_SEL_PREVIEW"), 1.5f, 1.8f);
+            lst.SetThumbnailProvider(preview.renderer.GetThumbnail);
+            p0.IncreaseRow(5.4f);
             curMesh = p0.AddInputField(SM.Get("MESH_SEL_CURRENT"), SM.Get("NONE"), "", GameEngine.InputContentType.Standard, null, 1.5f);
             curMesh.SetInteractable(false);
             p0.IncreaseRow();
@@ -70,11 +74,12 @@ namespace EditorPanels {
             var val = i != -1 ? paths[i] : "";
             curMesh.SetValue(val);
             curVal = val;
+            preview.SetValue(i >= 0 ? absolutePaths[i] : null);
             if (placer != null) {
                 placer.meshPath = val;
                 placer.placeEnabled = false;
             }
-            selectBtn.SetInteractable(true);
+            selectBtn.SetInteractable(i >= 0);
         }
 
         void SelectAction() {
@@ -97,6 +102,7 @@ namespace EditorPanels {
         }
 
         public void Open(EditorPanel panel, System.Action<string> valueSetter, System.Action afterSetAction) {
+            disablePlacer = true;
             SetActive(true);
             placer = null;
             this.panel = panel;
@@ -108,6 +114,7 @@ namespace EditorPanels {
         }
 
         public void Open(GameObject panel, System.Action<string> valueSetter, System.Action afterSetAction) {
+            disablePlacer = true;
             SetActive(true);
             placer = null;
             panelObj = panel;
@@ -116,6 +123,37 @@ namespace EditorPanels {
             GO.SetEnabled(panelObj, false);
             this.afterSetAction = afterSetAction;
             selectBtn.SetTitle(SM.Get("SELECT"));
+        }
+
+        public void SetSelection(string value) {
+            if (string.IsNullOrEmpty(value)) {
+                lst.Deselect();
+                Select(-1);
+                return;
+            }
+            var normalized = value.Replace('\\', '/');
+            string absolute = null;
+            try {
+                absolute = Path.GetFullPath(PathHelper.ResolveAssetPath(value)).Replace('\\', '/');
+            } catch (System.Exception) {
+                //An invalid stored path still belongs in the current-value field, without a selected row.
+            }
+            for (int i = 0; i < paths.Count; i++) {
+                if (string.Equals(paths[i].Replace('\\', '/'), normalized, System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(absolutePaths[i].Replace('\\', '/'), absolute, System.StringComparison.OrdinalIgnoreCase)) {
+                    lst.SetValue(i);
+                    lst.Reveal(i);
+                    //Opening the selector must not normalize a saved value when the user confirms it unchanged.
+                    curVal = value;
+                    curMesh.SetValue(value);
+                    return;
+                }
+            }
+            lst.Deselect();
+            curVal = value;
+            curMesh.SetValue(value);
+            selectBtn.SetInteractable(false);
+            preview.SetValue(PathHelper.ResolveAssetPath(value));
         }
 
         //opened from a mesh field to pick a value, rather than for mesh placement
@@ -133,25 +171,34 @@ namespace EditorPanels {
         }
 
         void RefreshList() {
-            lst.Deselect();
-            PathHelper.GetFileList(true, lastQuery, MeshImporter.GetSupportedFormats(), ref paths, ref absolutePaths, ref indices, ref fileEntries);
-            lst.SetItems(paths);
+            preview.renderer.ClearCache();
+            ReloadList(true, lastQuery);
         }
 
         public void ResetEntries() {
             fileEntries = null;
+            preview?.renderer.ClearCache();
         }
 
         void ReloadList(bool rescan, string query) {
             lastQuery = query;
+            Select(-1);
             lst.Deselect();
             PathHelper.GetFileList(rescan, query, MeshImporter.GetSupportedFormats(), ref paths, ref absolutePaths, ref indices, ref fileEntries);
-            lst.SetItems(paths);
+            lst.SetItems(paths, absolutePaths);
+        }
+
+        public override void Destroy() {
+            if (preview != null && Godot.GodotObject.IsInstanceValid(preview.renderer)) preview.renderer.Stop();
+            preview = null;
+            base.Destroy();
         }
 
         public override void SetActive(bool active) {
             if (!PrepareActivation(active)) return;
             if (active) {
+                //Selector activation must leave the placement tool's current mesh and settings alone.
+                placer = disablePlacer ? null : builder.meshPlacer;
                 blockSearch = true;
                 searchBar.SetValue("");
                 blockSearch = false;
@@ -161,14 +208,12 @@ namespace EditorPanels {
                 panelObj = null;
                 valueSetter = null;
                 afterSetAction = null;
-                if (placer == null) {
-                    placer = builder.meshPlacer;
-                }
                 if (!disablePlacer) builder.terrainClick.modifier = placer;
                 selectBtn.SetTitle(SM.Get("MESH_SEL_PLACE_MESH"));
                 selectBtn.SetInteractable(false);
             } else {
                 disablePlacer = false;
+                preview?.renderer.Stop();
             }
             if (placer != null) placer.SetActive(active);
             base.SetActive(active);

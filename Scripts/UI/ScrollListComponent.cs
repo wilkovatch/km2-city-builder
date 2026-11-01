@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Godot;
 using Input = GameEngine.Input;
 using KeyCommand = GameEngine.Input.KeyCommand;
@@ -10,6 +11,8 @@ using KeyCommand = GameEngine.Input.KeyCommand;
 /// </summary>
 public partial class ScrollListComponent : Node {
     public EditorPanelElements.ScrollList list = null;
+    public System.Func<string, Task<Texture2D>> thumbnailProvider;
+    bool loadingSprite;
 
     Queue<(int ID, string newImg, int newVal)> newSprites = new Queue<(int, string, int)>();
     Dictionary<int, TextureRect> rowImages = new Dictionary<int, TextureRect>();
@@ -18,6 +21,15 @@ public partial class ScrollListComponent : Node {
     public void SetupSprite(int rowID, TextureRect image) {
         rowImages[rowID] = image;
         curRowsValues[rowID] = 0;
+    }
+
+    public void SetImageOrientation(bool flipV) {
+        foreach (var image in rowImages.Values) image.FlipV = flipV;
+    }
+
+    public void ResetSprites() {
+        newSprites.Clear();
+        foreach (var id in rowImages.Keys) ClearSprite(id);
     }
 
     public void ClearSprite(int ID) {
@@ -31,12 +43,24 @@ public partial class ScrollListComponent : Node {
         newSprites.Enqueue((ID, image, curRowsValues[ID]));
     }
 
-    void ProcessSprite() {
+    async void ProcessSprite() {
+        if (loadingSprite) return;
         var done = false;
         while (!done && newSprites.Count > 0) {
             var newSprite = newSprites.Dequeue();
             if (curRowsValues[newSprite.ID] == newSprite.newVal) {
-                rowImages[newSprite.ID].Texture = UILayout.LoadPreview(newSprite.newImg);
+                loadingSprite = true;
+                try {
+                    var texture = thumbnailProvider != null
+                        ? await thumbnailProvider(newSprite.newImg)
+                        : UILayout.LoadPreview(newSprite.newImg);
+                    if (IsInstanceValid(this) && IsInsideTree() && curRowsValues[newSprite.ID] == newSprite.newVal
+                        && IsInstanceValid(rowImages[newSprite.ID])) rowImages[newSprite.ID].Texture = texture;
+                } catch (System.Exception e) {
+                    GameEngine.LogWarning("Unable to load thumbnail: " + e.Message);
+                } finally {
+                    loadingSprite = false;
+                }
                 done = true;
             }
         }

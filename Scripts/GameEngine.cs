@@ -1039,6 +1039,26 @@ public static partial class GameEngine {
     }
 
     public static class Mesh {
+        //A render-only copy: no LOD scripts, colliders, layer culling or references to city instances.
+        //The imported hierarchy may not be in the tree, so accumulate local transforms explicitly.
+        public static Node3D CreatePreviewGeometry(Node3D source) {
+            var result = new Node3D { Name = "PreviewGeometry" };
+            void Copy(Node node, Transform3D transform) {
+                if (node is Node3D spatial) transform *= spatial.Transform;
+                if (node is MeshInstance3D mesh && mesh.Mesh != null && node is not LineRenderer && LODGroup.IsHighestDetailRenderer(mesh)) {
+                    var copy = new MeshInstance3D {
+                        Mesh = mesh.Mesh, Transform = transform, Layers = 1,
+                        MaterialOverride = mesh.MaterialOverride, MaterialOverlay = mesh.MaterialOverlay
+                    };
+                    for (int i = 0; i < mesh.Mesh.GetSurfaceCount(); i++) copy.SetSurfaceOverrideMaterial(i, mesh.GetSurfaceOverrideMaterial(i));
+                    result.AddChild(copy);
+                }
+                foreach (var child in node.GetChildren()) Copy(child, transform);
+            }
+            Copy(source, Transform3D.Identity);
+            return result;
+        }
+
         sealed class MeshMaterialState {
             public MeshInstance3D Renderer;
             public Material[] Materials = System.Array.Empty<Material>();

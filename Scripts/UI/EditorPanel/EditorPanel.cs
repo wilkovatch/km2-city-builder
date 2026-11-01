@@ -250,9 +250,11 @@ public abstract partial class EditorPanel {
                             );
                         }
                         var l = GetComplexElement<IOList>();
+                        var meshProperty = GetArrayMeshProperty(param);
                         l.AddFullEditableList(p, param.fullName(), GetString(param.label),
                             SM.Get("ARRAY_ADD"), SM.Get("ARRAY_EDIT"), SM.Get("ARRAY_DELETE"), param.arrayProperties.maxElements,
-                            AddArrayElementD, SelectArrayElementD, DeleteArrayElementD, GetArrayD, 5.0f, elem.width, GetString(param.tooltip), null, extraButtons);
+                            AddArrayElementD, SelectArrayElementD, DeleteArrayElementD, GetArrayD, 5.0f, elem.width, GetString(param.tooltip), null, extraButtons,
+                            meshProperty != null ? () => GetArrayMeshes(param, meshProperty) : null);
                         curW = 0;
                         break;
                 }
@@ -583,6 +585,28 @@ public abstract partial class EditorPanel {
             }
         }
         return labelProperty;
+    }
+
+    CityElements.Types.Parameter GetArrayMeshProperty(CityElements.Types.Parameter param) {
+        bool IsMesh(CityElements.Types.Parameter property) => property?.type == "mesh" || property?.type == "objectInstance";
+        var label = GetArrayLabelProperty(param);
+        if (IsMesh(label)) return label;
+        CityElements.Types.Parameter result = null;
+        foreach (var property in GetArrayProperties(param.arrayProperties)) {
+            if (!IsMesh(property)) continue;
+            if (result != null) return null; //a record with several meshes needs a designated mesh label
+            result = property;
+        }
+        return result;
+    }
+
+    List<string> GetArrayMeshes(CityElements.Types.Parameter param, CityElements.Types.Parameter meshProperty) {
+        var result = new List<string>();
+        var obj = getObject?.Invoke();
+        if (obj != null) {
+            foreach (var elem in GetArrayList(param, obj)) result.Add(GetArrayElementLabel(elem, meshProperty, result.Count));
+        }
+        return result;
     }
 
     string GetArrayElementLabel(ObjectState elem, CityElements.Types.Parameter param, int curCount) {

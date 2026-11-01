@@ -542,6 +542,8 @@
 	"CT_INT_PT_DIST_TOOLTIP": "If greater than zero, the patches will be filled with internal points this distant from each other (the points are determined through Poisson disk sampling)",
 	"RD_COPLANAR_TOOLTIP": "",
 	"TEX_SEL_LST_TOOLTIP": "Select a texture in this list to get a preview of it before applying it.\nUse the up/down arrows to navigate the list.",
+	"MESH_SEL_PREVIEW": "Mesh preview",
+	"MESH_SEL_PREVIEW_UNAVAILABLE": "Mesh preview unavailable",
 	"MESH_SEL_LST_TOOLTIP": "To instantiate a mesh, select it from this list and click on any point in the world.\nUse the up/down arrows to navigate the list.",
 	"TRANSF_P_SWITCH_SPACE_TOOLTIP": "Switches from local to global space and vice versa (only affects the transformation gizmo)",
 	"BL_LIST_TOOLTIP": "There is a building between each pair of dividing points (the first and last point count as such even if not explicitly set)",

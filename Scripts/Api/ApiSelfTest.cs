@@ -194,7 +194,10 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "projection") {
+                if (focus == "meshPreviews") {
+                    await NewCity();
+                    await MeshPreviews();
+                } else if (focus == "projection") {
                     await NewCity();
                     await SurfaceProjection();
                 } else if (focus == "customElementPresets") {

@@ -71,6 +71,12 @@ public static class PathHelper {
         return LocalFilesPath() + name;
     }
 
+    public static string ResolveAssetPath(string name) {
+        if (string.IsNullOrEmpty(name)) return null;
+        name = name.Replace('\\', '/');
+        return Path.IsPathRooted(name) ? ResolveFile(name) : FindInFolders(name);
+    }
+
     //directory -> (last write time, lower case entry name -> actual entry name)
     static readonly Dictionary<string, (System.DateTime time, Dictionary<string, string> entries)> caseCache = new();
 

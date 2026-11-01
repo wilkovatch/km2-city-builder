@@ -53,7 +53,7 @@ namespace EditorPanels.Props {
                 var extraButtons = new List<(string, System.Action<string, int>, IOListButtonMode)>();
                 extraButtons.Add((SM.Get("ADD_EMPTY"), (x, y) => { AddEmpty(); }, IOListButtonMode.NotFull));
                 ioL.AddFullEditableList(p, "propMeshes", SM.Get("PROP_ELEM_MESHES"), SM.Get("ADD"), SM.Get("CHANGE"), SM.Get("DELETE"), type.typeData.maxMeshes,
-                    OpenMeshList, OpenMeshListForChange, DeleteMesh, delegate { return GetList(); }, 5.0f, width, null, null, extraButtons);
+                    OpenMeshList, OpenMeshListForChange, DeleteMesh, delegate { return GetList(); }, 5.0f, width, null, null, extraButtons, GetList);
             }
             var curW = 0.0f;
             for (int i = 0; i < type.typeData.uiInfo.Length; i++) {
@@ -139,7 +139,7 @@ namespace EditorPanels.Props {
         }
 
         void OpenMeshListForChange(string name, int i) {
-            builder.OpenMeshSelector(this, null, x => tempMesh = x, delegate { ChangeMesh(i); }, true);
+            builder.OpenMeshSelector(this, null, x => tempMesh = x, delegate { ChangeMesh(i); }, true, GetList()[i]);
         }
 
         void ChangeSingleMesh() {
@@ -148,7 +148,7 @@ namespace EditorPanels.Props {
         }
 
         void OpenMeshListForSingleChange() {
-            builder.OpenMeshSelector(this, null, x => tempMesh = x, ChangeSingleMesh, true);
+            builder.OpenMeshSelector(this, null, x => tempMesh = x, ChangeSingleMesh, true, GetCurElem().Str("mesh"));
         }
 
         void AddEmpty() {

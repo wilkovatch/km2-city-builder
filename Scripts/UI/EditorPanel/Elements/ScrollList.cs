@@ -22,6 +22,7 @@ namespace EditorPanelElements {
         static StyleBoxFlat normalStyle, selectedStyle, hoverStyle, pressedStyle;
         static readonly StyleBoxEmpty focusStyle = new StyleBoxEmpty();
         int selected = -1;
+        int revealIndex = -1;
         float height;
         float rowHeight = 25.0f;
         int paddingRows = 4;
@@ -82,19 +83,37 @@ namespace EditorPanelElements {
                     changed = true;
                 }
             }
-            if (changed) {
-                var viewHeight = ViewHeight();
-                var contTopY = scroll.ScrollVertical;
-                var contBottomY = contTopY + viewHeight;
-                var itemTopY = selected * rowHeight;
-                var itemBottomY = itemTopY + rowHeight;
-                if (itemTopY < contTopY) {
-                    scroll.ScrollVertical = (int)itemTopY;
-                } else if (itemBottomY > contBottomY) {
-                    scroll.ScrollVertical = (int)Mathf.Ceil(itemBottomY - viewHeight);
-                }
-                UpdateRows();
+            if (changed) Reveal(selected);
+        }
+
+        public void Reveal(int index) {
+            if (index < 0 || index >= strings.Count) return;
+            revealIndex = index;
+            UpdateRows();
+        }
+
+        void RevealPendingRow() {
+            if (revealIndex < 0 || revealIndex >= strings.Count) return;
+            var itemTopY = revealIndex * rowHeight;
+            var itemBottomY = itemTopY + rowHeight;
+            if (itemTopY < scroll.ScrollVertical) {
+                scroll.ScrollVertical = (int)itemTopY;
+            } else if (itemBottomY > scroll.ScrollVertical + ViewHeight()) {
+                scroll.ScrollVertical = (int)Mathf.Ceil(itemBottomY - ViewHeight());
             }
+            //The ScrollContainer may not have laid out newly replaced content yet. Retry next frame if clamped.
+            if (itemTopY >= scroll.ScrollVertical && itemBottomY <= scroll.ScrollVertical + ViewHeight()) revealIndex = -1;
+        }
+
+        public void SetThumbnailProvider(System.Func<string, System.Threading.Tasks.Task<Texture2D>> provider, bool flipV = false) {
+            scrl.thumbnailProvider = provider;
+            scrl.SetImageOrientation(flipV);
+        }
+
+        public void EnableMeshThumbnails() {
+            var renderer = new Rendering.MeshPreviewRenderer { Name = "MeshThumbnails", display = obj };
+            obj.AddChild(renderer);
+            SetThumbnailProvider(path => renderer.GetThumbnail(PathHelper.ResolveAssetPath(path)));
         }
 
         void CreateRow() {
@@ -158,6 +177,7 @@ namespace EditorPanelElements {
         }
 
         public void Deselect() {
+            revealIndex = -1;
             if (selected != -1) {
                 SetRowHighlight(selected, false);
                 selected = -1;
@@ -188,6 +208,8 @@ namespace EditorPanelElements {
         }
 
         public void SetItems(List<string> newItems, List<string> newImages = null, List<Color> newColors = null) {
+            revealIndex = -1;
+            if (withImages) scrl.ResetSprites();
             strings.Clear();
             images.Clear();
             colors.Clear();
@@ -202,6 +224,7 @@ namespace EditorPanelElements {
 
         public void UpdateRows() {
             if (rows.Count == 0) return;
+            RevealPendingRow();
             // Content may shrink before the ScrollContainer clamps its offset: clamp here too.
             var maxScroll = Mathf.Max(0, strings.Count * rowHeight - ViewHeight());
             var pos = Mathf.Clamp(scroll.ScrollVertical, 0, maxScroll);

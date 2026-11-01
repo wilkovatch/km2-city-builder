@@ -20,6 +20,7 @@ public abstract partial class EditorPanel {
             public System.Action<string, int> selectAction;
             public System.Action<string, int> deleteAction;
             public System.Func<List<string>> listGetter;
+            public System.Func<List<string>> meshPathGetter;
             public int maxNumber;
 
             public ListTuple(EPM.ScrollList list, EPM.Button addBtn, EPM.Button selectBtn, EPM.Button delBtn, int maxNumber,
@@ -59,9 +60,13 @@ public abstract partial class EditorPanel {
 
         public void AddFullEditableList(EditorPanelPage p, string key, string listName, string addText, string selectText, string deleteText, int maxNumber,
             System.Action<string> addAction, System.Action<string, int> selectAction, System.Action<string, int> deleteAction, System.Func<List<string>> listGetter,
-            float height, float width, string tooltip, string emptyLabel = null, List<(string, System.Action<string, int>, IOListButtonMode)> extraButtons = null) {
+            float height, float width, string tooltip, string emptyLabel = null, List<(string, System.Action<string, int>, IOListButtonMode)> extraButtons = null,
+            System.Func<List<string>> meshPathGetter = null) {
 
-            var list = p.AddScrollList(listName, new List<string>(), x => { SetIndex(key, x); }, width, tooltip, null, emptyLabel); ;
+            var list = meshPathGetter != null
+                ? p.AddScrollList(listName, new List<string>(), new List<string>(), x => { SetIndex(key, x); }, width, tooltip, null, emptyLabel)
+                : p.AddScrollList(listName, new List<string>(), x => { SetIndex(key, x); }, width, tooltip, null, emptyLabel);
+            if (meshPathGetter != null) list.EnableMeshThumbnails();
             p.IncreaseRow(height);
             var divider = GetDiv(addText) + GetDiv(selectText) + GetDiv(deleteText);
             var partWidth = width / divider;
@@ -70,7 +75,7 @@ public abstract partial class EditorPanel {
             var delBtn = deleteText != null ? p.AddButton(deleteText, delegate { DeleteElem(key); }, partWidth) : null;
             selectBtn?.SetInteractable(false);
             delBtn?.SetInteractable(false);
-            listControls.Add(key, new ListTuple(list, addBtn, selectBtn, delBtn, maxNumber, addAction, selectAction, deleteAction, listGetter));
+            listControls.Add(key, new ListTuple(list, addBtn, selectBtn, delBtn, maxNumber, addAction, selectAction, deleteAction, listGetter) { meshPathGetter = meshPathGetter });
             curNames.Add(key, new List<string>());
             selectedIs.Add(key, -1);
             p.IncreaseRow();
@@ -157,7 +162,7 @@ public abstract partial class EditorPanel {
                 foreach (var elem in lst) {
                     items.Add(elem);
                 }
-                list.SetItems(items);
+                list.SetItems(items, listControls[name].meshPathGetter?.Invoke());
                 curNames[name] = items;
             } else {
                 list.SetItems(new List<string>());

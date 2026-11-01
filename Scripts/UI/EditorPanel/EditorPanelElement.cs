@@ -124,8 +124,19 @@ public abstract class EditorPanelElement {
             case "MeshField": {
                 AddTitle(title);
                 var container = MakeFieldArea();
+                var frame = new ColorRect { Color = Colors.Black, MouseFilter = Control.MouseFilterEnum.Ignore };
+                UILayout.SetRect(frame, 0, 0.5f, 0, 0.5f, 15, -10, 30, 30);
+                container.AddChild(frame);
+                var checker = new TextureRect { Texture = UILayout.Checkerboard(), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                    StretchMode = TextureRect.StretchModeEnum.Scale, MouseFilter = Control.MouseFilterEnum.Ignore };
+                UILayout.SetRect(checker, 0, 0.5f, 0, 0.5f, 15, -10, 28, 28);
+                container.AddChild(checker);
+                var image = new TextureRect { Name = "Image", ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                    StretchMode = TextureRect.StretchModeEnum.Scale, MouseFilter = Control.MouseFilterEnum.Ignore };
+                UILayout.SetRect(image, 0, 0.5f, 0, 0.5f, 15, -10, 28, 28);
+                container.AddChild(image);
                 var lineEdit = new LineEdit { Name = "InputField" };
-                UILayout.SetRect(lineEdit, 0, 0.5f, 1, 0.5f, -32.5f, -10, -65, 30);
+                UILayout.SetRect(lineEdit, 0, 0.5f, 1, 0.5f, -15.5f, -10, -99, 30);
                 UILayout.StyleLineEdit(lineEdit);
                 container.AddChild(lineEdit);
                 var button = new Godot.Button { Name = "Browse", Text = "Change" };

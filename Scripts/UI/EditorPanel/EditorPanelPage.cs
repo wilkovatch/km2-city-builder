@@ -215,6 +215,12 @@ public class EditorPanelPage {
         return element;
     }
 
+    public EditorPanelElements.MeshPreview AddMeshPreview(string title, float widthFactor = 1.0f, float heightFactor = 1.0f) {
+        var element = new EditorPanelElements.MeshPreview(title, panel, GetPosition(curRow), widthFactor, heightFactor);
+        AddElement(element, curRow);
+        return element;
+    }
+
     public EditorPanelElements.Dropdown AddDropdown(string title, List<string> entries, System.Action<int> action, float widthFactor = 1.0f, string tooltip = null, string tag = null) {
         var element = new EditorPanelElements.Dropdown(title, entries, value => Recorded(title, () => BaseExtraAction(value, action)), panel, GetPosition(curRow), widthFactor, tooltip, tag);
         AddElement(element, curRow);
@@ -297,7 +303,7 @@ public class EditorPanelPage {
         var pContainer = disableFromObject ? null : container;
         var pPanel = disableFromObject ? panel : null;
         element = new EditorPanelElements.MeshField(title, placeholder, defaultValue, value => Recorded(title, () => valueSetter?.Invoke(value)),
-            delegate { builder.OpenMeshSelector(pContainer, pPanel, value => Recorded(title, () => { valueSetter?.Invoke(value); BaseExtraAction(value, extraAction); element.SetValue(value); }), ReadCurValues, true); },
+            delegate { builder.OpenMeshSelector(pContainer, pPanel, value => Recorded(title, () => { valueSetter?.Invoke(value); BaseExtraAction(value, extraAction); element.SetValue(value); }), ReadCurValues, true, element.GetValue()); },
             panel, GetPosition(curRow), widthFactor, tooltip, tag);
         AddElement(element, curRow);
         return element;
@@ -424,7 +430,7 @@ public class EditorPanelPage {
         var pContainer = disableFromObject ? null : container;
         var pPanel = disableFromObject ? panel : null;
         var element = new EditorPanelElements.MeshField(title, placeholder, "", value => Recorded(title, () => { status.SetInputFieldValue(value, GameEngine.InputContentType.Standard); BaseExtraAction(value, extraAction); }),
-            delegate { builder.OpenMeshSelector(pContainer, pPanel, value => Recorded(title, () => { status.SetValue(value); BaseExtraAction(value, extraAction); }), ReadCurValues, true); },
+            delegate { builder.OpenMeshSelector(pContainer, pPanel, value => Recorded(title, () => { status.SetValue(value); BaseExtraAction(value, extraAction); }), ReadCurValues, true, status.GetValue()?.ToString()); },
             panel, GetPosition(curRow), widthFactor, tooltip, tag);
         var fieldElement = AddElement(element, curRow);
         fieldElements.Add(fieldElement, status);

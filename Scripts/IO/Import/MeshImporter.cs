@@ -284,7 +284,7 @@ public static class MeshImporter {
         return fullSupportedFormats;
     }
 
-    public static GameObject LoadMesh(string name, GameObject parent, bool absolute = false) {
+    public static GameObject LoadMesh(string name, GameObject parent, bool absolute = false, bool useFallback = true) {
         GameObject res = null;
         name = absolute ? PathHelper.ResolveFile(name) : PathHelper.FindInFolders(name);
         try {
@@ -306,11 +306,11 @@ public static class MeshImporter {
                 }
             } else {
                 GameEngine.Print("Error while loading mesh " + name + ", the file is missing");
-                res = GetFallbackObject();
+                if (useFallback) res = GetFallbackObject();
             }
         } catch (System.Exception e) {
             GameEngine.Print("Error while loading mesh " + name + ": " + e.Message + "\nStack: " + e.StackTrace);
-            res = GetFallbackObject();
+            if (useFallback) res = GetFallbackObject();
         }
         if (res != null && parent != null) {
             GameEngine.Mesh.SetShadowsTwoSidedRecursive(res);
