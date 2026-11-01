@@ -39,9 +39,6 @@ namespace EditorPanels {
 
         void Cancel() {
             SetActive(false);
-            GO.SetEnabled(panel, true);
-            panel = null;
-            valueSetter = null;
         }
 
         void Select(int i) {
@@ -74,9 +71,6 @@ namespace EditorPanels {
             if (curI >= 0 && panel != null && valueSetter != null) {
                 valueSetter.Invoke(paths[curI]);
                 SetActive(false);
-                GO.SetEnabled(panel, true);
-                panel = null;
-                valueSetter = null;
                 afterSetAction?.Invoke();
             }
         }
@@ -104,6 +98,12 @@ namespace EditorPanels {
                 ReloadList(false, "");
             }
             base.SetActive(active);
+            if (!active && panel != null) {
+                //also when closed from outside (Escape): the panel of the field stays disabled otherwise, and it would not show when reopened
+                if (!GO.IsNull(panel)) GO.SetEnabled(panel, true);
+                panel = null;
+                valueSetter = null;
+            }
         }
     }
 }
