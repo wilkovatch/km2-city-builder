@@ -8,7 +8,7 @@ using GS = GameEngine.Scriptable;
 using Target = ElementPlacer.TerrainPointAttachmentPicker.Target;
 
 namespace EditorPanels {
-    public class TransformPropertiesEditorPanel : EditorPanel {
+    public class TransformPropertiesEditorPanel : EditorPanel, RuntimeGizmos.ITransformPanel {
         public Node3D instance = null;
         EditorPanelElements.Label spaceLabel = null;
         bool notOnHandle;
@@ -678,7 +678,7 @@ namespace EditorPanels {
         }
 
         //accessor for the "transform.*" field bindings, Godot nodes have no "transform" member
-        class TransformBinding {
+        public class TransformBinding {
             readonly Node3D obj;
             readonly TerrainPoint point;
             readonly bool leaveAnchor; //a point of the custom elements leaves its anchor when moved
@@ -696,9 +696,9 @@ namespace EditorPanels {
                 else { History.UndoManager.TouchOwner(obj); GO.SetPosition(obj, value); }
             } }
             public Vector3 localPosition { get => GO.GetLocalPosition(obj); set { History.UndoManager.TouchOwner(obj); GO.SetLocalPosition(obj, value); } }
-            public Quaternion rotation { get => GO.GetRotationQuaternion(obj); set => GO.SetRotation(obj, value); }
+            public Quaternion rotation { get => GO.GetRotationQuaternion(obj); set { History.UndoManager.TouchOwner(obj); GO.SetRotation(obj, value); } }
             public Quaternion localRotation { get => GameEngine.Quaternion.Encode(obj.Quaternion); set => GO.SetLocalRotation(obj, value); }
-            public Vector3 localScale { get => GO.GetLocalScale(obj); set => GO.SetLocalScale(obj, value); }
+            public Vector3 localScale { get => GO.GetLocalScale(obj); set { History.UndoManager.TouchOwner(obj); GO.SetLocalScale(obj, value); } }
         }
     }
 }

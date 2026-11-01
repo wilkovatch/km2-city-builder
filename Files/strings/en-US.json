@@ -668,5 +668,6 @@
 	"PROP_PATH_NAME": "Ribbon name",
 	"PROP_PATH_REMOVE_RIBBON": "Remove ribbon",
 	"PROP_PATH_EDIT_RIBBON": "Edit $RIBBON props",
-	"CE_SPLINE_POINTS": "Spline points"
+	"CE_SPLINE_POINTS": "Spline points",
+	"CE_POINT": "Point"
 }

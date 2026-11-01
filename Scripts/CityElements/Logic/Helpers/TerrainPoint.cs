@@ -14,6 +14,7 @@ public partial class TerrainPoint : PhysicsScriptable {
     public IAnchorable anchor = null;
     Vector3 oldPoint;
     Vector3 oldRotation; //the rotation of the handle at the last update (rotatable points of the custom elements)
+    Vector3 oldScale = Vector3.One; //the scale of the handle at the last update (scalable points of the custom elements)
     bool isMoveable = false;
     bool detachable = false; //moved anyway when on a fixed anchor, which it then leaves (the points of the custom elements)
     bool big = false;
@@ -22,6 +23,7 @@ public partial class TerrainPoint : PhysicsScriptable {
     bool deleted = false;
     bool selected = true;
     bool applyingCustomElementState = false;
+    bool handleHidden = false; //see ApplyCustomElementState
     bool placementHighlighted;
     int updatedCount;
     bool updating = false; //in UpdatePosition (the points it depends on are updated first, see UpdateDependencies)
@@ -118,12 +120,17 @@ public partial class TerrainPoint : PhysicsScriptable {
         }
     }
 
-    internal void ApplyCustomElementState(bool active, bool selected, bool moveable) {
+    //hidden: the point of an element edited with the gizmo on the element itself (no handle shown or clicked)
+    internal void ApplyCustomElementState(bool active, bool selected, bool moveable, bool hidden = false) {
         applyingCustomElementState = true;
         try {
             SetActive(active);
             Select(selected);
             SetMoveable(moveable, true);
+            if (hidden != handleHidden) {
+                handleHidden = hidden;
+                GS.Cast<Handle>(GetObject()).SetHandleActive(!hidden);
+            }
         } finally {
             applyingCustomElementState = false;
         }
@@ -135,6 +142,7 @@ public partial class TerrainPoint : PhysicsScriptable {
             updatedCount = links.Count;
             oldPoint = GetPoint();
             oldRotation = GetRotation();
+            oldScale = GetScale();
         }
         SetupAnchorMode();
     }
@@ -163,6 +171,20 @@ public partial class TerrainPoint : PhysicsScriptable {
 
     public bool RotationChanged() {
         return !deleted && !GeometryHelper.AreVectorsEqual(GetRotation(), oldRotation);
+    }
+
+    //the scale of the handle, only used by the scalable points of the custom elements (the size of the handle is
+    //compensated, see Handle.UpdateSize)
+    public new Vector3 GetScale() {
+        return deleted ? oldScale : GO.GetLocalScale(GetObject());
+    }
+
+    public new void SetScale(Vector3 scale) {
+        if (!deleted) GO.SetLocalScale(GetObject(), scale);
+    }
+
+    public bool ScaleChanged() {
+        return !deleted && !GeometryHelper.AreVectorsEqual(GetScale(), oldScale);
     }
 
     public bool IsLinkedTo(IGroundable element) {

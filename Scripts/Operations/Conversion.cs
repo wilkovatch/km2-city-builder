@@ -304,6 +304,7 @@ namespace Operations {
                         point = TerrainPoint.Create(anchor != null ? anchor.GetPoint() : pos, null, manager.GetTerrainPointContainer(), anchor);
                         createdPoints.Add(point);
                         if (p["rotation"] != null) point.SetRotation(ReadVector(p["rotation"], "rotation"));
+                        if (p["scale"] != null) point.SetScale(ReadVector(p["scale"], "scale"));
                     }
                     points[Key(p["id"])] = point;
                     res.pointIds[Key(p["id"])] = Id(point);

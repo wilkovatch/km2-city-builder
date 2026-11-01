@@ -134,7 +134,7 @@ namespace IO.ExportedCity {
 
     //a custom element: data.fields.state has its type and parameters (the references as ElementReference objects),
     //data.mesh the geometry built by its script; the control points have the structure defined by its type, each point
-    //being {"id": <terrain point id>, "position": [x, y, z]} (plus "rotation" for the rotatable ones), the same id for a
+    //being {"id": <terrain point id>, "position": [x, y, z]} (plus "rotation" for the rotatable ones and "scale" for the scalable ones), the same id for a
     //point shared with other elements
     [System.Serializable]
     public class CustomElement {

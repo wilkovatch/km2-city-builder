@@ -116,6 +116,7 @@ namespace History {
             newElem.dividing = p.dividing;
             newElem.position = new SVector3(p.GetPoint());
             if (IsRotatable(p)) newElem.rotation = new SVector3(p.GetRotation());
+            if (IsScalable(p)) newElem.scale = new SVector3(p.GetScale());
             try {
                 if (!GO.IsNull(p.anchor) && !p.anchor.IsDeleted()) {
                     Node3D parent = null;
@@ -265,6 +266,18 @@ namespace History {
                 if (link is CustomElement element) {
                     foreach (var (_, leaf) in element.GetLeaves()) {
                         if (leaf.point == p && leaf.def.rotatable) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        //a point of a custom element whose definition lets it be scaled
+        static bool IsScalable(TerrainPoint p) {
+            foreach (var link in p.GetLinks()) {
+                if (link is CustomElement element) {
+                    foreach (var (_, leaf) in element.GetLeaves()) {
+                        if (leaf.point == p && leaf.def.scalable) return true;
                     }
                 }
             }
@@ -539,6 +552,7 @@ namespace History {
                     point.anchor = ResolveAnchor(p);
                     GO.SetPosition(point.GetObject(), p.position.GetVector());
                     if (p.rotation.HasValue) point.SetRotation(p.rotation.Value.GetVector());
+                    if (p.scale.HasValue) point.SetScale(p.scale.Value.GetVector());
                     return point;
                 }
                 case ElementKind.TerrainPatch: {

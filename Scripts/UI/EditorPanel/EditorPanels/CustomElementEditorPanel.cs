@@ -12,7 +12,7 @@ namespace EditorPanels {
     //meshGroup (texture coordinates of the selected vertex), containerGroup (the container, changed from a list, the
     //contents and the merge into another container, chosen from a list), propsGroup (the prop rule, for the types with
     //props containers)
-    public class CustomElementEditorPanel : EditorPanel, IPropRuleEditor {
+    public class CustomElementEditorPanel : EditorPanel, IPropRuleEditor, RuntimeGizmos.ITransformPanel {
         string creationTypeValue;
         public string creationGroup = "CREATE_CUSTOM_ELEMENT";
         public string creationType {
@@ -68,6 +68,8 @@ namespace EditorPanels {
         EditorPanelElements.Button insertBeforeButton, insertAfterButton, removeButton, detachButton, addInnerButton, removeInnerButton, editContentButton,
             changeContainerButton, mergeButton;
         EditorPanelElements.InputField uField, vField;
+        EditorPanelElements.Label spaceLabel; //the transform group of a point element
+        (Vector3 position, Vector3 rotation, Vector3 scale)? shownTransform; //of its point when the fields were last read
         List<string> creatableTypes = new List<string>();
         //the arrays the placement modes add to: arrays of points get points at the end, arrays of groups get elements at
         //the start or end
@@ -113,6 +115,8 @@ namespace EditorPanels {
             contentsList = null;
             insertBeforeButton = insertAfterButton = removeButton = detachButton = addInnerButton = removeInnerButton = editContentButton = changeContainerButton = mergeButton = null;
             uField = vField = null;
+            spaceLabel = null;
+            shownTransform = null;
             appendArrays.Clear();
             possibleContainers.Clear();
             HighlightContent(null);
@@ -216,6 +220,11 @@ namespace EditorPanels {
                     SM.Get("RD_PM_INSERT"), SM.Get("RD_PM_INSERT_BEFORE") }, SetSplinePlacementMode, w);
                 p.IncreaseRow();
                 removeButton = p.AddButton(SM.Get("RD_REMOVE_POINT"), RemoveArrayElement, w); p.IncreaseRow();
+                return true;
+            }
+            if (elem.name == "transformGroup" && settings.point != null) {
+                p.EnsureNewRow();
+                AddPointTransform(p, w, settings.point);
                 return true;
             }
             var builtIn = elem.name == "mainGroup" || elem.name == "pointsGroup" || elem.name == "meshGroup" || elem.name == "containerGroup"
@@ -784,13 +793,149 @@ namespace EditorPanels {
             HighlightContents(element, true);
             ShowContainerLines(element);
             ShowMoveHandle(element);
+            EnableTransform(element);
             GetPlacer()?.UpdatePlacementPoint();
+        }
+
+        // Point elements: edited as the mesh instances, with the gizmo on the element (its point has no handle)
+
+        static TerrainPoint PointOf(CustomElement element) {
+            var leaves = element.GetLeaves();
+            return leaves.Count == 1 && element.Settings?.point != null ? leaves[0].leaf.point : null;
+        }
+
+        static bool Any(bool[] axes) {
+            return axes[0] || axes[1] || axes[2];
+        }
+
+        void AddPointTransform(EditorPanelPage p, float w, CityElements.Types.CustomElementPointSettings point) {
+            var moveAxes = point.PositionAxes();
+            var rotateAxes = point.RotationAxes();
+            var scaleAxes = point.ScaleAxes();
+            var third = w / 3.0f;
+            p.AddButton(SM.Get("TRANSF_P_SCALE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Scale), third).SetInteractable(Any(scaleAxes));
+            p.AddButton(SM.Get("TRANSF_P_ROTATE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Rotate), third).SetInteractable(Any(rotateAxes));
+            p.AddButton(SM.Get("TRANSF_P_MOVE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Move), third).SetInteractable(Any(moveAxes));
+            p.IncreaseRow();
+            p.AddFieldCheckbox(SM.Get("TRANSF_P_SNAPTOGRID"), () => builder.gizmo, "snapToGrid", null, w * 0.5f, SM.Get("TRANSF_P_SNAPTOGRID_TOOLTIP"));
+            p.AddButton(SM.Get("PROJECT_TO_GROUND"), ProjectPoint, w * 0.5f);
+            p.IncreaseRow();
+            spaceLabel = p.AddLabel(SM.Get("TRANSF_P_SPACE_LABEL_GLOBAL"), w * 0.5f);
+            p.AddButton(SM.Get("TRANSF_P_SWITCH_SPACE"), SwitchSpace, w * 0.5f, SM.Get("TRANSF_P_SWITCH_SPACE_TOOLTIP"));
+            p.IncreaseRow();
+            p.AddFieldVectorInputField(SM.Get("TRANSF_P_POS"), GetPointTransform, "transform.position", null, w, null, null, value => Retarget(), fixedDragStep: 0.1)
+                .SetInteractable(moveAxes[0], moveAxes[1], moveAxes[2]);
+            p.IncreaseRow();
+            if (point.rotatable) {
+                p.AddFieldRotationVectorInputField(SM.Get("TRANSF_P_ROT"), GetPointTransform, "transform.rotation", null, w, null, null, value => Retarget())
+                    .SetInteractable(rotateAxes[0], rotateAxes[1], rotateAxes[2]);
+                p.IncreaseRow();
+            }
+            if (point.scalable) {
+                p.AddFieldVectorInputField(SM.Get("TRANSF_P_SCALE_VAL"), GetPointTransform, "transform.localScale", null, w, null, null, value => Retarget())
+                    .SetInteractable(scaleAxes[0], scaleAxes[1], scaleAxes[2]);
+                p.IncreaseRow();
+            }
+        }
+
+        object GetPointTransform() {
+            var point = GetElement() is CustomElement element ? PointOf(element) : null;
+            return point != null && !point.IsDeleted() ? new TransformPropertiesEditorPanel.TransformBinding(point.GetObject(), point, false) : null;
+        }
+
+        void SetGizmoMode(RuntimeGizmos.TransformType type) {
+            builder.gizmo.transformType = type;
+        }
+
+        void SwitchSpace() {
+            builder.gizmo.space = builder.gizmo.space == RuntimeGizmos.TransformSpace.Global ? RuntimeGizmos.TransformSpace.Local : RuntimeGizmos.TransformSpace.Global;
+            UpdateSpaceLabel();
+        }
+
+        public void UpdateSpaceLabel() {
+            spaceLabel?.SetValue(SM.Get("TRANSF_P_SPACE_LABEL_" + (builder.gizmo.space == RuntimeGizmos.TransformSpace.Global ? "GLOBAL" : "LOCAL")));
+        }
+
+        //puts the point on the surface it is projected on (it projects itself whenever it is moved, see CustomElement.RefreshPoints)
+        void ProjectPoint() {
+            var element = GetElement();
+            var point = element != null ? PointOf(element) : null;
+            if (point == null) return;
+            var mask = element.Settings.PointProjection?.mask ?? element.Settings.point.projectionMask;
+            Operations.TerrainPoints.Move(point, GeometryHelper.AutoProjectOnSurface(point.GetPoint(), CityGroundHelper.ExcludeHiddenTerrain(mask), element.generator), false);
+            builder.NotifyChange();
+            Retarget();
+        }
+
+        //the gizmo goes back on the point after its node was moved by a field
+        void Retarget() {
+            var element = GetElement();
+            var point = element != null ? PointOf(element) : null;
+            if (point == null) return;
+            builder.gizmo.allowDeselect = true;
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(point.GetObject());
+            ApplyGizmoAxes(element);
+            builder.gizmo.allowDeselect = false;
+        }
+
+        void ApplyGizmoAxes(CustomElement element) {
+            var settings = element.Settings?.point;
+            if (settings == null) return;
+            builder.gizmo.posAxesAllowed = settings.PositionAxes();
+            builder.gizmo.rotAxesAllowed = settings.RotationAxes();
+            builder.gizmo.scaleAxesAllowed = settings.ScaleAxes();
+        }
+
+        //the gizmo goes on the point of the element, with the modes (and keys) its type allows
+        void EnableTransform(CustomElement element) {
+            var point = PointOf(element);
+            if (point == null || point.IsDeleted()) return;
+            var gizmo = builder.gizmo;
+            if (gizmo.mainTargetRoot != point.GetObject()) {
+                gizmo.ClearTargets();
+                gizmo.AddTarget(point.GetObject());
+            }
+            var settings = element.Settings.point;
+            ApplyGizmoAxes(element);
+            gizmo.SetMoveType = Any(settings.PositionAxes()) ? Key.W : Key.None;
+            gizmo.SetRotateType = Any(settings.RotationAxes()) ? Key.E : Key.None;
+            gizmo.SetScaleType = Any(settings.ScaleAxes()) ? Key.R : Key.None;
+            gizmo.SetSpaceToggle = Key.S;
+            gizmo.transformPanel = this;
+            if (gizmo.transformType == RuntimeGizmos.TransformType.None) gizmo.transformType = RuntimeGizmos.TransformType.Move;
+            gizmo.allowDeselect = false;
+            UpdateSpaceLabel();
+        }
+
+        void DisableTransform() {
+            if (builder?.gizmo == null || builder.gizmo.transformPanel != this) return;
+            var gizmo = builder.gizmo;
+            gizmo.transformType = RuntimeGizmos.TransformType.Move;
+            gizmo.SetRotateType = Key.None;
+            gizmo.SetMoveType = Key.None;
+            gizmo.SetScaleType = Key.None;
+            gizmo.SetSpaceToggle = Key.None;
+            gizmo.transformPanel = null;
+            gizmo.space = RuntimeGizmos.TransformSpace.Global;
+            gizmo.allowDeselect = true;
+            gizmo.snapToGrid = true;
+        }
+
+        //the fields show the transform of the point when the gizmo (or the projection) changed it
+        public void RefreshTransform() {
+            if (!ActiveSelf() || GetElement() is not CustomElement element || PointOf(element) is not TerrainPoint point || point.IsDeleted()) return;
+            var current = (point.GetPoint(), point.GetRotation(), point.GetScale());
+            if (shownTransform == current) return;
+            shownTransform = current;
+            ReadCurValues();
         }
 
         void OnFrame() {
             if ((GetElement() != builtElement || (GetElement()?.TypeName ?? draft?.Str("type", null)) != builtType) && lastCanvas != null) Rebuild();
             ShowSelectedPoint();
             UpdateContentOutline();
+            RefreshTransform();
             GetPlacer()?.UpdatePlacementPoint();
         }
 
@@ -901,6 +1046,7 @@ namespace EditorPanels {
             }
             builder.helper.elementManager.ShowAnchors(false);
             if (!auto) SetActive(false);
+            DisableTransform();
             GameEngine.Gizmo.ClearTargets();
             if (!auto) builder.SetSelectObjectMode();
         }

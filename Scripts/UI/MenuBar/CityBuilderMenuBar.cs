@@ -97,6 +97,7 @@ public partial class CityBuilderMenuBar : Control {
         }
         gizmo.onAnyChange += NotifyChange;
         gizmo.onAnyChange += transformPropertiesEditorPanel.Refresh;
+        gizmo.onAnyChange += customElementEditorPanel.RefreshTransform;
         gizmo.onTransformFinished += SnapTransformedObjects;
         staticGizmo = gizmo;
         nullModifier = new TerrainModifier.Null(helper, hit => {
@@ -706,7 +707,8 @@ public partial class CityBuilderMenuBar : Control {
         //the entries of the types with a createMenu submenu (a string key) are grouped in the submenu of that name
         var submenus = new Dictionary<int, MenuSubmenu>();
         var submenuIndices = new Dictionary<string, int>();
-        void AddEntry(string label, System.Action action, string submenuKey) {
+        //historyLabel: the name of the undo step if it is not the text of the entry (the text is short under a submenu)
+        void AddEntry(string label, System.Action action, string submenuKey, string historyLabel = null) {
             if (string.IsNullOrEmpty(submenuKey)) {
                 entries.Add(label);
                 actions.Add(action);
@@ -719,7 +721,7 @@ public partial class CityBuilderMenuBar : Control {
                 submenuIndices[submenuKey] = index;
                 submenus[index] = new MenuSubmenu();
             }
-            submenus[index].Add(label, action);
+            submenus[index].Add(label, action, historyLabel);
         }
         if (!noCity && PathHelper.CoreAvailable()) {
             //the mesh instance types: their entries (or groups) open the mesh list to place a mesh as one of them
@@ -730,7 +732,7 @@ public partial class CityBuilderMenuBar : Control {
                 var type = pair.Key;
                 var group = settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT";
                 if (settings.createMenu?.direct == true) {
-                    AddEntry(SM.GetOrKey(pair.Value.Label()), () => CreateMeshInstance(type, null), settings.createMenu.submenu);
+                    AddEntry(SM.GetOrKey(settings.createMenu.label ?? pair.Value.Label()), () => CreateMeshInstance(type, null), settings.createMenu.submenu, SM.GetOrKey(pair.Value.Label()));
                 } else if (meshGroups.Add(group)) {
                     AddEntry(SM.Get(group), () => CreateMeshInstance(null, group), settings.createMenu?.submenu);
                 }
@@ -741,7 +743,8 @@ public partial class CityBuilderMenuBar : Control {
                 var type = pair.Key;
                 var group = settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT";
                 if (settings.createMenu?.direct == true) {
-                    AddEntry(Operations.CustomElements.GetTypeLabel(type), () => StartCustomElementCreation(type), settings.createMenu.submenu);
+                    var typeLabel = Operations.CustomElements.GetTypeLabel(type);
+                    AddEntry(settings.createMenu.label != null ? SM.Get(settings.createMenu.label) : typeLabel, () => StartCustomElementCreation(type), settings.createMenu.submenu, typeLabel);
                 } else if (groups.Add(group)) {
                     AddEntry(SM.Get(group), () => StartCustomElementCreation(null, group), settings.createMenu?.submenu);
                 }
@@ -1677,7 +1680,7 @@ public partial class CityBuilderMenuBar : Control {
             var element = customElementEditorPanel.GetElement();
             if (element == null) {
                 setSelectMode = false;
-            } else if (gizmo.mainTargetRoot != null) {
+            } else if (gizmo.mainTargetRoot != null && element.Settings?.point == null) {
                 var point = GS.FindRecursive<TerrainPoint>(gizmo.mainTargetRoot);
                 if (point != null && Operations.CustomElements.RemovePoint(element, point)) {
                     gizmo.RemoveTarget(gizmo.mainTargetRoot);

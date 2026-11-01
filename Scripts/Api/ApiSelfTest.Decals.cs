@@ -29,9 +29,18 @@ namespace Api {
             builder.ReloadCreateMenu();
             var menu = CallBuilder<MenuBar>("GetMenuBar").FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>()
                 .First(b => b.Text == StringManager.Get("CREATE")).GetPopup();
-            var direct = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemText(i) == StringManager.Get("CREATE_DECAL"));
+            //the decals are in the Decals submenu with short labels, and keep their full names elsewhere
+            var decalsIndex = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemSubmenuNode(i) != null && menu.GetItemText(i) == StringManager.Get("DECALS_MENU"));
+            var decalsMenu = menu.GetItemSubmenuNode(decalsIndex);
+            var splineLabel = StringManager.Get("CREATE_DECAL_SPLINE_MENU");
+            Check("the decals are in the Decals submenu as Single and Spline", Enumerable.Range(0, decalsMenu.ItemCount).Select(i => decalsMenu.GetItemText(i)).OrderBy(t => t)
+                .SequenceEqual(new[] { StringManager.Get("CREATE_DECAL_SINGLE_MENU"), splineLabel }.OrderBy(t => t)) &&
+                !Enumerable.Range(0, menu.ItemCount).Any(i => menu.GetItemText(i) == splineLabel));
+            Check("the decals keep their full names outside of the menu", Operations.CustomElements.GetTypeLabel("decal") == StringManager.Get("CREATE_DECAL") &&
+                Operations.CustomElements.GetTypeLabel("decalSingle") == StringManager.Get("CREATE_DECAL_SINGLE"));
+            var direct = Enumerable.Range(0, decalsMenu.ItemCount).First(i => decalsMenu.GetItemText(i) == splineLabel);
             Check("Create exposes a direct decal and no PSDL group", !Enumerable.Range(0, menu.ItemCount).Any(i => menu.GetItemText(i) == StringManager.Get("CREATE_PSDL_ELEMENT")));
-            menu.EmitSignal(PopupMenu.SignalName.IdPressed, menu.GetItemId(direct));
+            decalsMenu.EmitSignal(PopupMenu.SignalName.IdPressed, decalsMenu.GetItemId(direct));
             History.UndoManager.Record("place first spline point", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-700, 0, -700) }));
             var clicked = builder.customElementPlacer.GetElement();
             Check("the first click creates one point and continues drawing", clicked != null && clicked.GetAllPoints().Count == 1 &&
@@ -115,6 +124,108 @@ namespace Api {
                 await Call("view.camera.set", new { position = SplinePosition(previousPosition), target = SplinePosition(previousPosition + Vec(previousCamera["forward"])) });
             }
             await RailDecalGeneration();
+        }
+
+        //the single decal: a point element (one point, rotated and scaled with the gizmo) whose scale gives the size of the quad
+        async Task SingleDecals() {
+            var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
+            if (!types.TryGetValue("decalSingle", out var type)) return;
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var def = type.typeData.settings.controlPoints.Length == 1 ? type.typeData.settings.controlPoints[0] : null;
+            var pointSettings = type.typeData.settings.point;
+            Check("the single decal is a point type with a rotatable and scalable center point, projected on the surface", pointSettings != null &&
+                def != null && def.name == "center" && def.rotatable && def.scalable && pointSettings.project &&
+                pointSettings.PositionAxes().SequenceEqual(new[] { true, false, true }) && pointSettings.RotationAxes().SequenceEqual(new[] { false, true, false }) &&
+                pointSettings.ScaleAxes().SequenceEqual(new[] { true, false, true }));
+            //the menu entry creates the element with one click
+            builder.ReloadCreateMenu();
+            var menu = CallBuilder<MenuBar>("GetMenuBar").FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>()
+                .First(b => b.Text == StringManager.Get("CREATE")).GetPopup();
+            var shortLabel = StringManager.Get("CREATE_DECAL_SINGLE_MENU");
+            var submenu = Enumerable.Range(0, menu.ItemCount).Select(i => menu.GetItemSubmenuNode(i))
+                .First(s => s != null && Enumerable.Range(0, s.ItemCount).Any(i => s.GetItemText(i) == shortLabel));
+            var entry = Enumerable.Range(0, submenu.ItemCount).First(i => submenu.GetItemText(i) == shortLabel);
+            submenu.EmitSignal(PopupMenu.SignalName.IdPressed, submenu.GetItemId(entry));
+            History.UndoManager.Record("place single decal", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(-640, 0, -640) }));
+            var placed = builder.customElementPlacer.GetElement();
+            Check("one click creates a single decal with the default scale and ends the placement", placed != null && placed.TypeName == "decalSingle" &&
+                placed.GetAllPoints().Count == 1 && builder.customElementPlacer.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.None &&
+                placed.GetAllPoints()[0].GetScale().DistanceTo(new Vector3(2, 1, 10)) < 1e-4f && GO.GetName(placed).StartsWith(StringManager.Get("CREATE_DECAL_SINGLE")));
+            if (placed != null) await Call("customElement.delete", new { element = History.ElementRegistry.GetId(placed) });
+            builder.CloseAllPanels();
+
+            var id = (await Call("customElement.create", new { type = "decalSingle", name = "Single decal test",
+                state = new { texture = "texture/decal_zigzag_l.tex" }, points = new { center = new { position = new[] { -620, 0, -600 } } } })).Value<int>();
+            CustomElement Element() => History.UndoManager.GetAliveElement(id) as CustomElement;
+            TerrainPoint Center() => Element().GetLeaves()[0].leaf.point;
+            Check("a point created by the API has the default scale of the type", Center().GetScale().DistanceTo(new Vector3(2, 1, 10)) < 1e-4f);
+            //the quad: its extents, and its height above the point
+            (Vector3 size, float lift) Quad() {
+                var mesh = GameEngine.Mesh.RetrieveMesh(GameEngine.Mesh.RetrieveMeshRenderer(GO.GetObject(Element().generator))) as ArrayMesh;
+                var v = GameEngine.Mesh.GetVertices(mesh);
+                if (v.Length != 4) return (new Vector3(-1, -1, -1), 0);
+                var min = v.Aggregate((a, b) => new Vector3(Mathf.Min(a.X, b.X), Mathf.Min(a.Y, b.Y), Mathf.Min(a.Z, b.Z)));
+                var max = v.Aggregate((a, b) => new Vector3(Mathf.Max(a.X, b.X), Mathf.Max(a.Y, b.Y), Mathf.Max(a.Z, b.Z)));
+                return (max - min, v.Min(p => p.Y) - Center().GetPoint().Y);
+            }
+            Check("a single decal draws a quad as wide as the scale X and as long as the scale Z, 1 cm above the point",
+                Element().generator.DrawsMesh() && Quad().size.DistanceTo(new Vector3(2, 0, 10)) < 1e-3f && Mathf.Abs(Quad().lift - 0.01f) < 1e-3f);
+            var quadMesh = GameEngine.Mesh.RetrieveMesh(GameEngine.Mesh.RetrieveMeshRenderer(GO.GetObject(Element().generator))) as ArrayMesh;
+            Check("a single decal faces up", GameEngine.Mesh.GetNormals(quadMesh).All(n => n.Y > 0.99f));
+            await CheckUndo("rotating and scaling a single decal", () => Call("customElement.movePoint", new { element = id, path = "center", position = new[] { -620, 0, -600 },
+                rotation = new[] { 0, 90, 0 }, scale = new[] { 4, 1, 6 } }));
+            await Call("customElement.movePoint", new { element = id, path = "center", position = new[] { -620, 0, -600 }, rotation = new[] { 0, 90, 0 }, scale = new[] { 4, 1, 6 } });
+            await Call("city.flush");
+            Check("the rotation and scale move the quad (yaw 90 turns the length to X)", Center().GetRotation().DistanceTo(new Vector3(0, 90, 0)) < 1e-2f &&
+                Center().GetScale().DistanceTo(new Vector3(4, 1, 6)) < 1e-4f && Quad().size.DistanceTo(new Vector3(6, 0, 4)) < 1e-2f);
+            var exported = await Call("elements.geometry", new { @ref = id });
+            var exportedPoint = exported["element"]?["points"]?["center"];
+            Check("the export has the rotation and the scale of the point", exportedPoint?["rotation"]?.Count() == 3 && Mathf.Abs(exportedPoint["rotation"][1].Value<float>() - 90) < 1e-2f &&
+                exportedPoint["scale"]?.Count() == 3 && Mathf.Abs(exportedPoint["scale"][0].Value<float>() - 4) < 1e-4f);
+            //edited as a mesh instance: the gizmo is on the element (its point has no handle), limited to the axes of the type, and
+            //its height follows the surface
+            var point = Center();
+            builder.SelectObject(Element(), true, null);
+            await Frames(3);
+            var panel = builder.customElementEditorPanel;
+            Check("selecting a single decal puts the gizmo on the element with no handle and not in the point transform panel", panel.ActiveSelf() &&
+                builder.gizmo.mainTargetRoot == point.GetObject() && !GameEngine.Scriptable.Cast<Handle>(point.GetObject()).IsHandleActive() &&
+                !((EditorPanels.TransformPropertiesEditorPanel)typeof(CityBuilderMenuBar).GetField("transformPropertiesEditorPanel", flags).GetValue(builder)).ActiveSelf());
+            Check("the gizmo moves it on X and Z only, rotates it on Y only and scales it on X and Z",
+                builder.gizmo.posAxesAllowed.SequenceEqual(new[] { true, false, true }) && builder.gizmo.rotAxesAllowed.SequenceEqual(new[] { false, true, false }) &&
+                builder.gizmo.scaleAxesAllowed.SequenceEqual(new[] { true, false, true }));
+            Check("the gizmo keys of the allowed modes are set", builder.gizmo.SetMoveType == Godot.Key.W && builder.gizmo.SetRotateType == Godot.Key.E && builder.gizmo.SetScaleType == Godot.Key.R);
+            await Call("city.flush");
+            var surface = Center().GetPoint().Y;
+            //moved up with the gizmo, it goes back on the surface
+            History.UndoManager.Record("lift the single decal", () => {
+                History.UndoManager.TouchOwner(point.GetObject());
+                GO.SetPosition(point.GetObject(), point.GetPoint() + new Vector3(0, 30, 0));
+                M.FlagAsChanged();
+            });
+            await Frames(3);
+            Check("a single decal is projected on the surface when moved", Mathf.Abs(point.GetPoint().Y - surface) < 0.01f);
+            builder.customElementEditorPanel.Terminate();
+            await Frames(2);
+            Check("closing the editor gives the gizmo back", builder.gizmo.mainTargetRoot == null && builder.gizmo.transformPanel == null);
+            await Call("customElement.delete", new { element = id });
+            //kept for the export (see ExportDecalNames)
+            await Call("customElement.create", new { type = "decalSingle", name = "Single decal export", state = new { texture = "texture/decal_x_inter_l.tex" },
+                points = new { center = new { position = new[] { -560, 0, -560 }, rotation = new[] { 0, 30, 0 }, scale = new[] { 3, 1, 8 } } } });
+        }
+
+        //saved and reloaded: the rotation and scale of the point
+        async Task SingleDecalReload() {
+            if (!CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().ContainsKey("decalSingle")) return;
+            var id = (await Call("customElement.create", new { type = "decalSingle", name = "Single decal reload", state = new { texture = "texture/decal_zigzag_l.tex" },
+                points = new { center = new { position = new[] { -610, 0, -590 }, rotation = new[] { 10, 20, 30 }, scale = new[] { 3, 1, 5 } } } })).Value<int>();
+            await Call("city.save");
+            await Call("city.reload");
+            var loaded = M.customElements.FirstOrDefault(e => !e.IsDeleted() && GO.GetName(e) == "Single decal reload");
+            var p = loaded?.GetLeaves()[0].leaf.point;
+            Check("save/reload keeps the rotation and scale of a single decal", p != null && p.GetRotation().DistanceTo(new Vector3(10, 20, 30)) < 1e-2f &&
+                p.GetScale().DistanceTo(new Vector3(3, 1, 5)) < 1e-4f && loaded.generator.DrawsMesh());
+            if (loaded != null) await Call("customElement.delete", new { element = History.ElementRegistry.GetId(loaded) });
         }
 
         async Task IntersectionDecalPlacement() {

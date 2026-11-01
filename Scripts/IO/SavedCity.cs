@@ -67,6 +67,9 @@ namespace IO.SavedCity {
         //the rotation of the rotatable points of the custom elements (euler angles in degrees), missing for the others
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public SVector3? rotation;
+        //the scale of the scalable points of the custom elements, missing for the others
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public SVector3? scale;
     }
 
     [System.Serializable]

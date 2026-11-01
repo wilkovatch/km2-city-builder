@@ -361,7 +361,7 @@ namespace CityEncoder {
             return elem;
         }
 
-        Newtonsoft.Json.Linq.JObject GetCustomElementPoint(TerrainPoint p, bool rotatable) {
+        Newtonsoft.Json.Linq.JObject GetCustomElementPoint(TerrainPoint p, bool rotatable, bool scalable = false) {
             var res = new Newtonsoft.Json.Linq.JObject();
             res["id"] = History.ElementRegistry.GetId(p);
             var pos = p.GetPoint();
@@ -369,6 +369,10 @@ namespace CityEncoder {
             if (rotatable) {
                 var rot = p.GetRotation();
                 res["rotation"] = new Newtonsoft.Json.Linq.JArray(rot.X, rot.Y, rot.Z);
+            }
+            if (scalable) {
+                var scale = p.GetScale();
+                res["scale"] = new Newtonsoft.Json.Linq.JArray(scale.X, scale.Y, scale.Z);
             }
             return res;
         }
@@ -412,7 +416,7 @@ namespace CityEncoder {
             baseData.mesh = GetMeshData(GO.GetObject(element.generator));
             baseData.propLines = GetPropLines(element.generator.props);
             elem.data = baseData;
-            elem.points = GetCustomElementPoints(element.points, leaf => GetCustomElementPoint(leaf.point, leaf.def.rotatable));
+            elem.points = GetCustomElementPoints(element.points, leaf => GetCustomElementPoint(leaf.point, leaf.def.rotatable, leaf.def.scalable));
             elem.vertices = new Newtonsoft.Json.Linq.JArray();
             foreach (var v in element.meshVertices) elem.vertices.Add(GetCustomElementPoint(v, false));
             elem.triangles = element.triangles.ToArray();

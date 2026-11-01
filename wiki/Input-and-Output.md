@@ -21,7 +21,7 @@ The classes in `Scripts/IO` save and load cities, export them for the core expor
 | `buildingLines` | `id`, `name`, `state`, `instanceState`, line point ids, `buildings` (states) and `sides` (states). |
 | `customElements` | `id`, `name`, `state` (type and parameters; reference parameters as `{kind, id}` with the indices of the save), `points` (the structure of the control points of the type, with terrain point ids), `meshVertices` (terrain point ids), `triangles`, `uvs`, `containerId` (-1 if none), `source` (`{kind, id}` of the ghost it replaces). |
 
-Roads and intersections have `ghost` when they were replaced by custom elements, the terrain points `rotation` when they are rotatable points of custom elements (both left out otherwise).
+Roads and intersections have `ghost` when they were replaced by custom elements, the terrain points `rotation` and `scale` when they are rotatable and scalable points of custom elements (all left out otherwise).
 
 Vectors and quaternions use the serializable structs from `States.Utils` and are in program coordinates. Element states are `ObjectState`s, so they appear as plain JSON objects with the parameter names as keys.
 

@@ -141,6 +141,8 @@ namespace Api {
     //  {"roadMiddle": {"road": <ref>, "near": [x, y, z]}} the middle of a road, which is split (connections only)
     public class PointTarget {
         public Vector3? position;
+        public Vector3? rotation; //custom element points only: the euler angles of a rotatable point
+        public Vector3? scale; //custom element points only: the scale of a scalable point (the default of the type if not given)
         public bool onGround = false;
         public int? terrainPoint;
         public AnchorTarget anchor;

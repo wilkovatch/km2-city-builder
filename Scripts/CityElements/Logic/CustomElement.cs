@@ -142,10 +142,11 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     //one that can't be moved (or isn't edited) doesn't hide or lock the points of the one that is
     static void ApplySharedPointState(TerrainPoint p) {
         if (p == null || p.IsDeleted()) return;
-        bool any = false, active = false, selected = false, moveable = false, highlighted = false;
+        bool any = false, active = false, selected = false, moveable = false, highlighted = false, hidden = false;
         foreach (var link in p.GetLinks()) {
             if (link is not CustomElement e || e.deleted) continue;
             any = true;
+            hidden |= e.Settings?.point != null;
             active |= e.active;
             selected |= e.selected;
             moveable |= e.active && e.moveable && !e.derivedFlag;
@@ -153,11 +154,13 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
         }
         p.SetPlacementHighlighted(highlighted);
         if (!any) return; //only used by other kinds of elements, which set it
-        p.ApplyCustomElementState(active, selected, moveable);
+        p.ApplyCustomElementState(active, selected, moveable, hidden);
     }
 
     TerrainPoint CreatePoint(CityElements.Types.CustomElementPointNode def, Vector3 position) {
-        return CreatePoint(position);
+        var point = CreatePoint(position);
+        if (def.scalable) point.SetScale(PointTree.ToVector(def.defaultScale, Vector3.One));
+        return point;
     }
 
     //the default content of a new element, around the point where it is created
@@ -538,7 +541,10 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
         if (deleted) return;
         foreach (var (_, leaf) in GetUpdateLeaves()) {
             if (leaf.point != null && leaf.point.IsDeleted()) {
-                leaf.point = CreatePoint(leaf.point.GetPointSafe());
+                var old = leaf.point;
+                leaf.point = CreatePoint(old.GetPointSafe());
+                if (leaf.def.rotatable) leaf.point.SetRotation(old.GetRotation());
+                if (leaf.def.scalable) leaf.point.SetScale(old.GetScale());
                 structureVersion++;
             }
         }
@@ -549,7 +555,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
             }
         }
         foreach (var p in GetUpdatePoints()) p.UpdatePosition();
-        if (Settings?.spline?.projectPoints == true) {
+        if (Settings?.PointProjection is (int projectionMask, bool autoProjection)) {
             //Projection is a placement/move rule. Unrelated edits must not reproject saved points onto transient
             //colliders (e.g. while a road is replaced); undo/redo restores the recorded heights exactly.
             var restored = splineProjectionUndoVersion != History.UndoManager.AppliedVersion;
@@ -559,9 +565,9 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
                 if (!restored && !History.UndoManager.IsLoading && GO.IsNull(p.anchor) &&
                     (!splineProjectedPoints.TryGetValue(p, out var old) || !GeometryHelper.AreVectorsEqual(old, position))) {
                     //with the rule of the sections, if they're projected too (as the clicks placing the points)
-                    var projected = Settings.spline.projectSections
-                        ? GeometryHelper.AutoProjectOnSurface(position, CityGroundHelper.ExcludeHiddenTerrain(Settings.spline.projectionMask), generator)
-                        : GeometryHelper.ProjectOnSurface(position, Settings.spline.projectionMask, generator);
+                    var projected = autoProjection
+                        ? GeometryHelper.AutoProjectOnSurface(position, CityGroundHelper.ExcludeHiddenTerrain(projectionMask), generator)
+                        : GeometryHelper.ProjectOnSurface(position, projectionMask, generator);
                     if (!GeometryHelper.AreVectorsEqual(projected, position)) {
                         History.UndoManager.Touch(p);
                         GO.SetPosition(p.GetObject(), projected);
@@ -763,6 +769,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
             if (point == null) point = CreatePoint(position);
             if (point != old) changed = true;
             if (leaf.def.rotatable && old != null && !old.IsDeleted()) point.SetRotation(old.GetRotation());
+            if (leaf.def.scalable && old != null && !old.IsDeleted()) point.SetScale(old.GetScale());
             leaf.point = point;
             used.Add(point);
         }
@@ -801,9 +808,10 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
         for (int i = 0; i < positions.Count; i++) {
             if (!GeometryHelper.AreVectorsEqual(positions[i], oldPositions[i])) return true;
         }
-        //the rotations of the rotatable points
+        //the rotations and scales of the rotatable and scalable points
         foreach (var (_, leaf) in GetUpdateLeaves()) {
             if (leaf.def.rotatable && leaf.point != null && leaf.point.RotationChanged()) return true;
+            if (leaf.def.scalable && leaf.point != null && leaf.point.ScaleChanged()) return true;
         }
         return false;
     }
@@ -937,6 +945,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
         ctx["name"] = GO.GetName(this);
         ctx["points"] = CustomElementScripting.PointsTable(points, leaf => RC.Scripting.LuaVectors.ToLua(leaf.point.GetPoint()));
         ctx["rotations"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.rotatable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetRotation()) : LuaValue.Nil);
+        ctx["scales"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.scalable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetScale()) : LuaValue.Nil);
         var vertices = new List<Vector3>();
         foreach (var v in meshVertices) vertices.Add(v.GetPoint());
         ctx["vertices"] = CustomElementScripting.List(vertices);

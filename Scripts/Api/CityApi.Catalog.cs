@@ -129,7 +129,7 @@ namespace Api {
                         customElementTypes.Add(new {
                             name = t.Key, label = SM.GetOrKey(t.Value.typeData.ui.label ?? t.Key), ancestry = AncestryOf(kind, t.Key),
                             parameters = SchemaOf(Params(t.Value.parameterContainer)), controlPoints = s.controlPoints, mesh = s.mesh,
-                            contains = s.container?.contains, creatable = s.creatable
+                            contains = s.container?.contains, creatable = s.creatable, point = s.point != null
                         });
                     }
                     return customElementTypes;

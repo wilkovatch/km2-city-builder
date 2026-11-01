@@ -154,6 +154,10 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
         return true;
     }
 
+    static float SafeScale(float s) {
+        return Mathf.Abs(s) < 0.001f ? 0.001f : s;
+    }
+
     void UpdateSize() {
         if (cam == null) cam = GameEngine.Camera.Get(this);
         if (cam != null) UpdateCameraData(cam);
@@ -182,6 +186,11 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
         //(the point links, which would have to compensate it) on every camera movement. It is done only on changes,
         //and while the camera moves only on changes over the tolerance (thousands of handles can be in view).
         var newScale = scale * dist;
+        //the scalable points of the custom elements scale the handle itself: the mesh and the collider compensate it
+        var nodeScale = Scale;
+        if (nodeScale != Vector3.One) {
+            newScale = new Vector3(newScale.X / SafeScale(nodeScale.X), newScale.Y / SafeScale(nodeScale.Y), newScale.Z / SafeScale(nodeScale.Z));
+        }
         if (newScale != curScale && (newScale - curScale).Length() >= tolerance * curScale.Length()) {
             if (meshInstance != null) meshInstance.Scale = newScale;
             if (collisionShape != null) collisionShape.Scale = newScale;

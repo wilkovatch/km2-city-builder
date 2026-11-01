@@ -214,10 +214,15 @@ namespace Api {
                     await NewCity();
                     await Roads();
                     await Decals();
+                    await SingleDecals();
                     await SplineComponents();
                     await ReloadSplines();
+                    await SingleDecalReload();
                     await SplinePlacementHighlights("decal");
                     await ExportDecalNames("psdl");
+                } else if (focus == "menus") {
+                    await NewCity();
+                    await Submenus();
                 } else if (focus == "propPaths") {
                     await NewCity();
                     await StandalonePropRules();
@@ -246,6 +251,7 @@ namespace Api {
                     await States();
                     await ArrayPoints();
                     await Decals();
+                    await SingleDecals();
                     await SplineComponents();
                     await Props();
                     await Meshes();
@@ -3877,6 +3883,9 @@ road(-750)
                     var decalNames = await ExportDecalNames(format);
                     Check("the decals are exported", decalNames != null && decalNames.Contains("decal_zigzag_l"));
                     Check("the generated rail decals are exported", decalNames != null && decalNames.Contains("r4i_rails_f"));
+                    if (M.customElements.Any(e => e.TypeName == "decalSingle" && !e.IsDeleted())) {
+                        Check("the single decals are exported", decalNames != null && decalNames.Contains("decal_x_inter_l"));
+                    }
                 }
                 foreach (var flag in exporters[0]["flags"]) {
                     if (flag["format"]?.Type != JTokenType.String) continue;

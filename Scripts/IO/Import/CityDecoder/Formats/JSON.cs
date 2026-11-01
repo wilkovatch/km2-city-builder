@@ -471,6 +471,7 @@ namespace CityDecoder {
             var newPoint = TerrainPoint.Create(inPoint.position.GetVector(), null, manager.GetTerrainPointContainer(), anchor, active: false);
             newPoint.dividing = inPoint.dividing;
             if (inPoint.rotation.HasValue) newPoint.SetRotation(inPoint.rotation.Value.GetVector());
+            if (inPoint.scale.HasValue) newPoint.SetScale(inPoint.scale.Value.GetVector());
             dict[inPoint.id] = newPoint;
         }
 

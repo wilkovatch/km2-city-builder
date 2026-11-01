@@ -198,6 +198,7 @@ namespace Operations {
                 var offset = (model.point.GetPoint() - endCenter).Rotated(Vector3.Up, angle);
                 GO.SetPosition(leaf.point.GetObject(), position + offset);
                 if (leaf.def.rotatable) leaf.point.SetRotation(model.point.GetRotation() + new Vector3(0, Mathf.RadToDeg(angle), 0));
+                if (leaf.def.scalable) leaf.point.SetScale(model.point.GetScale());
             }
             return true;
         }
@@ -318,6 +319,7 @@ namespace Operations {
             if (point.GetLinks().Count > 1) {
                 var copy = TerrainPoint.Create(point.GetPoint(), null, manager.GetTerrainPointContainer());
                 copy.SetRotation(point.GetRotation());
+                copy.SetScale(point.GetScale());
                 element.ReplacePoint(point, copy);
                 return copy;
             }

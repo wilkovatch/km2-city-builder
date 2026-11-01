@@ -2,7 +2,7 @@
 
 The procedural elements (roads, intersections, terrain patches, building lines) are built into the program: they generate their geometry from a few parameters, which keeps them easy to edit but limits them to what those parameters can describe. A core can also define **custom elements**: element types of its own, made of control points, an optional mesh and parameters, whose geometry is built by a Lua script of the core. What they represent is up to the core: they can map directly to the primitives of the game (for Midtown Madness 2, the attributes of the rooms of the PSDL file), or be higher-level objects that have no procedural equivalent (the MM2 decals and trains, built along a spline).
 
-A type is one of four kinds, given by its settings: **control point-based** (a tree of control points, `controlPoints`), **mesh-based** (an editable mesh, `mesh`), **spline-based** (`spline`, see [Spline-driven elements](#spline-driven-elements)) and **mesh instance-based** (a single mesh placed with a transform, `meshInstance`, see [Mesh instance elements](#mesh-instance-elements)).
+A type is one of five kinds, given by its settings: **control point-based** (a tree of control points, `controlPoints`), **mesh-based** (an editable mesh, `mesh`), **spline-based** (`spline`, see [Spline-driven elements](#spline-driven-elements)), **point-based** (a single point, `point`, see [Point elements](#point-elements)) and **mesh instance-based** (a single mesh placed with a transform, `meshInstance`, see [Mesh instance elements](#mesh-instance-elements)).
 
 A procedural element can be turned into custom elements by a **converter**: a Python script of the core that receives the element as it would be exported and returns the custom elements that replace it. The roads and intersections converted stay in the city as hidden **ghosts**, so that the elements connected to them keep their geometry.
 
@@ -48,7 +48,8 @@ The types can extend each other as the other folder types (see [Core Type Inheri
 |---|---|
 | `controlPoints` | The control points (see below); omitted for spline-driven types. |
 | `spline` | Optional road-style spline settings (see [Spline-driven elements](#spline-driven-elements)); cannot be combined with `controlPoints`, `mesh` or a Lua `geometry` function. |
-| `createMenu` | `{ "direct": true }` lists the type directly using its `ui.json` label. Otherwise `{ "group": "STRING_KEY" }` groups it with types using the same localized group key. Missing: the generic Custom element group. The creation panel lists only types in the selected group. `submenu` (a string key, optional, in both forms) lists the entry (the direct one, or the group's) in a Create submenu with that name instead of directly in Create; types of one group should use the same `submenu`, as the first one found is used. |
+| `point` | Optional single point settings (see [Point elements](#point-elements)); cannot be combined with `controlPoints`, `spline`, `mesh`, `derivedPoints` or `container`, and needs a Lua `geometry` function. |
+| `createMenu` | `{ "direct": true }` lists the type directly using its `ui.json` label (`label`, a string key, optional: the text of the direct entry in the Create menu, e.g. a short one under a `submenu`; the `ui.json` label stays the full name used everywhere else, such as the panel and the default name of the elements). Otherwise `{ "group": "STRING_KEY" }` groups it with types using the same localized group key. Missing: the generic Custom element group. The creation panel lists only types in the selected group. `submenu` (a string key, optional, in both forms) lists the entry (the direct one, or the group's) in a Create submenu with that name instead of directly in Create; types of one group should use the same `submenu`, as the first one found is used. |
 | `geometryLayer` | Collision layer index for generated geometry (default `7`). A projected overlay can use another layer and omit that layer from its projection mask, so overlays do not project onto each other. |
 | `mesh` | Set if the element has a mesh: `uvs` (`"none"`, `"editable"`: stored with the element and edited in its panel, `"script"`: given by the geometry script), `defaultVertices` (offsets from where a new element is created) and `defaultTriangles`. |
 | `container` | Set if the elements of the type can contain other custom elements: `contains`, the types they can contain. |
@@ -71,7 +72,9 @@ Each node of `controlPoints` is a point, or a group of points if it has `childre
 | `label` | String key shown in the editor. |
 | `children` | The nodes of a group. |
 | `array` | `min`, `max` (0: no limit), `editable` (default `true`: the user can add and remove elements; otherwise only the converters and the API can), `uniform` (an array in an element of another array: every element of that array has as many elements in it, adding one adds one everywhere), `closed` (a loop, e.g. a perimeter: the element after the last one is the first one, so an element added at an end goes between the last and the first one), `defaultCount` and `defaultStep` (a new element: how many elements, and the offset between them). |
-| `rotatable` | The point can be rotated with the gizmo; its rotation is given to the scripts and exported. |
+| `rotatable` | The rotation of the point is given to the scripts, exported and saved (the types with `point` can edit it, the others set it through the API and the converters). |
+| `scalable` | The same for the scale of the point. |
+| `defaultScale` | The scale of the point of a new element (default `[1, 1, 1]`). |
 | `defaultPosition` | The offset of the point from where a new element is created. |
 
 The points are **terrain points**: like the points of the terrain patches and building lines they can be attached to the anchors of roads and intersections, to the segment between two points, or shared with other elements (the same point used by a terrain patch and by two custom elements moves all of them). Unlike the points of the patches, a point on an anchor can still be moved with the gizmo: it then leaves the anchor (and stays shared). The vertices of the mesh are terrain points too.
@@ -119,7 +122,8 @@ The functions are called as the [script definitions](Core-Lua-Scripts), with `v`
 |---|---|
 | `typeName`, `name` | The type and the name of the element. |
 | `points` | The control points: a table with the structure of `controlPoints` (groups are tables of named nodes, arrays are lists starting from 1, points are `vec3`). |
-| `rotations` | The rotations of the rotatable points (`vec3`, euler angles in degrees), with the same structure. |
+| `rotations` | The rotations of the rotatable points (`vec3`, euler angles in degrees: applied around Z, then X, then Y, as in the editor), with the same structure. |
+| `scales` | The scales of the scalable points (`vec3`), with the same structure. |
 | `vertices`, `triangles`, `uvs` | The mesh: a list of `vec3`, a flat list of indices (from 0) of the vertices, three per triangle, and the editable texture coordinates (`vec2`). |
 | `references` | The custom elements referenced by the parameters, by parameter name: `typeName`, `name`, `points`, `vertices`, `triangles`. The element is rebuilt when their points move. |
 | `moved` | Constraints only: what moved since they last ran, `points` (a table with the structure of `controlPoints`, `true` for the points that moved) and `vertices` (`[index] = true`). |
@@ -226,6 +230,35 @@ Control points use the existing point tree as `points.spline`; curve parameters 
 
 Exported spline elements additionally have `spline.sections` and `spline.pieces` (and `spline.closed`, when the spline is a loop: the last section is at the position of the first one). Sections contain `center`, `right`, `up`, `vertices` (all in builder coordinates) and cumulative `distance`. Pieces are pairs of evaluated sections, including subdivision, so exporters can use the same edges as the editor. This derived geometry is rebuilt on load rather than saved in the city. Projected splines rebuild after generated surfaces; API replies and export snapshots wait for the physics synchronization needed by newly replaced colliders.
 
+## Point elements
+
+A type with `point` is a **single point** element: one control point, named `center`, placed with one click and edited as a mesh instance is: the gizmo is on the element itself (the point has no handle to click) and the `transformGroup` of its `ui.json` has the Scale, Rotate and Move buttons, snap to grid, project to ground, the space and the position, rotation and scale fields (the built-in groups are `mainGroup` and `transformGroup`, with the parameters). The axes that can't change are disabled in both. Its geometry comes from the `geometry` script (see [Scripts](#scripts)), which reads the position (`ctx.points.center`), the rotation (`ctx.rotations.center`) and the scale (`ctx.scales.center`) of the point.
+
+```json
+"point": {
+	"rotatable": true,
+	"rotationAxes": [false, true, false],
+	"scalable": true,
+	"scaleAxes": [true, false, true],
+	"defaultScale": [2, 1, 10],
+	"project": true,
+	"projectionMask": 136
+},
+"geometry": "decals.single"
+```
+
+| Key | Description |
+|---|---|
+| `rotatable` | The point can be rotated (default `true`). |
+| `scalable` | The point can be scaled (default `false`). |
+| `positionAxes`, `rotationAxes`, `scaleAxes` | The axes (X, Y, Z, as three bools) the gizmo and the fields can change (default: all, none for a rotation or scale that isn't enabled). With `project`, the height can't be changed. |
+| `defaultScale` | The scale of a new element (default `[1, 1, 1]`). |
+| `defaultPosition` | The offset of the point from where the element is created. |
+| `project` | The point is put on the city surfaces (roads, intersections, terrain patches, ... as the points of the projected splines) when it is created or moved, and its height is not editable. Only the point is projected: the geometry stays flat around it. |
+| `projectionMask` | The collision layers `project` searches (default: the terrain and the generated geometry). |
+
+The scale is not part of the parameters, so presets don't carry it. The API creates and edits it as the rotation: `rotation` and `scale` in the point target of `customElement.create` (a new scalable point without it gets `defaultScale`) and the arguments of `customElement.movePoint`. The point is exported as the other rotatable points, with `scale` as well (see [Export](#export)).
+
 ## Mesh instance elements
 
 A type with `meshInstance` is a type of the **mesh instances**: the meshes placed by hand from the mesh list, with a position, rotation and scale (the gizmo). Each mesh instance has one of these types, in `settings.type`. They replace the single `props/meshInstance.json` of the older cores (it is ignored, with a warning). The instances stay mesh instances: the save key is still `meshes` and the API kind `meshInstance`, and the types are not listed with the other custom element types (`customElement.*`, the converters and the references don't see them). Their `parameters.json` and `ui.json` are as for the other types, and they can extend each other.
@@ -318,7 +351,7 @@ The script runs with the Python of the program and gets three arguments: the `Fi
 
 | Key | Description |
 |---|---|
-| `points` | The points of the elements, each with a local `id`. With `weld` (default `true`) a point takes the place of an existing point at the same position (within 1 cm), shared from then on, or else is attached to an anchor there (not of a ghost, except the anchors across the end of a road that isn't a ghost, which follow it: e.g. the dividers of a road converted after its intersection; not for a point with `anchor`). `rotation`: of a rotatable point. `anchor`: the point follows other points of the output, `{"line": [id, id]}` (on the line between them) or `{"column": id}` (on the vertical line of that point), see [Control points](#control-points); a point welded to an existing one keeps its own anchor. |
+| `points` | The points of the elements, each with a local `id`. With `weld` (default `true`) a point takes the place of an existing point at the same position (within 1 cm), shared from then on, or else is attached to an anchor there (not of a ghost, except the anchors across the end of a road that isn't a ghost, which follow it: e.g. the dividers of a road converted after its intersection; not for a point with `anchor`). `rotation`: of a rotatable point. `scale`: of a scalable point. `anchor`: the point follows other points of the output, `{"line": [id, id]}` (on the line between them) or `{"column": id}` (on the vertical line of that point), see [Control points](#control-points); a point welded to an existing one keeps its own anchor. |
 | `elements` | `id` (local), `type`, `name`, `state` (the parameters), `points` (the structure of the control points of the type with point ids; the missing points get their default position), `mesh` (`vertices`: point ids, `triangles`, `uvs`), `container` and `source` (a local element id, or a reference `{"kind", "id"}` to an existing element). A reference parameter is a local element id or a reference to an existing element. |
 | `updates` | Changes of existing custom elements (`elements` can then be missing): `element` (a reference `{"kind": "customElement", "id"}`, or a local element id), `points` (top-level nodes of the control points, replacing the ones of the element with the same names; a point is a local point id, or the id of an existing terrain point) and `state` (merged into the state of the element). The elements changed are reopened in the editor after a conversion started from it. |
 | `replace` | Overrides the `replace` of `converter.json`. |
@@ -331,7 +364,7 @@ A road or intersection converted becomes a ghost: its geometry is hidden and it 
 
 ## Export
 
-The export JSON has `customElements`: `id`, `type`, `data` (`name`, `fields.state` with the references as `{kind, id}` with the ids of the export, `mesh`: the geometry built by the script), `points` (the structure of the control points, each point `{"id": <terrain point id>, "position": [x, y, z]}`, plus `rotation` for the rotatable ones; the same id for a point shared with other elements), `vertices` (the same for the vertices of the mesh), `triangles`, `uvs`, `containerId` (-1 if none) and `source` (`{kind, id}` of the ghost it replaces, null if none).
+The export JSON has `customElements`: `id`, `type`, `data` (`name`, `fields.state` with the references as `{kind, id}` with the ids of the export, `mesh`: the geometry built by the script), `points` (the structure of the control points, each point `{"id": <terrain point id>, "position": [x, y, z]}`, plus `rotation` for the rotatable ones and `scale` for the scalable ones; the same id for a point shared with other elements), `vertices` (the same for the vertices of the mesh), `triangles`, `uvs`, `containerId` (-1 if none) and `source` (`{kind, id}` of the ghost it replaces, null if none).
 
 ## Midtown Madness 2
 

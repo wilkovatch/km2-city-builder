@@ -10,10 +10,13 @@ public class MenuSubmenu {
     public HashSet<int> checks = new HashSet<int>(); //the entries shown with a check box, the ones in checked are ticked
     public HashSet<int> checkedEntries = new HashSet<int>();
     public HashSet<int> disabled = new HashSet<int>();
+    public Dictionary<int, string> wrapLabels = new Dictionary<int, string>(); //the label given to the wrapper instead of the text of the entry
 
-    public int Add(string entry, System.Action action) {
+    //wrapLabel: what the wrapper (e.g. the undo step) calls the entry, if it is not its text (e.g. a short text under a submenu)
+    public int Add(string entry, System.Action action, string wrapLabel = null) {
         entries.Add(entry);
         actions.Add(action);
+        if (wrapLabel != null) wrapLabels[entries.Count - 1] = wrapLabel;
         return entries.Count - 1;
     }
 
@@ -33,8 +36,8 @@ public class MenuSubmenu {
 
     //the same actions wrapped by the given function (e.g. to record them as undo steps), also in the nested submenus
     public MenuSubmenu Wrapped(System.Func<string, System.Action, System.Action> wrap) {
-        var res = new MenuSubmenu { entries = entries, checks = checks, checkedEntries = checkedEntries, disabled = disabled };
-        for (int i = 0; i < actions.Count; i++) res.actions.Add(actions[i] == null ? null : wrap(entries[i], actions[i]));
+        var res = new MenuSubmenu { entries = entries, checks = checks, checkedEntries = checkedEntries, disabled = disabled, wrapLabels = wrapLabels };
+        for (int i = 0; i < actions.Count; i++) res.actions.Add(actions[i] == null ? null : wrap(wrapLabels.TryGetValue(i, out var wrapLabel) ? wrapLabel : entries[i], actions[i]));
         foreach (var pair in submenus) res.submenus[pair.Key] = pair.Value.Wrapped(wrap);
         return res;
     }

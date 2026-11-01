@@ -10,6 +10,8 @@ namespace CityElements.Types {
         public CustomElementPointNode[] children; //a group of points if set, otherwise a single point
         public CustomElementArraySettings array; //repeated, as a list of points or of groups
         public bool rotatable; //the gizmo can rotate the point (its rotation is given to the scripts)
+        public bool scalable; //the gizmo can scale the point (its scale is given to the scripts)
+        public float[] defaultScale; //a new element: the scale of the point (1, 1, 1 if not set)
         public bool anchorable = true; //the point can be attached to anchors and shared with other elements
         public float[] defaultPosition; //a new element: the offset of the point from where it is created
     }
@@ -55,6 +57,7 @@ namespace CityElements.Types {
         public bool presets; //optional per-type presets, in category customElement/<type>
         public ObjectState defaultPreset; //initial Default when an older city has no category yet
         public CustomElementSplineSettings spline;
+        public CustomElementPointSettings point; //null: not a point element
         public CustomElementMeshInstanceSettings meshInstance; //null: not a mesh instance element
         public CustomElementCreateMenu createMenu;
         public int geometryLayer = 7;
@@ -65,12 +68,44 @@ namespace CityElements.Types {
         public string constraints; //"<module>.<function>": moves points after others were moved (e.g. keeps them aligned)
         public CustomElementDerivedSettings derivedPoints; //null: the points are only edited by the user
         public bool creatable = true; //can be created from the Create menu
+        //the surface rule of the points moved by the user (the projectionMask, and whether the surfaces are searched as the
+        //projected sections are), null if they stay where they are put
+        public (int mask, bool auto)? PointProjection => spline?.projectPoints == true ? (spline.projectionMask, spline.projectSections)
+            : point?.project == true ? (point.projectionMask, true) : ((int, bool)?)null;
         public string[] propsContainers; //the props containers of the prop rule ("propRule" of the state), placed along the propLines of the geometry
         public string propsPresetType; //the prop rule presets listed: the ones of this type (e.g. a road type with the same containers), all if not set
     }
 
+    //A single point (named center), placed with one click and edited as a mesh instance is: the gizmo is on the element
+    //itself (the point has no handle) and its panel has the transform fields. The mesh is given by the geometry script
+    public class CustomElementPointSettings {
+        public bool rotatable = true;
+        public bool scalable;
+        public bool[] positionAxes; //the axes of the position the gizmo and the fields can change (X, Y, Z), all if not set
+        public bool[] rotationAxes; //the same for the rotation (X, Y, Z: pitch, yaw, roll), all if not set
+        public bool[] scaleAxes; //the same for the scale, all if not set
+        public float[] defaultScale;
+        public float[] defaultPosition;
+        public bool project; //the point is put on the city surfaces (its height can't be changed), as the points of the projected splines
+        public int projectionMask = (1 << 3) | (1 << 7);
+
+        static bool[] Axes(bool[] axes, bool allowed) {
+            return !allowed ? new[] { false, false, false } : axes != null && axes.Length == 3 ? axes : new[] { true, true, true };
+        }
+
+        public bool[] PositionAxes() {
+            var axes = (bool[])Axes(positionAxes, true).Clone();
+            if (project) axes[1] = false;
+            return axes;
+        }
+
+        public bool[] RotationAxes() { return Axes(rotationAxes, rotatable); }
+        public bool[] ScaleAxes() { return Axes(scaleAxes, scalable); }
+    }
+
     public class CustomElementCreateMenu {
         public bool direct;
+        public string label; //string key: the text of the direct entry in the Create menu (the label of the type if not set)
         public string group = "CREATE_CUSTOM_ELEMENT";
         public string submenu; //string key: the entry (direct or group) is listed in the Create submenu with that name
     }
@@ -115,10 +150,10 @@ namespace CityElements.Types {
             parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
             settings = Parsers.TypeInheritance.Load<CustomElementSettings>(folder, "settings.json");
             if (settings.meshInstance != null) {
-                if (settings.spline != null || (settings.controlPoints?.Length ?? 0) > 0 || settings.mesh != null || settings.geometry != null
+                if (settings.spline != null || settings.point != null || (settings.controlPoints?.Length ?? 0) > 0 || settings.mesh != null || settings.geometry != null
                     || settings.constraints != null || settings.derivedPoints != null || settings.container != null
                     || (settings.propsContainers?.Length ?? 0) > 0 || settings.presets) {
-                    throw new System.Exception("Mesh instance custom element types cannot also define spline, controlPoints, mesh, geometry, constraints, derivedPoints, container, propsContainers or presets");
+                    throw new System.Exception("Mesh instance custom element types cannot also define spline, point, controlPoints, mesh, geometry, constraints, derivedPoints, container, propsContainers or presets");
                 }
                 if (settings.meshInstance.placementRules == null) throw new System.Exception("Mesh instance custom element types need placementRules");
             }
@@ -150,7 +185,19 @@ namespace CityElements.Types {
                     splineComponents[i] = Parsers.TypeInheritance.LoadComponent<RoadComponent>(folder, components[i].name, common);
                 }
             }
+            if (settings.point != null) {
+                if (settings.spline != null || settings.mesh != null || (settings.controlPoints?.Length ?? 0) > 0 || settings.derivedPoints != null || settings.container != null) {
+                    throw new System.Exception("Point custom element types cannot also define spline, mesh, controlPoints, derivedPoints or container");
+                }
+                if (settings.geometry == null) throw new System.Exception("Point custom element types need a geometry script");
+                settings.controlPoints = PointNodes(settings.point);
+            }
             if (settings.controlPoints == null) settings.controlPoints = new CustomElementPointNode[0];
+        }
+
+        public static CustomElementPointNode[] PointNodes(CustomElementPointSettings point) {
+            return new[] { new CustomElementPointNode { name = "center", label = "CE_POINT", rotatable = point.rotatable, scalable = point.scalable,
+                anchorable = false, defaultScale = point.defaultScale, defaultPosition = point.defaultPosition } };
         }
 
         public static CustomElementPointNode[] SplinePoints(bool closed = false) {

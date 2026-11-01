@@ -34,12 +34,30 @@ namespace Api {
         //get their default position, from the position of the element
         CustomElements.PointGroup CustomElementPoints(CustomElement element, JToken points, Vector3 origin) {
             var created = new List<TerrainPoint>();
+            var rotations = new Dictionary<TerrainPoint, Vector3>();
+            var scales = new Dictionary<TerrainPoint, Vector3>();
             var res = History.ElementSnapshot.CustomElementPoints(points, element.state, element, token => {
                 var target = token.ToObject<PointTarget>(Newtonsoft.Json.JsonSerializer.Create(Json.Settings));
                 var p = CustomElementPoint(target);
                 created.Add(p);
+                if (target.rotation.HasValue) rotations[p] = target.rotation.Value;
+                if (target.scale.HasValue) scales[p] = target.scale.Value;
                 return p;
             }, origin);
+            //the rotation and scale of the points, and the default scale of the new scalable ones
+            foreach (var (path, leaf) in CustomElements.PointTree.Leaves(res)) {
+                var p = leaf.point;
+                if (rotations.TryGetValue(p, out var rotation)) {
+                    if (!leaf.def.rotatable) throw ApiException.InvalidParam("the point '" + path + "' can't be rotated");
+                    p.SetRotation(rotation);
+                }
+                if (scales.TryGetValue(p, out var scale)) {
+                    if (!leaf.def.scalable) throw ApiException.InvalidParam("the point '" + path + "' can't be scaled");
+                    p.SetScale(scale);
+                } else if (leaf.def.scalable && p.GetLinks().Count == 0) {
+                    p.SetScale(CustomElements.PointTree.ToVector(leaf.def.defaultScale, Vector3.One));
+                }
+            }
             return res;
         }
 
@@ -53,6 +71,7 @@ namespace Api {
                 id = History.ElementRegistry.GetId(p),
                 position = p.GetPoint(),
                 rotation = leaf.def.rotatable ? p.GetRotation() : (Vector3?)null,
+                scale = leaf.def.scalable ? p.GetScale() : (Vector3?)null,
                 shared = p.GetLinks().Count > 1,
                 anchored = !GO.IsNull(p.anchor) && !p.anchor.IsDeleted()
             };
@@ -274,8 +293,8 @@ namespace Api {
             return leaf.point;
         }
 
-        [ApiMethod("customElement.movePoint", "Moves a control point (path) or a vertex of the mesh (vertex) of a custom element, as with the gizmo (the constraints of the type run at the next update; a point on an anchor leaves it); rotation: the euler angles of a rotatable point")]
-        public void MoveCustomElementPoint(ElementRef element, Vector3 position, string path = null, int? vertex = null, Vector3? rotation = null) {
+        [ApiMethod("customElement.movePoint", "Moves a control point (path) or a vertex of the mesh (vertex) of a custom element, as with the gizmo (the constraints of the type run at the next update; a point on an anchor leaves it); rotation: the euler angles of a rotatable point, scale: the scale of a scalable point")]
+        public void MoveCustomElementPoint(ElementRef element, Vector3 position, string path = null, int? vertex = null, Vector3? rotation = null, Vector3? scale = null) {
             ApplyChange("move point", () => {
                 var e = ResolveCustomElement(element);
                 var p = CustomElementPointAt(e, path, vertex);
@@ -284,6 +303,11 @@ namespace Api {
                     var leaf = path != null ? CustomElements.PointTree.Find(e.points, path) as CustomElements.PointLeaf : null;
                     if (leaf == null || !leaf.def.rotatable) throw ApiException.InvalidOperation("the point can't be rotated");
                     p.SetRotation(rotation.Value);
+                }
+                if (scale.HasValue) {
+                    var leaf = path != null ? CustomElements.PointTree.Find(e.points, path) as CustomElements.PointLeaf : null;
+                    if (leaf == null || !leaf.def.scalable) throw ApiException.InvalidOperation("the point can't be scaled");
+                    p.SetScale(scale.Value);
                 }
             });
         }

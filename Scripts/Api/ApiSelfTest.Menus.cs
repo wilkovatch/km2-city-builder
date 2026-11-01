@@ -54,8 +54,8 @@ namespace Api {
             if (types.TryGetValue("decal", out var decal)) {
                 var createMenu = menuBar.FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>()
                     .First(b => b.Text == StringManager.Get("CREATE")).GetPopup();
-                var decalLabel = Operations.CustomElements.GetTypeLabel("decal");
                 var settings = decal.typeData.settings.createMenu;
+                var decalLabel = settings.label != null ? StringManager.Get(settings.label) : Operations.CustomElements.GetTypeLabel("decal");
                 try {
                     settings.submenu = submenuKey;
                     builder.ReloadCreateMenu();

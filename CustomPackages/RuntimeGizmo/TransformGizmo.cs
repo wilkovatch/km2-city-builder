@@ -12,6 +12,11 @@ using GO = GameEngine.GameObject;
 // screen space, see SelectionOutline.cs).
 // Everything works in Godot world space; the "forward" (blue) axis is Godot's -Z, i.e. the program's +Z.
 namespace RuntimeGizmos {
+    //a panel showing the space of the gizmo
+    public interface ITransformPanel {
+        void UpdateSpaceLabel();
+    }
+
     public enum TransformSpace { Global, Local, Parent }
     public enum TransformType { Move, Rotate, Scale, None }
     public enum Axis { None, X, Y, Z, Any }
@@ -60,7 +65,7 @@ namespace RuntimeGizmos {
         //at the end of a transform, with its targets, before its undo step is committed (so changes made by it are part of it)
         public Action<IReadOnlyList<Node3D>> onTransformFinished;
 
-        public EditorPanels.TransformPropertiesEditorPanel transformPanel = null;
+        public ITransformPanel transformPanel = null; //told when the space is toggled
         public bool[] posAxesAllowed = new bool[3] { true, true, true };
         public bool[] rotAxesAllowed = new bool[3] { true, true, true };
         public bool[] scaleAxesAllowed = new bool[3] { true, true, true };

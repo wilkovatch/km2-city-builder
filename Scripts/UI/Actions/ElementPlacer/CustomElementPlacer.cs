@@ -82,6 +82,11 @@ namespace ElementPlacer {
                     curElement.SetActive(true, true);
                     curElement.Select(true);
                     onElementCreated?.Invoke();
+                    //a point element has its gizmo on the element, which the point deselection would remove
+                    if (curElement.Settings?.point != null) {
+                        UpdatePlacementPoint();
+                        return;
+                    }
                     break;
                 case PlacementMode.AppendPoint:
                     if (GetElement() == null) return;
@@ -162,7 +167,7 @@ namespace ElementPlacer {
         //own hit priority, and the other elements are placed on what is visible.
         public override bool Raycast(Node3D parent, Vector3 origin, Vector3 direction, out RaycastHit hit, float distance, int mask) {
             var settings = GetSettings();
-            if ((mask & ((1 << 3) | (1 << 7))) == 0 || settings?.spline?.projectSections != true) {
+            if ((mask & ((1 << 3) | (1 << 7))) == 0 || (settings?.spline?.projectSections != true && settings?.point?.project != true)) {
                 return base.Raycast(parent, origin, direction, out hit, distance, mask);
             }
             var exclude = placementMode == PlacementMode.Create ? null : GetElement()?.generator;
@@ -186,7 +191,9 @@ namespace ElementPlacer {
         public override bool SupportsPlacementHeight {
             get {
                 if (placementMode == PlacementMode.None) return false;
-                var spline = GetSettings()?.spline;
+                var settings = GetSettings();
+                if (settings?.point?.project == true) return false;
+                var spline = settings?.spline;
                 return spline == null || (!spline.projectPoints && !spline.projectSections);
             }
         }
