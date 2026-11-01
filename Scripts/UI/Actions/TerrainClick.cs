@@ -67,7 +67,7 @@ public partial class TerrainClick : Control {
                     res = GetZeroPlaneHit(ray.origin, ray.direction);
                 }
                 if (res.HasValue) {
-                    if (Snapping.Enabled) res = SnapToGrid(res.Value, mask);
+                    if (Snapping.Enabled && modifier.SnapsToGrid) res = SnapToGrid(res.Value, mask);
                     isModifying = true;
                 }
             }

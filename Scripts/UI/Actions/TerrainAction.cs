@@ -18,4 +18,7 @@ public abstract class TerrainAction {
     //whether the next point can be placed above the ground (PlacementHeight): false while the action places nothing, or
     //when what it places is always put on the ground (by its placement rules)
     public virtual bool SupportsPlacementHeight => false;
+    //whether the hits follow the grid snapping (Edit->Snapping): false for the actions picking what was clicked, whose
+    //hit would otherwise move to the nearest whole coordinates (onto another element, e.g. the road under a decal)
+    public virtual bool SnapsToGrid => true;
 }

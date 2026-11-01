@@ -99,6 +99,8 @@ namespace ElementPlacer {
             return new List<int> { ~(1 << 3) }; //as the selection of the elements (see TerrainModifier.Null)
         }
 
+        public override bool SnapsToGrid => false;
+
         //the element of the city a collider belongs to (as CityBuilderMenuBar.SelectObject finds it), null if none
         public static object ElementOf(Node node) {
             for (var obj = node as Node3D; obj != null; obj = obj.GetParentNode3D()) {

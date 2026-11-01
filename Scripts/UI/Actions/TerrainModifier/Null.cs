@@ -30,6 +30,8 @@ namespace TerrainModifier {
         public override void Deform(Node3D terrain, Vector3 pos, float delta) {
         }
 
+        public override bool SnapsToGrid => false;
+
         public override List<int> GetLayerMasks() {
             if (groundOnly) {
                 return new List<int> { 1 << 7 };
