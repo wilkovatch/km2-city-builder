@@ -292,7 +292,7 @@
 	"RD_SP_T_LOWPOLY": "Low poly",
 	"RD_SPLINE_TYPE": "Spline type",
 	"RD_SUBDIVIDE_EQUALLY": "Subdivide equally",
-	"RD_HERMITE_TENSION": "Hermite spline tension",
+	"RD_HERMITE_TENSION": "Tension",
 	"RD_HERMITE_TENSION_PH": "value",
 	"RD_IS_TEXS": "Textures (USE WITH CAUTION)",
 	"RD_IS_END_TEX": "End texture",

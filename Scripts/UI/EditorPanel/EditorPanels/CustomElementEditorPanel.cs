@@ -62,6 +62,7 @@ namespace EditorPanels {
         CustomElement builtElement = null; //and the element (its arrays, container and contents are listed)
         EditorPanelElements.Dropdown createTypeDropdown, placementDropdown, splineTypeDropdown;
         int[] splineCurveTypes;
+        System.Action updateCurveFields;
         EditorPanelElements.Label selectedLabel;
         EditorPanelElements.ScrollList contentsList;
         EditorPanelElements.Button insertBeforeButton, insertAfterButton, removeButton, detachButton, addInnerButton, removeInnerButton, editContentButton,
@@ -107,6 +108,7 @@ namespace EditorPanels {
             builtElement = element;
             //the fields of the previous build are freed, and the groups of this type may not create them again
             createTypeDropdown = placementDropdown = splineTypeDropdown = null;
+            updateCurveFields = null;
             selectedLabel = null;
             contentsList = null;
             insertBeforeButton = insertAfterButton = removeButton = detachButton = addInnerButton = removeInnerButton = editContentButton = changeContainerButton = mergeButton = null;
@@ -184,6 +186,7 @@ namespace EditorPanels {
                 splineCurveTypes = allowed;
                 var dropdown = splineTypeDropdown = p.AddDropdown(SM.Get("RD_SPLINE_TYPE"), new List<int>(allowed).ConvertAll(i => SM.Get(SplineCurves.Label(i))), i => {
                     CurrentState().SetInt("curveType", allowed[i]); builder.NotifyChange();
+                    updateCurveFields?.Invoke();
                 }, w);
                 dropdown.actionEnabled = false;
                 dropdown.SetValue(System.Array.IndexOf(allowed, CurrentState().Int("curveType", settings.spline.defaultCurveType)));
@@ -194,9 +197,14 @@ namespace EditorPanels {
                 p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetElementState, "state.properties.segmentsPer100m", null, w / 2, null);
                 p.IncreaseRow();
                 if (System.Array.IndexOf(allowed, 1) >= 0) {
-                    p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElementState, "state.properties.subdivideEqually", null, w / 2, null);
-                    p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal,
+                    var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElementState, "state.properties.subdivideEqually", null, w / 2, null);
+                    var tensionField = p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal,
                         GetElementState, "state.properties.hermiteTension", null, w / 2, null);
+                    updateCurveFields = () => {
+                        var builtin = CurrentState()?.Int("curveType", settings.spline.defaultCurveType) == 1;
+                        equallyField.SetActive(builtin); tensionField.SetActive(builtin);
+                    };
+                    updateCurveFields();
                     p.IncreaseRow();
                 }
                 return true;
@@ -603,6 +611,7 @@ namespace EditorPanels {
                 splineTypeDropdown.SetValue(System.Array.IndexOf(splineCurveTypes, CurrentState().Int("curveType")));
                 splineTypeDropdown.actionEnabled = true;
             }
+            if (CurrentState() != null) updateCurveFields?.Invoke();
         }
 
         public EditorPanel OpenPropContainer(string name) {
