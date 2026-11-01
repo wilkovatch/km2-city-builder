@@ -221,14 +221,12 @@ public partial class GuideScreenshots : Node {
             await Shot("terrain-edit-panel", PanelRect(Panel<EditorPanel>("terrainEditorPanel")));
             Call("ToggleTerrainEdit");
 
-            //project settings
-            Call("ToggleProjectSettings");
-            await Shot("project-settings-panel", PanelRect(Panel<EditorPanel>("projectSettingsEditorPanel")));
-            Close();
-
             //preferences
             Call("ToggleSettings");
             await Shot("preferences-cores-panel", PanelRect(Panel<EditorPanel>("settingsEditorPanel")));
+            Panel<EditorPanel>("settingsEditorPanel").ShowPage(4);
+            await Frames(2);
+            await Shot("preferences-paths-panel", PanelRect(Panel<EditorPanel>("settingsEditorPanel")));
             Close();
 
             //no city loaded: the new city panel is shown

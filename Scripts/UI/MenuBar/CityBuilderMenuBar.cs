@@ -29,7 +29,6 @@ public partial class CityBuilderMenuBar : Control {
     MeshListEditorPanel meshListEditorPanel = new MeshListEditorPanel();
     TransformPropertiesEditorPanel transformPropertiesEditorPanel = new TransformPropertiesEditorPanel();
     SettingsEditorPanel settingsEditorPanel = new SettingsEditorPanel();
-    ProjectSettingsEditorPanel projectSettingsEditorPanel = new ProjectSettingsEditorPanel();
     CityPropertiesEditorPanel cityPropertiesEditorPanel = new CityPropertiesEditorPanel();
     public EditorPanels.Props.ContainerEditorPanel propContainerEditorPanel = new EditorPanels.Props.ContainerEditorPanel();
     public TerrainPatchBorderMeshEditorPanel tpBorderMeshEditorPanel = new TerrainPatchBorderMeshEditorPanel();
@@ -148,7 +147,6 @@ public partial class CityBuilderMenuBar : Control {
 
         //Edit
         entries = new List<string> {
-            SM.Get("PROJECT_SETTINGS"),
             SM.Get("CITY_PROPERTIES"),
             SM.Get("TOGGLE_TERRAIN_EDIT_MENU"),
             SM.Get("LOAD_HEIGHTMAP"),
@@ -158,7 +156,6 @@ public partial class CityBuilderMenuBar : Control {
             SM.Get("ROTATE_CITY")
         };
         actions = new List<System.Action> {
-            ToggleProjectSettings,
             ToggleCityProperties,
             ToggleTerrainEdit,
             LoadHeightmap,
@@ -243,7 +240,6 @@ public partial class CityBuilderMenuBar : Control {
             transformPropertiesEditorPanel,
             buildingLineEditorPanel,
             settingsEditorPanel,
-            projectSettingsEditorPanel,
             propContainerEditorPanel,
             tpBorderMeshEditorPanel,
             batchUpdateEditorPanel,
@@ -494,7 +490,7 @@ public partial class CityBuilderMenuBar : Control {
         }
         var standalonePanels = new List<EditorPanel> {
             cityPropertiesEditorPanel, newCityEditorPanel, heightmapEditorPanel, presetEditorPanel, cityTerrainEditorPanel,
-            cityBuildingsEditorPanel, objectListEditorPanel, meshListEditorPanel, settingsEditorPanel, projectSettingsEditorPanel,
+            cityBuildingsEditorPanel, objectListEditorPanel, meshListEditorPanel, settingsEditorPanel,
             batchUpdateEditorPanel, rotateCityPanel, customExporterPanel, scriptInputEditorPanel
         };
         if (standalonePanels.Contains(root)) {
@@ -845,8 +841,8 @@ public partial class CityBuilderMenuBar : Control {
         meshPlacer.placeEnabled = false;
         arrayPointPlacer.Stop();
         meshListEditorPanel.ResetEntries(); //otherwise when opened for the first time it would have broken paths due to prefs not being loaded at first load
-        SetCameraRenderingMode(PreferencesManager.Get("renderingMode", 0), false);
-        SetShadows(PreferencesManager.Get("shadowsEnabled", true), false);
+        SetCameraRenderingMode(SettingsManager.Get("renderingMode", 0), false);
+        SetShadows(SettingsManager.Get("shadowsEnabled", true), false);
     }
 
     public void SetCameraRenderingMode(int mode) {
@@ -869,7 +865,7 @@ public partial class CityBuilderMenuBar : Control {
                     break;
             }
         }
-        if (save) PreferencesManager.Set("renderingMode", mode);
+        if (save) SettingsManager.Set("renderingMode", mode);
     }
 
     public void SetShadows(bool enabled) {
@@ -882,12 +878,12 @@ public partial class CityBuilderMenuBar : Control {
 
     void SetShadows(bool enabled, bool save) {
         GameEngine.Lighting.SetSunShadows(this, enabled);
-        if (save) PreferencesManager.Set("shadowsEnabled", enabled);
+        if (save) SettingsManager.Set("shadowsEnabled", enabled);
     }
 
     public void SetPropsCullingDistance(string distance) {
         if (!float.TryParse(distance, out var v)) return;
-        PreferencesManager.Set("propsCullingDistance", v);
+        SettingsManager.Set("propsCullingDistance", v);
         var cam = GetCameraController();
         if (cam != null) cam.SetPropsCullingDistance(v);
     }
@@ -1019,10 +1015,6 @@ public partial class CityBuilderMenuBar : Control {
 
     void ToggleSettings() {
         ShowPanel(settingsEditorPanel);
-    }
-
-    void ToggleProjectSettings() {
-        ShowPanel(projectSettingsEditorPanel);
     }
 
     void ToggleCityProperties() {

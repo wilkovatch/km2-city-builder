@@ -35,7 +35,7 @@ The template must provide the city's preferences, at least:
 | `coreVersion`, `coreFeatureVersion` | The core's current versions (from its `settings.json`). Update them in the template whenever they change, otherwise new cities will require a migration. |
 | `extraFolders` | Asset folders searched by this city. A path starting with `.` is relative to `Files/common`, so `.\<CoreName>\` points to the core's common folder (see [Core Structure](Core-Structure#basecommon)). |
 
-Other preferences (overlay texture, graphics options...) are set by the user later and do not need to be in the template.
+Other preferences (overlay texture...) are set by the user later and do not need to be in the template.
 
 ## `presets.json`
 

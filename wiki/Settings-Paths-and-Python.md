@@ -23,6 +23,7 @@ This page covers the classes that manage configuration files, file lookup, trans
 | `extraFolders` | string[] | Asset folders searched by every city (see [`PathHelper`](#pathhelper)). |
 | `scriptFolders` | string[] | Folders of the user's Python scripts, listed in the Scripts menu (see [Python Scripts](Python-Scripts)). |
 | `LastCity` | string | Path of the last opened `city.json.gz`, reopened at startup. |
+| `renderingMode`, `shadowsEnabled`, `propsCullingDistance` | | Graphics options of the Graphics tab of the preferences (apply to all cities). |
 | `Language` | string | String table language (default `en-US`, no UI to change it yet). |
 
 **`preferences.json`** (one per city)
@@ -34,7 +35,6 @@ This page covers the classes that manage configuration files, file lookup, trans
 | `extraFolders` | string[] | Asset folders searched by this city only. |
 | `overlayTex`, `OverlayActive`, `TransparentOverlay` | | Ground overlay image and its display state. |
 | `curTerrainTexture` | string | Last texture used for terrain patches. |
-| `renderingMode`, `shadowsEnabled`, `propsCullingDistance` | | Graphics options from the project settings panel. |
 | `scriptInputs:<source>:<name>` | string | The values last entered in the input panel of a Python script (a JSON object). |
 
 ## `GenericSettingsManager`

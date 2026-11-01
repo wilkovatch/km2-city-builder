@@ -41,7 +41,7 @@ public partial class CameraController : Camera3D {
         GameEngine.Input.ReloadKeys(); //TODO: remove after done
         cam = this;
         curRotation = RotationDegrees;
-        SetPropsCullingDistance(PreferencesManager.Get("propsCullingDistance", 300.0f));
+        SetPropsCullingDistance(SettingsManager.Get("propsCullingDistance", 300.0f));
         cam.CullMask &= ~GameEngine.Camera.RenderOnlyLayer;
         defaultCullingMask = cam.CullMask;
         LoadControls();

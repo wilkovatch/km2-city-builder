@@ -3924,7 +3924,7 @@ road(-750)
                 var before = await Call("view.screenshot");
                 var on = editorCam.ToggleWireframe();
                 var during = await Call("view.screenshot");
-                var renderingMode = PreferencesManager.Get("renderingMode", 0);
+                var renderingMode = SettingsManager.Get("renderingMode", 0);
                 builder.SetCameraRenderingMode(1);
                 var ambientSynced = editorCam.Environment?.AmbientLightColor.IsEqualApprox(Colors.White) == true;
                 builder.SetCameraRenderingMode(renderingMode);

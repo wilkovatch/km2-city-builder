@@ -14,7 +14,7 @@ namespace Api {
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder);
             var roadPanel = Panel("roadEditorPanel");
             var heightPanel = Panel("heightmapEditorPanel");
-            var projectPanel = Panel("projectSettingsEditorPanel");
+            var projectPanel = Panel("settingsEditorPanel");
             var types = CT.Parsers.TypeParser.GetCustomElementTypes();
             var scripts = LuaScriptHost.Get();
             var parametric = CT.Parsers.TypeParser.GetParametricMeshInstanceSettings();

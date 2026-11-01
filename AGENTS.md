@@ -142,7 +142,7 @@ Simulating input in self-tests:
 - **Terrain3D** snaps heightmap imports to its region grid; the region size is `min(256, resolution/2)`.
 - An exactly vertical physics ray on an edge of the Terrain3D heightmap cells can miss the terrain (Godot physics: whole coordinates at negative X near the origin, where the snapped clicks are). `DoRaycast` and `TryProjectPoint` retry vertical rays a little off the edges (`IntersectVerticalRay`); raw vertical `IntersectRay` calls need the same.
 - Forward+ wireframe works without `RenderingServer.SetDebugGenerateWireframes` (needed only on the Compatibility renderer).
-- Graphics settings (`renderingMode`, `shadowsEnabled`) are per city in `preferences.json`.
+- Graphics settings (`renderingMode`, `shadowsEnabled`, `propsCullingDistance`) are global, in `settings.json` (Settings→Preferences→Graphics). Local paths and the ground overlay stay per city in `preferences.json`.
 
 ## Game-specific reference
 

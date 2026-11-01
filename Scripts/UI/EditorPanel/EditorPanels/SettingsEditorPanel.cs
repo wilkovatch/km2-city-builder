@@ -16,17 +16,27 @@ namespace EditorPanels {
         EditorPanelElements.Checkbox mcpEnabled;
         EditorPanelElements.InputField mcpPort, mcpToken, mcpCommand;
         EditorPanelElements.Label mcpStatus;
+        EditorPanelElements.ScrollList globalPaths, localPaths;
+        EditorPanelElements.Button deleteLocalPathBtn, addLocalPathBtn;
+        EditorPanelElements.TextureField overlayField;
+        EditorPanelElements.InputField propsCullingDistance;
+        EditorPanelElements.Dropdown renderingModeDropdown;
+        EditorPanelElements.Checkbox shadowsCheckbox;
         List<CM.CoreInfo> curList;
         int curCoreI = -1;
         int curScriptFolderI = -1;
+        int curGlobalPathI = -1;
+        int curLocalPathI = -1;
 
         public override void Initialize(GameObject canvas) {
-            pageButtonNames.AddRange(new string[] { SM.Get("PREF_TAB_CORES"), SM.Get("PREF_TAB_PYTHON"), SM.Get("PREF_TAB_CONTROLS"), SM.Get("PREF_TAB_MCP") });
-            Initialize(canvas, 4);
+            pageButtonNames.AddRange(new string[] { SM.Get("PREF_TAB_CORES"), SM.Get("PREF_TAB_PYTHON"), SM.Get("PREF_TAB_CONTROLS"), SM.Get("PREF_TAB_MCP"), SM.Get("PREF_TAB_PATHS"), SM.Get("PREF_TAB_GFX") });
+            Initialize(canvas, new List<int> { 3, 3 });
             var p0 = GetPage(0);
             var p1 = GetPage(1);
             var p2 = GetPage(2);
             var p3 = GetPage(3);
+            var p4 = GetPage(4);
+            var p5 = GetPage(5);
             var w = 1.5f;
 
             //Cores
@@ -110,7 +120,73 @@ namespace EditorPanels {
             p3.IncreaseRow();
             p3.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, w);
 
+            //Paths (the global ones are program settings, the local ones and the overlay belong to the open city)
+            globalPaths = p4.AddScrollList(SM.Get("PREF_GLOBAL_PATHS"), new List<string>(), x => curGlobalPathI = x, w, SM.Get("PREF_GLOBAL_PATHS_TOOLTIP"));
+            p4.IncreaseRow(5.0f);
+            p4.AddButton(SM.Get("PREF_GLOBAL_PATHS_DELETE"), delegate {
+                DeletePath(ref curGlobalPathI, delegate { return SettingsManager.GetList<string>("extraFolders", null); }, x => SettingsManager.SetList("extraFolders", x), globalPaths);
+            }, w * 0.5f);
+            p4.AddButton(SM.Get("PREF_GLOBAL_PATHS_ADD"), delegate {
+                GetPath(x => { AddPath(x, ref curGlobalPathI, delegate { return SettingsManager.GetList<string>("extraFolders", null); }, x => SettingsManager.SetList("extraFolders", x), globalPaths); });
+            }, w * 0.5f);
+            p4.IncreaseRow();
+            localPaths = p4.AddScrollList(SM.Get("PREF_LOCAL_PATHS"), new List<string>(), x => curLocalPathI = x, w, SM.Get("PREF_LOCAL_PATHS_TOOLTIP"));
+            p4.IncreaseRow(5.0f);
+            deleteLocalPathBtn = p4.AddButton(SM.Get("PREF_LOCAL_PATHS_DELETE"), delegate {
+                DeletePath(ref curLocalPathI, delegate { return PreferencesManager.GetList<string>("extraFolders", null); }, x => PreferencesManager.SetList("extraFolders", x), localPaths);
+            }, w * 0.5f);
+            addLocalPathBtn = p4.AddButton(SM.Get("PREF_LOCAL_PATHS_ADD"), delegate {
+                GetPath(x => { AddPath(x, ref curLocalPathI, delegate { return PreferencesManager.GetList<string>("extraFolders", null); }, x => PreferencesManager.SetList("extraFolders", x), localPaths); });
+            }, w * 0.5f);
+            p4.IncreaseRow();
+            overlayField = p4.AddTextureField(builder, SM.Get("GROUND_OVERLAY"), SM.Get("TEXTURE_PH"), "", x => {
+                PreferencesManager.Set("overlayTex", x);
+                builder.helper.LoadOverlayTexture(x);
+            }, delegate {
+                return PreferencesManager.Get("overlayTex", "");
+            }, x => PreferencesManager.Set("overlayTex", x), w, SM.Get("OVERLAY_TOOLTIP"));
+            p4.IncreaseRow();
+            p4.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, w);
+
+            //Graphics
+            renderingModeDropdown = p5.AddDropdown(SM.Get("PREF_GFX_RENDERING_MODE"), new List<string> { SM.Get("PREF_GFX_RENDERING_MODE_NORMAL"), SM.Get("PREF_GFX_RENDERING_MODE_VERTEX_LIT") }, builder.helper.menuBar.SetCameraRenderingMode, w);
+            p5.IncreaseRow();
+            shadowsCheckbox = p5.AddCheckbox(SM.Get("PREF_GFX_SHADOWS"), true, builder.helper.menuBar.SetShadows, w);
+            p5.IncreaseRow();
+            propsCullingDistance = p5.AddInputField(SM.Get("PREF_GFX_PROP_CULL_DIST"), SM.Get("NUMBER_PH"), "", GameEngine.InputContentType.Decimal, builder.helper.menuBar.SetPropsCullingDistance, w);
+            p5.IncreaseRow();
+            p5.AddButton(SM.Get("CLOSE"), delegate { SetActive(false); }, w);
+
             ReloadCoreList(cores, true);
+        }
+
+        void DeletePath(ref int curPathI, System.Func<List<string>> getter, System.Action<List<string>> setter, EditorPanelElements.ScrollList paths) {
+            if (curPathI == -1) return;
+            var lst = getter.Invoke();
+            if (lst != null) {
+                lst.RemoveAt(curPathI);
+                setter.Invoke(lst);
+            }
+            ReloadPathList(ref curPathI, getter, paths, true);
+        }
+
+        void AddPath(string value, ref int curPathI, System.Func<List<string>> getter, System.Action<List<string>> setter, EditorPanelElements.ScrollList paths) {
+            var lst = getter.Invoke();
+            if (lst == null) lst = new List<string>();
+            lst.Add(value);
+            setter.Invoke(lst);
+            ReloadPathList(ref curPathI, getter, paths, true);
+        }
+
+        void GetPath(System.Action<string> saveAction) {
+            builder.CreateInput(SM.Get("PREF_PATH_INPUT_TITLE"), SM.Get("PREF_PATH_INPUT_PH"), SM.Get("ADD"), SM.Get("CANCEL"), str => { saveAction.Invoke(str); });
+        }
+
+        void ReloadPathList(ref int curPathI, System.Func<List<string>> getter, EditorPanelElements.ScrollList paths, bool deselect) {
+            paths.Deselect();
+            var lst = getter.Invoke();
+            paths.SetItems(lst != null ? new List<string>(lst) : new List<string>());
+            if (deselect) curPathI = -1;
         }
 
         void ShowMcpStatus() {
@@ -343,6 +419,17 @@ namespace EditorPanels {
                 emulateMiddle.SetValue(SettingsManager.Get("emulateMiddleButton", false));
                 mcpEnabled.SetValue(SettingsManager.Get("mcpServerEnabled", false));
                 ShowMcpStatus();
+                ReloadPathList(ref curGlobalPathI, delegate { return SettingsManager.GetList<string>("extraFolders", null); }, globalPaths, true);
+                //the preferences of a city exist only while one is open
+                var cityOpen = PreferencesManager.workingDirectory != "";
+                ReloadPathList(ref curLocalPathI, delegate { return cityOpen ? PreferencesManager.GetList<string>("extraFolders", null) : null; }, localPaths, true);
+                deleteLocalPathBtn.SetInteractable(cityOpen);
+                addLocalPathBtn.SetInteractable(cityOpen);
+                overlayField.SetInteractable(cityOpen);
+                overlayField.SetValue(cityOpen ? PreferencesManager.Get("overlayTex", "") : "");
+                renderingModeDropdown.SetValue(SettingsManager.Get("renderingMode", 0));
+                shadowsCheckbox.SetValue(SettingsManager.Get("shadowsEnabled", true));
+                propsCullingDistance.SetValue("" + SettingsManager.Get("propsCullingDistance", 300.0f));
             }
             base.SetActive(active);
         }

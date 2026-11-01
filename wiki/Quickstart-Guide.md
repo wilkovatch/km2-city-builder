@@ -37,14 +37,14 @@ Cores can only be managed while no city is loaded (to close the current city sel
 
 ### Stock assets and search paths
 
-The editor looks for textures and meshes in the city folder, and in any additional path you add in *Edit→Project settings→Paths*:
+The editor looks for textures and meshes in the city folder, and in any additional path you add in *Settings→Preferences→Paths*:
 
 - *Global paths* are used for all cities
-- *Local paths* are used for the current city only
+- *Local paths (this project)* are used for the current city only (they can be edited only while a city is open)
 
 Paths starting with a dot are relative to the *Files/common* folder in the city builder folder. If you want to use the stock meshes and textures of the game you are creating the city for, the usual place for them is *Files/common/\<core name\>*, as the city templates of a core may already include a local path pointing there.
 
-![The Paths tab of the project settings](images/project-settings-panel.png)
+![The Paths tab of the preferences](images/preferences-paths-panel.png)
 
 The supported texture formats are .bmp, .jpg, .png, .tga and .dds, the supported mesh format is .obj. Cores can add support for more mesh and texture formats (e.g. the native formats of the game) via Python scripting.
 
@@ -70,7 +70,7 @@ The (empty) city is then loaded.
 - To discard all the changes made since the last save, select *File→Reload city*.
 - To close the current city, select *File→Close city*.
 
-Everything about a city is stored in its folder: the city itself (*city.json.gz*), its presets (*presets.json*) and its project settings (*preferences.json*), along with the textures and meshes you placed there. Copying the folder is enough to back up a city (the textures and meshes found through the other search paths are not included).
+Everything about a city is stored in its folder: the city itself (*city.json.gz*), its presets (*presets.json*) and its own preferences (*preferences.json*), along with the textures and meshes you placed there. Copying the folder is enough to back up a city (the textures and meshes found through the other search paths are not included).
 
 Exporting the city for the game is described in [Exporting](#exporting).
 
@@ -185,7 +185,7 @@ Select *Edit→Toggle terrain edit menu*, choose a *Terrain modifier* (*Raise te
 
 ### Ground overlay
 
-You can display an image on the ground as a guide for placing roads (e.g. a map of the real city): copy it in the city folder, select it in the *Ground overlay* field of *Edit→Project settings*, then enable it with *View→Ground overlay*. Its opacity can be changed with *View→Change overlay transparency*.
+You can display an image on the ground as a guide for placing roads (e.g. a map of the real city): copy it in the city folder, select it in the *Ground overlay (this project)* field of *Settings→Preferences→Paths*, then enable it with *View→Ground overlay*. Its opacity can be changed with *View→Change overlay transparency*.
 
 ### View options
 
@@ -194,7 +194,7 @@ You can display an image on the ground as a guide for placing roads (e.g. a map 
 - *View→Hide terrain grid* hides the terrain, which can't be clicked while hidden: use it to place points or objects on a surface the terrain covers (e.g. a road under it). Elements projected on the city surfaces, such as the MM2 decals, already go under the terrain. Roads and other elements projected on the terrain still follow it, so a road, building line or terrain patch started while the terrain is hidden has its *Project to ground* turned off (it can be turned on again). The *Project to ground* button of a mesh instance skips the hidden terrain as well: it puts the instance on the surface it can be placed on under it, or at the zero height if there is none.
 - *View→Wireframe* shows the meshes as wireframe, on a plain background.
 - *View→Reset window* restores the default window size.
-- The rendering mode, the shadows and the props culling distance are in *Edit→Project settings→Graphics*.
+- The rendering mode, the shadows and the props culling distance are in *Settings→Preferences→Graphics*. They apply to all cities.
 
 ## Presets
 
