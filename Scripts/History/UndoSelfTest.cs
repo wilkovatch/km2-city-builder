@@ -2140,6 +2140,67 @@ namespace History {
             await Frames(6);
             var redone = Latest();
             Check("height: redo", redone != null && redone.points.Count == 3 && !redone.state.Bool("project") && Mathf.Abs(Y(2, redone) - height) < 0.05f);
+            await HeightSnapTests();
+        }
+
+        async Task HeightSnapTests() {
+            InvokeBuilder("DeselectAndCloseCurrentPanel");
+            await Frames(3);
+            var cam = GetViewport().GetCamera3D();
+            var center = new Vector3(0, 30, 400);
+            GO.SetPosition(cam, center + new Vector3(0, 220, -250));
+            GO.LookAt(cam, center);
+            Vector2 Screen(Vector3 p) => cam.UnprojectPosition(GameEngine.Vector3.DecodePosition(p));
+            PlacementHeight.BeginHold(center - Vector3.Up * 30, Screen(center - Vector3.Up * 30));
+            PlacementHeight.Update(cam, Screen(center));
+            PlacementHeight.EndHold();
+            center.Y = PlacementHeight.Height;
+
+            var target = M.CreateRoad();
+            target.state.SetBool("project", false);
+            target.AddPoint(center + Vector3.Left * 60);
+            target.AddPoint(center + Vector3.Right * 60);
+            await Frames(6);
+            //make an actual intersection as well as a free road end and a spline target
+            var (intersection, _) = Operations.Roads.Split(M, target, center);
+            Check("height snap: the target intersection is created", intersection != null);
+            if (intersection == null) return;
+            UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
+            await Frames(6);
+            var placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
+            var masks = placer.GetLayerMasks();
+            var apply = typeof(TerrainClick).GetMethod("ApplyPlacementHeight", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var end = GO.GetPosition(target.points[0]);
+            var middle = target.splitLine.Resolve(center + Vector3.Left * 30).Value.point;
+            List<GameEngine.Raycast.RaycastHit?> Hits(Vector3 point) {
+                //stale mouse hits must be replaced, including the spline hit after the ground hit in the list
+                var hits = new List<GameEngine.Raycast.RaycastHit?> {
+                    new GameEngine.Raycast.RaycastHit { collider = intersection.point, point = center },
+                    null, null,
+                    new GameEngine.Raycast.RaycastHit { collider = target.splitLine, point = middle }
+                };
+                apply.Invoke(builder.terrainClick, new object[] { hits, masks, placer.GroundHitIndex, false, point + Vector3.Up * 100, Vector3.Down });
+                return hits;
+            }
+            //the effective point is on the raised plane, independently of the stale mouse ray hits
+            Check("height snap: the effective point can snap to an intersection", Hits(center)[0]?.collider == intersection.point);
+            Check("height snap: the effective point can snap to a free road end", Hits(end)[0]?.collider == target.points[0]);
+            Check("height snap: the effective point can snap to a spline", Hits(middle)[3]?.collider == target.splitLine);
+            var offTarget = Hits(center + Vector3.Forward * 25);
+            Check("height snap: mouse hits away from the effective point are discarded", !offTarget[0].HasValue && !offTarget[3].HasValue);
+
+            //the same screen position can point at a road at a different height
+            PlacementHeight.BeginHold(center, Screen(center));
+            PlacementHeight.Update(cam, Screen(center + Vector3.Up * 30));
+            PlacementHeight.EndHold();
+            Vector3 AboveOnRay(Vector3 point) {
+                var ray = GameEngine.Raycast.GetRayFromScreen(cam, Screen(point));
+                return PlacementHeight.GetRaisedHit(ray.origin, ray.direction).Value.point;
+            }
+            Check("height snap: an intersection under the mouse at another height is ignored", !Hits(AboveOnRay(center))[0].HasValue);
+            Check("height snap: a road end under the mouse at another height is ignored", !Hits(AboveOnRay(end))[0].HasValue);
+            Check("height snap: a spline under the mouse at another height is ignored", !Hits(AboveOnRay(middle))[3].HasValue);
+            PlacementHeight.Reset();
         }
 
         //the item list of a road editor dropdown, opened with a real click: arrow keys move through it, the mouse wheel over it

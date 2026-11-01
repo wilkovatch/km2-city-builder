@@ -90,6 +90,11 @@ public partial class TerrainClick : Control {
         }
         var raised = PlacementHeight.GetRaisedHit(rayOrigin, rayDirection);
         hits[groundIndex] = raised;
+        //the mouse can move away from the point's vertical line while dragging (and its ray can cross roads
+        //at another height afterwards). Pick the snap targets at the effective point, in all three dimensions.
+        for (int i = 0; i < hits.Count; i++) {
+            if (i != groundIndex) hits[i] = raised.HasValue ? GetPlacementSnapHit(raised.Value.point, masks[i]) : null;
+        }
         PlacementHeight.Active = true;
         //no line while a hit before it (an anchor, a road end, ...) is where the point goes instead
         var covered = false;
@@ -99,6 +104,28 @@ public partial class TerrainClick : Control {
         } else {
             ActionHandlerManager.HideHeightLine();
         }
+    }
+
+    RaycastHit? GetPlacementSnapHit(Vector3 point, int mask) {
+        const float snapDistance = 1.0f;
+        var camera = GetViewport().GetCamera3D();
+        var screen = camera.UnprojectPosition(GameEngine.Vector3.DecodePosition(point));
+        var ray = GameEngine.Raycast.GetRayFromScreen(camera, screen);
+        if (!Raycast(ray.origin, ray.direction, out var candidate, TerrainRayDistance, mask)) return null;
+        var obj = candidate.collider as Node3D;
+        Vector3 snapPoint;
+        if (obj is RoadSplitLine line) {
+            var resolved = line.Resolve(point);
+            if (!resolved.HasValue) return null;
+            snapPoint = resolved.Value.point;
+        } else if (obj is Handle) {
+            snapPoint = GameEngine.GameObject.GetPosition(obj);
+        } else {
+            snapPoint = Actions.Helpers.GetAnchorInfo(obj, point).pos;
+        }
+        if (snapPoint.DistanceSquaredTo(point) > snapDistance * snapDistance) return null;
+        candidate.point = point;
+        return candidate;
     }
 
     //Shift pressed over a point to place starts a hold, moving the mouse while holding it sets the height, releasing it
