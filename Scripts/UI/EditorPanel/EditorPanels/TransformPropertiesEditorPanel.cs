@@ -503,7 +503,7 @@ namespace EditorPanels {
         bool[] GetPointRotationAxes() {
             var road = GetHandleRoad();
             if (road == null) return new bool[] { false, false, false };
-            return new bool[] { false, road.IsYawAllowed(road.points.IndexOf(instance as StaticBody3D)), road.IsRollAllowed() };
+            return new bool[] { false, road.IsYawEditable(road.points.IndexOf(instance as StaticBody3D)), road.IsRollEditable() };
         }
 
         object GetCurPointRotation() {

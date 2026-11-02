@@ -666,6 +666,28 @@ namespace Api {
                 c["pointRotations"][0][0].Value<float>() == 15 && c["effectivePointRotations"][0][1].Value<float>() == Allowed(roadSettings.allowRoll, 12)
                 && c["pointRotations"][last][0].Value<float>() == 75 && c["effectivePointRotations"][last][0].Value<float>() == intersectionYaw);
             await Expect("a rotation of a point that doesn't exist", "not_found", "roads.setPointRotation", new { road = roadC, index = 5, yaw = 1 });
+            if (roadSettings.allowRoll && roadSettings.rollRequires != null) {
+                var rollRoad = History.ElementRegistry.Get<Road>(roadC);
+                Check("the roll is not editable without the city property it requires, but a roll already set applies", !rollRoad.IsRollEditable() && c["effectivePointRotations"][0][1].Value<float>() == 12);
+                await Call("state.setParam", new { @ref = 0, name = roadSettings.rollRequires, value = true });
+                await Call("city.flush");
+                Check("the roll is editable with the city property it requires", rollRoad.IsRollEditable());
+                await Call("state.setParam", new { @ref = 0, name = roadSettings.rollRequires, value = false });
+                await Call("city.flush");
+                Check("turning the city property off doesn't change the roll", !rollRoad.IsRollEditable() && (await Derived(roadC))["effectivePointRotations"][0][1].Value<float>() == 12);
+            }
+            if (roadSettings.allowYaw) {
+                var yawRoad = History.ElementRegistry.Get<Road>(roadC);
+                var yawRequires = roadSettings.yawRequires;
+                try {
+                    roadSettings.yawRequires = "zzYawTest";
+                    Check("the yaw is not editable without the city property it requires, but a yaw already set applies", !yawRoad.IsYawEditable(0) && (await Derived(roadC))["effectivePointRotations"][0][0].Value<float>() == 15);
+                    yawRoad.runtimeState.SetBool("_GLOBAL_zzYawTest", true);
+                    Check("the yaw is editable with the city property it requires", yawRoad.IsYawEditable(0));
+                } finally {
+                    roadSettings.yawRequires = yawRequires;
+                }
+            }
             foreach (var p in new[] { 0, last }) await Call("roads.setPointRotation", new { road = roadC, index = p, yaw = 0, roll = 0 });
 
             //the height of a road end on an intersection

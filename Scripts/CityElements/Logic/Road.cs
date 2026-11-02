@@ -288,6 +288,19 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         return settings != null && settings.allowRoll;
     }
 
+    //whether the editor can change the rotations: without the yawRequires or rollRequires property a value already set still applies
+    public bool IsYawEditable(int index) {
+        return IsYawAllowed(index) && RequirementMet(GetTypeSettings().yawRequires);
+    }
+
+    public bool IsRollEditable() {
+        return IsRollAllowed() && RequirementMet(GetTypeSettings().rollRequires);
+    }
+
+    bool RequirementMet(string required) {
+        return required == null || runtimeState.Bool("_GLOBAL_" + required);
+    }
+
     //an end on an intersection has a lower yaw limit (the corners of its mouth move by tan(yaw) times half its width)
     static float ClampIntersectionYaw(float yaw) {
         return Mathf.Clamp(yaw, -GeometryHelper.MaxIntersectionYaw, GeometryHelper.MaxIntersectionYaw);
@@ -392,8 +405,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             if (rotation.AngleTo(handle.curveOrientation.Value) < 0.001f) continue; //the conversions make tiny differences
             var euler = (handle.curveFrame.Inverse() * rotation).Normalized().GetEuler();
             var cur = handle.curveRotation;
-            handle.curveRotation = ClampRotation(new Vector2(IsYawAllowed(i) ? Mathf.RadToDeg(euler.Y) : cur.X,
-                IsRollAllowed() ? Mathf.RadToDeg(euler.Z) : cur.Y));
+            handle.curveRotation = ClampRotation(new Vector2(IsYawEditable(i) ? Mathf.RadToDeg(euler.Y) : cur.X,
+                IsRollEditable() ? Mathf.RadToDeg(euler.Z) : cur.Y));
             if (handle.curveRotation.Y != cur.Y) SyncSeamlessRoll(i);
             var effective = GetEffectiveRotations()[i];
             OrientHandle(handle, effective);

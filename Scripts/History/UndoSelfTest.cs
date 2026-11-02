@@ -372,7 +372,7 @@ namespace History {
                     .Invoke(transformPanel, null);
                 Check("rotate mode on a road point: local space, no pitch, yaw and roll as the road type allows",
                     gizmo.transformType == RuntimeGizmos.TransformType.Rotate && gizmo.space == RuntimeGizmos.TransformSpace.Local
-                    && !gizmo.rotAxesAllowed[0] && gizmo.rotAxesAllowed[1] && gizmo.rotAxesAllowed[2] == road.IsRollAllowed());
+                    && !gizmo.rotAxesAllowed[0] && gizmo.rotAxesAllowed[1] == road.IsYawEditable(rotIndex) && gizmo.rotAxesAllowed[2] == road.IsRollEditable());
                 var yaw0 = road.GetPointRotations()[rotIndex].X;
                 string RotatedPoint() {
                     var cur = ElementRegistry.Get<Road>(roadId);
@@ -2457,6 +2457,32 @@ namespace History {
             builder.gizmo.AddTarget(road.points[1]);
             InvokeBuilder("EditCurSelectedObjectTransform");
             await Frames(6);
+            var roadSettings = CityElements.Types.Parsers.TypeParser.GetRoadTypes()[road.state.Str("type")].typeData.settings;
+            if (road.IsYawAllowed(1)) {
+                var yawRequires = roadSettings.yawRequires;
+                try {
+                    roadSettings.yawRequires = "zzYawTest";
+                    transformPanel.SetActive(true);
+                    await Frames(6);
+                    Check("the yaw field is disabled without the city property it requires", !FindField("rotation.yaw", transformPanel).Editable);
+                    road.runtimeState.SetBool("_GLOBAL_zzYawTest", true);
+                    transformPanel.SetActive(true);
+                    await Frames(6);
+                    Check("the yaw field is enabled with the city property it requires", FindField("rotation.yaw", transformPanel).Editable);
+                } finally {
+                    roadSettings.yawRequires = yawRequires;
+                }
+                transformPanel.SetActive(true);
+                await Frames(6);
+            }
+            var rollRequires = roadSettings.rollRequires;
+            if (rollRequires != null && road.IsRollAllowed()) {
+                Check("the roll field is disabled without the city property it requires", !FindField("rotation.roll", transformPanel).Editable);
+                road.runtimeState.SetBool("_GLOBAL_" + rollRequires, true);
+                transformPanel.SetActive(true);
+                await Frames(6);
+                Check("the roll field is enabled with the city property it requires", FindField("rotation.roll", transformPanel).Editable);
+            }
             foreach (var axis in new[] { "yaw", "roll" }) {
                 var field = FindField("rotation." + axis, transformPanel);
                 if (!field.Editable) continue; //the core determines which axes are allowed

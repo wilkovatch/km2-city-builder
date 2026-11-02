@@ -29,6 +29,8 @@ namespace CityElements.Types {
         public bool variableSections;
         public bool allowYaw = true; //whether the control points can rotate the sections around the vertical axis
         public bool allowRoll = true; //whether the control points can bank the sections
+        public string yawRequires; //bool city property injected on roads, needed to edit the yaw in the editor
+        public string rollRequires; //the same for the roll
         public object[] sectionVertices;
         public object anchors;
         public object endAnchors; //the points of the end section given to its intersection as anchors for the custom elements
