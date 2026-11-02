@@ -194,7 +194,11 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "arrows") {
+                if (focus == "races") {
+                    await NewCity();
+                    await RaceCreation();
+                    await OpponentWaypointUndo();
+                } else if (focus == "arrows") {
                     await NewCity();
                     await DirectionArrows();
                 } else if (focus == "meshTextures") {
@@ -3110,55 +3114,66 @@ road(-750)
             var roomElement = Element(room);
             var clicked = GameEngine.Raycast.DoRaycast(builder.helper, new Vector3(1010, 50, 1300), Vector3.Down, out var hit, 100, 1 << 7);
             Check("a room with a perimeter can be clicked", clicked && hit.collider == roomElement.generator);
-            //the outline is hidden by the core's view toggle (and can't be clicked then), but shown while the room is edited;
+            //the outline is hidden by its view toggle (and can't be clicked then), but shown while the room is edited;
             //the room has no contents, so its placeholder surface inside the perimeter can be clicked anyway (the outline is
             //clicked just outside it)
             bool OutlineShown() => roomElement.generator.GetChildren().OfType<GameEngine.LineRenderer>().Any(l => l.enabled);
             bool ClickableAt(float z) => GameEngine.Raycast.DoRaycast(builder.helper, new Vector3(1010, 50, z), Vector3.Down, out var h, 100, 1 << 7) && h.collider == roomElement.generator;
             bool Clickable() => ClickableAt(1299.9f);
-            var toggles = (JArray)await Call("view.toggles");
-            Check("view.toggles lists the room outlines of the core, on", toggles.Any(t => t["name"].Value<string>() == "roomOutlines" && t["on"].Value<bool>()));
-            await Call("view.setToggle", new { name = "roomOutlines", on = false });
-            await Frames(2);
-            var offShown = OutlineShown();
-            var offClickable = Clickable();
-            var placeholderClickable = ClickableAt(1310);
-            roomElement.SetActive(true, true);
-            var editedShown = OutlineShown();
-            roomElement.SetActive(false, false);
-            Check("the room outline is hidden by its view toggle (shown " + offShown + ", clickable " + offClickable + ", while edited " + editedShown + ")",
-                !offShown && !offClickable && editedShown && !OutlineShown());
-            Check("a room without contents can be clicked inside its perimeter (its placeholder surface) with the outlines hidden", placeholderClickable);
-            Check("the view toggle is saved in the city preferences", PreferencesManager.Get("viewToggle.roomOutlines", true) == false
-                && ((JArray)await Call("view.toggles")).Any(t => t["name"].Value<string>() == "roomOutlines" && !t["on"].Value<bool>()));
-            await Call("view.setToggle", new { name = "roomOutlines", on = true });
-            await Frames(2);
-            Check("the room outline is shown again with its view toggle on", OutlineShown() && Clickable());
-            await Expect("an unknown view toggle", "not_found", "view.setToggle", new { name = "noSuchToggle", on = true });
-            //in the View menu: after Reset window and a separator, a check item switching it
+            //the core's room type uses the toggle, but the core doesn't list it: added in memory
+            var coreToggles = Rendering.ViewToggles.List();
+            var addedToggle = coreToggles.Any(t => t.name == "roomOutlines") ? null : new Rendering.ViewToggles.Toggle { name = "roomOutlines", label = "VIEW_ROOM_OUTLINES" };
+            if (addedToggle != null) coreToggles.Add(addedToggle);
             var viewMenu = CallBuilder<MenuBar>("GetMenuBar").FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>().First(b => b.Text == StringManager.Get("VIEW")).GetPopup();
-            viewMenu.EmitSignal(PopupMenu.SignalName.AboutToPopup);
-            var outlinesItem = viewMenu.ItemCount - 1;
-            Check("the View menu ends with a separator and the checked room outlines toggle",
-                viewMenu.GetItemText(outlinesItem - 2) == StringManager.Get("ZOOM_TO_SELECTION").Split('\t')[0].TrimEnd() && viewMenu.IsItemSeparator(outlinesItem - 1)
-                && viewMenu.GetItemText(outlinesItem) == StringManager.Get("VIEW_ROOM_OUTLINES") && viewMenu.IsItemCheckable(outlinesItem) && viewMenu.IsItemChecked(outlinesItem));
-            async Task MenuScreenshot(string name) {
-                if (DisplayServer.GetName() == "headless") return;
-                viewMenu.Popup(new Rect2I(200, 40, 0, 0));
-                await Frames(3);
-                Screenshot(name);
-                viewMenu.Hide();
+            try {
+                var toggles = (JArray)await Call("view.toggles");
+                Check("view.toggles lists the room outlines toggle, on", toggles.Any(t => t["name"].Value<string>() == "roomOutlines" && t["on"].Value<bool>()));
+                await Call("view.setToggle", new { name = "roomOutlines", on = false });
+                await Frames(2);
+                var offShown = OutlineShown();
+                var offClickable = Clickable();
+                var placeholderClickable = ClickableAt(1310);
+                roomElement.SetActive(true, true);
+                var editedShown = OutlineShown();
+                roomElement.SetActive(false, false);
+                Check("the room outline is hidden by its view toggle (shown " + offShown + ", clickable " + offClickable + ", while edited " + editedShown + ")",
+                    !offShown && !offClickable && editedShown && !OutlineShown());
+                Check("a room without contents can be clicked inside its perimeter (its placeholder surface) with the outlines hidden", placeholderClickable);
+                Check("the view toggle is saved in the city preferences", PreferencesManager.Get("viewToggle.roomOutlines", true) == false
+                    && ((JArray)await Call("view.toggles")).Any(t => t["name"].Value<string>() == "roomOutlines" && !t["on"].Value<bool>()));
+                await Call("view.setToggle", new { name = "roomOutlines", on = true });
+                await Frames(2);
+                Check("the room outline is shown again with its view toggle on", OutlineShown() && Clickable());
+                await Expect("an unknown view toggle", "not_found", "view.setToggle", new { name = "noSuchToggle", on = true });
+                //in the View menu: after Reset window and a separator, a check item switching it
+                viewMenu.EmitSignal(PopupMenu.SignalName.AboutToPopup);
+                var outlinesItem = viewMenu.ItemCount - 1;
+                Check("the View menu ends with a separator and the checked room outlines toggle",
+                    viewMenu.GetItemText(outlinesItem - 2) == StringManager.Get("ZOOM_TO_SELECTION").Split('\t')[0].TrimEnd() && viewMenu.IsItemSeparator(outlinesItem - 1)
+                    && viewMenu.GetItemText(outlinesItem) == StringManager.Get("VIEW_ROOM_OUTLINES") && viewMenu.IsItemCheckable(outlinesItem) && viewMenu.IsItemChecked(outlinesItem));
+                async Task MenuScreenshot(string name) {
+                    if (DisplayServer.GetName() == "headless") return;
+                    viewMenu.Popup(new Rect2I(200, 40, 0, 0));
+                    await Frames(3);
+                    Screenshot(name);
+                    viewMenu.Hide();
+                }
+                await MenuScreenshot("view_menu_toggle_on.png");
+                viewMenu.EmitSignal(PopupMenu.SignalName.IdPressed, viewMenu.GetItemId(outlinesItem));
+                await Frames(2);
+                var offFromMenu = !OutlineShown();
+                viewMenu.EmitSignal(PopupMenu.SignalName.AboutToPopup);
+                var uncheckedInMenu = !viewMenu.IsItemChecked(outlinesItem);
+                await MenuScreenshot("view_menu_toggle_off.png");
+                viewMenu.EmitSignal(PopupMenu.SignalName.IdPressed, viewMenu.GetItemId(outlinesItem));
+                await Frames(2);
+                Check("the View menu item switches the toggle (off " + offFromMenu + ", unchecked " + uncheckedInMenu + ")", offFromMenu && uncheckedInMenu && OutlineShown());
+            } finally {
+                if (addedToggle != null) {
+                    coreToggles.Remove(addedToggle);
+                    viewMenu.EmitSignal(PopupMenu.SignalName.AboutToPopup);
+                }
             }
-            await MenuScreenshot("view_menu_toggle_on.png");
-            viewMenu.EmitSignal(PopupMenu.SignalName.IdPressed, viewMenu.GetItemId(outlinesItem));
-            await Frames(2);
-            var offFromMenu = !OutlineShown();
-            viewMenu.EmitSignal(PopupMenu.SignalName.AboutToPopup);
-            var uncheckedInMenu = !viewMenu.IsItemChecked(outlinesItem);
-            await MenuScreenshot("view_menu_toggle_off.png");
-            viewMenu.EmitSignal(PopupMenu.SignalName.IdPressed, viewMenu.GetItemId(outlinesItem));
-            await Frames(2);
-            Check("the View menu item switches the toggle (off " + offFromMenu + ", unchecked " + uncheckedInMenu + ")", offFromMenu && uncheckedInMenu && OutlineShown());
             await Submenus();
             //a closed array: the element added after the last one is between it and the first one
             await Call("customElement.insert", new { element = room, array = "perimeter" });

@@ -37,6 +37,7 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
     public abstract ObjectState[] GetContainerStateArrayForParametricObjects();
 
     public abstract CityElements.Types.Runtime.RuntimeType<T> GetRuntimeType();
+    protected virtual bool ReuseParametricObjects => false;
 
     public virtual bool VerifyObjectCondition(string key) {
         var runtimeType = GetRuntimeType();
@@ -198,7 +199,7 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
         //remove everything to avoid sync issues
         List<string> keysToDelete = new List<string>();
         foreach (var param in objectInstances) {
-            keysToDelete.Add(param.Key);
+            if (!ReuseParametricObjects || !objParams.ContainsKey(param.Key)) keysToDelete.Add(param.Key);
         }
         foreach (var key in keysToDelete) {
             GS.FindRecursive<MeshInstance>(objectInstances[key]).Delete();
@@ -209,10 +210,17 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
         foreach (var param in objParams) {
             var instSettings = param.Value.objectInstanceSettings;
             var isEnabled = VerifyObjectCondition(param.Key);
+            if (!isEnabled && objectInstances.Remove(param.Key, out var disabled)) GS.FindRecursive<MeshInstance>(disabled)?.Delete();
             if (isEnabled) {
                 var instState = GetParametricObjectState(param.Key);
                 string model = instState.Str("meshPath", null);
                 if (model == null || !instSettings.allowCustomModel) model = GetDefaultModel(instSettings);
+                if (ReuseParametricObjects && objectInstances.TryGetValue(param.Key, out var previous)) {
+                    var current = GS.FindRecursive<MeshInstance>(previous);
+                    if (current != null && current.meshPath == model && current.objectParameter == param.Value) continue;
+                    current?.Delete();
+                    objectInstances.Remove(param.Key);
+                }
                 if (state?.State(param.Key) == null) state?.SetState(param.Key, new ObjectState());
                 var obj = MeshInstance.CreateParametric(model, GO.GetObject(this), true, GO.GetName(this) + " (" + param.Key + ")", param.Value, instState);
                 objectInstances.Add(param.Key, GO.GetParent(obj));

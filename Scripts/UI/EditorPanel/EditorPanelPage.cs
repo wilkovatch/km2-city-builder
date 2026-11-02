@@ -13,6 +13,7 @@ public class EditorPanelPage {
     GameObject tooltipObj;
     Dictionary<EditorPanelElement, FieldStatus> fieldElements = new Dictionary<EditorPanelElement, FieldStatus>();
     int curRow = 0;
+    float? curRowHeight = null;
     System.Action valueChangedAction;
     List<float> rowsHeights = new List<float>();
 
@@ -139,8 +140,14 @@ public class EditorPanelPage {
         if (curRow < elements.Count && elements[curRow].Count > 0) IncreaseRow();
     }
 
-    public void IncreaseRow(float heightFactor = 1.0f) {
-        rowsHeights[curRow] = 50 * heightFactor;
+    //the height of the current row when it ends, if IncreaseRow isn't given one (the tallest of those asked)
+    public void EnsureCurRowHeight(float heightFactor) {
+        curRowHeight = Mathf.Max(curRowHeight ?? 0, heightFactor);
+    }
+
+    public void IncreaseRow(float? heightFactor = null) {
+        rowsHeights[curRow] = 50 * (heightFactor ?? curRowHeight ?? 1.0f);
+        curRowHeight = null;
         curRow++;
         UpdatePanelHeight(curRow - 1);
     }

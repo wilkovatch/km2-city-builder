@@ -35,6 +35,7 @@ public abstract partial class EditorPanel {
     protected List<(EditorPanelElements.Button btn, CityElements.Types.Parameter param)> objectInstanceParameters = new List<(EditorPanelElements.Button btn, CityElements.Types.Parameter param)>();
     protected System.Func<IObjectWithState> getObject = null;
     private EditorPanels.ArrayElemEditorPanel arrayElemPanel = null;
+    private EditorPanels.ArrayListPanel arrayListPanel = null;
     private Dictionary<string, CityElements.Types.Parameter> parameterMap = new Dictionary<string, CityElements.Types.Parameter>();
     bool initializationPending = true;
     bool initializedForActivation = false;
@@ -146,11 +147,7 @@ public abstract partial class EditorPanel {
         var converter = ConverterCatalog.Get(converterName);
         var element = getObject?.Invoke();
         if (converter == null || element == null || !converter.Accepts(element)) return;
-        curW += elem.width;
-        if (curW > totW) {
-            p.IncreaseRow();
-            curW = elem.width;
-        }
+        PlaceInRow(p, ref curW, totW, elem.width);
         var button = p.AddButton(GetString(converter.label ?? converterName), delegate {
             builder.DoDelayed(() => builder.StartConversion(getObject?.Invoke(), converterName));
         }, elem.width, converter.tooltip != null ? GetString(converter.tooltip) : null);
@@ -170,12 +167,24 @@ public abstract partial class EditorPanel {
 
     protected virtual bool SingleStateParameters => parentPanel?.SingleStateParameters ?? false;
 
-    protected void AddParameters(EditorPanelPage p, ref float curW, float totW, CityElements.Types.Parameter[] parameters, CityElements.Types.TabElement elem, System.Func<IObjectWithState> getObject, bool prependstate) {
-        //TODO: in practice only processes one parameter, rename to AddParameter and pass directly the correct parameter?
-        curW += elem.width;
+    //the next element goes in the current row if it fits, otherwise in a new one
+    protected static void PlaceInRow(EditorPanelPage p, ref float curW, float totW, float width) {
+        curW += width;
         if (curW > totW) {
             p.IncreaseRow();
-            curW = elem.width;
+            curW = width;
+        }
+    }
+
+    protected void AddParameters(EditorPanelPage p, ref float curW, float totW, CityElements.Types.Parameter[] parameters, CityElements.Types.TabElement elem, System.Func<IObjectWithState> getObject, bool prependstate) {
+        //TODO: in practice only processes one parameter, rename to AddParameter and pass directly the correct parameter?
+        PlaceInRow(p, ref curW, totW, elem.width);
+        if (elem.name.StartsWith("label:")) {
+            //the row can be shorter than the text (e.g. above buttons, which have a margin at their top)
+            var height = elem.height > 0 ? elem.height : 0.4f;
+            p.AddLabel(GetString(elem.name.Substring("label:".Length)), elem.width, null, null, System.Math.Max(height, 0.4f));
+            p.EnsureCurRowHeight(height);
+            return;
         }
         foreach (var param in parameters) {
             if (param.fullName() == elem.name) {
@@ -228,6 +237,10 @@ public abstract partial class EditorPanel {
                         p.AddButton("...", delegate { BrowsePath(param, getObject, pFullName); }, elem.width * 0.2f, GetString(param.tooltip));
                         break;
                     case "array":
+                        if (OpensInSubPanel(param)) {
+                            p.AddButton(GetString(param.label), delegate { OpenArrayList(param); }, elem.width, GetString(param.tooltip), null);
+                            break;
+                        }
                         if (!complexElements.ContainsKey(typeof(IOList))) {
                             AddComplexElement(new IOList(this));
                         }
@@ -237,24 +250,22 @@ public abstract partial class EditorPanel {
                         System.Action<string> AddArrayElementD = x => { AddArrayElement(param); };
                         System.Action<string, int> SelectArrayElementD = (x, y) => { SelectArrayElement(param, y); };
                         System.Action<string, int> DeleteArrayElementD = (x, y) => { DeleteArrayElement(param, y); };
-                        System.Action<string, int> SwitchArrayClickAddModeD = delegate { SwitchArrayClickAddMode(param); };
                         System.Func<List<string>> GetArrayD = delegate { return GetArray(param); };
                         var extraButtons = new List<(string, System.Action<string, int>, IOListButtonMode)>() {
                             (SM.Get("ARRAY_CLONE"), CloneArrayElementD, IOListButtonMode.ElementSelectedAndNotFull),
                             (SM.Get("ARRAY_MOVE_UP"), MoveUpArrayElementD, IOListButtonMode.ElementSelected),
                             (SM.Get("ARRAY_MOVE_DOWN"), MoveDownArrayElementD, IOListButtonMode.ElementSelected),
                         };
-                        if (Operations.States.GetSingleObjectInstanceSubparam(param) != null) {
-                            extraButtons.Add(
-                                (SM.Get("ARRAY_CLICK_TO_ADD"), SwitchArrayClickAddModeD, IOListButtonMode.AlwaysEnabled)
-                            );
-                        }
                         var l = GetComplexElement<IOList>();
                         var meshProperty = GetArrayMeshProperty(param);
                         l.AddFullEditableList(p, param.fullName(), GetString(param.label),
-                            SM.Get("ARRAY_ADD"), SM.Get("ARRAY_EDIT"), SM.Get("ARRAY_DELETE"), param.arrayProperties.maxElements,
+                            param.arrayProperties.hideAddButton ? null : SM.Get("ARRAY_ADD"), SM.Get("ARRAY_EDIT"), SM.Get("ARRAY_DELETE"), param.arrayProperties.maxElements,
                             AddArrayElementD, SelectArrayElementD, DeleteArrayElementD, GetArrayD, 5.0f, elem.width, GetString(param.tooltip), null, extraButtons,
                             meshProperty != null ? () => GetArrayMeshes(param, meshProperty) : null);
+                        if (param.arrayProperties.hint != null) {
+                            p.AddLabel(GetString(param.arrayProperties.hint), elem.width);
+                            p.IncreaseRow();
+                        }
                         curW = 0;
                         break;
                 }
@@ -364,6 +375,7 @@ public abstract partial class EditorPanel {
         }
         parameterMap.Clear();
         arrayElemPanel = null;
+        arrayListPanel = null;
     }
 
     protected EditorPanelPage GetPage(int i) {
@@ -553,14 +565,15 @@ public abstract partial class EditorPanel {
                 if (returnPanel == null) Terminate();
                 builder.SelectObject(GO.GetObject(inst), true, null);
                 return 2;
-            } else if (obj is CityProperties p) {
-                var inst = p.GetParametricObject(param, parentParams);
+            } else if (obj is IParametricObjectContainer p) {
+                var inst = p.FindParametricObject(param, parentParams);
+                if (inst == null) return 0;
                 builder.SetTransformPanelParent(returnPanel != null ? returnPanel : this);
                 if (returnPanel == null) Hide(true);
                 builder.SelectObject(GO.GetObject(inst), true, null);
                 return 1;
             } else if (obj is ObjectState) { //note: the key will be the path...
-                parentParams.Add(parentParamPrefix);
+                if (parentParamPrefix != null) parentParams.Add(parentParamPrefix);
                 var res = parentPanel.EditObjectInstanceParameter(param, parentParams, returnPanel == null ? this : returnPanel);
                 if (res == 1) {
                     Hide(true);
@@ -694,6 +707,10 @@ public abstract partial class EditorPanel {
         if (!parameterMap.ContainsKey(fullParamName)) fullParamName = "properties." + paramName;
         if (parameterMap.ContainsKey(fullParamName)) { //TODO: not always like this?
             var param = parameterMap[fullParamName];
+            if (OpensInSubPanel(param)) {
+                OpenArrayList(param).SelectArrayElementByState(state, paramName, stack);
+                return;
+            }
 
             //check subparameters and stop if there's only one objectInstance
             //(since in that case it would open the parent which would go straight back to the current object)
@@ -737,6 +754,7 @@ public abstract partial class EditorPanel {
         if (param == null || obj == null) return null;
         if (index.HasValue) {
             if (param.type != "array") return null;
+            if (OpensInSubPanel(param)) return OpenArrayList(param).OpenArrayElement(paramFullName, index);
             var arr = obj.GetState().Array<ObjectState>(param.fullName());
             if (arr == null || index.Value < 0 || index.Value >= arr.Length) return null;
             ShowArrayElementPanel(param, arr[index.Value], index.Value);
@@ -747,6 +765,31 @@ public abstract partial class EditorPanel {
             ShowArrayElementPanel(param, subObj, null);
         }
         return arrayElemPanel;
+    }
+
+    //its panel shows a button instead of its list, the sub-panel shows the list itself
+    bool OpensInSubPanel(CityElements.Types.Parameter param) {
+        return param.arrayProperties?.subPanel == true && !(this is EditorPanels.ArrayListPanel);
+    }
+
+    //reopens the sub-panel of an array parameter, if it still has one
+    public EditorPanel OpenArrayList(string paramFullName) {
+        foreach (var p in parameterMap.Values) {
+            if (p.fullName() == paramFullName) return OpensInSubPanel(p) ? OpenArrayList(p) : null;
+        }
+        return null;
+    }
+
+    EditorPanel OpenArrayList(CityElements.Types.Parameter param) {
+        if (arrayListPanel == null) {
+            arrayListPanel = new EditorPanels.ArrayListPanel();
+            arrayListPanel.parentPanel = this;
+            childPanels.Add(arrayListPanel);
+        }
+        arrayListPanel.InitializeWithData(lastCanvas, param, getObject);
+        Hide(true);
+        arrayListPanel.SetActive(true);
+        return arrayListPanel;
     }
 
     void ShowArrayElementPanel(CityElements.Types.Parameter param, ObjectState elemState, int? i, Stack<GameObject> stack = null) {
@@ -775,23 +818,6 @@ public abstract partial class EditorPanel {
             builder.NotifyVisibilityChange();
             builder.NotifyChange();
         }
-    }
-
-    //the click placement of the elements of an array of single parametric objects (on until clicked again, Escape or
-    //the panel is closed); only for the objects of the city properties and of custom city properties, positioned from the origin
-    void SwitchArrayClickAddMode(CityElements.Types.Parameter param) {
-        var placer = builder?.arrayPointPlacer;
-        if (placer == null) return;
-        if (placer.IsPlacing(this, param)) {
-            placer.Stop();
-            return;
-        }
-        var obj = getObject?.Invoke();
-        if (obj == null || !(obj is CityProperties || obj is ObjectState)) {
-            GameEngine.LogWarning("Click placement is not supported for this array");
-            return;
-        }
-        placer.Start(this, getObject, param, GetUndoTarget);
     }
 
     CityElements.Types.Parameter[] GetArrayProperties(CityElements.Types.ArrayProperties type) {

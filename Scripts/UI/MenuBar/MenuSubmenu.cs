@@ -11,6 +11,7 @@ public class MenuSubmenu {
     public HashSet<int> checkedEntries = new HashSet<int>();
     public HashSet<int> disabled = new HashSet<int>();
     public Dictionary<int, string> wrapLabels = new Dictionary<int, string>(); //the label given to the wrapper instead of the text of the entry
+    public Dictionary<int, Godot.Color> colors = new();
 
     //wrapLabel: what the wrapper (e.g. the undo step) calls the entry, if it is not its text (e.g. a short text under a submenu)
     public int Add(string entry, System.Action action, string wrapLabel = null) {
@@ -36,7 +37,7 @@ public class MenuSubmenu {
 
     //the same actions wrapped by the given function (e.g. to record them as undo steps), also in the nested submenus
     public MenuSubmenu Wrapped(System.Func<string, System.Action, System.Action> wrap) {
-        var res = new MenuSubmenu { entries = entries, checks = checks, checkedEntries = checkedEntries, disabled = disabled, wrapLabels = wrapLabels };
+        var res = new MenuSubmenu { entries = entries, checks = checks, checkedEntries = checkedEntries, disabled = disabled, wrapLabels = wrapLabels, colors = colors };
         for (int i = 0; i < actions.Count; i++) res.actions.Add(actions[i] == null ? null : wrap(wrapLabels.TryGetValue(i, out var wrapLabel) ? wrapLabel : entries[i], actions[i]));
         foreach (var pair in submenus) res.submenus[pair.Key] = pair.Value.Wrapped(wrap);
         return res;

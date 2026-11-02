@@ -32,6 +32,9 @@ namespace Operations {
 
         public static ObjectState DefaultState(string type) {
             var state = new ObjectState();
+            if (TP.GetCustomElementTypes().TryGetValue(type, out var defaults) && defaults.typeData.settings.defaultPreset != null) {
+                foreach (var p in ((ObjectState)defaults.typeData.settings.defaultPreset.Clone()).properties) state.SetProperty(p.Key, p.Value);
+            }
             state.SetStr("type", type);
             if (TP.GetCustomElementTypes().TryGetValue(type, out var propType) && propType.typeData.settings.propPlacer != null) {
                 state.SetBool("projectToGround", propType.typeData.settings.propPlacer.projectToGround);
@@ -71,7 +74,7 @@ namespace Operations {
         static void Filter(ObjectState state, ObjectState original, Parameter[] parameters, bool restore) {
             foreach (var p in parameters ?? Array.Empty<Parameter>()) {
                 var key = p.fullName();
-                if (p.instanceSpecific || p.type == "reference") {
+                if (p.instanceSpecific || p.type == "reference" || p.type == "objectInstance") {
                     state.properties.Remove(key);
                     if (restore && original != null && original.properties.TryGetValue(key, out var value)) state.SetProperty(key, value);
                 } else if (p.type == "customCityProperties") {
@@ -93,6 +96,7 @@ namespace Operations {
         public static ObjectState Extract(ObjectState state, string type) {
             var copy = DefaultState(type);
             foreach (var p in ((ObjectState)state.Clone()).properties) copy.SetProperty(p.Key, p.Value);
+            copy.RemoveProperty(PropertyContainers.OwnerKey);
             Validate(copy, type);
             copy.SetStr("type", type);
             Filter(copy, null, TP.GetCustomElementTypes()[type].parameterContainer.parameters, false);
@@ -153,6 +157,7 @@ namespace Operations {
 
         public static ObjectState Apply(ObjectState original, ObjectState preset, string type) {
             var copy = Extract(preset, type);
+            PropertyContainers.Assign(copy, PropertyContainers.Owner(original));
             Filter(copy, original, TP.GetCustomElementTypes()[type].parameterContainer.parameters, true);
             original.ReplaceWith(copy);
             original.FlagAsChanged();

@@ -8,29 +8,53 @@ namespace EditorPanels {
         CityElements.Types.Parameter param = null;
         ObjectState curState;
         public int? arrayIndex = null; //null for custom city properties
+        ContainerContentsPanel contentsPanel;
+        string OwnedId => curState?.Str(Operations.PropertyContainers.IdKey, "") ?? "";
 
         public override void Initialize(GameObject canvas) {
             Initialize(canvas, 1);
             var p0 = GetPage(0);
-            var curW = 0.0f;
+            contentsPanel = null;
+            if (OwnedId != "" && Operations.PropertyContainers.Find(OwnedId) == null) Operations.PropertyContainers.Sync(builder.helper.elementManager);
+            var groups = Operations.PropertyContainers.ContentGroups(Operations.PropertyContainers.Find(OwnedId)?.settings);
+            if (groups.Length > 0) contentsPanel = AddChildPanel<ContainerContentsPanel>(canvas);
             var elemProperties = GetSubparams(param);
-            foreach (var prop in elemProperties) {
-                var tabElem = new CityElements.Types.TabElement();
-                tabElem.width = 1.5f;
-                tabElem.name = prop.fullName();
-                AddParameters(p0, ref curW, 1.5f, elemProperties, tabElem, GetCurState, false);
+            var layout = GetCustomType()?.uiInfo ?? System.Array.ConvertAll(elemProperties, x => new CityElements.Types.TabElement { name = x.fullName(), width = 1.5f });
+            var placedGroups = new HashSet<int>();
+            var curW = 0.0f;
+            foreach (var elem in layout) {
+                if (elem.name.StartsWith("content:")) {
+                    var label = elem.name.Substring("content:".Length);
+                    var group = System.Array.FindIndex(groups, x => x.label == label);
+                    if (group < 0 || !placedGroups.Add(group)) continue;
+                    PlaceInRow(p0, ref curW, 1.5f, elem.width);
+                    AddContentsButton(p0, groups, group, elem.width);
+                } else {
+                    AddParameters(p0, ref curW, 1.5f, elemProperties, elem, GetCurState, false);
+                }
+            }
+            //the groups that the layout doesn't place
+            for (int i = 0; i < groups.Length; i++) {
+                if (placedGroups.Contains(i)) continue;
+                p0.EnsureNewRow();
+                AddContentsButton(p0, groups, i, 1.5f);
+                p0.IncreaseRow();
             }
             var ei = GetExclusiveEditingInfo();
             if (ei != null && ei.enabled && ei.optional) {
                 p0.IncreaseRow();
                 p0.AddButton(SM.Get("HIDE_OTHER"), HideOther, 1.5f, SM.Get("HIDE_OTHER_TOOLTIP"));
             }
-            p0.IncreaseRow();
+            p0.EnsureNewRow();
             p0.AddButton(SM.Get("END_EDITING"), Terminate, 0.75f);
             p0.AddButton(SM.Get("ARRAY_ELEM_GO_UP"), GoUp, 0.75f);
         }
 
-        CityElements.Types.CustomCityPropertiesExclusiveEditing GetExclusiveEditingInfo() {
+        void AddContentsButton(EditorPanelPage p, CityElements.Types.PropertyContainerContentGroup[] groups, int group, float width) {
+            p.AddButton(SM.Get(groups[group].buttonLabel ?? groups[group].label), () => OpenContents(group), width);
+        }
+
+        CityElements.Types.CustomCityPropertiesType GetCustomType() {
             CityElements.Types.CustomCityPropertiesType ct = null;
             if (param != null) {
                 if (param.arrayProperties != null) {
@@ -41,14 +65,25 @@ namespace EditorPanels {
                     ct = CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[param.customCityPropertiesType];
                 }
             }
-            if (ct != null && ct.exclusiveEditing != null) {
-                return ct.exclusiveEditing;
-            }
-            return null;
+            return ct;
+        }
+
+        CityElements.Types.CustomCityPropertiesExclusiveEditing GetExclusiveEditingInfo() {
+            return GetCustomType()?.exclusiveEditing;
         }
 
         ObjectState GetCurState() {
             return curState;
+        }
+
+        //shows a list of the elements owned by the container, returns its panel (null if it has none)
+        public EditorPanel OpenContents(int group) {
+            if (contentsPanel == null) return null;
+            contentsPanel.containerId = OwnedId;
+            contentsPanel.groupIndex = group;
+            Hide(true);
+            contentsPanel.SetActive(true);
+            return contentsPanel;
         }
 
         public void InitializeWithData(GameObject canvas, CityElements.Types.Parameter newParam, ObjectState newState) {

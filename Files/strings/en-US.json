@@ -348,7 +348,6 @@
 	"ARRAY_DELETE": "Delete",
 	"ARRAY_MOVE_UP": "Move up",
 	"ARRAY_MOVE_DOWN": "Move down",
-	"ARRAY_CLICK_TO_ADD": "Switch click placement mode",
 	"TP_BORDER_MESH_LIST": "Border meshes list",
 	"TP_SWITCH_TO_BORDER_MESH_PLACEMENT": "Switch to border mesh placement",
 	"TP_REMOVE_BORDER_MESH": "Remove border mesh",
@@ -513,7 +512,7 @@
 	"INTERSECTION_TYPE": "Intersection type",
 	"TERRAIN_PATCH_TYPE": "Terrain patch type",
 	"BUILDING_TYPE": "Building type",
-	"ARRAY_ELEM_GO_UP": "Go back",
+	"ARRAY_ELEM_GO_UP": "Back",
 	"PROJECT_TO_GROUND": "Project to ground",
 	"MIGRATION_ERROR_CORE_IS_FOR_NEWER_PROGRAM": "The core is for a newer version of the city builder, please update it before retrying.",
 	"MIGRATION_ERROR_CORE_IS_FOR_OLDER_PROGRAM": "The core is for an older version of the city builder, it has to be updated to support the current version.",
@@ -534,6 +533,7 @@
 	"CONTAINERS_SELECTED_SING": "$NUMBER container selected",
 	"CONTAINERS_SELECTED_PLUR": "$NUMBER containers selected",
 	"DESELECT_CONTAINER": "Deselect $CONTAINER",
+	"EDIT_CONTAINER": "Edit $CONTAINER",
 	"OBJ_LST_TOOLTIP": "Select an object to highlight it.\nUse the up/down arrows to navigate the list.",
 	"CT_OUTER_PATCH_TOOLTIP": "These parameters affect the outer terrain patch only (i.e. the patch surrounding the entire city if all roads are interconnected)\nNote: concave shapes will produce excess vertices breaking the perimeter, delete them to fix it",
 	"CT_OUTER_PATCH_FUSION_DISTANCE_TOOLTIP": "External vertices closer than this to the others will be removed",
@@ -671,5 +671,7 @@
 	"PP_EDIT_STRIP": "Edit $STRIP props",
 	"PP_EDIT_MAIN": "Edit props",
 	"PP_INVALID_POLYGON": "The polygon is degenerate or intersects itself. Edit its perimeter to generate props.",
-	"PP_INVALID_PLACEMENT": "Invalid prop placement settings. See the error log."
+	"PP_INVALID_PLACEMENT": "Invalid prop placement settings. See the error log.",
+	"CONTAINER_CONTENTS": "Contents",
+	"CONTAINER_PLACEMENT_TARGET": "Target"
 }

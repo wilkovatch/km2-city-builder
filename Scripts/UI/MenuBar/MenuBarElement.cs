@@ -82,9 +82,9 @@ public class MenuBarElement {
     }
 
     //the entries at the keys of submenus open a submenu instead (see MenuSubmenu)
-    public void SetEntries(List<string> options, List<System.Action> actions, Dictionary<int, MenuSubmenu> submenus = null) {
+    public void SetEntries(List<string> options, List<System.Action> actions, Dictionary<int, MenuSubmenu> submenus = null, Dictionary<int, Color> colors = null) {
         this.actions = actions;
-        Populate(dropdown, new MenuSubmenu { entries = options, actions = actions, submenus = submenus ?? new Dictionary<int, MenuSubmenu>() });
+        Populate(dropdown, new MenuSubmenu { entries = options, actions = actions, submenus = submenus ?? new Dictionary<int, MenuSubmenu>(), colors = colors ?? new() });
     }
 
     static void StyleMenuPopup(PopupMenu popup) {
@@ -129,6 +129,7 @@ public class MenuBarElement {
             }
             if (menu.disabled.Contains(i)) popup.SetItemDisabled(i, true);
         }
+        MenuTextColors.Configure(popup, menu.colors);
     }
 
     //the shortcut info is aligned with tabs (e.g. "Road\t\t\t(Ctrl+R)"), which PopupMenu doesn't expand:

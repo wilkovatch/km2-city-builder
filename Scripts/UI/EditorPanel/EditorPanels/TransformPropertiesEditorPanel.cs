@@ -18,6 +18,7 @@ namespace EditorPanels {
         EditorPanelElements.Button attachPointButton, attachLineButton, attachColumnButton, detachPointButton, projectPointButton;
         EditorPanelElement pointPositionField;
         bool onMeshInstanceType; //built from the ui.json of the type of a plain mesh instance
+        public bool closeOnDelete; //opened by clicking the object: deleting it closes the panels instead of going back to them
         protected override bool SingleStateParameters => onMeshInstanceType || base.SingleStateParameters;
 
         public override void Initialize(Control canvas) {
@@ -207,8 +208,11 @@ namespace EditorPanels {
             var w = elem.width;
             if (elem.name == "mainGroup") {
                 p.EnsureNewRow();
-                p.AddButton(SM.Get("END_EDITING"), Terminate, w * 0.5f);
-                p.AddButton(SM.Get("DELETE"), Delete, w * 0.5f);
+                var owned = Operations.PropertyContainers.Find(Operations.PropertyContainers.Owner(GS.Cast<MeshInstance>(instance)?.settings)) != null;
+                var mainW = owned ? w / 3 : w * 0.5f;
+                p.AddButton(SM.Get("END_EDITING"), Terminate, mainW);
+                p.AddButton(SM.Get("DELETE"), Delete, mainW);
+                if (owned) p.AddButton(SM.Get("BACK"), BackToContainer, mainW);
                 p.IncreaseRow();
                 var compatible = type.Settings.compatibleTypes;
                 if (compatible.Length == 0) {
@@ -387,12 +391,23 @@ namespace EditorPanels {
                     Operations.Meshes.Delete(mI);
                     builder.NotifyVisibilityChange();
                     builder.NotifyChange();
-                    parentPanel = null;
-                    BackToParent();
+                    if (closeOnDelete) {
+                        var hiddenParent = parentPanel;
+                        Terminate();
+                        hiddenParent?.Terminate();
+                    } else {
+                        parentPanel = null;
+                        BackToParent();
+                    }
                 } else {
                     Operations.Meshes.Delete(mI);
                     builder.NotifyChange();
-                    Terminate();
+                    if (parentPanel?.IsOpen() == true) {
+                        GoUp();
+                        parentPanel = null;
+                    } else {
+                        Terminate();
+                    }
                 }
             }
         }
@@ -426,6 +441,18 @@ namespace EditorPanels {
             parentPanel = null;
             DropDeletedInstance();
             if (instance != null) builder.ReselectControlPoint(handle);
+        }
+
+        //a plain mesh instance owned by a city-property group: to the list it was opened from, or to the panel of the group
+        void BackToContainer() {
+            if (parentPanel?.IsOpen() == true) {
+                GoUp();
+                parentPanel = null;
+                return;
+            }
+            parentPanel = null;
+            var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Owner(GS.Cast<MeshInstance>(instance)?.settings));
+            if (owner != null) Operations.PropertyContainers.Open(builder, owner);
         }
 
         void BackToParent() {
@@ -604,14 +631,18 @@ namespace EditorPanels {
         }
 
         public override void SetActive(bool active) {
+            //before PrepareActivation: a panel still to be built must not be built for the previous object
+            if (active) {
+                DropDeletedInstance();
+                notOnHandle = GS.Cast<Handle>(instance) == null;
+                var inst = GS.Cast<MeshInstance>(instance);
+                onParametricObject = inst != null && inst.objectParameter != null;
+            }
             if (!PrepareActivation(active)) return;
             if (!active) CancelAttachment();
             DropDeletedInstance();
             if (active) {
                 UpdateSpaceLabel();
-                notOnHandle = GS.Cast<Handle>(instance) == null;
-                var inst = GS.Cast<MeshInstance>(instance);
-                onParametricObject = inst != null && inst.objectParameter != null;
                 Initialize(lastCanvas);
                 if (instance != null) {
                     if (notOnHandle) {
@@ -628,6 +659,7 @@ namespace EditorPanels {
                 //only if shown: once closed, the object it was on may be gone with the core of its city
                 if (ActiveSelf()) SetMoveable(active);
                 Select(false);
+                closeOnDelete = false;
             }
             base.SetActive(active);
         }

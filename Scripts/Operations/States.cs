@@ -86,6 +86,8 @@ namespace Operations {
         public static int AddArrayElement(ObjectState owner, Parameter param) {
             var arr = GetArray(owner, param);
             var newObj = ObjectState.CreateFromDefaultProperties(GetArrayProperties(param.arrayProperties));
+            var ctName = param.arrayProperties?.customCityPropertiesType;
+            if (ctName != null && CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[ctName].elementContainer != null) PropertyContainers.EnsureId(newObj);
             arr.Add(newObj);
             SetArray(owner, param, arr);
             return arr.Count - 1;
@@ -118,7 +120,9 @@ namespace Operations {
                 GameEngine.LogWarning("Unable to clone, array is empty");
                 return false;
             }
-            arr.Add((ObjectState)arr[i].Clone());
+            var copy = (ObjectState)arr[i].Clone();
+            PropertyContainers.CloneContents(arr[i], copy);
+            arr.Add(copy);
             SetArray(owner, param, arr);
             return true;
         }
@@ -149,6 +153,7 @@ namespace Operations {
                 return false;
             }
             ArrayObject.PruneSelections(arr[i]);
+            PropertyContainers.DeleteContents(arr[i]);
             arr.RemoveAt(i);
             SetArray(owner, param, arr);
             return true;

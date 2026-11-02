@@ -21,6 +21,7 @@ namespace ElementPlacer {
         public CustomElement curElement = null;
         public string createType;
         public ObjectState creationState;
+        public string propertyContainerId;
         public PlacementMode placementMode = PlacementMode.None;
         public string arrayPath;
         public bool atStart;
@@ -36,6 +37,7 @@ namespace ElementPlacer {
         public void SetElement(CustomElement element) {
             if (!GO.IsNull(curElement) && !curElement.IsDeleted()) curElement.SetPlacementPoint(null);
             curElement = GO.IsNull(element) || (element != null && element.IsDeleted()) ? null : element;
+            if (curElement != null) propertyContainerId = Operations.PropertyContainers.Owner(curElement.state);
         }
 
         public CustomElement GetElement() {
@@ -67,6 +69,10 @@ namespace ElementPlacer {
         }
 
         public void PlaceAt(RaycastHit hit) {
+            if (!Operations.PropertyContainers.IsCurrent(propertyContainerId)) {
+                placementMode = PlacementMode.None;
+                return;
+            }
             manager.worldChanged = true;
             var obj = (Node3D)hit.collider;
             switch (placementMode) {
@@ -74,10 +80,21 @@ namespace ElementPlacer {
                     if (createType == null) return;
                     curElement = Operations.CustomElements.Create(manager, createType, hit.point);
                     if (creationState != null) Operations.CustomElementPresets.Apply(curElement, creationState);
+                    if (creationState != null) foreach (var parameter in curElement.GetCustomElementType().parameterContainer.parameters ?? System.Array.Empty<CityElements.Types.Parameter>()) {
+                        if (parameter.type == "objectInstance" && creationState.State(parameter.fullName()) is ObjectState value) {
+                            curElement.state.SetState(parameter.fullName(), (ObjectState)value.Clone());
+                        }
+                    }
+                    Operations.PropertyContainers.Assign(curElement.state, propertyContainerId);
                     placementMode = PlacementMode.None;
                     if (curElement.Settings?.spline != null || curElement.Settings?.propPlacer?.type == "polygon") {
                         arrayPath = curElement.Settings?.propPlacer?.type == "polygon" ? "perimeter" : "spline";
-                        Operations.CustomElements.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
+                        var initialObject = curElement.Settings.placementObject;
+                        if (initialObject != null) {
+                            var start = curElement.state.State(initialObject) ?? new ObjectState();
+                            start.SetVector3("localPosition", hit.point);
+                            curElement.state.SetState(initialObject, start);
+                        } else Operations.CustomElements.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
                         placementMode = PlacementMode.AppendPoint;
                     }
                     curElement.SetActive(true, true);

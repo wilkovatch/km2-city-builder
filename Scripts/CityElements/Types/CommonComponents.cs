@@ -31,6 +31,9 @@ namespace CityElements.Types {
 
     public class ArrayProperties {
         public int maxElements;
+        public string hint; //optional text under the list (e.g. where to create the elements)
+        public bool subPanel; //a button opening the list in a sub-panel, instead of the list in the panel
+        public bool hideAddButton; //the elements are added some other way (e.g. a command of a property container)
         public string elementLabel;
         public Parameter[] elementProperties;
         public string customCityPropertiesType;
@@ -58,7 +61,36 @@ namespace CityElements.Types {
     public class CustomCityPropertiesType {
         public string label;
         public CustomCityPropertiesExclusiveEditing exclusiveEditing;
+        public PropertyContainerSettings elementContainer;
         public Parameter[] parameters;
+        public TabElement[] uiInfo; //optional, the layout of the panel (if not set, all the parameters one per row)
+    }
+
+    //Optional ownership of freely placed elements by a city-property group.
+    public class PropertyContainerSettings {
+        public string category;
+        public string[] types;
+        public PropertyContainerCommand[] commands;
+        public PropertyContainerContentGroup[] contentGroups; //if not set, the panel of the container has one list of all its contents
+        public string editLabel; //the text of the entries in the containers menu (string keys), generic if not set
+        public string deselectLabel;
+    }
+
+    //A list of some of the owned elements, in a sub-panel of the panel of the container.
+    public class PropertyContainerContentGroup {
+        public string label;
+        public string hint; //optional text under the list (e.g. where to create the elements)
+        public string buttonLabel; //the text of the button, the label if not set
+        public string[] types; //all the owned types if not set
+        public string filterParameter; //optional int or enum parameter of the elements, which must have filterValue
+        public int filterValue;
+    }
+
+    public class PropertyContainerCommand {
+        public string label;
+        public string path;
+        public string[] alternatePaths;
+        public string[] alternateLabels;
     }
 
     public class CustomCityPropertiesExclusiveEditing {
@@ -127,6 +159,7 @@ namespace CityElements.Types {
     public struct TabElement {
         public string name;
         public float width;
+        public float height; //only for the "label:" elements, the height of their row (0.4 if not set)
     }
 
     public struct Tab {

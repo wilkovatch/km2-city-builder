@@ -61,6 +61,9 @@ namespace CityElements.Types {
         public CustomElementPointSettings point; //null: not a point element
         public CustomElementMeshInstanceSettings meshInstance; //null: not a mesh instance element
         public CustomElementCreateMenu createMenu;
+        public string propertyContainerCategory;
+        public bool requiresPropertyContainer;
+        public string placementObject; //first click positions this objectInstance; subsequent clicks draw the spline
         public int geometryLayer = 7;
         public CustomElementPointNode[] controlPoints;
         public CustomElementMeshSettings mesh; //null: no mesh

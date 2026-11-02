@@ -7,7 +7,7 @@ using RaycastHit = GameEngine.Raycast.RaycastHit;
 
 namespace ElementPlacer {
     //Adds the elements of an array of single parametric objects (e.g. the points of a train line) where the terrain or
-    //a road is clicked, in the click placement mode of the array in the editor panel
+    //a road is clicked, while the placement panel of a property container command is open
     public class ArrayPointPlacer : TerrainAction {
         CityBuilderMenuBar builder;
         System.Func<IObjectWithState> getOwner;

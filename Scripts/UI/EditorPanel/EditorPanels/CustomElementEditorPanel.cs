@@ -15,6 +15,7 @@ namespace EditorPanels {
     public class CustomElementEditorPanel : EditorPanel, IPropRuleEditor, RuntimeGizmos.ITransformPanel {
         string creationTypeValue;
         public string creationGroup = "CREATE_CUSTOM_ELEMENT";
+        public int contentsGroup = -1; //the list of the contents of its container it was opened from, to go back to
         public string creationType {
             get => creationTypeValue;
             set { creationTypeValue = value; builtType = "\0"; draft = null; creating = true; }
@@ -187,6 +188,21 @@ namespace EditorPanels {
 
             var w = elem.width;
             var settings = type.typeData.settings;
+            var objectParameter = System.Array.Find(type.parameterContainer.parameters ?? System.Array.Empty<CityElements.Types.Parameter>(), parameter => parameter.fullName() == elem.name && parameter.type == "objectInstance");
+            if (GetElement() == null && objectParameter != null) {
+                p.EnsureNewRow();
+                var key = objectParameter.fullName();
+                var state = draft.State(key);
+                if (state == null) {
+                    state = new ObjectState();
+                    state.SetStr("meshPath", objectParameter.objectInstanceSettings.defaultModel?.model ?? "");
+                    draft.SetState(key, state);
+                }
+                p.AddFieldMeshField(builder, SM.Get(objectParameter.label), SM.Get("NONE"), () => draft.State(key), "properties.meshPath", null, true, w)
+                    .SetInteractable(objectParameter.objectInstanceSettings.allowCustomModel);
+                p.IncreaseRow();
+                return true;
+            }
             if (elem.name == "splineGroup" && settings.spline != null) {
                 p.IncreaseRow();
                 var allowed = settings.spline.curveTypes;
@@ -234,8 +250,11 @@ namespace EditorPanels {
                 || elem.name == "propsGroup";
             if (builtIn) p.EnsureNewRow(); //after a parameter sharing its row
             if (elem.name == "mainGroup") {
-                p.AddButton(SM.Get("END_EDITING"), Terminate, w * 0.5f);
-                p.AddButton(SM.Get("DELETE"), Delete, w * 0.5f).SetInteractable(GetElement() != null);
+                var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Owner(GetElement()?.state));
+                var mainW = owner != null ? w / 3 : w * 0.5f;
+                p.AddButton(SM.Get("END_EDITING"), Terminate, mainW);
+                p.AddButton(SM.Get("DELETE"), Delete, mainW).SetInteractable(GetElement() != null);
+                if (owner != null) p.AddButton(SM.Get("BACK"), BackToContainer, mainW);
                 p.IncreaseRow();
                 if (GetElement() == null && creationType == null && creatableTypes.Count > 0) {
                     createTypeDropdown = p.AddDropdown(SM.Get("CE_TYPE"), creatableTypes.ConvertAll(Operations.CustomElements.GetTypeLabel), SetCreateType, w);
@@ -1046,6 +1065,15 @@ namespace EditorPanels {
             Terminate();
         }
 
+        //to the panel of the city-property group owning the element, or to the list it was opened from
+        void BackToContainer() {
+            var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Owner(GetElement()?.state));
+            if (owner == null) return;
+            var group = contentsGroup;
+            var panel = Operations.PropertyContainers.Open(builder, owner) as ArrayElemEditorPanel;
+            if (group >= 0) panel?.OpenContents(group);
+        }
+
         public override void Terminate() {
             keepActive = false;
             Terminate(false);
@@ -1062,6 +1090,7 @@ namespace EditorPanels {
             }
             draft = null;
             creating = false;
+            contentsGroup = -1;
             suspendedPlacement = null;
             suspendedElement = null;
             HighlightContent(null);

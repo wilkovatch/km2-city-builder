@@ -21,17 +21,20 @@ namespace Api {
             object P(float x, float z, float y = 0) => new { position = V(x, y, z) };
             CustomElement Element(int id) => History.UndoManager.GetAliveElement(id) as CustomElement;
             var line = (await Call("customElement.create", new { type = "propLine", name = "Native prop line", points = new { spline = new[] { P(-710, -700), P(-710, -730) } },
-                state = new { propRule = new { main = new { type = "line", element = new { type = "line", mesh, elemDistance = 5 } } } } })).Value<int>();
+                state = new { propRule = new { main = new { type = "pathsetStrip", element = new { type = "pathsetStrip", mesh, elemDistance = 5 } } } } })).Value<int>();
             Check("prop placers use the custom element API kind", (await Call("elements.get", new { @ref = line }))["kind"].Value<string>() == "customElement");
             Check("native line profile previews six props on a thirty metre span", Element(line).generator.props.Count == 6);
+            Check("native line lays the X axis of the model along the path", Element(line).generator.props.All(p => Math.Abs(Mathf.PosMod(GO.GetRotation(p.obj).Y, 180) - 90) < 0.01f));
             await CheckUndo("moving a prop placer", () => Call("customElement.move", new { element = line, offset = V(3, 0, 0) }));
             await CheckUndo("inserting a prop placer control", () => Call("customElement.insert", new { element = line, array = "spline", index = 1 }));
             await Call("customElement.remove", new { element = line, array = "spline", index = 1 });
             await Expect("a restricted spline strip rejects another container type", "invalid_value", "customElement.setPropRule", new { element = line, rule = new { main = new { type = "custom" } } });
+            await Expect("a prop line rejects the line type of the roads", "invalid_value", "customElement.setPropRule", new { element = line,
+                rule = new { main = new { type = "line", element = new { type = "line", mesh, elemDistance = 5 } } } });
             await Expect("native line rejects unencodable spacing", "invalid_value", "customElement.setPropRule", new { element = line,
-                rule = new { main = new { type = "line", element = new { type = "line", mesh, elemDistance = 64 } } } });
+                rule = new { main = new { type = "pathsetStrip", element = new { type = "pathsetStrip", mesh, elemDistance = 64 } } } });
             await Expect("native line enforces quarter metre steps", "invalid_value", "customElement.setPropRule", new { element = line,
-                rule = new { main = new { type = "line", element = new { type = "line", mesh, elemDistance = 0.3 } } } });
+                rule = new { main = new { type = "pathsetStrip", element = new { type = "pathsetStrip", mesh, elemDistance = 0.3 } } } });
             await Call("state.setParam", new { @ref = line, name = "segments", value = 8 });
             foreach (var mode in new[] { 0, 1 }) {
                 await Call("state.setParam", new { @ref = line, name = "curveType", value = mode });
@@ -39,9 +42,15 @@ namespace Api {
             }
             await Call("state.setParam", new { @ref = line, name = "curveType", value = 2 });
             var longLine = (await Call("customElement.create", new { type = "propLine", points = new { spline = new[] { P(-900,-700), P(-900,-1000) } },
-                state = new { projectToGround = false, propRule = new { main = new { type = "line", element = new { type = "line", mesh, elemDistance = 0.25 } } } } })).Value<int>();
+                state = new { projectToGround = false, propRule = new { main = new { type = "pathsetStrip", element = new { type = "pathsetStrip", mesh, elemDistance = 0.25 } } } } })).Value<int>();
             Check("native line previews more than the old road iteration cap", Element(longLine).generator.props.Count == 1200);
             await Call("customElement.delete", new { element = longLine });
+            var shortSpans = (await Call("customElement.create", new { type = "propLine", points = new { spline = new[] { P(-880,-700), P(-880,-712), P(-880,-715) } },
+                state = new { projectToGround = false, propRule = new { main = new { type = "pathsetStrip", element = new { type = "pathsetStrip", mesh, elemDistance = 5 } } } } })).Value<int>();
+            var spanProps = Element(shortSpans).generator.props.Select(p => GO.GetPosition(p.obj).Z).OrderByDescending(z => z).ToArray();
+            Check("native line stretches the step to fill a span", spanProps.Length == 2 && Math.Abs(spanProps[0] - spanProps[1] - 6) < 0.001f);
+            Check("native line skips a span shorter than the spacing", spanProps.All(z => z > -712.001f));
+            await Call("customElement.delete", new { element = shortSpans });
             foreach (var prop in Element(line).generator.props.ToArray()) {
                 Check("every generated prop resolves to its owner", ElementPlacer.ReferencePicker.ElementOf(prop.obj) == Element(line));
                 Check("every generated prop has the shared asset picking shape", prop.obj.GetChildren().OfType<CollisionShape3D>()
@@ -451,6 +460,9 @@ namespace Api {
             var legacy = JObject.Parse("{id:9001,name:'obsolete experimental rule',state:{type:'__propPath'},points:{},containerId:-1}");
             city["propPaths"] = new JArray(legacy);
             ((JArray)city["customElements"]).Add(legacy.DeepClone());
+            var oldLines = city["customElements"].Where(e => e["state"]?["type"]?.Value<string>() == "propLine").ToList();
+            foreach (var oldLine in oldLines) oldLine["state"]["propRule"]["main"] = JObject.FromObject(new { type = "line", name = "parked cars",
+                element = new { type = "line", mesh = oldLine["state"]["propRule"]["main"]["element"]["mesh"].Value<string>(), elemDistance = 5, start = 0, end = 10, maxNumber = 999, xPos = 0 } });
             WriteCity(cityPath, city);
             var preferences = JObject.Parse(File.ReadAllText(preferencesPath)); preferences["coreVersion"] = 4;
             File.WriteAllText(preferencesPath, preferences.ToString());
@@ -458,8 +470,12 @@ namespace Api {
             Check("migration removes obsolete records before decoding", M.customElements.Count(e => e.Settings?.propPlacer != null) == before.Count);
             var migrated = ReadCity(cityPath);
             Check("migration strips the obsolete collection", migrated["propPaths"] == null && !migrated["customElements"].Any(e => e["state"]?["type"]?.Value<string>() == "__propPath"));
+            var newLines = migrated["customElements"].Where(e => e["state"]?["type"]?.Value<string>() == "propLine").ToList();
+            Check("migration moves the prop lines to their own type", oldLines.Count > 0 && newLines.Count == oldLines.Count && newLines.All(e => e["state"]["propRule"]["main"]["type"].Value<string>() == "pathsetStrip"
+                && e["state"]["propRule"]["main"]["name"] == null && e["state"]["propRule"]["main"]["element"]["type"].Value<string>() == "pathsetStrip" && e["state"]["propRule"]["main"]["element"]["end"] == null));
+            Check("migrated prop lines keep generating their props", M.customElements.Where(e => e.TypeName == "propLine").All(e => e.generator.props.Count > 0));
             Check("migration preserves a backup of the original city", ReadCity(cityPath+".v4.bak")["propPaths"] is JArray);
-            Check("migration advances the core version", JObject.Parse(File.ReadAllText(preferencesPath))["coreVersion"].Value<int>() == 5);
+            Check("migration advances the core version", JObject.Parse(File.ReadAllText(preferencesPath))["coreVersion"].Value<int>() == CoreManager.GetCoreVersion("MidtownMadness2"));
             await Call("city.save"); await Call("city.reload");
             Check("new saves have no obsolete collection", ReadCity(cityPath)["propPaths"] == null);
             var failed = Path.Combine(folder,"failed_migration"); Directory.CreateDirectory(failed);

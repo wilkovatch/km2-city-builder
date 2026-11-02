@@ -71,10 +71,71 @@ A custom city properties type (`customCityPropertiesTypes/<type>.json`) is a reu
 |---|---|
 | `label` | Name of the parameter whose value is shown in lists of elements of this type (`null` for "Element N"). |
 | `parameters` | The parameters of the type. Custom city properties types can contain arrays and other custom city properties, at any depth. |
+| `uiInfo` | Optional. The layout of the panel of the type, see [Panel layout](#panel-layout). |
 | `exclusiveEditing` | Optional. When `enabled`, the parametric objects of only one element of the `category` are visible at a time: the one being edited. With `optional: true`, all elements are visible when none is being edited, and the element panel gets a button to hide the others. With `keepLinesVisible: true`, the elements not being edited hide only their objects, and the lines through them (`drawLine` arrays) stay visible (e.g. the decals of the MM2 core, whose points only show while editing them). |
 
 `exclusiveEditing` keeps the scene readable when many elements contain objects in the same place, for example the checkpoints of different races (MM2 shows the checkpoints of one race at a time) or the paths of the opponents of a race.
 
 The elements of the city properties can be selected by clicking them in the city, when no panel is open. Clicking a parametric object opens the city properties panel, then the panels of the elements that contain the object, then the transform panel on the object, with the innermost element panel as its parent. This is the same chain the user would open by hand. Clicking a `drawLine` line opens the panel of the element the line belongs to (e.g. a decal of the MM2 core, whose points are hidden until it is edited).
 
-Parametric objects inside custom city properties types are not positioned by definitions (custom city properties types have none): they appear at the origin and the user places them. For points that only mark a position, the special model name `@handle` shows a small handle instead of a mesh (MM2 uses it for opponent waypoints).
+Parametric objects inside custom city properties types are not positioned by definitions (custom city properties types have none): they appear at the origin and the user places them. For points that only mark a position, the special model name `@handle` shows a small handle instead of a mesh.
+
+## Panel layout
+
+By default the panel of a custom city properties type shows all its parameters, one per row. `uiInfo` lays them out instead, with the elements of a `ui.json` tab (see [Parameters and UI](Parameters-and-UI#uijson)). For example, two variants of each value (per difficulty) side by side, under a label covering the row:
+
+```json
+"parameters": [
+    { "name": "speed", "label": "EASY", "type": "float" },
+    { "name": "speed_hard", "label": "HARD", "type": "float" },
+    { "name": "markers", "label": "EASY", "type": "customCityProperties", "customCityPropertiesType": "markers" },
+    { "name": "markers_hard", "label": "HARD", "type": "customCityProperties", "customCityPropertiesType": "markers" }
+],
+"uiInfo": [
+    { "name": "label:SPEED", "width": 1.5 },
+    { "name": "speed_hard", "width": 0.75 },
+    { "name": "speed", "width": 0.75 },
+    { "name": "label:MARKERS", "width": 1.5, "height": 0.2 },
+    { "name": "markers_hard", "width": 0.75 },
+    { "name": "markers", "width": 0.75 }
+]
+```
+
+Rows are filled from the right, so the element meant for the left comes second. The panel is 1.5 wide and has one page. As in a `ui.json`, parameters that aren't listed can't be edited, and also can't be selected by clicking their objects in the city.
+
+`uiInfo` has one more kind of element, `content:<label>`: the button of the [content group](#owned-elements-and-contextual-creation) with that `label`.
+
+## Owned elements and contextual creation
+
+A custom city properties type can own freely placed mesh instances and custom elements by defining `elementContainer`:
+
+```json
+"elementContainer": {
+    "category": "scenario",
+    "types": ["obstacle", "route"],
+    "commands": [{"label": "ADD_MARKER", "path": "markers"}]
+}
+```
+
+`category` matches the type's enabled `exclusiveEditing.category`. `types` lists the custom-element and mesh-instance type names accepted by the group. Eligible element types set `settings.propertyContainerCategory` to that category; `requiresPropertyContainer: true` hides their Create entries until an accepting container is selected. Optional types remain creatable without a container. Container-targeted Create entries and their submenu labels are blue.
+
+Each command adds ordinary single-object array entries by clicking in the city. `path` is a dot-separated path through nested custom city properties to an array. Alternatively, supply `alternatePaths` and matching localized `alternateLabels` arrays to expose a target dropdown; the first target is the default. Commands appear only while their container is selected.
+
+While a container is selected, the containers menu at the end of the menu bar has an entry to open its panel and one to deselect it. Their text is "Edit" and "Deselect" followed by the name of the category (the `CUSTOM_ELEMENT_CATEGORY_<CATEGORY>` string); `editLabel` and `deselectLabel` (string keys, optional) replace it where a more specific text fits. A container can have empty `types`, to get only the commands and the menu entries: it owns nothing, every Create entry keeps targeting the city, and its panel has no contents list.
+
+The container panel has a button for each list of its owned elements, opening it in a sub-panel with Edit and Delete actions. By default there is one list of all the contents. `contentGroups` splits them:
+
+```json
+"contentGroups": [
+    {"label": "EASY_OBSTACLES", "hint": "OBSTACLES_HINT", "types": ["obstacle"], "filterParameter": "difficulty", "filterValue": 0},
+    {"label": "ROUTES", "types": ["route"]}
+]
+```
+
+`label` is the string key of the button and of the list. `buttonLabel` (optional, a string key) replaces it as the text of the button, for example when a row label already says what the list is. The buttons are placed by the `content:<label>` elements of [`uiInfo`](#panel-layout), in any row and at any width; the groups it doesn't list follow the layout, one per row. `hint` (optional) is a string key shown under the list, for example to say where the elements are created. `types` (optional) limits the list to these types. `filterParameter` (optional, an int or enum parameter of the element, 0 if missing) limits it to the elements where it has the value `filterValue`.
+
+The panel of an owned element has a Back button: it returns to the list it was opened from, or to the panel of the container if it was opened by clicking it in the city. An array of single objects added by a command can set `arrayProperties.hint` to point to the Create entry and `arrayProperties.hideAddButton` to remove the Add button (see [Parameters and UI](Parameters-and-UI)). Deleting an array object clicked in the city closes its panels, while one opened from the panels returns to them.
+
+Owned geometry, guides, handles and colliders are hidden while another container is selected or the category is deselected. Placement captures its target when started and is cancelled when that target is deselected or deleted. Radius erasing stays within the captured ownership scope.
+
+Container identities are stored as `_elementContainerId`, with `_propertyContainerId` in the owned custom-element state or mesh-instance settings. These identifiers survive save/load, reordering and undo/redo, and are excluded from property presets. Cloning a container copies its contents with new identities and independent points, retaining sharing within the copy. Deleting it deletes its contents in the same undo step. The export JSON retains the identifiers; the core decides how to export each scope.

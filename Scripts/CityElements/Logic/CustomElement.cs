@@ -13,7 +13,7 @@ using CustomElements;
 //type, which can also keep its points constrained (e.g. aligned). The points (and the vertices of the mesh) are terrain
 //points, so they can be anchored and shared with other elements. An element can be put in a container (another
 //custom element whose type lists its type, e.g. a room of a PSDL file).
-public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
+public partial class CustomElement : ParametricObjectContainer<CityElements.Types.CustomElementType>, IGroundable, IObjectWithState {
     public ObjectState state;
     internal readonly ObjectState cityPropertiesState = new ObjectState(); //runtime injection, never saved
     internal bool cityPropertiesInjected;
@@ -54,6 +54,11 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     int pointStateVersion = -1; //visibility and selection last applied to this structure
     CityElements.Types.Runtime.CustomElementType curType;
     RC.VariableContainer variableContainer;
+    public override ObjectState GetContainerStateForParametricObjects() => state;
+    public override ObjectState[] GetContainerStateArrayForParametricObjects() => new[] { state, cityPropertiesState };
+    public override RC.VariableContainer GetParametricObjectVariableContainer() => variableContainer;
+    public override CityElements.Types.Runtime.RuntimeType<CityElements.Types.CustomElementType> GetRuntimeType() => GetCustomElementType();
+    protected override bool ReuseParametricObjects => true;
     object updatedSource;
     CustomElement updatedContainer;
     bool updatingGeometry;
@@ -472,7 +477,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
         return deleted;
     }
 
-    public void Delete() {
+    public override void Delete() {
         if (deleted) return;
         SetPlacementPoint(null);
         History.UndoManager.Touch(this);
@@ -847,6 +852,8 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     }
 
     void FinishGeometryUpdate(List<TerrainPoint> all) {
+        repositionObjects = true;
+        resetObjectsPositions = true;
         foreach (var p in all) p.UpdateOlds();
         oldPositions.Clear();
         oldPositions.AddRange(GetInputPositions(all));

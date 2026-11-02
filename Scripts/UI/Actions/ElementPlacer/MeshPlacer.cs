@@ -10,6 +10,7 @@ namespace ElementPlacer {
         ElementManager manager;
         public bool placeEnabled = true;
         public ObjectState settings = null;
+        public string propertyContainerId;
         Vector3? curPoint = null;
         public string meshPath;
         public bool multiple = false;
@@ -38,6 +39,9 @@ namespace ElementPlacer {
         public override void Apply(List<RaycastHit?> hits) {
             ShowOnMap(hits);
             if (settings == null) return;
+            if (!Operations.PropertyContainers.IsCurrent(propertyContainerId)) { placeEnabled = false; return; }
+            if (!placeEnabled) return;
+            Operations.PropertyContainers.Assign(settings, propertyContainerId);
             //the placement options the type doesn't allow are off
             var type = Operations.Meshes.GetMeshType(settings.Str("type", null));
             if (!(type?.Settings.massPlacement ?? false)) multiple = false;

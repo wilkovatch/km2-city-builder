@@ -53,6 +53,9 @@ The types can extend each other as the other folder types (see [Core Type Inheri
 | `point` | Optional single point settings (see [Point elements](#point-elements)); cannot be combined with `controlPoints`, `spline`, `mesh`, `derivedPoints` or `container`, and needs a Lua `geometry` function. |
 | `createMenu` | `{ "direct": true }` lists the type directly using its `ui.json` label (`label`, a string key, optional: the text of the direct entry in the Create menu, e.g. a short one under a `submenu`; the `ui.json` label stays the full name used everywhere else, such as the panel and the default name of the elements). Otherwise `{ "group": "STRING_KEY" }` groups it with types using the same localized group key. Missing: the generic Custom element group. The creation panel lists only types in the selected group. `submenu` (a string key, optional, in both forms) lists the entry (the direct one, or the group's) in a Create submenu with that name instead of directly in Create; types of one group should use the same `submenu`, as the first one found is used. |
 | `geometryLayer` | Collision layer index for generated geometry (default `7`). A projected overlay can use another layer and omit that layer from its projection mask, so overlays do not project onto each other. |
+| `propertyContainerCategory` | Optional category of an eligible selected city-property container to own newly created elements; see [Core City Properties](Core-City-Properties#owned-elements-and-contextual-creation). Also supported on mesh-instance types. |
+| `requiresPropertyContainer` | Hide the Create entry unless an accepting property container is selected (default `false`). |
+| `placementObject` | For a spline with an `objectInstance` parameter: its name. The first creation click positions this object; later clicks append spline controls. The object and controls remain independently editable. |
 | `mesh` | Set if the element has a mesh: `uvs` (`"none"`, `"editable"`: stored with the element and edited in its panel, `"script"`: given by the geometry script), `defaultVertices` (offsets from where a new element is created) and `defaultTriangles`. |
 | `container` | Set if the elements of the type can contain other custom elements: `contains`, the types they can contain. |
 | `geometry` | `<module>.<function>` of the `lua` folder: builds the geometry shown in the editor (see [Scripts](#scripts)). |
@@ -60,11 +63,13 @@ The types can extend each other as the other folder types (see [Core Type Inheri
 | `derivedPoints` | `{flag, function}`: while the bool parameter `flag` is on, the control points are computed by `function` (`<module>.<function>`) from the other custom elements converted from the same element, and can't be edited (see [Derived points](#derived-points)). |
 | `creatable` | Listed in Create (default `true`); `createMenu` selects a direct entry or a group. |
 | `presets` | Enable property presets for this type (default `false`), stored in the city's `presets.json` under `customElement/<type>`. The standard load/save/reset/unlink/sync controls appear in `mainGroup`, and the type is listed in preset management. |
-| `defaultPreset` | Optional object containing the initial Default preset's property values. When an existing city has no category for this enabled type, these values are combined with the type's built-in defaults and saved as Default. Existing categories are preserved. New-city templates should provide the same Default explicitly. |
+| `defaultPreset` | Optional initial property values for new elements, combined with the type's built-in defaults. For types with presets enabled, these also seed Default when a city has no preset category yet. Existing categories are preserved. New-city templates should provide the same Default explicitly. |
 | `propsContainers` | The props containers of the prop rule of the elements (`propRule` in their state, as the prop rules of the roads, see [Core Props and Objects](Core-Props-and-Objects)): the props are placed along the `propLines` of the geometry (see [Geometry](#geometry)) and exported with the element. |
 | `propsPresetType` | The prop rule presets listed in the panel: the ones of this type (e.g. a road type with the same containers); all if not set. |
 
 #### Control points
+
+Custom elements can host `objectInstance` parameters using the ordinary parametric-object machinery. Their panel buttons and clickable models open the transform editor and return to the custom-element panel. The object state is saved with the element; preview objects are not automatically exported as city mesh instances. Core exporters read their parameter state explicitly when needed.
 
 Each node of `controlPoints` is a point, or a group of points if it has `children`. A node with `array` is repeated (a list of points, or of groups):
 

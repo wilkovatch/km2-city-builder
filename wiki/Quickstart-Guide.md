@@ -345,7 +345,7 @@ Props can also be placed automatically along roads with *prop rules*, in the *Pr
 
 To edit the city-wide properties, select *Edit→City properties*. They include the name of the city and other properties defined by the core (e.g. the traffic light models, or the races).
 
-Some of these properties (depending on the core, e.g. races) contain objects that are only used in a certain context (e.g. the opponents and waypoints of a race). To avoid cluttering the city with objects that are not meant to be used together, the objects of these *containers* are only shown while the container is selected. While a container is selected, a blue entry appears in the menu bar: to deselect and hide it, select *N container(s) selected→Deselect \<container\>*.
+Some of these properties (depending on the core, e.g. races) contain objects that are only used in a certain context (e.g. the opponents and waypoints of a race). To avoid cluttering the city with objects that are not meant to be used together, the objects of these *containers* are only shown while the container is selected. While a container is selected, a blue entry appears in the menu bar: to go back to its panel, select *N container(s) selected→Edit \<container\>*, and to deselect and hide it, select *N container(s) selected→Deselect \<container\>* (the core can use more specific names for these entries).
 
 ## Exporting
 

@@ -285,13 +285,13 @@ public partial class ElementManager : Scriptable {
             res.Add(GO.GetObject(patch));
         }
         foreach (var mesh in meshes) {
-            res.Add(GO.GetObject(mesh));
+            if (Operations.PropertyContainers.Owner(mesh.settings) == "") res.Add(GO.GetObject(mesh));
         }
         foreach (var building in buildings) {
             res.Add(GO.GetObject(building));
         }
         foreach (var element in customElements) {
-            if (element.container == null) res.Add(element);
+            if (element.container == null && Operations.PropertyContainers.Owner(element.state) == "") res.Add(element);
         }
         res.Sort((x, y) => Actions.Helpers.PadInts(GO.GetName(x)).CompareTo(Actions.Helpers.PadInts(GO.GetName(y))));
         return res;
@@ -504,6 +504,12 @@ public partial class ElementManager : Scriptable {
 
     public void ProcessUpdate() {
         if (PreferencesManager.workingDirectory == "") return;
+        if (worldChanged || visibilityChanged) {
+            //a physics step between the input and _Process flushes the delete queue: what the UI deleted can be already freed
+            Cleanup();
+            Operations.PropertyContainers.Sync(this);
+            Operations.PropertyContainers.ApplyVisibility();
+        }
         if (visibilityChanged) {
             visibilityChanged = false;
             foreach (var road in roads) {
@@ -567,6 +573,8 @@ public partial class ElementManager : Scriptable {
             objectsUpdated += road.UpdateObjects();
         }
         objectsUpdated += GetDummy<CityProperties>().UpdateObjects();
+        foreach (var element in customElements) objectsUpdated += element.UpdateObjects();
+        Operations.PropertyContainers.ApplyVisibility();
         lastRebuildCounts = (roadsRebuilt, intersectionsRebuilt, customElementsRebuilt);
         if (GameEngine.IsEditor()) GameEngine.Print(
             "rebuilt " + roadsRebuilt + " roads, "

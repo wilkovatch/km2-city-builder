@@ -56,8 +56,8 @@ public partial class MenuBar : Control {
     }
 
     //submenus: the entries (by index) that open a submenu instead of running an action
-    public void SetEntries(int i, List<string> entries, List<System.Action> actions, Dictionary<int, MenuSubmenu> submenus = null) {
-        elements[i].SetEntries(entries, actions, submenus);
+    public void SetEntries(int i, List<string> entries, List<System.Action> actions, Dictionary<int, MenuSubmenu> submenus = null, Dictionary<int, Color> colors = null) {
+        elements[i].SetEntries(entries, actions, submenus, colors);
     }
 
     public void AddElement(string title, List<string> entries, List<System.Action> actions, Color color, Dictionary<int, MenuSubmenu> submenus = null) {

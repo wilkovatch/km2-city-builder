@@ -2,6 +2,8 @@
 
 A **PropPlacer** is a capability of a core-defined [custom element](Core-Custom-Elements), selected by `settings.propPlacer`. Its authored control points and properties are saved in `customElements`; its generated props are derived geometry. It uses the ordinary custom-element API, presets, undo/redo, attachments and selection. Clicking any generated prop opens its owner.
 
+Placers can also declare `propertyContainerCategory` to belong to a selected [city-property container](Core-City-Properties#owned-elements-and-contextual-creation). Ownership applies to the whole placer and its generated props, follows the container's visibility, and stays outside property presets. Exporters receive the ownership identifier with the ordinary placer state.
+
 The full properties panel opens before the first click. Spline placers append controls like other splines. Polygon placers append perimeter vertices like terrain patches; clicking the first vertex finishes the perimeter. Ctrl+click follows connected road anchors or shared perimeter edges, including intermediate attachments on those edges. The usual point sharing, insertion, deletion and detach tools apply.
 
 ## Spline placers

@@ -29,7 +29,7 @@ public partial class CityBuilderMenuBar : Control {
     MeshListEditorPanel meshListEditorPanel = new MeshListEditorPanel();
     TransformPropertiesEditorPanel transformPropertiesEditorPanel = new TransformPropertiesEditorPanel();
     SettingsEditorPanel settingsEditorPanel = new SettingsEditorPanel();
-    CityPropertiesEditorPanel cityPropertiesEditorPanel = new CityPropertiesEditorPanel();
+    public CityPropertiesEditorPanel cityPropertiesEditorPanel = new CityPropertiesEditorPanel();
     public EditorPanels.Props.ContainerEditorPanel propContainerEditorPanel = new EditorPanels.Props.ContainerEditorPanel();
     public TerrainPatchBorderMeshEditorPanel tpBorderMeshEditorPanel = new TerrainPatchBorderMeshEditorPanel();
     BatchUpdateEditorPanel batchUpdateEditorPanel = new BatchUpdateEditorPanel();
@@ -60,6 +60,7 @@ public partial class CityBuilderMenuBar : Control {
     int scriptsMenuIndex = -1;
     int viewMenuIndex = -1;
     int createMenuIndex = -1;
+    public EditorPanels.ContainerPlacementPanel containerPlacementPanel = new();
     List<ScriptCatalog.ScriptInfo> menuScripts = new List<ScriptCatalog.ScriptInfo>();
 
     Node3D selectedObject = null;
@@ -224,8 +225,11 @@ public partial class CityBuilderMenuBar : Control {
         menuBar.AddElement(SM.Get("CONTAINERS_SELECTED_PLUR").Replace("$NUMBER", "9"), entries, actions, GameEngine.Color.blue);
         selectedEntityMenuItemIndex = menuBar.GetElementCount() - 1;
         menuBar.ShowElement(selectedEntityMenuItemIndex, false);
+        //listed again when it opens: a container selected for the first time gets its identity at the next update
+        menuBar.SetOnOpen(selectedEntityMenuItemIndex, SyncSelectedEntityMenuItemVisibility);
 
         panels = new List<EditorPanel> {
+            containerPlacementPanel,
             terrainEditorPanel,
             roadEditorPanel,
             intersectionEditorPanel,
@@ -277,7 +281,7 @@ public partial class CityBuilderMenuBar : Control {
     void PrepareForUndo() {
         DeselectAndCloseCurrentPanel();
         gizmo.ClearTargets();
-        ArrayObject.DeselectAll();
+        Operations.PropertyContainers.DeselectAllButContainers();
     }
 
     void AfterUndo(OpenEditorState editorState) {
@@ -539,6 +543,7 @@ public partial class CityBuilderMenuBar : Control {
         }
         var mesh = CaptureMeshLocator(instance);
         if (mesh == null) return null;
+        var closeOnDelete = transformPropertiesEditorPanel.closeOnDelete;
         return parent => {
             var node = mesh();
             if (node == null) return null;
@@ -547,6 +552,7 @@ public partial class CityBuilderMenuBar : Control {
             parent.Hide(true);
             SelectObject(node);
             if (!parent.IsOpen()) parent.Hide(true);
+            transformPropertiesEditorPanel.closeOnDelete = closeOnDelete;
             return transformPropertiesEditorPanel;
         };
     }
@@ -707,11 +713,13 @@ public partial class CityBuilderMenuBar : Control {
         //the entries of the types with a createMenu submenu (a string key) are grouped in the submenu of that name
         var submenus = new Dictionary<int, MenuSubmenu>();
         var submenuIndices = new Dictionary<string, int>();
+        var colors = new Dictionary<int, Color>();
         //historyLabel: the name of the undo step if it is not the text of the entry (the text is short under a submenu)
-        void AddEntry(string label, System.Action action, string submenuKey, string historyLabel = null) {
+        void AddEntry(string label, System.Action action, string submenuKey, string historyLabel = null, bool owned = false) {
             if (string.IsNullOrEmpty(submenuKey)) {
                 entries.Add(label);
                 actions.Add(action);
+                if (owned) colors[entries.Count - 1] = GameEngine.Color.blue;
                 return;
             }
             if (!submenuIndices.TryGetValue(submenuKey, out var index)) {
@@ -722,6 +730,10 @@ public partial class CityBuilderMenuBar : Control {
                 submenus[index] = new MenuSubmenu();
             }
             submenus[index].Add(label, action, historyLabel);
+            if (owned) {
+                colors[index] = GameEngine.Color.blue;
+                submenus[index].colors[submenus[index].entries.Count - 1] = GameEngine.Color.blue;
+            }
         }
         if (!noCity && PathHelper.CoreAvailable()) {
             //the mesh instance types: their entries (or groups) open the mesh list to place a mesh as one of them
@@ -731,8 +743,10 @@ public partial class CityBuilderMenuBar : Control {
                 if (!settings.creatable) continue;
                 var type = pair.Key;
                 var group = settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT";
+                var owner = Operations.PropertyContainers.Capture(settings.propertyContainerCategory, type);
+                if (settings.requiresPropertyContainer && owner == "") continue;
                 if (settings.createMenu?.direct == true) {
-                    AddEntry(SM.GetOrKey(settings.createMenu.label ?? pair.Value.Label()), () => CreateMeshInstance(type, null), settings.createMenu.submenu, SM.GetOrKey(pair.Value.Label()));
+                    AddEntry(SM.GetOrKey(settings.createMenu.label ?? pair.Value.Label()), () => CreateMeshInstance(type, null), settings.createMenu.submenu, SM.GetOrKey(pair.Value.Label()), owner != "");
                 } else if (meshGroups.Add(group)) {
                     AddEntry(SM.Get(group), () => CreateMeshInstance(null, group), settings.createMenu?.submenu);
                 }
@@ -742,11 +756,26 @@ public partial class CityBuilderMenuBar : Control {
                 if (!settings.creatable) continue;
                 var type = pair.Key;
                 var group = settings.createMenu?.group ?? "CREATE_CUSTOM_ELEMENT";
+                var owner = Operations.PropertyContainers.Capture(settings.propertyContainerCategory, type);
+                if (settings.requiresPropertyContainer && owner == "") continue;
                 if (settings.createMenu?.direct == true) {
                     var typeLabel = Operations.CustomElements.GetTypeLabel(type);
-                    AddEntry(settings.createMenu.label != null ? SM.Get(settings.createMenu.label) : typeLabel, () => StartCustomElementCreation(type), settings.createMenu.submenu, typeLabel);
+                    AddEntry(settings.createMenu.label != null ? SM.Get(settings.createMenu.label) : typeLabel, () => StartCustomElementCreation(type), settings.createMenu.submenu, typeLabel, owner != "");
                 } else if (groups.Add(group)) {
                     AddEntry(SM.Get(group), () => StartCustomElementCreation(null, group), settings.createMenu?.submenu);
+                }
+            }
+            foreach (var category in ArrayObject.activeElements.Keys) {
+                var active = Operations.PropertyContainers.Active(category);
+                if (active == null) continue;
+                foreach (var command in active.settings.commands ?? System.Array.Empty<CityElements.Types.PropertyContainerCommand>()) {
+                    var targetId = Operations.PropertyContainers.EnsureId(active.state);
+                    AddEntry(SM.Get(command.label), () => {
+                        if (!Operations.PropertyContainers.IsCurrent(targetId)) return;
+                        containerPlacementPanel.containerId = targetId;
+                        containerPlacementPanel.command = command;
+                        ShowPanel(containerPlacementPanel);
+                    }, null, null, true);
                 }
             }
         }
@@ -754,7 +783,7 @@ public partial class CityBuilderMenuBar : Control {
         actions.AddRange(new System.Action[] { null, CreateCityTerrain, CreateCityBuildings });
         var recordedSubmenus = new Dictionary<int, MenuSubmenu>();
         foreach (var pair in submenus) recordedSubmenus[pair.Key] = pair.Value.Wrapped(RecordedAction);
-        GetMenuBar().SetEntries(createMenuIndex, entries, Recorded(entries, actions), recordedSubmenus);
+        GetMenuBar().SetEntries(createMenuIndex, entries, Recorded(entries, actions), recordedSubmenus, colors);
     }
 
     // Scripts
@@ -937,11 +966,26 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     public void NotifyVisibilityChange() {
+        CancelInvalidContainerPlacement();
         if (helper != null) {
             if (helper.elementManager != null) {
                 helper.elementManager.visibilityChanged = true;
                 SyncSelectedEntityMenuItemVisibility();
             }
+        }
+    }
+
+    public void CancelInvalidContainerPlacement() {
+        if (customElementPlacer != null && !Operations.PropertyContainers.IsCurrent(customElementPlacer.propertyContainerId)) {
+            customElementPlacer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.None;
+        }
+        if (meshPlacer != null && !Operations.PropertyContainers.IsCurrent(meshPlacer.propertyContainerId)) meshPlacer.placeEnabled = false;
+        if (arrayPointPlacer != null && containerPlacementPanel.IsOpen() && !Operations.PropertyContainers.IsCurrent(containerPlacementPanel.containerId)) arrayPointPlacer.Stop();
+        if (gizmo?.mainTargetRoot != null) {
+            var target = History.UndoManager.ResolveOwner(gizmo.mainTargetRoot);
+            var state = target is MeshInstance mesh ? mesh.settings : (target as CustomElement)?.state;
+            var owner = Operations.PropertyContainers.Owner(state);
+            if (owner != "" && !Operations.PropertyContainers.IsCurrent(owner)) transformPropertiesEditorPanel.SetActive(false);
         }
     }
 
@@ -954,14 +998,27 @@ public partial class CityBuilderMenuBar : Control {
         foreach (var entry in ArrayObject.activeElements) {
             if (entry.Value != null) {
                 entitiesSelected.Add(entry.Key);
-                entries.Add(SM.Get("DESELECT_CONTAINER").Replace("$CONTAINER", SM.Get("CUSTOM_ELEMENT_CATEGORY_" + entry.Key.ToUpper())));
-                actions.Add(delegate { DeselectEntity(entry.Key); });
+                var category = entry.Key;
+                var settings = Operations.PropertyContainers.Active(category)?.settings;
+                var name = SM.Get("CUSTOM_ELEMENT_CATEGORY_" + category.ToUpper());
+                if (settings != null) {
+                    var editLabel = settings.editLabel != null ? SM.Get(settings.editLabel) : SM.Get("EDIT_CONTAINER").Replace("$CONTAINER", name);
+                    entries.Add(editLabel);
+                    actions.Add(RecordedAction(editLabel, () => EditEntity(category)));
+                }
+                entries.Add(settings?.deselectLabel != null ? SM.Get(settings.deselectLabel) : SM.Get("DESELECT_CONTAINER").Replace("$CONTAINER", name));
+                actions.Add(delegate { DeselectEntity(category); });
             }
         }
         menuBar.SetEntries(idx, entries, actions);
         var suffix = entitiesSelected.Count > 1 ? "PLUR" : "SING";
         menuBar.SetText(idx, SM.Get("CONTAINERS_SELECTED_" + suffix).Replace("$NUMBER", entitiesSelected.Count.ToString()));
         menuBar.ShowElement(idx, entitiesSelected.Count > 0);
+    }
+
+    void EditEntity(string type) {
+        var container = Operations.PropertyContainers.Active(type);
+        if (container != null) Operations.PropertyContainers.Open(this, container);
     }
 
     void DeselectEntity(string type) {
@@ -976,6 +1033,7 @@ public partial class CityBuilderMenuBar : Control {
                 panel.Update();
             }
         }
+        if (GetActivePanel() is EditorPanels.ContainerContentsPanel contents) contents.Update(); //a child panel, not in the list
     }
 
     void ToggleWireframe() {
@@ -1199,6 +1257,8 @@ public partial class CityBuilderMenuBar : Control {
 
     //type: the mesh instance type of the new instances, or null for the types of the group (chosen in the placement panel)
     public void CreateMeshInstance(string type, string group) {
+        var settings = type == null ? null : Operations.Meshes.GetMeshType(type)?.typeData.settings;
+        meshPlacer.propertyContainerId = Operations.PropertyContainers.Capture(settings?.propertyContainerCategory, type);
         meshListEditorPanel.placementType = type;
         meshListEditorPanel.placementGroup = group;
         ShowPanel(meshListEditorPanel);
@@ -1252,12 +1312,15 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     void StartCustomElementCreation(string type, string group = "CREATE_CUSTOM_ELEMENT") {
+        var category = type != null ? CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()[type].typeData.settings.propertyContainerCategory : null;
+        var ownerId = Operations.PropertyContainers.Capture(category, type);
         customElementEditorPanel.Terminate();
         DisableAllPanels(customElementEditorPanel);
         customElementEditorPanel.creationType = type;
         customElementEditorPanel.creationGroup = group;
         customElementPlacer.createType = type;
         customElementPlacer.SetElement(null);
+        customElementPlacer.propertyContainerId = ownerId;
         customElementPlacer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.Create;
         terrainClick.modifier = customElementPlacer;
         customElementEditorPanel.SetActive(true);
@@ -1390,7 +1453,7 @@ public partial class CityBuilderMenuBar : Control {
         MeshInstance mesh = null;
         var stack = new Stack<Node3D>(); //the array elements containing it, the outermost on top (as in SelectObject)
         for (; node != null; node = node.GetParent() as Node3D) {
-            if (GS.Cast<CityProperties>(node) != null) break;
+            if (GS.Cast<CityProperties>(node) != null || GS.Cast<CustomElement>(node) != null) break;
             if (mesh != null) stack.Push(node);
             else mesh = GS.Cast<MeshInstance>(node);
         }
@@ -1402,6 +1465,7 @@ public partial class CityBuilderMenuBar : Control {
         parent.Hide(true);
         SelectObject(mesh);
         if (!parent.IsOpen()) parent.Hide(true);
+        transformPropertiesEditorPanel.closeOnDelete = true;
         return true;
     }
 

@@ -82,6 +82,9 @@ Values not set yet read as 0, false, an empty string or a zero vector. Default v
 | Field | Description |
 |---|---|
 | `maxElements` | Maximum number of elements; 0 or negative for no limit. |
+| `hint` | Optional string key of a text shown under the list, for example to say where the elements are created. |
+| `subPanel` | The panel shows a button (with the label of the parameter) that opens the list in a sub-panel, instead of the list itself (default `false`). The state is the same either way. |
+| `hideAddButton` | Remove the Add button of the list, for elements added some other way, such as a [property container command](Core-City-Properties#owned-elements-and-contextual-creation) (default `false`). |
 | `elementProperties` | Parameters of each element (any type, including nested arrays, custom city properties and object instances). |
 | `customCityPropertiesType` | Alternative to `elementProperties`: use the parameters of a custom city properties type. |
 | `elementLabel` | Name of the element parameter whose value is shown in the list (with `customCityPropertiesType`, the custom city properties type's `label` is used instead). Elements without a label are shown as "Element N". |
@@ -114,7 +117,7 @@ For example, the decals of the MM2 core tile the texture in squares as wide as t
 }
 ```
 
-The editor shows the list with Add, Edit, Delete, Clone, Move up and Move down buttons. Each element is edited in its own panel, with all its parameters stacked vertically (there is no `ui.json` for array elements). When an element has a single parameter of type `objectInstance` (for example a checkpoint), editing it selects the placed object directly.
+The editor shows the list with Add, Edit, Delete, Clone, Move up and Move down buttons. Each element is edited in its own panel, with all its parameters stacked vertically (there is no `ui.json` for array elements, but a `customCityPropertiesType` can have a [layout](Core-City-Properties#panel-layout)). When an element has a single parameter of type `objectInstance` (for example a checkpoint), editing it selects the placed object directly.
 
 #### `customCityProperties`
 
@@ -144,9 +147,29 @@ A button that opens a panel with the parameters of a custom city properties type
 | `label` | String key of the type's name, shown in the type dropdown. |
 | `menuWidth` | Width of the panel, in units of 160 pixels (1.5 is the usual width). |
 | `tabs` | One page per tab, with a button for each tab at the top of the panel (in two rows with four tabs or more). A tab `label` is a string key; an empty label is allowed for single-tab panels. |
-| `elements` | Fields of the tab, in order. `name` is a parameter full name, a built-in group, a `PRESET_<container>` element or a `convert:<converter>` button (converting the element with a converter of the core, see [Core Custom Elements](Core-Custom-Elements#converters)); `width` is in the same units as `menuWidth`. Elements are placed side by side and wrap to a new row when the sum of their widths exceeds `menuWidth`. |
+| `elements` | Fields of the tab, in order. `name` is a parameter full name, a built-in group, a `PRESET_<container>` element, a `convert:<converter>` button (converting the element with a converter of the core, see [Core Custom Elements](Core-Custom-Elements#converters)) or a `label:<string key>` text (see below); `width` is in the same units as `menuWidth`. Elements are placed side by side, starting from the right (the first element of a row is the rightmost), and wrap to a new row when the sum of their widths exceeds `menuWidth`. |
 
 Parameters that are not listed in any tab are still variables and still saved, but cannot be edited. `array` parameters always take a full row.
+
+### Labels
+
+A `label:<string key>` element shows a text, for example a title above fields side by side:
+
+```json
+{ "name": "label:TIME_OF_DAY", "width": 1.5 },
+{ "name": "timeOfDay_professional", "width": 0.75 },
+{ "name": "timeOfDay", "width": 0.75 }
+```
+
+`height` (optional, only for labels) is the height of its row, in units of 50 pixels (the height of a row of fields):
+
+| `height` | Use |
+|---|---|
+| 0.4 (default) | One line of text above a row of fields, right above their titles. |
+| 0.2 | One line of text above a row of buttons: the text stays one line tall and goes over the empty margin at the top of the buttons. |
+| More | Text on more lines. |
+
+Labels work in the `ui.json` of the elements and of the scripts and in the [layout](Core-City-Properties#panel-layout) of the custom city properties types, not in the `uiInfo` of props elements and parametric objects.
 
 ### Built-in groups
 
