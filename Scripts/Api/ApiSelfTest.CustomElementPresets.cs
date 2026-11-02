@@ -111,12 +111,6 @@ namespace Api {
             Check("Unlink keeps draft properties and removes the preset link", Draft().Name == "" && Draft().Float("width") == 5);
             builder.CloseAllPanels();
             PresetManager.DeletePreset("UI draft preset", category);
-            Start(PropPath.TypeId);
-            await Frames(2);
-            History.UndoManager.Record("place prop path draft", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { point = new Vector3(700, 0, 700) }));
-            Check("the shared prop-path placer still creates its default point layout", builder.customElementPlacer.GetElement() is PropPath path && path.GetAllPoints().Count > 0);
-            var pathId = History.ElementRegistry.GetId(builder.customElementPlacer.GetElement());
-            await Call("propPaths.delete", new { element = pathId });
 
             Start();
             Draft().SetFloat("width", 4);

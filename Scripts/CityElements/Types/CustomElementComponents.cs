@@ -57,6 +57,7 @@ namespace CityElements.Types {
         public bool presets; //optional per-type presets, in category customElement/<type>
         public ObjectState defaultPreset; //initial Default when an older city has no category yet
         public CustomElementSplineSettings spline;
+        public PropPlacerSettings propPlacer;
         public CustomElementPointSettings point; //null: not a point element
         public CustomElementMeshInstanceSettings meshInstance; //null: not a mesh instance element
         public CustomElementCreateMenu createMenu;
@@ -152,6 +153,7 @@ namespace CityElements.Types {
             ui = Parsers.TypeInheritance.Load<Panel>(folder, "ui.json");
             parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
             settings = Parsers.TypeInheritance.Load<CustomElementSettings>(folder, "settings.json");
+            settings.propPlacer?.Initialize(this);
             if (settings.meshInstance != null) {
                 if (settings.spline != null || settings.point != null || (settings.controlPoints?.Length ?? 0) > 0 || settings.mesh != null || settings.geometry != null
                     || settings.constraints != null || settings.derivedPoints != null || settings.container != null

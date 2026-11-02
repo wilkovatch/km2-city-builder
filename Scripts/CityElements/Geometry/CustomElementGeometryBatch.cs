@@ -58,7 +58,7 @@ static class CustomElementGeometryBatch {
         }
         try {
             foreach (var element in elements) {
-                //subclasses can change their points or state in Rebuild (e.g. a prop path synchronizing its ribbons)
+                //Scripted placers and projected geometry require the main thread.
                 if (element.GetType() != typeof(CustomElement) || element.GetCustomElementType()?.canBatchGeometryPreparation == false) {
                     Flush();
                     rebuilt += element.UpdateGeometry();

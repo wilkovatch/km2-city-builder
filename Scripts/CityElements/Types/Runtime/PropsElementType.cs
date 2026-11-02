@@ -53,7 +53,7 @@ namespace CityElements.Types.Runtime {
             return (floatVars, vec2Vars, vec3Vars);
         }
 
-        public PropsElementType(Types.PropsElementType type, string name): base(type, type.parametersInfo, null, GetVarLists(), name) {
+        public PropsElementType(Types.PropsElementType type, string name): base(type, type.parametersInfo, null, GetVarLists(), name, "props") {
             rules = new PlacementRules(type.placementRules);
             SetIndices();
         }
@@ -64,14 +64,14 @@ namespace CityElements.Types.Runtime {
             rules.SetIndices(vc);
         }
 
-        public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state, float totalLength, int meshNum) {
+        public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state, float totalLength, int meshNum, ObjectState injectedState = null) {
             FillVector3(variableContainer, "localUp", GameEngine.Vector3.up); //always the same
             FillVector3(variableContainer, "worldUp", GameEngine.Vector3.up);
             FillVector3(variableContainer, "worldRight", GameEngine.Vector3.right);
             FillVector3(variableContainer, "worldForward", GameEngine.Vector3.forward);
             FillFloat(variableContainer, "totalLength", totalLength);
             FillFloat(variableContainer, "meshNum", meshNum);
-            FillBaseInitialVariables(variableContainer, state, null);
+            FillBaseInitialVariables(variableContainer, state, null, injectedState);
         }
 
         public void FillSegmentVariables(RC.VariableContainer variableContainer,int i, float lastX, float lastZ) {

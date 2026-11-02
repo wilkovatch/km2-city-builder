@@ -32,6 +32,7 @@
 - [Buildings](Core-Buildings)
 - [Props and Objects](Core-Props-and-Objects)
 - [Custom Elements](Core-Custom-Elements)
+- [Prop Placers](Core-Prop-Placers)
 - [City Properties](Core-City-Properties)
 - [Lua Scripts](Core-Lua-Scripts)
 - [Python Integration](Core-Python-Integration)

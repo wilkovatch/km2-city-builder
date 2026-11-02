@@ -77,7 +77,7 @@ namespace Api {
                 case TerrainPoint: return "terrainPoint";
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
-                case PropPath: return "propPath";
+
                 case CustomElement: return "customElement";
                 case Building: return "building";
                 case BuildingSideGenerator: return "buildingSide";
@@ -307,6 +307,7 @@ namespace Api {
                     break;
                 case CustomElement customElement:
                     t.state = customElement.state;
+                    t.afterChange = () => ValidatePropPlacerState(customElement.state, customElement.TypeName);
                     t.parameters = Params(customElement.GetCustomElementType()?.parameterContainer);
                     t.presetCategory = Operations.CustomElementPresets.Category(customElement.TypeName);
                     if (t.presetCategory != null) {
@@ -378,20 +379,22 @@ namespace Api {
                     t.state = pc.state;
                     t.presetCategory = "propContainer";
                     t.applyPreset = x => Operations.Props.GetPropRule(pc.road.GetState(), true).SetState(pc.container, x);
-                    t.types = () => TP.GetPropsContainersTypes().Keys;
-                    t.afterChange = () => pc.road.GetState().FlagAsChanged();
+                    var strip = PropPlacerGeometry.Strip(pc.road.GetState(), pc.container);
+                    t.types = () => strip?.allowedContainerTypes?.Length > 0 ? strip.allowedContainerTypes : TP.GetPropsContainersTypes().Keys;
+                    t.afterChange = () => { if (pc.road is CustomElement owner) ValidatePropPlacerState(owner.state, owner.TypeName); pc.road.GetState().FlagAsChanged(); };
                     break;
                 case PropElementPart pe:
                     t.owner = pe.road;
                     t.state = pe.state;
-                    t.parameters = Params(TypeOf(TP.GetPropsElementTypes(), pe.state.Str("type", null))?.typeData.parametersInfo);
+                    var elementStrip = PropPlacerGeometry.Strip(pe.road.GetState(), pe.container);
+                    t.parameters = Params(PropPlacerGeometry.ScopedType(elementStrip, pe.state.Str("type", null))?.typeData.parametersInfo);
                     var containerState = Operations.Props.GetPropRule(pe.road.GetState(), false).State(pe.container);
                     var allowed = Operations.Props.GetAllowedTypes(containerState, pe.list);
                     t.presetCategory = "propElem";
                     t.presetAllowedTypes = allowed;
                     t.applyPreset = x => pe.state.properties = x.properties;
                     t.types = () => allowed.Count > 0 ? allowed : new List<string>(TP.GetPropsElementTypes().Keys);
-                    t.afterChange = () => pe.road.GetState().FlagAsChanged();
+                    t.afterChange = () => { if (pe.road is CustomElement owner) ValidatePropPlacerState(owner.state, owner.TypeName); pe.road.GetState().FlagAsChanged(); };
                     break;
                 case ParameterElementPart pp:
                     t.owner = pp.parent.owner;

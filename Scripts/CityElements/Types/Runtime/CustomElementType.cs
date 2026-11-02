@@ -23,6 +23,7 @@ namespace CityElements.Types.Runtime {
                 if (definition.script != null || (definition.value != null && definition.value.Contains("rnd"))) canBatchGeometryPreparation = false;
             }
             var settings = type.settings;
+            if (settings.propPlacer != null) canBatchGeometryPreparation = false;
             if (settings.spline != null) {
                 var spline = settings.spline;
                 SplineCurves.ValidateSettings(spline);
@@ -36,7 +37,7 @@ namespace CityElements.Types.Runtime {
                     components = type.splineComponents ?? new RoadComponent[0], ui = type.ui }, name);
                 canBatchGeometryPreparation = false; //projection and road component evaluation stay on the main thread
             }
-            if (settings.geometry != null || settings.constraints != null || settings.derivedPoints != null) {
+            if (settings.geometry != null || settings.constraints != null || settings.derivedPoints != null || settings.propPlacer?.placement != null) {
                 this.scriptHost = scriptHost ?? RC.Scripting.LuaScriptHost.Get();
                 if (settings.geometry != null) geometryFunction = this.scriptHost.Resolve(settings.geometry);
                 if (settings.constraints != null) constraintsFunction = this.scriptHost.Resolve(settings.constraints);

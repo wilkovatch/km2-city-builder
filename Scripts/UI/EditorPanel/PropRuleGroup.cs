@@ -26,14 +26,19 @@ public abstract partial class EditorPanel {
 
         //presetTypes: the types of the prop rule presets listed (null: all)
         public void Add(EditorPanelPage p, PresetSelector pS, string[] containers, List<string> presetTypes, float w) {
-            pS.AddPresetLoadAndSaveDropdown(p, SM.Get("RD_PROP_RULE_PRESET"), true, "roadPropRule", SetRule, GetRule, true,
+            var owner = ownerState(false);
+            var placer = owner != null && CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().TryGetValue(owner.Str("type", ""), out var type)
+                && type.typeData.settings.propPlacer != null;
+            if (!placer) pS.AddPresetLoadAndSaveDropdown(p, SM.Get("RD_PROP_RULE_PRESET"), true, "roadPropRule", SetRule, GetRule, true,
                 x => { var obj = GetRule(true); obj.Name = x; SetRule(obj); }, presetTypes, null, w);
             controls.Clear();
             foreach (var containerType in containers ?? new string[0]) {
                 var cb = p.AddCheckbox(SM.Get("RD_PROP_ENABLED"), false, x => { EnableContainer(containerType, x); }, w * 0.3f);
                 var labelKey = "EDIT_PROP_CONTAINER_" + containerType.ToUpper();
                 var label = SM.GetOrKey(labelKey);
-                if (label == labelKey) label = SM.Get("PROP_PATH_EDIT_RIBBON").Replace("$RIBBON", containerType);
+                var strip = PropPlacerGeometry.Strip(ownerState(false) ?? new ObjectState(), containerType);
+                if (strip?.label != null) label = SM.Get(strip.label);
+                else if (label == labelKey) label = SM.Get("PP_EDIT_STRIP").Replace("$STRIP", containerType);
                 var btn = p.AddButton(label, delegate { EditContainer(containerType); }, w * 0.7f);
                 controls.Add(containerType, (btn, cb));
                 p.IncreaseRow();
@@ -79,6 +84,7 @@ public abstract partial class EditorPanel {
 
         void EditContainer(string name) {
             var containerPanel = panel.builder.propContainerEditorPanel;
+            containerPanel.strip = PropPlacerGeometry.Strip(ownerState(false), name);
             containerPanel.SetContainer(GetRule().State(name), x => { GetRule().SetState(name, x); });
             containerPanel.parentPanel = panel;
             containerPanel.parentState = ownerState(false);

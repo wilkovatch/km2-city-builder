@@ -232,9 +232,9 @@ namespace Api {
                 } else if (focus == "menus") {
                     await NewCity();
                     await Submenus();
-                } else if (focus == "propPaths") {
+                } else if (focus == "propPlacers") {
                     await NewCity();
-                    await StandalonePropRules();
+                    await PropPlacers();
                 } else if (System.Environment.GetEnvironmentVariable("KM2_SELFTEST_INCREMENTAL") == "1") {
                     await NewCity();
                     IncrementalUpdates();
@@ -285,7 +285,7 @@ namespace Api {
                     await CustomElementRoomEditing();
                     await BaiConnections();
                     await PointAttachments();
-                    await StandalonePropRules();
+                    await PropPlacers();
                     await MeshSelection();
                     await SurfaceProjection();
                     await CustomElementPresetWorkflow();

@@ -21,6 +21,9 @@ namespace EditorPanels {
         }
         ObjectState draft;
         bool creating;
+        ElementPlacer.CustomElementPlacer.PlacementMode? suspendedPlacement;
+        CustomElement suspendedElement;
+        string suspendedType;
         protected override bool SingleStateParameters => true;
 
         ObjectState CurrentState() => GetElement()?.state ?? draft;
@@ -57,7 +60,6 @@ namespace EditorPanels {
                 placer.creationState = draft;
             }
         }
-        int selectedRibbon;
         string builtType = null; //the type the panel was built for
         CustomElement builtElement = null; //and the element (its arrays, container and contents are listed)
         EditorPanelElements.Dropdown createTypeDropdown, placementDropdown, splineTypeDropdown;
@@ -82,6 +84,7 @@ namespace EditorPanels {
         bool shownDerived = false; //the points were computed (see CustomElement.IsDerived) when last shown
         bool shownHandle = false; //the move handle of the container was selected when last shown
         readonly PropRuleGroup propRule;
+        EditorPanelElements.Label propPlacementErrorLabel;
         //the content picked in the contents dropdown, outlined (in a colour of its own, on a free render layer) and with
         //its points selected
         const uint ContentOutlineLayer = 1u << 16;
@@ -96,7 +99,6 @@ namespace EditorPanels {
         public CustomElementEditorPanel() {
             AddComplexElement(new PresetSelector(this));
             propRule = new PropRuleGroup(this, _ => CurrentState(), () => {
-                if (GetElement() is PropPath path) { path.SynchronizeRule(); builtElement = null; }
                 ReadCurValues();
                 builder.NotifyChange();
             });
@@ -117,6 +119,7 @@ namespace EditorPanels {
             uField = vField = null;
             spaceLabel = null;
             shownTransform = null;
+            propPlacementErrorLabel = null;
             appendArrays.Clear();
             possibleContainers.Clear();
             HighlightContent(null);
@@ -254,7 +257,7 @@ namespace EditorPanels {
                             if (!EditingPreset()) Operations.CustomElementPresets.Remember(type.name, value.Name);
                             return CurrentState();
                         }, () => GetElement() is CustomElement element ? Operations.CustomElementPresets.Extract(element)
-                            : Operations.CustomElementPresets.Extract(CurrentState(), type.name), false,
+                            : CurrentState() is ObjectState state ? Operations.CustomElementPresets.Extract(state, type.name) : null, false,
                         name => {
                             CurrentState().Name = name;
                             if (!EditingPreset()) Operations.CustomElementPresets.Remember(type.name, name);
@@ -309,39 +312,10 @@ namespace EditorPanels {
                     vField = p.AddInputField("V", "V", "", GameEngine.InputContentType.Decimal, x => SetUV(1, x), w * 0.5f);
                     p.IncreaseRow();
                 }
-            } else if (elem.name == "propPathGroup" && GetElement() is PropPath propPath) {
-                var ribbonNames = new List<string>(propPath.RibbonNames);
-                selectedRibbon = System.Math.Clamp(selectedRibbon, 0, ribbonNames.Count - 1);
-                var ribbonDropdown = p.AddDropdown(SM.Get("PROP_PATH_RIBBONS"), ribbonNames, i => { selectedRibbon = i; builtElement = null; }, w);
-                ribbonDropdown.actionEnabled = false;
-                ribbonDropdown.SetValue(selectedRibbon);
-                ribbonDropdown.actionEnabled = true;
-                p.IncreaseRow();
-                p.AddInputField(SM.Get("PROP_PATH_NAME"), "", ribbonNames[selectedRibbon], GameEngine.InputContentType.Standard, value => {
-                    propPath.RenameRibbon(selectedRibbon, value); builder.NotifyChange(); builtElement = null;
-                }, w);
-                p.IncreaseRow();
-                p.AddButton(SM.Get("PROP_PATH_REMOVE_RIBBON"), () => {
-                    propPath.RemoveRibbon(selectedRibbon); builder.NotifyChange(); builtElement = null;
-                }, w);
-                p.IncreaseRow();
-                p.AddButton(SM.Get("PROP_PATH_ADD_RIBBON"), () => {
-                    var names = new List<string>(propPath.RibbonNames);
-                    Operations.CustomElements.InsertArrayElement(propPath, "ribbons", names.Count, false);
-                    var number = names.Count;
-                    while (names.Contains("ribbon" + number)) number++;
-                    names.Add("ribbon" + number);
-                    propPath.state.SetArray("ribbonNames", names.ToArray());
-                    propPath.state.FlagAsChanged();
-                    builder.NotifyChange();
-                    builtElement = null;
-                }, w);
+            } else if (elem.name == "propPlacerGroup") {
+                propPlacementErrorLabel = p.AddLabel("", w);
                 p.IncreaseRow();
             } else if (elem.name == "propsGroup") {
-                if (GetElement() is PropPath path) {
-                    propRule.Add(p, GetComplexElement<PresetSelector>(), path.RibbonNames, null, w);
-                    return true;
-                }
                 if (settings.propsContainers != null && settings.propsContainers.Length > 0) {
                     var presetTypes = settings.propsPresetType != null ? new List<string> { settings.propsPresetType } : null;
                     propRule.Add(p, GetComplexElement<PresetSelector>(), settings.propsContainers, presetTypes, w);
@@ -751,6 +725,32 @@ namespace EditorPanels {
             return GetElement();
         }
 
+        public override void Hide(bool hide) {
+            var placer = GetPlacer() ?? builder.customElementPlacer;
+            if (hide && !suspendedPlacement.HasValue) {
+                suspendedPlacement = placer.placementMode;
+                suspendedElement = placer.GetElement();
+                suspendedType = placer.createType;
+                placer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.None;
+                placer.UpdatePlacementPoint();
+            }
+            base.Hide(hide);
+            if (!hide && suspendedPlacement.HasValue) {
+                if (GetPlacer() == placer && placer.GetElement() == suspendedElement && placer.createType == suspendedType
+                    && placer.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.None) {
+                    placer.placementMode = suspendedPlacement.Value;
+                    if (placementDropdown != null) {
+                        placementDropdown.actionEnabled = false;
+                        placementDropdown.SetValue(GetPointPlacementMode());
+                        placementDropdown.actionEnabled = true;
+                    }
+                    placer.UpdatePlacementPoint();
+                }
+                suspendedPlacement = null;
+                suspendedElement = null;
+            }
+        }
+
         public override void SetActive(bool active) {
             if (!PrepareActivation(active)) return;
             if (active && !keepActive) {
@@ -956,6 +956,7 @@ namespace EditorPanels {
         }
 
         void OnFrame() {
+            propPlacementErrorLabel?.SetValue(GetElement()?.propPlacementError is string error ? SM.Get(error) : "");
             if ((GetElement() != builtElement || (GetElement()?.TypeName ?? draft?.Str("type", null)) != builtType) && lastCanvas != null) Rebuild();
             ShowSelectedPoint();
             UpdateContentOutline();
@@ -963,7 +964,7 @@ namespace EditorPanels {
             GetPlacer()?.UpdatePlacementPoint();
         }
 
-        //built again while open (for another element, or to list what changed, e.g. the ribbons of a prop path): the new
+        //built again while open (for another element, or to list what changed): the new
         //pages are visible but not active until shown, so they are shown as the old ones were (on the same page), or hidden
         //while a panel is shown in place of this one (as the editor of a props container), except the list of containers,
         //which is rebuilt with this panel (its action is lost: this panel is shown again)
@@ -992,7 +993,7 @@ namespace EditorPanels {
         //a container gets a handle moving it with its contents, at their center (hidden with the element, or in another
         //click mode)
         void ShowMoveHandle(CustomElement element) {
-            if (element is not PropPath && (!element.GetCustomElementType()?.IsContainer ?? true)) return;
+            if (element.Settings?.propPlacer == null && (!element.GetCustomElementType()?.IsContainer ?? true)) return;
             var center = Operations.CustomElements.CenterWithContents(builder.helper.elementManager, element);
             if (center.HasValue) element.ShowMoveHandle(true, center.Value);
         }
@@ -1051,8 +1052,8 @@ namespace EditorPanels {
         }
 
         public void Terminate(bool auto) {
-            var placer = GetPlacer();
-            var element = GetElement();
+            var placer = GetPlacer() ?? builder.customElementPlacer;
+            var element = placer?.GetElement();
             if (placer != null) {
                 placer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.None;
                 placer.onFrame = null;
@@ -1061,6 +1062,8 @@ namespace EditorPanels {
             }
             draft = null;
             creating = false;
+            suspendedPlacement = null;
+            suspendedElement = null;
             HighlightContent(null);
             ShowContainerLines(null);
             if (element != null) {

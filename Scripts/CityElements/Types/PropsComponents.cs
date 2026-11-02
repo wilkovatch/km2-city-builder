@@ -18,6 +18,8 @@ namespace CityElements.Types {
     public class PropsElementType {
         public string label;
         public int maxMeshes;
+        public string[] fixedMeshes; //the meshes of the type, chosen with meshIndex: the elements have no mesh of their own (optional)
+        public bool exportSlots; //export the position and direction of every iteration, also those without a prop (optional)
         public ParameterContainer parametersInfo;
         public TabElement[] uiInfo;
         public PropsElementPlacementRules placementRules;

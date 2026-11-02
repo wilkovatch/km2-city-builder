@@ -26,6 +26,10 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     public object source; //the procedural element it replaces (a ghost), null if none
     public CustomElementGenerator generator;
     public CustomElementSplineGeometry.Data splineData;
+    public string propPlacementError;
+    public bool ProjectsPlacement => Settings?.propPlacer != null && state.Bool("projectToGround", Settings.propPlacer.projectToGround);
+    public bool ProjectsSurface => ProjectsPlacement || Settings?.spline?.projectSections == true;
+    bool propProjectionInvalid = true, propProjectionEnabled;
     readonly Dictionary<TerrainPoint, Vector3> splineProjectedPoints = new();
     int splineProjectionUndoVersion = -1;
     GameObject pointContainer;
@@ -541,6 +545,8 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     //the points follow their anchors (removing the points deleted meanwhile)
     public void RefreshPoints() {
         if (deleted) return;
+        if (propProjectionEnabled != ProjectsPlacement) propProjectionInvalid = true;
+        propProjectionEnabled = ProjectsPlacement;
         foreach (var (_, leaf) in GetUpdateLeaves()) {
             if (leaf.point != null && leaf.point.IsDeleted()) {
                 var old = leaf.point;
@@ -557,7 +563,9 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
             }
         }
         foreach (var p in GetUpdatePoints()) p.UpdatePosition();
-        if (Settings?.PointProjection is (int projectionMask, bool autoProjection)) {
+        var projection = Settings?.propPlacer != null
+            ? ProjectsPlacement ? (Settings.propPlacer.projectionMask, true) : ((int, bool)?)null : Settings?.PointProjection;
+        if (projection is (int projectionMask, bool autoProjection)) {
             //Projection is a placement/move rule. Unrelated edits must not reproject saved points onto transient
             //colliders (e.g. while a road is replaced); undo/redo restores the recorded heights exactly.
             var restored = splineProjectionUndoVersion != History.UndoManager.AppliedVersion;
@@ -565,7 +573,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
             foreach (var p in GetUpdatePoints()) {
                 var position = p.GetPoint();
                 if (!restored && !History.UndoManager.IsLoading && GO.IsNull(p.anchor) &&
-                    (!splineProjectedPoints.TryGetValue(p, out var old) || !GeometryHelper.AreVectorsEqual(old, position))) {
+                    (Settings?.propPlacer != null && propProjectionInvalid || !splineProjectedPoints.TryGetValue(p, out var old) || !GeometryHelper.AreVectorsEqual(old, position))) {
                     //with the rule of the sections, if they're projected too (as the clicks placing the points)
                     var projected = autoProjection
                         ? GeometryHelper.AutoProjectOnSurface(position, CityGroundHelper.ExcludeHiddenTerrain(projectionMask), generator)
@@ -582,6 +590,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
                 foreach (var p in new List<TerrainPoint>(splineProjectedPoints.Keys)) if (!used.Contains(p)) splineProjectedPoints.Remove(p);
             }
         }
+        propProjectionInvalid = false;
     }
 
     //runs the constraints of the type if points moved since they last ran; returns true if they moved other points
@@ -823,7 +832,7 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     }
 
     internal void InvalidateSplineSurface() {
-        if (Settings?.spline?.projectSections == true) structureVersion++;
+        if (ProjectsSurface) { structureVersion++; propProjectionInvalid = true; }
     }
 
     //rebuilds the geometry if anything changed, returns 1 if it did
@@ -909,6 +918,20 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
 
     protected virtual void Rebuild() {
         var type = curType;
+        if (Settings?.propPlacer != null) {
+            var randoms = RandomManager.rnds;
+            RandomManager.rnds = new Dictionary<int, System.Random>();
+            try {
+                generator.Rebuild(PropPlacerGeometry.Build(this), state, Settings.propsContainers);
+            } catch (System.Exception e) {
+                propPlacementError = "PP_INVALID_PLACEMENT";
+                generator.Clear();
+                GameEngine.LogError("Prop placer '" + TypeName + "': " + e.Message);
+            } finally {
+                RandomManager.rnds = randoms;
+            }
+            return;
+        }
         if (type?.splineType != null) {
             try {
                 var geometry = CustomElementSplineGeometry.Build(this, out splineData);
@@ -941,7 +964,9 @@ public partial class CustomElement : Scriptable, IGroundable, IObjectWithState {
     // Scripts
 
     //the second argument of the scripts: the points, the mesh and (for the constraints) what moved
-    LuaTable CreateScriptContext(HashSet<TerrainPoint> moved) {
+    internal LuaValue GetPlacementVariables() => RC.Scripting.LuaVariableView.Get(variableContainer);
+
+    internal LuaTable CreateScriptContext(HashSet<TerrainPoint> moved) {
         var ctx = new LuaTable();
         ctx["typeName"] = TypeName ?? "";
         ctx["name"] = GO.GetName(this);

@@ -1,5 +1,7 @@
 # Core Custom Elements
 
+Core-defined [PropPlacers](Core-Prop-Placers) add spline strips or polygon distributions using this same element lifecycle. Their `settings.propPlacer` configuration defines the shape, permitted prop containers or model fields, and placement logic.
+
 The procedural elements (roads, intersections, terrain patches, building lines) are built into the program: they generate their geometry from a few parameters, which keeps them easy to edit but limits them to what those parameters can describe. A core can also define **custom elements**: element types of its own, made of control points, an optional mesh and parameters, whose geometry is built by a Lua script of the core. What they represent is up to the core: they can map directly to the primitives of the game (for Midtown Madness 2, the attributes of the rooms of the PSDL file), or be higher-level objects that have no procedural equivalent (the MM2 decals and trains, built along a spline).
 
 A type is one of five kinds, given by its settings: **control point-based** (a tree of control points, `controlPoints`), **mesh-based** (an editable mesh, `mesh`), **spline-based** (`spline`, see [Spline-driven elements](#spline-driven-elements)), **point-based** (a single point, `point`, see [Point elements](#point-elements)) and **mesh instance-based** (a single mesh placed with a transform, `meshInstance`, see [Mesh instance elements](#mesh-instance-elements)).

@@ -41,6 +41,7 @@ namespace CustomElements {
     }
 
     public class GeometryResult {
+        public List<PropPlacerGeometry.Instance> props = new();
         public List<GeometryMesh> meshes = new List<GeometryMesh>();
         public List<GeometryLine> lines = new List<GeometryLine>();
         public List<GeometryPropLine> propLines = new List<GeometryPropLine>();

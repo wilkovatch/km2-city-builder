@@ -224,7 +224,7 @@ public partial class ElementManager : Scriptable {
             var baseName = Operations.CustomElements.GetTypeLabel(type) + " ";
             name = baseName + Actions.Helpers.GetLatestObjectNumber(container, baseName);
         }
-        CustomElement element = type == PropPath.TypeId ? GS.Create<PropPath>(name, container) : GS.Create<CustomElement>(name, container);
+        CustomElement element = GS.Create<CustomElement>(name, container);
         element.Initialize(type, GetTerrainPointContainer());
         AddCustomElement(element);
         return element;
@@ -554,7 +554,7 @@ public partial class ElementManager : Scriptable {
         var meshSurfacesChanged = MeshProjectionSurfacesChanged();
         if (meshSurfacesChanged || roadsRebuilt + intersectionsRebuilt + patchesRebuilt > 0 || splineTerrainVersion != GameEngine.Terrain.HeightmapVersion) {
             foreach (var element in customElements) {
-                if (element.Settings?.spline?.projectSections != true) continue;
+                if (!element.ProjectsSurface) continue;
                 element.InvalidateSplineSurface();
                 splineProjectionPending = true;
                 splinePhysicsReady = false;
@@ -626,7 +626,7 @@ public partial class ElementManager : Scriptable {
         var surfaces = new List<CustomElement>();
         var projected = new List<CustomElement>();
         foreach (var element in customElements) {
-            if (element.Settings?.spline?.projectSections == true) projected.Add(element);
+            if (element.ProjectsSurface) projected.Add(element);
             else surfaces.Add(element);
         }
         var rebuilt = CustomElementGeometryBatch.Rebuild(surfaces);

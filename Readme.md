@@ -31,7 +31,7 @@ The full documentation is in the [wiki](https://github.com/wilkovatch/km2-city-b
 2. **Place the roads** (*Create→Road*, Ctrl+R). Intersections are created automatically when the end of a road is placed on the end of another.
 3. **Fill the space between the roads with terrain patches** (*Create→Terrain patch*, Ctrl+T), attaching them to the anchor points of the roads, or use *Create→Whole city terrain* to do it in one step. Try to finish the road network first: changing its topology afterwards can disconnect the terrain patches from it.
 4. **Add the buildings**, either procedurally generated with building lines (*Create→Building line*, Ctrl+E, or *Create→Whole city buildings*) or as pre-made meshes (*Create→Mesh instance*).
-5. **Add props**, by hand (one at a time or mass-placed in a radius) or with prop rules along the roads, and set the city-wide properties (*Edit→City properties*).
+5. **Add props**, by hand (one at a time or mass-placed in a radius), with spline or polygon prop placers, or with prop rules along the roads, and set the city-wide properties (*Edit→City properties*).
 6. **Save** (Ctrl+S) and **export** the city for the game (*File→Export city*).
 
 Everything about a city is stored in its folder (`city.json.gz`, `presets.json`, `preferences.json` and the assets placed there), so copying the folder is enough to back it up.

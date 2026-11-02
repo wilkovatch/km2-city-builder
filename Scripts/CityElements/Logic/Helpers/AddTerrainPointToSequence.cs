@@ -8,6 +8,11 @@ using GS = GameEngine.Scriptable;
 using States;
 
 public static class AddTerrainPointToSequence {
+    public static List<TerrainAnchor> ConnectedAnchors(List<TerrainPoint> sequence, TerrainAnchor from, TerrainAnchor to) {
+        var list = from.GetPointListTo(to);
+        if (list.Count > 0 && sequence.Exists(p => AnchorEquals(p.anchor, list[0]))) list = from.GetPointListTo(to, true);
+        return list;
+    }
     public static bool AnchorEquals(IAnchorable a, TerrainAnchor b) {
         if (a is TerrainAnchor an) {
             return an == b;
@@ -38,17 +43,7 @@ public static class AddTerrainPointToSequence {
         if (anchor != null) {
             if (CheckIfAlreadyPresent(sequencePoints, anchor)) return null;
             if (!pointOnly && !GO.IsNull(curAnchor)) {
-                var list = curAnchor.GetPointListTo(anchor);
-
-                //invert if needed
-                if (list.Count > 0) {
-                    foreach (var seqPoint in sequencePoints) {
-                        if (AnchorEquals(seqPoint.anchor, list[0])) {
-                            list = curAnchor.GetPointListTo(anchor, true);
-                            break;
-                        }
-                    }
-                }
+                var list = ConnectedAnchors(sequencePoints, curAnchor, anchor);
 
                 foreach (var item in list) {
                     res = TerrainPoint.Create(item.GetPoint(), gnd, container, item);

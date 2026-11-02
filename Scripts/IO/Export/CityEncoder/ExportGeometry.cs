@@ -267,13 +267,13 @@ namespace CityEncoder {
                 }
                 baseData.fields.SetArray("lanes", lanes.ToArray());
             }
-            baseData.propLines = GetPropLines(generator.props);
+            baseData.propLines = GetPropLines(generator.props, generator.propSlots);
             elem.data = baseData;
             return elem;
         }
 
-        //the props placed by a prop rule (see PropPlacer), by props container
-        IO.ExportedCity.PropLine[] GetPropLines(List<(string container, string meshName, GameObject obj)> props) {
+        //the props placed by a prop rule (see PropPlacement), by props container
+        IO.ExportedCity.PropLine[] GetPropLines(List<(string container, string meshName, GameObject obj)> props, List<(string container, Vector3 position, Vector3 forward)> slots) {
             var propLanes = new Dictionary<string, List<IO.ExportedCity.MeshReference>>();
             foreach (var (container, meshName, prop) in props) {
                 if (!propLanes.ContainsKey(container)) propLanes[container] = new List<IO.ExportedCity.MeshReference>();
@@ -284,12 +284,21 @@ namespace CityEncoder {
                 mr.b64v3_scale = GetEncodedVector3(GO.GetLocalScale(prop));
                 propLanes[container].Add(mr);
             }
+            //a line can have slots without any prop
+            foreach (var slot in slots) {
+                if (!propLanes.ContainsKey(slot.container)) propLanes[slot.container] = new List<IO.ExportedCity.MeshReference>();
+            }
             var res = new IO.ExportedCity.PropLine[propLanes.Count];
             int laneI = 0;
             foreach (var key in propLanes.Keys) {
                 var tmp = new IO.ExportedCity.PropLine();
                 tmp.name = key;
                 tmp.props = propLanes[key].ToArray();
+                var lineSlots = slots.FindAll(s => s.container == key);
+                if (lineSlots.Count > 0) {
+                    tmp.b64v3a_slots = GetEncodedVector3s(lineSlots.ConvertAll(s => s.position).ToArray());
+                    tmp.b64v3a_slotForwards = GetEncodedVector3s(lineSlots.ConvertAll(s => s.forward).ToArray());
+                }
                 res[laneI] = tmp;
                 laneI++;
             }
@@ -403,6 +412,7 @@ namespace CityEncoder {
 
         public IO.ExportedCity.CustomElement GetCustomElement(CustomElement element, int id) {
             var elem = new IO.ExportedCity.CustomElement();
+            elem.validationError = element.propPlacementError;
             elem.spline = element.splineData;
             elem.id = id;
             elem.type = element.TypeName;
@@ -414,7 +424,7 @@ namespace CityEncoder {
                 return target == null ? -1 : IdOf(target);
             }));
             baseData.mesh = GetMeshData(GO.GetObject(element.generator));
-            baseData.propLines = GetPropLines(element.generator.props);
+            baseData.propLines = GetPropLines(element.generator.props, element.generator.propSlots);
             elem.data = baseData;
             elem.points = GetCustomElementPoints(element.points, leaf => GetCustomElementPoint(leaf.point, leaf.def.rotatable, leaf.def.scalable));
             elem.vertices = new Newtonsoft.Json.Linq.JArray();

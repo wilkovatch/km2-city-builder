@@ -43,7 +43,7 @@ When a command is given, the last city is not loaded at startup and nothing is a
 
 `render` and `mcp` render images, and with `--headless` the program has no renderer (`view.render` then fails with `no_renderer`). Run them without `--headless` (keep `--quiet`): the window is made small, borderless and without focus, and moved outside of the screens (`CliRunner.HideWindow`). The images are rendered offscreen, at the size asked, whatever the size of the window.
 
-For short spline/decal integration checks, set `KM2_SELFTEST_FOCUS=splines` before `selftest api <new folder>` (a window also checks rendering). This covers spline placement, curve modes, core components, rail generation, history and save/reload. `KM2_SELFTEST_FOCUS=propPaths` runs the standalone prop-rule checks in a fresh city. Unset the variable for the full API suite.
+For short spline/decal integration checks, set `KM2_SELFTEST_FOCUS=splines` before `selftest api <new folder>` (a window also checks rendering). This covers spline placement, curve modes, core components, rail generation, history and save/reload. `KM2_SELFTEST_FOCUS=propPlacers` runs the focused spline/polygon prop placement, core callback, projection, history and migration checks in a fresh city. Unset the variable for the full API suite.
 
 `KM2_SELFTEST_FOCUS=customElementPresets` checks creation drafts, grouped type switching, property controls before placement, per-type preset management and session memory, sync/history, shared points and attachments, compatibility defaults, and city reload. A window also captures the draft panel, preset management and a manually placed Bézier decal.
 

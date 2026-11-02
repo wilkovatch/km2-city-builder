@@ -36,9 +36,10 @@ public partial class CustomElementGenerator : PhysicsScriptable {
 
     //the meshes as built (for the export): their textures, by submesh
     public readonly List<string> textures = new List<string>();
-    //the props of the prop rule (see PropPlacer), placed along the propLines of the geometry
+    //the props of the prop rule (see PropPlacement), placed along the propLines of the geometry
     public GameObject propsContainer;
     public readonly List<(string container, string meshName, GameObject obj)> props = new List<(string, string, GameObject)>();
+    public readonly List<(string container, Vector3 position, Vector3 forward)> propSlots = new List<(string, Vector3, Vector3)>();
 
     public void Initialize() {
         GO.SetLayer(this, 7);
@@ -61,17 +62,18 @@ public partial class CustomElementGenerator : PhysicsScriptable {
         GO.Destroy(propsContainer);
         propsContainer = null;
         props.Clear();
+        propSlots.Clear();
         if (state.State("propRule") == null) return;
         propsContainer = GO.Create("PropsContainer");
         GO.SetParent(propsContainer, this);
-        if (GetParent() is PropPath) {
-            PropPlacer.PlaceRibbons(state.State("propRule"), propLines, propsContainer, props);
+        if (GetParent() is CustomElement owner && owner.Settings?.propPlacer != null) {
+            PropPlacement.PlaceLines(state.State("propRule"), propLines, propsContainer, props, owner, propSlots);
             return;
         }
-        PropPlacer.Place(state.State("propRule"), containers, container => {
+        PropPlacement.Place(state.State("propRule"), containers, container => {
             var line = propLines.Find(l => l.container == container);
             return line == null ? null : (line.startBound.ToArray(), line.endBound.ToArray());
-        }, propsContainer, props);
+        }, propsContainer, props, propSlots, (GetParent() as CustomElement)?.cityPropertiesState);
     }
 
     public void Rebuild(CustomElements.GeometryResult geometry, ObjectState state, string[] propsContainers) {
@@ -140,6 +142,15 @@ public partial class CustomElementGenerator : PhysicsScriptable {
         foreach (var submesh in phIndices) placeholderIndices.AddRange(submesh);
         RebuildCollider(geometry.lines);
         PlaceProps(geometry.propLines, state, propsContainers);
+        if (geometry.props.Count > 0 && GetParent() is CustomElement placer) {
+            if (propsContainer == null) {
+                propsContainer = GO.Create("PropsContainer");
+                GO.SetParent(propsContainer, this);
+            }
+            var settings = placer.Settings.propPlacer;
+            foreach (var prop in geometry.props) PropPlacement.PlaceInstance(prop.container, prop.mesh, prop.position, prop.rotation, prop.scale,
+                settings.meshTransform, settings.autoYOffset, propsContainer, props);
+        }
     }
 
     void RebuildLines(List<CustomElements.GeometryLine> newLines, ObjectState state) {

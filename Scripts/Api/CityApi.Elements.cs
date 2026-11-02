@@ -889,10 +889,17 @@ namespace Api {
             return e;
         }
 
+        //the element whose meshes are being changed: a type with fixedMeshes has none of its own
+        PropElementPart ResolvePropElementMeshes(ElementRef element) {
+            var e = ResolvePropElement(element);
+            if (TypeOf(TP.GetPropsElementTypes(), e.state.Str("type", null))?.typeData.fixedMeshes != null) throw new ApiException("invalid_operation", "the meshes of this props element type are fixed");
+            return e;
+        }
+
         [ApiMethod("props.element.meshes.add", "Adds a mesh to the meshes of a props element")]
         public void AddPropsElementMesh(ElementRef element, string mesh) {
             ApplyChange("add mesh", () => {
-                var e = ResolvePropElement(element);
+                var e = ResolvePropElementMeshes(element);
                 var type = TypeOf(TP.GetPropsElementTypes(), e.state.Str("type", null));
                 var max = type?.typeData.maxMeshes ?? 0;
                 if (max > 0 && (e.state.Array<string>("meshes")?.Length ?? 0) >= max) throw new ApiException("limit_reached", "the props element can have at most " + max + " meshes");
@@ -904,7 +911,7 @@ namespace Api {
         [ApiMethod("props.element.meshes.set", "Replaces a mesh of a props element")]
         public void SetPropsElementMesh(ElementRef element, int index, string mesh) {
             ApplyChange("change mesh", () => {
-                var e = ResolvePropElement(element);
+                var e = ResolvePropElementMeshes(element);
                 if (!Operations.Props.SetMesh(e.state, index, mesh)) throw ApiException.NotFound("mesh " + index);
                 e.road.GetState().FlagAsChanged();
             });
@@ -913,7 +920,7 @@ namespace Api {
         [ApiMethod("props.element.meshes.remove", "Removes a mesh from a props element")]
         public void RemovePropsElementMesh(ElementRef element, int index) {
             ApplyChange("delete mesh", () => {
-                var e = ResolvePropElement(element);
+                var e = ResolvePropElementMeshes(element);
                 if (!Operations.Props.RemoveMesh(e.state, index)) throw ApiException.NotFound("mesh " + index);
                 e.road.GetState().FlagAsChanged();
             });
@@ -922,7 +929,7 @@ namespace Api {
         [ApiMethod("props.element.setMesh", "Sets the mesh of a props element with a single one")]
         public void SetPropsElementSingleMesh(ElementRef element, string mesh) {
             ApplyChange("change mesh", () => {
-                var e = ResolvePropElement(element);
+                var e = ResolvePropElementMeshes(element);
                 Operations.Props.SetSingleMesh(e.state, mesh);
                 e.road.GetState().FlagAsChanged();
             });

@@ -138,7 +138,7 @@ namespace IO.SavedCity {
         public TerrainPatch[] terrainPatches;
         public BuildingLine[] buildingLines;
         public CustomElement[] customElements;
-        public CustomElement[] propPaths;
+
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public CustomElement[] lowLevelElements; //only read: the custom elements of the cities saved before their rename
     }

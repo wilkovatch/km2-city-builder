@@ -264,7 +264,6 @@ namespace CityElements.Types.Parsers {
         static Dictionary<string, Runtime.MeshInstanceType> meshInstanceTypes;
         public static Dictionary<string, Runtime.CustomElementType> GetCustomElementTypes(bool reload = false) {
             var types = GetTypes(ref customElementTypes, TI.CustomElements, LoadCustomElementTypes, reload);
-            if (!types.ContainsKey(PropPath.TypeId)) types.Add(PropPath.TypeId, PropPath.CreateType());
             return types;
         }
 

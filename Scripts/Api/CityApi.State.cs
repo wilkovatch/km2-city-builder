@@ -239,7 +239,8 @@ namespace Api {
                 if (!new List<string>(t.types()).Contains(type)) throw ApiException.InvalidValue("unknown type '" + type + "' (" + string.Join(", ", t.types()) + ")");
                 History.UndoManager.Touch(t.owner);
                 Operations.States.SetType(t.state, type);
-                if (t.owner is Road road) {
+                //not for the parts of the road (e.g. its props containers), which have types of their own
+                if (t.owner is Road road && t.state == road.GetState()) {
                     var settings = TP.GetRoadTypes()[type].typeData.settings;
                     if (System.Array.IndexOf(SplineCurves.Allowed(settings), t.state.Int("curveType")) < 0) t.state.SetInt("curveType", settings.defaultCurveType);
                 }

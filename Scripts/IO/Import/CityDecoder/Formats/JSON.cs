@@ -207,8 +207,7 @@ namespace CityDecoder {
             if (loadedCity.buildingLines == null) loadedCity.buildingLines = new IO.SavedCity.BuildingLine[0];
             if (loadedCity.terrainPoints == null) loadedCity.terrainPoints = new IO.SavedCity.TerrainPoint[0];
             loadedCity.customElements = (loadedCity.customElements ?? new IO.SavedCity.CustomElement[0])
-                .Concat(loadedCity.lowLevelElements ?? new IO.SavedCity.CustomElement[0])
-                .Concat(loadedCity.propPaths ?? new IO.SavedCity.CustomElement[0]).ToArray();
+                .Concat(loadedCity.lowLevelElements ?? new IO.SavedCity.CustomElement[0]).ToArray();
             loadedCity.lowLevelElements = null;
 
             float totalNum = loadedCity.meshes.Length + loadedCity.roads.Length +
@@ -404,7 +403,6 @@ namespace CityDecoder {
                     case "intersection": return loadedIntersections.TryGetValue(id, out var i) ? i.Item1 : null;
                     case "terrainPatch": return id >= 0 && id < loadedPatches.Count ? loadedPatches[id] : null;
                     case "buildingLine": return id >= 0 && id < manager.buildings.Count ? manager.buildings[id] : null;
-                    case "propPath":
                     case "lowLevel": //saved before the rename
                     case "customElement": return loadedCustomElements.TryGetValue(id, out var l) ? l : null;
                     default: return null;

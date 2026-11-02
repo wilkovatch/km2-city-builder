@@ -291,7 +291,7 @@ namespace History {
                 case Intersection: return "intersection";
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
-                case PropPath: return "propPath";
+
                 case CustomElement: return "customElement";
                 default: return null;
             }
@@ -445,9 +445,7 @@ namespace History {
                 }
                 case ElementKind.CustomElement: {
                     var e = Deserialize<IO.SavedCity.CustomElement>(json);
-                    CustomElement element = e.state?.Str("type", null) == PropPath.TypeId
-                        ? GS.Create<PropPath>(NameOrDefault(e.name, "Element"), manager.GetCustomElementContainer())
-                        : GS.Create<CustomElement>(NameOrDefault(e.name, "Element"), manager.GetCustomElementContainer());
+                    CustomElement element = GS.Create<CustomElement>(NameOrDefault(e.name, "Element"), manager.GetCustomElementContainer());
                     element.Initialize(e.state?.Str("type", null), manager.GetTerrainPointContainer());
                     manager.AddCustomElement(element, id);
                     return element;

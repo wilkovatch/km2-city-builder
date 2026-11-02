@@ -11,6 +11,7 @@ namespace EditorPanels.Props {
         public List<string> allowedTypes = new List<string>();
         public string editedName = null; //the element of the container being edited
         public int editedIndex = -1; //-1: single element
+        public CityElements.Types.PropPlacerStrip strip;
 
         public ElemEditorPanel() {
             AddComplexElement(new PresetSelector(this));
@@ -38,11 +39,14 @@ namespace EditorPanels.Props {
             var valid = tS.Initialize(filteredTypes, x => { return x.typeData.label; });
             if (!valid) return;
             var type = tS.types[tS.curType];
+            type = PropPlacerGeometry.ScopedType(strip, type.name);
             var p = GetPage(0);
             var pS = GetComplexElement<PresetSelector>();
             pS.AddPresetLoadAndSaveDropdown(p, SM.Get("PROP_ELEM_PRESET"), true, "propElem", SetCurElem, GetCurElem, true, x => { var obj = GetCurElem().Name = x; }, allowedTypes, null, width);
             tS.AddTypeDropdown(p, SM.Get("PROP_ELEM_TYPE"), width);
-            if (type.typeData.maxMeshes == 1) {
+            if (type.typeData.fixedMeshes != null) {
+                //the type gives the meshes
+            } else if (type.typeData.maxMeshes == 1) {
                 var meshText = p.AddFieldInputField(SM.Get("PROP_ELEM_MESH"), SM.Get("VALUE"), GameEngine.InputContentType.Standard, GetCurElem, "properties.mesh", null, width);
                 meshText.SetInteractable(false);
                 p.IncreaseRow();
@@ -186,6 +190,20 @@ namespace EditorPanels.Props {
 
         void Save() {
             var tempElem = (ObjectState)GetCurElem().Clone();
+            if (parentPanel is ContainerEditorPanel containerPanel && strip != null) {
+                var container = (ObjectState)containerPanel.GetContainer().Clone();
+                if (editedIndex < 0) container.SetState(editedName, tempElem);
+                else {
+                    var values = container.Array<ObjectState>(editedName);
+                    values[editedIndex] = tempElem;
+                    container.SetArray(editedName, values);
+                }
+                try { containerPanel.ValidateContainer(container); }
+                catch (System.ArgumentException) {
+                    builder.CreateAlert(SM.Get("ERROR"), SM.Get("PP_INVALID_PLACEMENT"), SM.Get("OK"));
+                    return;
+                }
+            }
             realElem.properties = tempElem.properties;
             NotifyChange();
             builder.NotifyChange(true);

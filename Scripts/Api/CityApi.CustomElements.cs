@@ -164,7 +164,16 @@ namespace Api {
                 if (param.fullName() == name) p = param;
             }
             if (p == null) throw ApiException.NotFound("parameter '" + name + "' of the custom element type " + element.TypeName);
-            element.state.SetProperty(p.fullName(), ConvertValue(p.type, value, p.enumLabels, name));
+            object converted;
+            if (p.type == "array" || p.type == "customCityProperties") {
+                var wrapper = new JObject { [name] = value }.ToObject<ObjectState>();
+                Operations.States.Normalize(wrapper, new[] { p });
+                converted = wrapper.properties[name];
+            } else converted = ConvertValue(p.type, value, p.enumLabels, name);
+            var candidate = (ObjectState)element.state.Clone();
+            candidate.SetProperty(p.fullName(), converted);
+            ValidatePropPlacerState(candidate, element.TypeName);
+            element.state.SetProperty(p.fullName(), converted);
         }
 
         void SetCustomElementMesh(CustomElement element, JObject mesh) {
@@ -204,6 +213,9 @@ namespace Api {
                 }
             }
             var state = rule.ToObject<ObjectState>();
+            var candidate = (ObjectState)element.state.Clone();
+            candidate.SetState("propRule", state);
+            ValidatePropPlacerState(candidate, element.TypeName);
             foreach (var name in containers) {
                 var container = state.State(name);
                 if (container != null) Operations.Props.EnsureContainerType(container);
@@ -219,6 +231,11 @@ namespace Api {
                 History.UndoManager.Touch(e);
                 SetCustomElementPropRule(e, rule);
             });
+        }
+
+        static void ValidatePropPlacerState(ObjectState state, string type) {
+            try { PropPlacerGeometry.Validate(state, type); }
+            catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
         }
 
         [ApiMethod("customElement.setMesh", "Replaces the mesh of a custom element: vertices (point targets), triangles (indices), uvs ([u, v] per vertex)")]

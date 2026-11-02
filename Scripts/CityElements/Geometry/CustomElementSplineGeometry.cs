@@ -100,8 +100,9 @@ public static class CustomElementSplineGeometry {
         var evaluated = custom?.Sample(segments, settings.previewTolerance, settings.previewMaxDepth);
         var samples = evaluated?.points ?? (closed ? SampleClosed(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f))
             : Sample(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually")));
-        if (settings.projectSections) {
-            samples = samples.Select(p => GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
+        var projectSections = element.Settings.propPlacer != null ? element.ProjectsPlacement : settings.projectSections;
+        if (projectSections) {
+            samples = samples.Select(p => element.Settings.propPlacer != null ? PropPlacerGeometry.Project(element, p) : GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();
         }
         if (closed && samples.Count >= 3) samples[^1] = samples[0]; //the loop ends exactly where it starts, even when projected
         var total = samples.Zip(samples.Skip(1), (a, b) => a.DistanceTo(b)).Sum();
@@ -150,7 +151,7 @@ public static class CustomElementSplineGeometry {
                 positions = parameters.Select(t => GH.GetPointOnCurve(controls[0], inner, controls[^1], t, 0,
                     (GH.CurveType)mode, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually"))).ToList();
             }
-            return settings.projectSections
+            return projectSections
                 ? positions.Select(p => GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList() : positions;
         }
         var linePositions = LinePositions();

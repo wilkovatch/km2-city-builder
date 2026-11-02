@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using GO = GameEngine.GameObject;
 using GS = GameEngine.Scriptable;
@@ -219,8 +220,27 @@ namespace Operations {
         //A uniform array gets the point in every instance: the clicked point in the instance whose holder (e.g. the section
         //of an array of lanes) is the nearest to the click, a new point at the same offset from the center of the others
         //(turned as their direction across, from their first to their last point, is)
-        public static TerrainPoint AppendPoint(ElementManager manager, CustomElement element, string arrayPath, Node3D obj, Vector3 position) {
+        public static TerrainPoint AppendPoint(ElementManager manager, CustomElement element, string arrayPath, Node3D obj, Vector3 position, bool followConnections = false) {
             if (element.points == null || !(global::CustomElements.PointTree.Find(element.points, arrayPath) is global::CustomElements.PointList list)) return null;
+            if (followConnections && element.Settings?.propPlacer != null && list.items.Count > 0 && list.def.children == null) {
+                var previous = ((global::CustomElements.PointLeaf)list.items[^1]).point;
+                var target = GS.FindComponent<TerrainAnchor>(obj) ?? (GS.FindComponent<TerrainPoint>(obj)?.anchor as TerrainAnchor);
+                if (previous.anchor is TerrainAnchor from && !GO.IsNull(from) && !GO.IsNull(target)) {
+                    TerrainPoint last = null;
+                    var sequence = list.items.Cast<global::CustomElements.PointLeaf>().Select(x => x.point).ToList();
+                    foreach (var anchor in AddTerrainPointToSequence.ConnectedAnchors(sequence, from, target)) {
+                        if (GO.IsNull(anchor) || sequence.Any(x => AddTerrainPointToSequence.AnchorEquals(x.anchor, anchor))) continue;
+                        last = AppendPoint(manager, element, arrayPath, anchor.GetObject(), anchor.GetPoint());
+                    }
+                    return last;
+                }
+                var path = PointSequenceConnections.Path(element, list, obj, position);
+                if (path != null) {
+                    TerrainPoint last = null;
+                    foreach (var node in path) last = AppendPoint(manager, element, arrayPath, node, GO.GetPosition(node));
+                    return AppendPoint(manager, element, arrayPath, obj, position) ?? last;
+                }
+            }
             if (list.def.children != null) {
                 if (!AppendArrayElementAt(element, arrayPath, false, position)) return null;
                 var leaves = global::CustomElements.PointTree.Leaves(list.items[list.items.Count - 1]);
@@ -235,6 +255,8 @@ namespace Operations {
             //a point is in an array of points once (clicking the first point of a closed array closes it instead)
             var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked != null && list.items.Exists(item => item is global::CustomElements.PointLeaf l && l.point == clicked)) return null;
+            var clickedAnchor = GS.FindComponent<TerrainAnchor>(obj);
+            if (clickedAnchor != null && list.items.Exists(item => item is global::CustomElements.PointLeaf l && AddTerrainPointToSequence.AnchorEquals(l.point.anchor, clickedAnchor))) return null;
             if (!element.InsertArrayElement(arrayPath, list.items.Count)) return null;
             for (int i = 0; i < holders.Count; i++) {
                 if (i == nearest) continue;

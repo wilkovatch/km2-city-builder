@@ -136,6 +136,12 @@ namespace Operations {
         }
 
         public static void SetPropRule(ObjectState owner, ObjectState rule) {
+            if (owner != null && CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().TryGetValue(owner.Str("type", ""), out var type)
+                && type.typeData.settings.propPlacer != null) {
+                var candidate = (ObjectState)owner.Clone();
+                candidate.SetState("propRule", rule);
+                PropPlacerGeometry.Validate(candidate, type.name);
+            }
             owner?.SetState("propRule", rule);
         }
 
@@ -146,7 +152,10 @@ namespace Operations {
 
         public static void EnablePropContainer(ObjectState owner, string container, bool enabled) {
             if (owner == null) return;
-            GetPropRule(owner, true).SetState(container, enabled ? new ObjectState(true) : null);
+            var value = enabled ? new ObjectState(true) : null;
+            var strip = PropPlacerGeometry.Strip(owner, container);
+            if (value != null && strip?.allowedContainerTypes?.Length > 0) value.SetStr("type", strip.allowedContainerTypes[0]);
+            GetPropRule(owner, true).SetState(container, value);
             owner.FlagAsChanged();
         }
     }

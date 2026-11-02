@@ -41,7 +41,7 @@ namespace Api {
                 CT.Parsers.TypeInheritance.SetAncestries("cacheTest", new Dictionary<string, string[]> { { "child", new[] { "child", "parent" } } });
                 PreferencesManager.Set("core", "__cacheTestMissingCore");
                 var other = CT.Parsers.TypeParser.GetCustomElementTypes(); //custom element folders are optional
-                Check("changing core clears the old type and ancestry caches", other.Count == 1 && other.ContainsKey(PropPath.TypeId)
+                Check("changing core clears the old type and ancestry caches", other.Count == 0
                     && CT.Parsers.TypeInheritance.GetAllAncestries().All(x => x.category != "cacheTest"));
             } finally {
                 PreferencesManager.Set("core", core);

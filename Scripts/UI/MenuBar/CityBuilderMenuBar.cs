@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -1245,10 +1245,6 @@ public partial class CityBuilderMenuBar : Control {
         terrainClick.modifier = buildingPlacer;
         buildingLineEditorPanel.SetActive(true);
         helper.elementManager.ShowAnchors(true);
-    }
-
-    void CreatePropPath() {
-        StartCustomElementCreation(PropPath.TypeId);
     }
 
     void CreateCustomElement() {

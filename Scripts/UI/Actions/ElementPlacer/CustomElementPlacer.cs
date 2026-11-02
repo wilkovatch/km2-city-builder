@@ -44,6 +44,7 @@ namespace ElementPlacer {
         }
 
         bool Guards(List<RaycastHit?> hits) {
+            if (!manager.builder.customElementEditorPanel.ActiveSelf()) return false;
             onFrame?.Invoke();
             UpdatePlacementPoint();
             if (placementMode == PlacementMode.None) return false;
@@ -74,8 +75,8 @@ namespace ElementPlacer {
                     curElement = Operations.CustomElements.Create(manager, createType, hit.point);
                     if (creationState != null) Operations.CustomElementPresets.Apply(curElement, creationState);
                     placementMode = PlacementMode.None;
-                    if (curElement.Settings?.spline != null) {
-                        arrayPath = "spline";
+                    if (curElement.Settings?.spline != null || curElement.Settings?.propPlacer?.type == "polygon") {
+                        arrayPath = curElement.Settings?.propPlacer?.type == "polygon" ? "perimeter" : "spline";
                         Operations.CustomElements.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
                         placementMode = PlacementMode.AppendPoint;
                     }
@@ -95,7 +96,7 @@ namespace ElementPlacer {
                         onModeEnded?.Invoke();
                         return;
                     }
-                    var point = Operations.CustomElements.AppendPoint(manager, curElement, arrayPath, obj, hit.point);
+                    var point = Operations.CustomElements.AppendPoint(manager, curElement, arrayPath, obj, hit.point, Input.GetInputPressed(KeyCommand.Modifier2));
                     point?.Select(true);
                     break;
                 case PlacementMode.PrependPoint:
@@ -119,8 +120,8 @@ namespace ElementPlacer {
 
         public void UpdatePlacementPoint() {
             var element = GetElement();
-            if (element?.Settings?.spline == null) return;
-            var list = element.points.Get("spline") as CustomElements.PointList;
+            if (element?.Settings?.spline == null && element?.Settings?.propPlacer == null) return;
+            var list = element.points.Get(element.Settings.propPlacer?.type == "polygon" ? "perimeter" : "spline") as CustomElements.PointList;
             TerrainPoint point = null;
             if (element.IsActive() && list?.items.Count > 0) {
                 if (placementMode == PlacementMode.AppendPoint) point = ((CustomElements.PointLeaf)list.items[^1]).point;
@@ -140,8 +141,11 @@ namespace ElementPlacer {
         bool ClosesArray(Node3D obj) {
             var list = CustomElements.PointTree.Find(curElement.points, arrayPath) as CustomElements.PointList;
             if (list == null || !list.def.array.closed || list.items.Count < 2) return false;
+            if (curElement.Settings?.propPlacer?.type == "polygon" && list.items.Count < 3) return false;
             var clicked = GS.FindComponent<TerrainPoint>(obj);
-            return clicked != null && list.items[0] is CustomElements.PointLeaf first && first.point == clicked;
+            if (list.items[0] is not CustomElements.PointLeaf first) return false;
+            var anchor = GS.FindComponent<TerrainAnchor>(obj);
+            return clicked != null && first.point == clicked || anchor != null && AddTerrainPointToSequence.AnchorEquals(first.point.anchor, anchor);
         }
 
         void UnselectPointDelayed() {
@@ -167,6 +171,10 @@ namespace ElementPlacer {
         //own hit priority, and the other elements are placed on what is visible.
         public override bool Raycast(Node3D parent, Vector3 origin, Vector3 direction, out RaycastHit hit, float distance, int mask) {
             var settings = GetSettings();
+            if (settings?.propPlacer != null && ProjectsPlacement(settings)) {
+                if ((mask & ((1 << 3) | (1 << 7))) == 0) return base.Raycast(parent, origin, direction, out hit, distance, mask);
+                return GeometryHelper.AutoRaycastSurface(parent, origin, direction, out hit, distance, mask, GetElement()?.generator);
+            }
             if ((mask & ((1 << 3) | (1 << 7))) == 0 || (settings?.spline?.projectSections != true && settings?.point?.project != true)) {
                 return base.Raycast(parent, origin, direction, out hit, distance, mask);
             }
@@ -180,9 +188,13 @@ namespace ElementPlacer {
                 .TryGetValue(createType, out var type) ? type.typeData.settings : null);
         }
 
+        bool ProjectsPlacement(CityElements.Types.CustomElementSettings settings) => GetElement()?.ProjectsPlacement
+            ?? creationState?.Bool("projectToGround", settings.propPlacer.projectToGround) ?? settings.propPlacer.projectToGround;
+
         //terrain points and anchors, point links, then the terrain and the generated meshes
         public override List<int> GetLayerMasks() {
-            return new List<int> { 1 << 10, 1 << 12, (1 << 3) | (1 << 7) };
+            var points = GetSettings()?.propPlacer?.type == "polygon" ? (1 << 10) | (1 << 8) : 1 << 10;
+            return new List<int> { points, 1 << 12, (1 << 3) | (1 << 7) };
         }
 
         public override int GroundHitIndex => 2;
@@ -192,6 +204,7 @@ namespace ElementPlacer {
             get {
                 if (placementMode == PlacementMode.None) return false;
                 var settings = GetSettings();
+                if (settings?.propPlacer != null) return !ProjectsPlacement(settings);
                 if (settings?.point?.project == true) return false;
                 var spline = settings?.spline;
                 return spline == null || (!spline.projectPoints && !spline.projectSections);

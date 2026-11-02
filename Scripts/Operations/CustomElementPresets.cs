@@ -33,6 +33,9 @@ namespace Operations {
         public static ObjectState DefaultState(string type) {
             var state = new ObjectState();
             state.SetStr("type", type);
+            if (TP.GetCustomElementTypes().TryGetValue(type, out var propType) && propType.typeData.settings.propPlacer != null) {
+                state.SetBool("projectToGround", propType.typeData.settings.propPlacer.projectToGround);
+            }
             if (TP.GetCustomElementTypes().TryGetValue(type, out var t) && t.typeData.settings.spline is CustomElementSplineSettings spline) {
                 state.SetInt("curveType", spline.defaultCurveType);
                 state.SetInt("segments", spline.segments);
@@ -56,6 +59,7 @@ namespace Operations {
             }
             var t = TP.GetCustomElementTypes()[type];
             States.Normalize(state, t.parameterContainer.parameters);
+            PropPlacerGeometry.Validate(state, type);
             var spline = t.typeData.settings.spline;
             if (spline != null) SplineCurves.ValidateState(spline, state);
             if (spline != null && state.properties.ContainsKey("curveType") && Array.IndexOf(spline.curveTypes, state.Int("curveType")) < 0) {

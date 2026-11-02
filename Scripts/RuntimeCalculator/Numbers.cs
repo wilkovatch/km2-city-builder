@@ -172,6 +172,7 @@ namespace RuntimeCalculator.Numbers {
         }
 
         public override bool IsConstant() {
+            if (function == "rnd") return false; //a new number at each evaluation, even with constant parameters
             foreach (var p in param) {
                 if (!p.IsConstant()) return false;
             }

@@ -80,7 +80,8 @@ namespace CityElements.Types.Runtime {
 
             if (injectionTarget != null && Parsers.TypeParser.GetCitySettings().TryGetValue("city", out var city)) {
                 foreach (var injection in city.typeData.settings.injectableParameters ?? new Types.CitySettings.ParameterInjection[0]) {
-                    if (!(injectionTarget == "roads" ? injection.onRoads : injection.onCustomElements)) continue;
+                    //props are on a road or on a custom element, so they can read what is injected on either
+                    if (!(injectionTarget == "roads" ? injection.onRoads : injectionTarget == "props" ? injection.onRoads || injection.onCustomElements : injection.onCustomElements)) continue;
                     var parameter = System.Array.Find(city.typeData.parametersInfo.parameters, p => p.name == injection.parameter);
                     if (parameter == null || (parameter.type != "bool" && parameter.type != "int" && parameter.type != "float")) continue;
                     injectedParameters.Add(parameter);

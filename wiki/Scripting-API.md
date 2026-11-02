@@ -98,7 +98,7 @@ A reference (`ref` in the method reference) is one of:
 | `{"parent": <ref>, "param": "trafficCars", "index": 0}` | an element of an array parameter (no `index`: a custom city properties parameter) |
 | `{"owner": <ref>, "object": "trafficLight", "path": ["races.0"]}` | a parametric object (an `objectInstance` parameter) of a road or of the city properties; `path` lists the array elements leading to it, from the owner |
 
-The kinds are `road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`, `terrainPoint`, `cityProperties`, `propPath`, and for the parts of elements `building`, `buildingSide`, `buildingBlock`, `borderMesh`, `propContainer`, `propElement`, `arrayElement`, `customCityProperties`, `parametricObject`.
+The kinds are `road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`, `terrainPoint`, `cityProperties`, `customElement`, and for the parts of elements `building`, `buildingSide`, `buildingBlock`, `borderMesh`, `propContainer`, `propElement`, `arrayElement`, `customCityProperties`, `parametricObject`.
 
 ### Points
 
@@ -442,33 +442,11 @@ Spline-driven custom elements keep kind `customElement`. Their point array is `s
 | `customElement.setPropRule` | `element: ref`<br>`rule: object = null` | - | Sets the prop rule of a custom element of a type with props containers (rule: {container: props container state, as in the prop rules of the roads}, null to remove it); the props are placed along the prop lines of its geometry |
 | `customElement.setUV` | `element: ref`<br>`vertex: int`<br>`uv: vec2` | - | Sets the texture coordinates of a vertex of the mesh (types with editable uvs) |
 
-### `propPaths.*`
+### Prop placers
 
-Standalone rules are kind `propPath`. They reuse the custom element point paths shown by `elements.get(derived: true)`, such as `ribbons.0.segments.0.sections.1.start`. The `road` field of a props-container/element reference also accepts a prop-path owner.
+[PropPlacers](Core-Prop-Placers) use `customElement.create` and the normal `customElement.*` point, move, attachment and delete methods. Their point arrays are `spline` or `perimeter`; state includes `projectToGround`, spline settings and `propRule`, or polygon `seed` and `models`. Core-defined strip restrictions and model caps also apply to API edits and presets. Use `state.import` for nested model arrays and `state.setParam` for scalar values. Scoped strip profiles are reflected in the prop-element state schema. Props-container/element references accept custom-element owners through their existing `road` owner field.
 
-| Method | Parameters | Result | Description |
-|---|---|---|---|
-| `propPaths.create` | `ribbons: object`, `rule: object = null`, `name: string = null` | int | Creates a rule; ribbons map container names to segments, each a list of `{start, end, reference?}` point targets. References must cover the whole segment if supplied. |
-| `propPaths.setRibbons` | `element: ref`, `ribbons: object` | - | Replaces ribbon geometry. |
-| `propPaths.setRule` | `element: ref`, `rule: object` | - | Replaces rule state, retaining ribbons and creating defaults for new containers. |
-| `propPaths.move` | `element: ref`, `offset: vec3 = null`, `position: vec3 = null` | int | Moves the rule, respecting shared/anchored points. |
-| `propPaths.delete` | `element: ref` | - | Deletes the owner and generated props. |
-| `propPaths.insert` / `remove` | `element: ref`, `array: string`, `index: int` (optional for insert), `position: vec3 = null` (insert only) | object / - | Adds/removes segments or paired sections using point-array paths. |
-| `propPaths.renameRibbon` / `removeRibbon` | `element: ref`, `index: int`, `name: string` (rename only) | - | Updates ribbon geometry and its container together. At least one ribbon remains. |
-| `propPaths.movePoint` | `element: ref`, `path: string`, `position: vec3` | - | Moves a ribbon point. |
-| `propPaths.attachPoint` | `element: ref`, `path: string`, `to: point = null`, `line: int[] = null`, `column: int = null` | int | Shares/anchors a ribbon point. |
-| `propPaths.detachPoint` | `element: ref`, `path: string` | int | Detaches a ribbon point. |
-
-```json
-{"method":"propPaths.create","params":{"ribbons":{"main":[[
-  {"start":{"position":[0,0,0]},"end":{"position":[2,0,0]}},
-  {"start":{"position":[0,0,20]},"end":{"position":[2,0,20]}}
-]]},"rule":{"main":{"type":"line","element":{"type":"line","mesh":"geometry/prop.obj","start":0,"elemDistance":5,"maxNumber":10,"xPos":0.5}}}}}
-```
-
-The example's prop types are supplied by the core. A rule with no enabled container remains a selectable ribbon.
-
-`customElement.import(data)` applies the `points`/`elements` payload described in [Core Custom Elements](Core-Custom-Elements#converters), returning `{points: {localId: apiId}, elements: {localId: apiId}}`. It checks local IDs, references, meshes and cyclic attachments before applying. `updates`, `replace` and procedural `source` are forbidden. The normal 1 cm welding/anchor behavior applies; `weld: false` preserves a distinct new point. One local ID used repeatedly always shares that point. The built-in prop-path type is accepted as well as core custom element types.
+`customElement.import(data)` applies the `points`/`elements` payload described in [Core Custom Elements](Core-Custom-Elements#converters), returning `{points: {localId: apiId}, elements: {localId: apiId}}`. It checks local IDs, references, meshes and cyclic attachments before applying. `updates`, `replace` and procedural `source` are forbidden. The normal 1 cm welding/anchor behavior applies; `weld: false` preserves a distinct new point. One local ID used repeatedly always shares that point.
 
 `state.import(ref, values, append: string[] = null)` imports core parameter state, including nested arrays/custom city properties and object transforms. It normalizes numeric values against the core schema; `append` names arrays whose existing contents are retained. Other supplied parameters replace their current values. This is an undoable API for importer scripts; use `state.setParam` for ordinary scalar edits.
 

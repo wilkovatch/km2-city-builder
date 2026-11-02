@@ -106,7 +106,7 @@ namespace Api {
                 case "propElement":
                     var elems = new List<object>();
                     foreach (var t in TP.GetPropsElementTypes()) {
-                        elems.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.typeData.label), ancestry = AncestryOf(kind, t.Key), maxMeshes = t.Value.typeData.maxMeshes, parameters = SchemaOf(Params(t.Value.typeData.parametersInfo)) });
+                        elems.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.typeData.label), ancestry = AncestryOf(kind, t.Key), maxMeshes = t.Value.typeData.maxMeshes, fixedMeshes = t.Value.typeData.fixedMeshes, exportSlots = t.Value.typeData.exportSlots, parameters = SchemaOf(Params(t.Value.typeData.parametersInfo)) });
                     }
                     return elems;
                 case "cityProperties":

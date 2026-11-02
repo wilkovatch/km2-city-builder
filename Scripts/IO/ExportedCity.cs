@@ -43,6 +43,9 @@ namespace IO.ExportedCity {
     public class PropLine {
         public string name;
         public MeshReference[] props;
+        //the iterations of the types with exportSlots, also those without a prop (null for the other types)
+        public string b64v3a_slots;
+        public string b64v3a_slotForwards;
     }
 
     [System.Serializable]
@@ -139,6 +142,8 @@ namespace IO.ExportedCity {
     [System.Serializable]
     public class CustomElement {
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string validationError;
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public CustomElementSplineGeometry.Data spline;
         public int id;
         public string type;
@@ -181,7 +186,7 @@ namespace IO.ExportedCity {
         public BuildingLine[] buildingLines;
         public MeshInstance[] meshInstances;
         public CustomElement[] customElements;
-        public CustomElement[] propPaths;
+
         public ObjectState cityProperties;
         public TypeAncestry[] typeAncestry;
         public string cityFolder; //the folder of the city project (with its own geometry and texture folders)

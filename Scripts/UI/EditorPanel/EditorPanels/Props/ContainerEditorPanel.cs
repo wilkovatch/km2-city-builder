@@ -10,6 +10,7 @@ namespace EditorPanels.Props {
         Dictionary<string, EPM.Button> btnControls = new Dictionary<string, EPM.Button>();
         public ObjectState parentState = null;
         public string containerName = null; //the props container of the prop rule being edited (see IPropRuleEditor)
+        public CityElements.Types.PropPlacerStrip strip;
 
         public ContainerEditorPanel() {
             AddComplexElement(new PresetSelector(this));
@@ -25,13 +26,18 @@ namespace EditorPanels.Props {
             var width = 1.5f;
             Initialize(canvas, 1, width);
             var tS = TS();
-            var valid = tS.Initialize(CityElements.Types.Parsers.TypeParser.GetPropsContainersTypes(), x => { return x.label; });
+            var types = new Dictionary<string, CityElements.Types.PropsContainerType>();
+            foreach (var pair in CityElements.Types.Parsers.TypeParser.GetPropsContainersTypes()) {
+                if (strip?.allowedContainerTypes == null || strip.allowedContainerTypes.Length == 0 || System.Array.IndexOf(strip.allowedContainerTypes, pair.Key) >= 0) types.Add(pair.Key, pair.Value);
+            }
+            var valid = tS.Initialize(types, x => { return x.label; });
             if (!valid) return;
             btnControls.Clear();
             var type = tS.types[tS.curType];
             var p = GetPage(0);
             var pS = GetComplexElement<PresetSelector>();
-            pS.AddPresetLoadAndSaveDropdown(p, SM.Get("PROP_CONTAINER_PRESET"), true, "propContainer", SetContainer, GetContainer, true, x => { var obj = GetContainer().Name = x; }, null, null, width);
+            pS.AddPresetLoadAndSaveDropdown(p, SM.Get("PROP_CONTAINER_PRESET"), true, "propContainer", SetContainer, GetContainer, true, x => { var obj = GetContainer().Name = x; },
+                strip?.allowedContainerTypes == null ? null : new List<string>(strip.allowedContainerTypes), null, width);
             tS.AddTypeDropdown(p, SM.Get("PROP_CONTAINER_TYPE"), 1.5f);
             foreach (var param in type.parameters) {
                 if (param.maxNumber == 1) {
@@ -55,6 +61,7 @@ namespace EditorPanels.Props {
             } else {
                 childPanels.Add(elemEditor);
             }
+            elemEditor.strip = strip;
         }
 
         public void NotifyChange() {
@@ -73,6 +80,8 @@ namespace EditorPanels.Props {
         }
 
         public ObjectState SetContainer(ObjectState state) {
+            if (strip?.allowedContainerTypes?.Length > 0 && System.Array.IndexOf(strip.allowedContainerTypes, state.Str("type", "")) < 0) throw new System.ArgumentException("Container type is not allowed by this strip");
+            ValidateContainer(state);
             TS().SetState(state, null);
             parentState?.FlagAsChanged();
             return state;
@@ -81,6 +90,13 @@ namespace EditorPanels.Props {
         public void SetContainer(ObjectState state, System.Action<ObjectState> newSetter) {
             TS().SetState(state, newSetter);
             parentState?.FlagAsChanged();
+        }
+
+        public void ValidateContainer(ObjectState state) {
+            if (strip == null || parentState == null) return;
+            var candidate = (ObjectState)parentState.Clone();
+            candidate.State("propRule").SetState(containerName, state);
+            PropPlacerGeometry.Validate(candidate, candidate.Str("type"));
         }
 
         void DeleteElem(string name, int i) {

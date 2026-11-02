@@ -161,8 +161,7 @@ namespace CityEncoder {
                     await caller.ToSignal(caller.GetTree(), "process_frame");
                 }
             }
-            savedCity.customElements = System.Array.FindAll(customElementArray, e => e.type != PropPath.TypeId);
-            savedCity.propPaths = System.Array.FindAll(customElementArray, e => e.type == PropPath.TypeId);
+            savedCity.customElements = customElementArray;
 
             try {
                 savedCity.buildingLines = linesArray;
