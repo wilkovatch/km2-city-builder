@@ -124,6 +124,90 @@ namespace Api {
                 await Call("view.camera.set", new { position = SplinePosition(previousPosition), target = SplinePosition(previousPosition + Vec(previousCamera["forward"])) });
             }
             await RailDecalGeneration();
+            await LodTextureGeneration();
+        }
+
+        //the low LOD texture of a road, generated in the texture folder of the city from its textures and widths: a converter
+        //changing the procedural element it converts (the textures are written here, the test doesn't need the game data)
+        async Task LodTextureGeneration() {
+            var converter = ConverterCatalog.Get("generateLodTexture");
+            var city = PreferencesManager.workingDirectory;
+            System.IO.Directory.CreateDirectory(System.IO.Path.Combine(city, "texture"));
+            foreach (var (name, color) in new[] { ("lodTestRoad", Colors.DimGray), ("lodTestWalk", Colors.Beige) }) {
+                var image = Image.CreateEmpty(8, 8, false, Image.Format.Rgb8);
+                image.Fill(color);
+                image.SavePng(System.IO.Path.Combine(city, "texture", name + ".png"));
+            }
+            var id = (await Call("roads.create", new { points = new object[] { new { position = SplinePosition(new Vector3(-700, 0, 300)) }, new { position = SplinePosition(new Vector3(-700, 0, 400)) } } })).Value<int>();
+            var road = History.ElementRegistry.Get(id) as Road;
+            foreach (var (name, value) in new (string, object)[] { ("isDouble", true), ("hasSidewalks", true), ("totalWidth", 40), ("roadWidth", 30), ("texture0", "texture/lodTestWalk.png"), ("texture1", "texture/lodTestRoad.png") }) {
+                await Call("state.setParam", new { @ref = id, name, value });
+            }
+
+            History.UndoManager.Record("edit road", () => builder.SelectObject(road, true, null));
+            var buttons = (List<(EditorPanelElements.Button button, ConverterCatalog.ConverterInfo converter)>)typeof(EditorPanel)
+                .GetField("conversionButtons", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(CallBuilder<EditorPanel>("GetActivePanel"));
+            var button = buttons.FirstOrDefault(b => b.converter.name == "generateLodTexture").button;
+            Check("the road panel has the low LOD texture button", button != null);
+            if (DisplayServer.GetName() != "headless" && button != null) {
+                var control = (Control)typeof(EditorPanelElements.Button).GetField("button", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(button);
+                Node parent = control;
+                while (parent != null && parent is not ScrollContainer) parent = parent.GetParent();
+                await Frames(2);
+                (parent as ScrollContainer)?.EnsureControlVisible(control);
+                await Frames(3);
+                Screenshot("road_lod_button.png");
+            }
+            foreach (var isDouble in new[] { false, true }) {
+                History.UndoManager.Record("low LOD test flag", () => {
+                    History.UndoManager.Touch(road); road.state.SetBool("isDouble", isDouble);
+                    M.FlagAsChanged();
+                });
+                M.ProcessUpdate();
+                Check("low LOD generator availability, double " + isDouble, converter.IsEnabled(road) == isDouble);
+                Check("low LOD button availability, double " + isDouble, button != null && button.GetInteractable() == isDouble);
+            }
+
+            await Call("city.flush");
+            JToken ids = null;
+            await CheckUndo("generating a low LOD texture", async () => ids = await Call("elements.convert", new { elements = new[] { id }, converter = "generateLodTexture" }));
+            var first = road.state.Str("textureLOD");
+            Check("the conversion reports the road as changed", ids is JArray list && list.Values<int>().Contains(id));
+            Check("the low LOD texture is assigned to the road", first != null && first.StartsWith("texture/lodtestroad_lod_") && first.EndsWith(".tex"));
+            Check("the low LOD texture is in the texture folder of the city", first != null && System.IO.File.Exists(System.IO.Path.Combine(city, first)));
+            Check("the road is still a normal road", !road.ghost && !road.deleted);
+            await Call("history.undo");
+            Check("undo restores the previous low LOD texture", road.state.Str("textureLOD") != first);
+            await Call("history.redo");
+
+            await Call("state.setParam", new { @ref = id, name = "totalWidth", value = 46 });
+            await Call("elements.convert", new { elements = new[] { id }, converter = "generateLodTexture" });
+            Check("other widths give another low LOD texture", road.state.Str("textureLOD") != first);
+
+            //as the button does: the road is edited again when it is done
+            await Call("state.setParam", new { @ref = id, name = "roadWidth", value = 26 });
+            var previous = road.state.Str("textureLOD");
+            History.UndoManager.Record("edit road", () => builder.SelectObject(road, true, null));
+            builder.StartConversion(road, "generateLodTexture");
+            for (int i = 0; i < 600 && road.state.Str("textureLOD") == previous; i++) await Frames(1);
+            await Frames(3);
+            Check("the button assigns the new texture", road.state.Str("textureLOD") != previous);
+            Check("the road is edited again after the button", CallBuilder<EditorPanel>("GetActivePanel") is EditorPanels.RoadEditorPanel);
+            builder.CloseAllPanels();
+
+            //the third texture of the road in the PSDL (the export may report the known error of the origin intersection, it still writes it)
+            await Send("city.export", new { path = System.IO.Path.Combine(folder, "..", "api_export_lod"), exporter = "psdl", flags = new Dictionary<string, bool> { ["propRules"] = false, ["psdl"] = true, ["inst"] = false, ["bai"] = false, ["pathset"] = false, ["cinfo_aimap"] = false, ["hudmap"] = false, ["pkgs"] = false } });
+            var psdl = System.IO.Path.Combine(folder, "..", "city", "api_export_lod.psdl");
+            var names = System.IO.File.Exists(psdl) ? System.Text.Encoding.Latin1.GetString(System.IO.File.ReadAllBytes(psdl)) : "";
+            var lodName = System.IO.Path.GetFileNameWithoutExtension(road.state.Str("textureLOD"));
+            var roadAt = names.IndexOf("lodtestroad");
+            var walkAt = names.IndexOf("lodtestwalk");
+            var lodAt = names.IndexOf(lodName);
+            Check("the PSDL has the road, sidewalk and low LOD textures in this order", roadAt >= 0 && walkAt > roadAt && lodAt > walkAt && walkAt - roadAt < 20 && lodAt - walkAt < 20);
+
+            await Call("state.setParam", new { @ref = id, name = "texture1", value = "texture/lodTestMissing.png" });
+            await Expect("a missing road texture is reported", "converter_failed", "elements.convert", new { elements = new[] { id }, converter = "generateLodTexture" });
+            await Call("roads.delete", new { road = id });
         }
 
         //the single decal: a point element (one point, rotated and scaled with the gizmo) whose scale gives the size of the quad

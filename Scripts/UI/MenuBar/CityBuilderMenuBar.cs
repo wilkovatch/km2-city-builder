@@ -1396,7 +1396,8 @@ public partial class CityBuilderMenuBar : Control {
             History.UndoManager.Record(SM.Get("EDIT"), () => SelectObject(first, true, null));
         } else if (res.updated.Count > 0) {
             //the converter changed existing elements (e.g. the one being edited): it is edited again
-            History.UndoManager.Record(SM.Get("EDIT"), () => SelectObject(res.updated[0], true, null));
+            var updated = res.updated[0] is Intersection intersection ? intersection.geo : res.updated[0] as Node3D;
+            History.UndoManager.Record(SM.Get("EDIT"), () => SelectObject(updated, true, null));
         }
     }
 

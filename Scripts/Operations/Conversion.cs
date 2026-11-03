@@ -18,7 +18,7 @@ namespace Operations {
             public string error; //unknown_converter, not_accepted, converter_failed, invalid_output
             public string message;
             public List<CustomElement> created = new List<CustomElement>();
-            public List<CustomElement> updated = new List<CustomElement>(); //the existing elements changed (output "updates")
+            public List<object> updated = new List<object>(); //the existing elements changed (output "updates")
 
             public static Result Fail(string error, string message) {
                 return new Result { success = false, error = error, message = message };
@@ -107,6 +107,7 @@ namespace Operations {
             }
             res["typeAncestry"] = ancestries;
             res["cityFolder"] = PreferencesManager.workingDirectory;
+            res["searchFolders"] = JArray.FromObject(PathHelper.GetSearchFolders().ToList());
             return res;
         }
 
@@ -405,20 +406,23 @@ namespace Operations {
                 }
             }
 
-            //the changes of existing elements: their points of the names given replaced, their state merged
+            //the changes of existing elements: their state merged and, for the custom elements, their points of the names given replaced
             if (output["updates"] is JArray updateArray) {
                 foreach (var u in updateArray) {
-                    if (Resolve(u["element"]) is not CustomElement target || target.IsDeleted()) {
+                    var updatedElement = Resolve(u["element"]);
+                    if (updatedElement is not IObjectWithState owner || !History.ElementSnapshot.IsAlive(updatedElement)) {
                         GameEngine.LogWarning("Conversion: the element of an update was not found");
                         continue;
                     }
-                    History.UndoManager.Touch(target);
+                    History.UndoManager.Touch(updatedElement);
                     if (u["state"] is JObject partial) {
+                        var state = owner.GetState();
                         foreach (var p in partial.ToObject<ObjectState>().properties) {
-                            if (p.Key != "type") target.state.SetProperty(p.Key, p.Value);
+                            if (p.Key != "type") state.SetProperty(p.Key, p.Value);
                         }
+                        state.FlagAsChanged();
                     }
-                    if (u["points"] is JObject newPoints) {
+                    if (u["points"] is JObject newPoints && updatedElement is CustomElement target) {
                         var tree = global::CustomElements.PointTree.ToJson(target.points, Id) as JObject ?? new JObject();
                         foreach (var p in newPoints.Properties()) tree[p.Name] = p.Value;
                         TerrainPoint GetPoint(JToken t) {
@@ -427,7 +431,7 @@ namespace Operations {
                         }
                         target.SetPoints(History.ElementSnapshot.CustomElementPoints(tree, target.state, target, GetPoint, target.GetCenter()));
                     }
-                    if (!res.updated.Contains(target)) res.updated.Add(target);
+                    if (!res.updated.Contains(updatedElement)) res.updated.Add(updatedElement);
                 }
             }
 
