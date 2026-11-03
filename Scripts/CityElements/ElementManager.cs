@@ -328,7 +328,7 @@ public partial class ElementManager : Scriptable {
 
     public void ShowAllTrafficLanes() {
         foreach (var road in roads) {
-            road.SetActive(true, true);
+            road.SetActive(true, false, false);
         }
         foreach (var intersection in intersections) {
             intersection.SetActive(true, false);

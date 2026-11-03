@@ -144,6 +144,40 @@ namespace Api {
             await Call("city.exportJson",new {path=exportPath});
         }
 
+        //View > Show all traffic lanes shows the handles of the intersections, not the control points of the roads
+        async Task TrafficLanesPoints() {
+            Log("traffic lanes view");
+            var mainId = (await Call("roads.create", new { points = new[] { Pos(-700, 400), Pos(-600, 400) } })).Value<int>();
+            var branchId = (await Call("roads.create", new { points = new object[] { new { roadEnd = new { road = mainId } }, Pos(-600, 500) } })).Value<int>();
+            var main = (Road)History.UndoManager.GetAliveElement(mainId);
+            builder.CloseAllPanels();
+            M.ShowAllTrafficLanes();
+            await Frames(3);
+            bool RoadPointsHidden() => M.roads.All(r => r.points.All(p => !GO.GetEnabled(p)));
+            bool LanesEnabled() => GO.GetEnabled(main.generator.lanesRenderersContainer);
+            Check("Show all traffic lanes hides the control points of the roads", RoadPointsHidden());
+            Check("Show all traffic lanes shows the handles of the intersections", M.intersections.Count > 0
+                && M.intersections.All(i => i.ghost || GameEngine.Scriptable.Cast<Handle>(i.point).IsHandleActive()));
+            Check("Show all traffic lanes shows the lanes of the roads", LanesEnabled());
+            //also when the road is rebuilt and gets new points (e.g. an undo)
+            var oldLanes = main.generator.lanesRenderersContainer;
+            var positions = main.points.ConvertAll(p => GO.GetPosition(p));
+            positions.Insert(1, (positions[0] + positions[1]) * 0.5f + new Vector3(0, 0, 5));
+            main.RestorePoints(positions);
+            M.FlagAsChanged();
+            await Frames(3);
+            Check("the road was rebuilt", !ReferenceEquals(oldLanes, main.generator.lanesRenderersContainer));
+            Check("after a rebuild with new points only the lanes of the road are shown", RoadPointsHidden() && LanesEnabled());
+            //the road edited: all its points are shown again
+            main.SetActive(true);
+            Check("the points of an edited road are shown", main.points.All(p => GO.GetEnabled(p)));
+            M.ShowIntersections(false);
+            await Frames(1);
+            Check("the lanes and the points are hidden with the intersections", RoadPointsHidden() && !LanesEnabled());
+            await Call("roads.delete", new { road = branchId });
+            await Call("roads.delete", new { road = mainId });
+        }
+
         async Task TrainSplines() {
             Log("train splines");
             var settings = TP.GetCustomElementTypes()["train"].typeData.settings.spline;

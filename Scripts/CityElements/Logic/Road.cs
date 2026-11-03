@@ -41,6 +41,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     public bool ghost = false;
     public bool cityPropertiesInjected = false; //the parameters injected by the city properties are in runtimeState
     bool activeSelf = true;
+    bool pointsShown = true;
     RoadScriptContext scriptContext;
     readonly Dictionary<PhysicsGameObject, Vector3> projectedPoints = new Dictionary<PhysicsGameObject, Vector3>();
     ulong projectedTerrainVersion = ulong.MaxValue;
@@ -110,8 +111,10 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         }
     }
 
-    public void SetActive(bool active, bool activeIntersection = false) {
+    //showPoints: false to show only the lines of the road (see ElementManager.ShowAllTrafficLanes)
+    public void SetActive(bool active, bool activeIntersection = false, bool showPoints = true) {
         activeSelf = active;
+        pointsShown = active && showPoints;
         generator.lr.enabled = active && points.Count > 0;
         GO.SetEnabled(generator.lanesRenderersContainer, active);
         if (points.Count > 0) {
@@ -119,7 +122,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             ResetIntersectionPoint(points[points.Count - 1]);
         }
         foreach (var point in points) {
-            GO.SetEnabled(point, active);
+            GO.SetEnabled(point, pointsShown);
         }
         if (points.Count > 0 && activeIntersection && !ghost) {
             if (startIntersection == null) ShowIntersectionPoint(points[0]);
@@ -454,7 +457,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             var newObj = (PhysicsGameObject)GameEngine.Resources.InstantiateObject("Handle");
             GO.SetParent(newObj, GO.GetObject(this));
             GO.SetLayer(newObj, 8);
-            GO.SetEnabled(newObj, activeSelf);
+            GO.SetEnabled(newObj, pointsShown);
             points.Add(newObj);
         }
         for (int i = 0; i < positions.Count; i++) {

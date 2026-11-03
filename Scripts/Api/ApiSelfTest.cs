@@ -206,6 +206,9 @@ namespace Api {
                 } else if (focus == "arrows") {
                     await NewCity();
                     await DirectionArrows();
+                } else if (focus == "trafficLanes") {
+                    await NewCity();
+                    await TrafficLanesPoints();
                 } else if (focus == "meshTextures") {
                     await NewCity();
                     MeshTexturePaths();
@@ -294,6 +297,7 @@ namespace Api {
                     await AutoBai();
                     await CustomElementRoomEditing();
                     await BaiConnections();
+                    await TrafficLanesPoints();
                     await PointAttachments();
                     await PropPlacers();
                     await MeshSelection();
