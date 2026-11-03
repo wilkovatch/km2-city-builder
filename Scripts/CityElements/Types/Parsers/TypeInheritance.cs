@@ -20,8 +20,7 @@ namespace CityElements.Types.Parsers {
         public const string BorderMeshes = "terrainPatches/borderMeshes";
         public const string Buildings = "buildings";
         public const string BuildingBlocks = "buildingBlocks";
-        public const string PropsElements = "props/elements";
-        public const string PropsContainers = "props/containers";
+        public const string PropsTypes = "props/types";
         public const string ParametricObjects = "props/parametric";
         public const string CustomCityPropertiesTypes = "customCityPropertiesTypes";
         public const string CustomElements = "customElements";

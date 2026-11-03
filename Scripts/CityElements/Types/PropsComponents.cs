@@ -3,37 +3,19 @@ using System.Collections.Generic;
 using System.IO;
 
 namespace CityElements.Types {
-    public class PropsElementPlacementRules {
-        public string iterationScope; //path (default), or edge: restart expressions on each edge
-        public string meshIndex;
-        public string whileCondition;
-        public string ifCondition;
-        public string xPos;
-        public string zPos;
-        public string forward;
-        public string autoYOffset; //put the lowest point of the mesh on the line (optional, default true)
-        public string meshTransform; //place the mesh with the transform given by the core (optional, default false)
-    }
-
-    public class PropsElementType {
+    //A kind of props: its parameters and its panel come from the core, like any other element, and a Lua callback
+    //(placement) gives its placements. A type without one is a group: its props are those of the elements of its array
+    //parameters with propsTypes.
+    public class PropsType {
         public string label;
-        public int maxMeshes;
-        public string[] fixedMeshes; //the meshes of the type, chosen with meshIndex: the elements have no mesh of their own (optional)
-        public bool exportSlots; //export the position and direction of every iteration, also those without a prop (optional)
+        public bool nestedOnly; //only as an element of a group, not directly in a props container of an element
+        public bool lineOnly; //along a line: on a prop placer spline the bounds of the strip have no effect
+        public bool authoredLine; //on a prop placer spline, along the spline as authored: the ground gives only the height of each prop
+        public string placement; //Lua callback "<module>.<function>" (variables, context) -> the placements
+        public bool meshTransform; //place the meshes with the transform given by the core
+        public bool autoYOffset = true; //without a core transform, put the lowest point of the mesh on the line
         public ParameterContainer parametersInfo;
         public TabElement[] uiInfo;
-        public PropsElementPlacementRules placementRules;
-    }
-
-    public class PropsContainerParameter {
-        public string name;
-        public string[] allowedTypes;
-        public int maxNumber;
-    }
-
-    public class PropsContainerType {
-        public string label;
-        public PropsContainerParameter[] parameters;
     }
 
     public class MeshInstancePlacementRules {

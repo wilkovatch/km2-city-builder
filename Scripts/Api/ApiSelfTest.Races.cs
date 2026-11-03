@@ -184,7 +184,7 @@ namespace Api {
             M.FlagAsChanged(); M.ProcessUpdate();
             Check("waypoint edits preserve the independent starting car", opponent.state.State("carModel").Vector3("localPosition") == start);
             builder.CloseAllPanels();
-            foreach (var type in new[] { "propLine", "propStrip", "propPolygon" }) {
+            foreach (var type in new[] { "propLine", "propLine", "propPolygon" }) {
                 Select(race);
                 History.UndoManager.Record("create owned " + type, () => CallBuilder<object>("StartCustomElementCreation", type, "CREATE_CUSTOM_ELEMENT"));
                 History.UndoManager.Record("place owned " + type, () => builder.customElementPlacer.PlaceAt(hit));
@@ -192,7 +192,7 @@ namespace Api {
                 builder.CloseAllPanels();
             }
             var lineElement = PC.Contents(owner).OfType<CustomElement>().First(e => e.TypeName == "propLine");
-            var stripElement = PC.Contents(owner).OfType<CustomElement>().First(e => e.TypeName == "propStrip");
+            var stripElement = PC.Contents(owner).OfType<CustomElement>().Last(e => e.TypeName == "propLine");
             History.UndoManager.Record("share race placer controls", () => {
                 var point = lineElement.GetAllPoints()[0];
                 Operations.CustomElements.AppendPoint(M, stripElement, "spline", point.GetObject(), point.GetPoint());
@@ -238,7 +238,7 @@ namespace Api {
             Check("cloning duplicates contents with a new owner", clonedOwner != owner && PC.Contents(clonedOwner).Count == PC.Contents(owner).Count);
             Check("cloned race controls are independent", clonedOpponent.GetAllPoints().Count == 2 && !clonedOpponent.GetAllPoints().Intersect(opponent.GetAllPoints()).Any());
             var copiedLine = PC.Contents(clonedOwner).OfType<CustomElement>().First(e => e.TypeName == "propLine");
-            var copiedStrip = PC.Contents(clonedOwner).OfType<CustomElement>().First(e => e.TypeName == "propStrip");
+            var copiedStrip = PC.Contents(clonedOwner).OfType<CustomElement>().Last(e => e.TypeName == "propLine");
             Check("race cloning preserves sharing inside the copy", copiedStrip.GetAllPoints().Contains(copiedLine.GetAllPoints()[0]) && copiedLine.GetAllPoints()[0] != lineElement.GetAllPoints()[0]);
             History.UndoManager.Record("delete race", () => { History.UndoManager.Touch(city); Operations.States.DeleteArrayElement(city.state, param, 2); M.FlagAsChanged(); });
             M.ProcessUpdate();
@@ -462,7 +462,7 @@ namespace Api {
             await Frames(2);
             Screenshot("race_contents_props.png");
             var line = Listed(list).OfType<CustomElement>().First(e => e.TypeName == "propLine");
-            line.state.State("propRule")?.State("main")?.State("element")?.SetStr("mesh", "race_test.obj");
+            line.state.State("propRule")?.State("main")?.SetStr("mesh", "race_test.obj");
             Pick(list, line);
             Press(list, StringManager.Get("EDIT"));
             await Frames(2);
@@ -472,11 +472,11 @@ namespace Api {
             await Frames(1);
             Check("back from a prop line goes to its list", Shown() is EditorPanels.ContainerContentsPanel again && Listed(again).Contains(line));
             list = (EditorPanels.ContainerContentsPanel)Shown();
-            var strip = Listed(list).OfType<CustomElement>().First(e => e.TypeName == "propStrip");
+            var strip = Listed(list).OfType<CustomElement>().Last(e => e.TypeName == "propLine");
             Pick(list, strip);
             Press(list, StringManager.Get("EDIT"));
             await Frames(1);
-            Check("a prop strip opens from its list", Shown() == builder.customElementEditorPanel && builder.customElementPlacer.GetElement() == strip);
+            Check("a second prop line opens from its list", Shown() == builder.customElementEditorPanel && builder.customElementPlacer.GetElement() == strip);
             builder.CloseAllPanels();
 
             //the parametric object edited last must not change how a plain prop is shown when the panel is rebuilt
@@ -515,12 +515,12 @@ namespace Api {
             History.UndoManager.Undo(); await Frames(3);
             Check("undo restores the deleted prop and reopens the list", PC.Contents(owner).Count == before && Shown() is EditorPanels.ContainerContentsPanel reopened && Listed(reopened).Count == PC.Contents(owner, PC.ContentGroups(PC.Find(owner).settings)[2]).Count);
             list = (EditorPanels.ContainerContentsPanel)Shown();
-            Pick(list, Listed(list).OfType<CustomElement>().First(e => e.TypeName == "propStrip"));
+            Pick(list, Listed(list).OfType<CustomElement>().Last(e => e.TypeName == "propLine"));
             Press(list, StringManager.Get("DELETE"));
             M.FlagAsChanged(); M.ProcessUpdate();
             Check("a custom element can be deleted from a list", PC.Contents(owner).Count == before - 1);
             History.UndoManager.Undo(); await Frames(3);
-            Check("undo restores a custom element deleted from a list", PC.Contents(owner).Count == before && PC.Contents(owner).OfType<CustomElement>().Any(e => e.TypeName == "propStrip"));
+            Check("undo restores a custom element deleted from a list", PC.Contents(owner).Count == before && PC.Contents(owner).OfType<CustomElement>().Count(e => e.TypeName == "propLine") == 2);
             list = (EditorPanels.ContainerContentsPanel)Shown();
             prop = Listed(list).OfType<MeshInstance>().First();
             Pick(list, prop);

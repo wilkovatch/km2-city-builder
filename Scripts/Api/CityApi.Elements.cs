@@ -188,7 +188,7 @@ namespace Api {
                 History.UndoManager.Touch(r);
                 Operations.Roads.EnablePropContainer(r, container, enabled);
                 //the container gets the first type, as when its editor is opened
-                if (enabled) Operations.Props.EnsureContainerType(Operations.Roads.GetPropRule(r, false).State(container));
+                if (enabled) Operations.Props.EnsureType(Operations.Roads.GetPropRule(r, false).State(container));
             });
         }
 
@@ -853,75 +853,66 @@ namespace Api {
 
         // Props
 
-        [ApiMethod("props.elements.add", "Adds a props element (the first preset of an allowed type) to a list of a props container, returns its index (-1 for the lists with a single element)")]
+        [ApiMethod("props.elements.add", "Adds a props element (the first preset of its first allowed type) to a list of a props container or element, returns its index")]
         public int AddPropsElement(ElementRef container, string list) {
             return ApplyChange("add prop", () => {
-                var c = Resolve<PropContainerPart>(container, "propContainer");
+                var c = Resolve<PropsPart>(container, "props");
                 var param = Operations.Props.GetListParameter(c.state, list);
                 if (param == null) throw ApiException.NotFound("props list '" + list + "'");
+                if (Operations.States.IsArrayFull(c.state, param)) throw new ApiException("limit_reached", "'" + list + "' can have at most " + param.arrayProperties.maxElements + " elements");
                 History.UndoManager.Touch(c.road);
-                int res;
-                if (param.maxNumber == 1) {
-                    Operations.Props.EnsureSingleElement(c.state, list);
-                    res = -1;
-                } else {
-                    if (Operations.Props.IsListFull(c.state, list)) throw new ApiException("limit_reached", "'" + list + "' can have at most " + param.maxNumber + " elements");
-                    res = Operations.Props.AddElement(c.state, list);
-                }
+                var res = Operations.States.AddArrayElement(c.state, param);
                 c.road.GetState().FlagAsChanged();
                 return res;
             });
         }
 
-        [ApiMethod("props.elements.remove", "Removes a props element from a list of a props container")]
+        [ApiMethod("props.elements.remove", "Removes a props element from a list of a props container or element")]
         public void RemovePropsElement(ElementRef container, string list, int index) {
             ApplyChange("delete prop", () => {
-                var c = Resolve<PropContainerPart>(container, "propContainer");
+                var c = Resolve<PropsPart>(container, "props");
+                var param = Operations.Props.GetListParameter(c.state, list);
+                if (param == null) throw ApiException.NotFound("props list '" + list + "'");
                 History.UndoManager.Touch(c.road);
-                if (!Operations.Props.RemoveElement(c.state, list, index)) throw ApiException.NotFound("props element " + index + " of '" + list + "'");
+                if (!Operations.States.DeleteArrayElement(c.state, param, index)) throw ApiException.NotFound("props element " + index + " of '" + list + "'");
                 c.road.GetState().FlagAsChanged();
             });
         }
 
-        PropElementPart ResolvePropElement(ElementRef element) {
-            var e = Resolve<PropElementPart>(element, "propElement");
+        //the props whose meshes are being changed, and the parameter with the meshes
+        (PropsPart props, CityElements.Types.Parameter list) ResolvePropsMeshes(ElementRef element) {
+            var e = Resolve<PropsPart>(element, "props");
+            var list = Operations.Props.FindParameter(e.state, "meshList");
+            if (list == null) throw new ApiException("invalid_operation", "this props type has no list of meshes");
             History.UndoManager.Touch(e.road);
-            return e;
+            return (e, list);
         }
 
-        //the element whose meshes are being changed: a type with fixedMeshes has none of its own
-        PropElementPart ResolvePropElementMeshes(ElementRef element) {
-            var e = ResolvePropElement(element);
-            if (TypeOf(TP.GetPropsElementTypes(), e.state.Str("type", null))?.typeData.fixedMeshes != null) throw new ApiException("invalid_operation", "the meshes of this props element type are fixed");
-            return e;
-        }
-
-        [ApiMethod("props.element.meshes.add", "Adds a mesh to the meshes of a props element")]
+        [ApiMethod("props.element.meshes.add", "Adds a mesh to the list of meshes of a props element")]
         public void AddPropsElementMesh(ElementRef element, string mesh) {
             ApplyChange("add mesh", () => {
-                var e = ResolvePropElementMeshes(element);
-                var type = TypeOf(TP.GetPropsElementTypes(), e.state.Str("type", null));
-                var max = type?.typeData.maxMeshes ?? 0;
-                if (max > 0 && (e.state.Array<string>("meshes")?.Length ?? 0) >= max) throw new ApiException("limit_reached", "the props element can have at most " + max + " meshes");
-                Operations.Props.AddMesh(e.state, mesh);
+                var (e, list) = ResolvePropsMeshes(element);
+                var max = list.arrayProperties?.maxElements ?? 0;
+                if (max > 0 && (e.state.Array<string>(list.fullName())?.Length ?? 0) >= max) throw new ApiException("limit_reached", "the props element can have at most " + max + " meshes");
+                Operations.Props.AddMesh(e.state, list.fullName(), mesh);
                 e.road.GetState().FlagAsChanged();
             });
         }
 
-        [ApiMethod("props.element.meshes.set", "Replaces a mesh of a props element")]
+        [ApiMethod("props.element.meshes.set", "Replaces a mesh of the list of meshes of a props element")]
         public void SetPropsElementMesh(ElementRef element, int index, string mesh) {
             ApplyChange("change mesh", () => {
-                var e = ResolvePropElementMeshes(element);
-                if (!Operations.Props.SetMesh(e.state, index, mesh)) throw ApiException.NotFound("mesh " + index);
+                var (e, list) = ResolvePropsMeshes(element);
+                if (!Operations.Props.SetMesh(e.state, list.fullName(), index, mesh)) throw ApiException.NotFound("mesh " + index);
                 e.road.GetState().FlagAsChanged();
             });
         }
 
-        [ApiMethod("props.element.meshes.remove", "Removes a mesh from a props element")]
+        [ApiMethod("props.element.meshes.remove", "Removes a mesh from the list of meshes of a props element")]
         public void RemovePropsElementMesh(ElementRef element, int index) {
             ApplyChange("delete mesh", () => {
-                var e = ResolvePropElementMeshes(element);
-                if (!Operations.Props.RemoveMesh(e.state, index)) throw ApiException.NotFound("mesh " + index);
+                var (e, list) = ResolvePropsMeshes(element);
+                if (!Operations.Props.RemoveMesh(e.state, list.fullName(), index)) throw ApiException.NotFound("mesh " + index);
                 e.road.GetState().FlagAsChanged();
             });
         }
@@ -929,8 +920,11 @@ namespace Api {
         [ApiMethod("props.element.setMesh", "Sets the mesh of a props element with a single one")]
         public void SetPropsElementSingleMesh(ElementRef element, string mesh) {
             ApplyChange("change mesh", () => {
-                var e = ResolvePropElementMeshes(element);
-                Operations.Props.SetSingleMesh(e.state, mesh);
+                var e = Resolve<PropsPart>(element, "props");
+                var parameter = Operations.Props.FindParameter(e.state, "mesh");
+                if (parameter == null) throw new ApiException("invalid_operation", "this props type has no single mesh");
+                History.UndoManager.Touch(e.road);
+                e.state.SetStr(parameter.fullName(), mesh);
                 e.road.GetState().FlagAsChanged();
             });
         }

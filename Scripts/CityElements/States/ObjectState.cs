@@ -350,6 +350,10 @@ public class ObjectState: ICloneable, IEquatable<ObjectState>, IComparable, IObj
     public void ReplaceWith(ObjectState state) {
         var tmp = (ObjectState)state.Clone();
         properties = tmp.properties;
+        foreach (var child in new List<ObjectState>(tmp.children)) {
+            child.UnsetParent();
+            child.SetParent(this); //the changes of the nested states must reach this one
+        }
     }
 
     public static T SearchArray<T>(ObjectState[] states, string name, T defaultValue) {

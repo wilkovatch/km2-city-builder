@@ -15,6 +15,7 @@ public class MaterialManager {
     //Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>(); TODO: In GameEngine
     Dictionary<string, Texture2D> textures = new Dictionary<string, Texture2D>();
     Dictionary<Color, Material> handleMaterials = new Dictionary<Color, Material>();
+    Dictionary<Color, Material> drawnThroughLineMaterials = new Dictionary<Color, Material>();
     Dictionary<string, string> fullNames = new Dictionary<string, string>();
     Shader standardShader = null;
     Texture checkerboardTex; //TODO: checkerboardSprite in GameEngine
@@ -43,6 +44,11 @@ public class MaterialManager {
 
     public static Material GetHandleMaterial(Color color) {
         return GetInstance().GetHandleMaterial_instance(color);
+    }
+
+    //a line in this color, drawn faintly through what covers it
+    public static Material GetDrawnThroughLineMaterial(Color color) {
+        return GetInstance().GetDrawnThroughLineMaterial_instance(color);
     }
 
     public static Material GetMaterial(string name, bool absolute = false) {
@@ -257,6 +263,14 @@ public class MaterialManager {
             handleMaterials.Add(color, mat);
             return mat;
         }
+    }
+
+    Material GetDrawnThroughLineMaterial_instance(Color color) {
+        if (drawnThroughLineMaterials.TryGetValue(color, out var mat)) return mat;
+        mat = GameEngine.Materials.CreateMaterial(GameEngine.Materials.GetShader("LineCovered"));
+        GameEngine.Materials.SetColor(mat, color);
+        drawnThroughLineMaterials.Add(color, mat);
+        return mat;
     }
 
     public static void SetBlendMode(Material mat, int blendMode) {

@@ -23,6 +23,7 @@ namespace CityElements.Types {
         //a "reference" parameter (another element of the city): the kinds it can reference ("road", "intersection",
         //"customElement", or "customElement/<type>" for a single custom element type)
         public string[] referenceTypes;
+        public float[] range; //a checked float or int parameter: the inclusive [minimum, maximum] and optionally the step
 
         public string fullName() {
             return container != null ? container + "_" + name : name;
@@ -37,6 +38,7 @@ namespace CityElements.Types {
         public string elementLabel;
         public Parameter[] elementProperties;
         public string customCityPropertiesType;
+        public string[] propsTypes; //an array of props: each element has one of these props types, and the parameters of its type
         public bool drawLine; //draw a line through the parametric objects of the elements, in order (e.g. the points of a path)
         public LineSettings lineSettings; //optional, how the line is drawn (by default a handle line)
     }
@@ -160,6 +162,7 @@ namespace CityElements.Types {
         public string name;
         public float width;
         public float height; //only for the "label:" elements, the height of their row (0.4 if not set)
+        public bool boundsOnly; //only for the props types: not shown where the props have no bounds (lineOnly directly on a prop placer)
     }
 
     public struct Tab {

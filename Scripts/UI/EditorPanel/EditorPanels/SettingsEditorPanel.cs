@@ -60,7 +60,10 @@ namespace EditorPanels {
             //Python
             pythonPath = p1.AddInputField(SM.Get("PREF_PYTHON_PATH"), SM.Get("PATH_PH"), "", GameEngine.InputContentType.Standard, x => { SettingsManager.Set("pythonPath", x); }, w);
             p1.IncreaseRow();
-            pythonPort = p1.AddInputField(SM.Get("PREF_PYTHON_PORT"), SM.Get("NUMBER_PH"), "", GameEngine.InputContentType.Integer, x => { SettingsManager.Set("pythonPort", int.Parse(x)); }, w);
+            pythonPort = p1.AddInputField(SM.Get("PREF_PYTHON_PORT"), SM.Get("NUMBER_PH"), "", GameEngine.InputContentType.Integer, x => {
+                if (int.TryParse(x, out var port) && port > 0 && port <= 65535) SettingsManager.Set("pythonPort", port);
+                else pythonPort.SetValue("" + SettingsManager.Get("pythonPort", 5005));
+            }, w);
             p1.IncreaseRow();
             pythonDebug = p1.AddCheckbox(SM.Get("PREF_PYTHON_DEBUG"), false, x => { SettingsManager.Set("pythonDebug", x); }, w);
             p1.IncreaseRow();
@@ -95,7 +98,12 @@ namespace EditorPanels {
             }, w, SM.Get("PREF_MCP_ENABLED_TOOLTIP"));
             p3.IncreaseRow();
             mcpPort = p3.AddInputField(SM.Get("PREF_MCP_PORT"), SM.Get("NUMBER_PH"), "", GameEngine.InputContentType.Integer, x => {
-                if (!int.TryParse(x, out var port) || port <= 0 || port > 65535 || port == SettingsManager.Get("mcpServerPort", Mcp.McpHttp.DefaultPort)) return;
+                var current = SettingsManager.Get("mcpServerPort", Mcp.McpHttp.DefaultPort);
+                if (!int.TryParse(x, out var port) || port <= 0 || port > 65535) {
+                    mcpPort.SetValue("" + current);
+                    return;
+                }
+                if (port == current) return;
                 SettingsManager.Set("mcpServerPort", port);
                 Mcp.McpHttp.ApplySettings();
                 ShowMcpStatus();

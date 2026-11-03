@@ -28,6 +28,8 @@ namespace IO.ExportedCity {
         public string b64v3_position; //Vector3
         public string b64v3_scale; //Vector3
         public string b64q_rotation; //Quaternion
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public object data; //optional values given by the script of a props type
     }
 
     [System.Serializable]
@@ -42,10 +44,7 @@ namespace IO.ExportedCity {
     [System.Serializable]
     public class PropLine {
         public string name;
-        public MeshReference[] props;
-        //the iterations of the types with exportSlots, also those without a prop (null for the other types)
-        public string b64v3a_slots;
-        public string b64v3a_slotForwards;
+        public MeshReference[] props; //all the placements in order: meshId -1 if without a model
     }
 
     [System.Serializable]

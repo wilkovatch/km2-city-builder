@@ -218,7 +218,7 @@ namespace Api {
             ValidatePropPlacerState(candidate, element.TypeName);
             foreach (var name in containers) {
                 var container = state.State(name);
-                if (container != null) Operations.Props.EnsureContainerType(container);
+                if (container != null) Operations.Props.EnsureType(container);
             }
             Operations.Props.SetPropRule(element.state, state);
             element.state.FlagAsChanged();

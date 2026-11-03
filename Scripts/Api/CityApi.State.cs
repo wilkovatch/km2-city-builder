@@ -109,6 +109,7 @@ namespace Api {
                 enumValues = p.enumLabels,
                 maxElements = p.arrayProperties?.maxElements,
                 elementParameters = (p.type == "array" || p.type == "customCityProperties") ? SchemaOf(Operations.States.GetSubparams(p)) : null,
+                elementTypes = p.arrayProperties?.propsTypes,
                 objectInstance = p.objectInstanceSettings == null ? null : new { condition = p.objectInstanceSettings.condition, allowCustomModel = p.objectInstanceSettings.allowCustomModel }
             };
         }
@@ -238,7 +239,8 @@ namespace Api {
                 if (t.types == null) throw ApiException.InvalidOperation("the type of " + t.kind + " can't be changed");
                 if (!new List<string>(t.types()).Contains(type)) throw ApiException.InvalidValue("unknown type '" + type + "' (" + string.Join(", ", t.types()) + ")");
                 History.UndoManager.Touch(t.owner);
-                Operations.States.SetType(t.state, type);
+                if (t.kind == "props") Operations.Props.SwitchType(t.state, type);
+                else Operations.States.SetType(t.state, type);
                 //not for the parts of the road (e.g. its props containers), which have types of their own
                 if (t.owner is Road road && t.state == road.GetState()) {
                     var settings = TP.GetRoadTypes()[type].typeData.settings;

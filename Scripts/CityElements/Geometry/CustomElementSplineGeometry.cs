@@ -22,6 +22,9 @@ public static class CustomElementSplineGeometry {
         public Section[] sections = Array.Empty<Section>();
         //Independent component spans, including any expression-driven subdivision. Exporters use these exact edges.
         public Section[][] pieces = Array.Empty<Section[]>();
+        //The positions of the sections before their projection.
+        [Newtonsoft.Json.JsonIgnore]
+        public List<Vector3> authored;
         //A loop: the last section is at the position of the first and the last piece closes it.
         [Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Ignore)]
         public bool closed;
@@ -100,6 +103,7 @@ public static class CustomElementSplineGeometry {
         var evaluated = custom?.Sample(segments, settings.previewTolerance, settings.previewMaxDepth);
         var samples = evaluated?.points ?? (closed ? SampleClosed(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f))
             : Sample(controls, (GH.CurveType)mode, segments, state.Float("hermiteTension", 0.5f), state.Bool("subdivideEqually")));
+        data.authored = samples;
         var projectSections = element.Settings.propPlacer != null ? element.ProjectsPlacement : settings.projectSections;
         if (projectSections) {
             samples = samples.Select(p => element.Settings.propPlacer != null ? PropPlacerGeometry.Project(element, p) : GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList();

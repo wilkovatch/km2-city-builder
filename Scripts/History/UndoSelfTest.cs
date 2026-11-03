@@ -616,21 +616,19 @@ namespace History {
                         M.FlagAsChanged();
                         await Frames(6);
                     }
-                    var containerPanel = roadPanel.OpenPropContainer(container) as EditorPanels.Props.ContainerEditorPanel;
+                    var containerPanel = roadPanel.OpenPropContainer(container) as EditorPanels.Props.PropsEditorPanel;
                     void EditRoad() { UndoManager.Touch(road); FieldStatus.SetValue(road, "8", "state.properties.segments"); }
                     if (containerPanel != null) {
                         await CheckRestore("props container " + container, EditRoad, Chain);
-                        //the first list of elements of the container type, with an element added if empty
-                        var tS = Invoke(containerPanel, "TS");
-                        var containerType = (CityElements.Types.PropsContainerType)((System.Collections.IDictionary)Field(tS, "types"))[(string)Field(tS, "curType")];
-                        string list = null;
-                        foreach (var param in containerType.parameters) if (param.maxNumber != 1) { list = param.name; break; }
-                        if (list != null && !(containerPanel.GetContainer().Array<ObjectState>(list)?.Length > 0)) {
-                            UndoManager.Record("add prop", () => { UndoManager.Touch(road); Invoke(containerPanel, "AddElem", list); });
+                        //the first list of props of the type, with an element added if empty
+                        CityElements.Types.Parameter list = null;
+                        foreach (var param in Operations.Props.Lists(containerPanel.GetContainer())) { list = param; break; }
+                        if (list != null && !(containerPanel.GetContainer().Array<ObjectState>(list.fullName())?.Length > 0)) {
+                            UndoManager.Record("add prop", () => { UndoManager.Touch(road); Operations.States.AddArrayElement(containerPanel.GetContainer(), list); });
                             M.FlagAsChanged();
                             await Frames(6);
                         }
-                        if (list != null && containerPanel.OpenElem(list, 0) != null) await CheckRestore("prop element of " + list, EditRoad, Chain);
+                        if (list != null && containerPanel.OpenArrayElement(list.fullName(), 0) != null) await CheckRestore("prop element of " + list.fullName(), EditRoad, Chain);
                         else Log("     no prop element to open");
                     }
                 } else {

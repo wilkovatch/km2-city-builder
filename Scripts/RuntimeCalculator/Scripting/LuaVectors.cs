@@ -15,6 +15,8 @@ namespace RuntimeCalculator.Scripting {
                 var res = new LuaVec2(new Vector2(Float(context, 0), Float(context, 1)));
                 return new ValueTask<int>(context.Return(res));
             });
+            //a number in the single precision of the expressions and of the positions (the numbers of the scripts are doubles)
+            env["single"] = new LuaFunction("single", (context, ct) => new ValueTask<int>(context.Return((double)(float)context.GetArgument<double>(0))));
             env["rnd"] = new LuaFunction("rnd", (context, ct) => {
                 beforeRandom?.Invoke();
                 var a = Float(context, 0);

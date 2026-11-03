@@ -28,6 +28,7 @@ namespace EditorPanels {
         protected override bool SingleStateParameters => true;
 
         ObjectState CurrentState() => GetElement()?.state ?? draft;
+        protected override bool EditsPlacerProps => CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().TryGetValue(CurrentState()?.Str("type", "") ?? "", out var type) && type.typeData.settings.propPlacer != null;
 
         internal ObjectState CaptureCreationState() => draft == null ? null : (ObjectState)draft.Clone();
 
@@ -62,6 +63,7 @@ namespace EditorPanels {
             }
         }
         string builtType = null; //the type the panel was built for
+        string builtPropsType = null; //the type of the props shown in the panel, when it was built
         CustomElement builtElement = null; //and the element (its arrays, container and contents are listed)
         EditorPanelElements.Dropdown createTypeDropdown, placementDropdown, splineTypeDropdown;
         int[] splineCurveTypes;
@@ -134,6 +136,7 @@ namespace EditorPanels {
             }
             InitializeWithCustomParameters<CityElements.Types.Runtime.CustomElementType, CityElements.Types.CustomElementType>(canvas, GetElementState, null,
                 builtType, CityElements.Types.Parsers.TypeParser.GetCustomElementTypes, ProcessCustomParts, true);
+            builtPropsType = propRule.InlineType();
             picker = AddChildPanel<CustomElementPickerPanel>(canvas);
         }
 
@@ -171,6 +174,21 @@ namespace EditorPanels {
             p.IncreaseRow();
         }
 
+        //a parameter giving the bounds of a strip whose props don't use them
+        bool HidesBoundsParameter(CityElements.Types.CustomElementSettings settings, string name) {
+            foreach (var strip in settings.propPlacer?.strips ?? new CityElements.Types.PropPlacerStrip[0]) {
+                if (strip.boundsParameters == null || System.Array.IndexOf(strip.boundsParameters, name) < 0) continue;
+                var props = Operations.Props.GetPropRule(CurrentState(), false)?.State(strip.name);
+                if (Operations.Props.TypeOf(props)?.typeData.lineOnly == true) return true;
+            }
+            return false;
+        }
+
+        //the type of the props of the panel changed: it has other fields
+        protected override void Reinitialize() {
+            Rebuild();
+        }
+
         void SetCreateType(int i) {
             var placer = GetPlacer();
             if (placer == null || i < 0 || i >= creatableTypes.Count) return;
@@ -188,6 +206,7 @@ namespace EditorPanels {
 
             var w = elem.width;
             var settings = type.typeData.settings;
+            if (HidesBoundsParameter(settings, elem.name)) return true;
             var objectParameter = System.Array.Find(type.parameterContainer.parameters ?? System.Array.Empty<CityElements.Types.Parameter>(), parameter => parameter.fullName() == elem.name && parameter.type == "objectInstance");
             if (GetElement() == null && objectParameter != null) {
                 p.EnsureNewRow();
@@ -975,8 +994,10 @@ namespace EditorPanels {
         }
 
         void OnFrame() {
-            propPlacementErrorLabel?.SetValue(GetElement()?.propPlacementError is string error ? SM.Get(error) : "");
-            if ((GetElement() != builtElement || (GetElement()?.TypeName ?? draft?.Str("type", null)) != builtType) && lastCanvas != null) Rebuild();
+            var placementError = GetElement()?.propPlacementError is string error ? SM.Get(error) : "";
+            propPlacementErrorLabel?.SetValue(placementError);
+            if (builder.propsEditorPanel.parentPanel == this && builder.propsEditorPanel.ActiveSelf()) builder.propsEditorPanel.ShowError(placementError);
+            if ((GetElement() != builtElement || (GetElement()?.TypeName ?? draft?.Str("type", null)) != builtType || propRule.InlineType() != builtPropsType) && lastCanvas != null) Rebuild();
             ShowSelectedPoint();
             UpdateContentOutline();
             RefreshTransform();
@@ -1012,7 +1033,7 @@ namespace EditorPanels {
         //a container gets a handle moving it with its contents, at their center (hidden with the element, or in another
         //click mode)
         void ShowMoveHandle(CustomElement element) {
-            if (element.Settings?.propPlacer == null && (!element.GetCustomElementType()?.IsContainer ?? true)) return;
+            if (!element.GetCustomElementType()?.IsContainer ?? true) return;
             var center = Operations.CustomElements.CenterWithContents(builder.helper.elementManager, element);
             if (center.HasValue) element.ShowMoveHandle(true, center.Value);
         }

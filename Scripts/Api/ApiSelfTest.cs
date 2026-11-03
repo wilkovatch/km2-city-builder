@@ -1255,10 +1255,10 @@ namespace Api {
             var containerRef = new { road = roadB, container };
             var containerType = (await Call("state.get", new { @ref = containerRef }))["type"].Value<string>();
             JToken lists = null;
-            foreach (var t in (JArray)await Call("types.list", new { kind = "propContainer" })) if (t["name"].Value<string>() == containerType) lists = t["lists"];
+            foreach (var t in (JArray)await Call("types.list", new { kind = "props" })) if (t["name"].Value<string>() == containerType) lists = t["lists"];
             var list = lists[0]["name"].Value<string>();
             var index = (await Call("props.elements.add", new { container = containerRef, list })).Value<int>();
-            var elemRef = index >= 0 ? (object)new { road = roadB, container, list, index } : new { road = roadB, container, list };
+            var elemRef = new { road = roadB, container, list, index };
             await Call("state.get", new { @ref = elemRef });
             await CheckUndo("props element mesh", () => Call("props.element.meshes.add", new { element = elemRef, mesh = "" }));
             Check("props element reference", true);
@@ -2448,7 +2448,7 @@ road(-750)
             var core = CoreElementsDir();
             var dir = Path.Combine(folder + "_types", "elements");
             if (Directory.Exists(folder + "_types")) Directory.Delete(folder + "_types", true);
-            foreach (var sub in new[] { "roads/psdl", "intersections/psdl", "sharedComponents", "props/elements" }) {
+            foreach (var sub in new[] { "roads/psdl", "intersections/psdl", "sharedComponents", "props/types" }) {
                 CopyFolder(Path.Combine(core, sub), Path.Combine(dir, sub));
             }
             void Write(string path, string json) {
@@ -2464,8 +2464,8 @@ road(-750)
             Write("roads/child2/ui.json", "{'tabs': [{'label': 'RD_TAB_MAIN', 'elements': [{'name': 'doNotExport', '$remove': true}]}]}");
             Write("roads/child2/components/singleRoad.json", "{'mainMesh': {'uvs': ['vec2(zRd, 0)', 'vec2(zRd, 2)']}}");
             Write("intersections/child/type.json", "{'extends': 'psdl'}");
-            Write("props/elements/narrow.json", "{'extends': 'psdl', 'label': 'PROP_TYPE_NARROW'}");
-            Write("props/elements/hidden.json", "{'extends': 'psdl', 'abstract': true}");
+            Write("props/types/narrow.json", "{'extends': 'psdl', 'label': 'PROP_TYPE_NARROW'}");
+            Write("props/types/hidden.json", "{'extends': 'psdl', 'abstract': true}");
 
             var ancestries = new Dictionary<string, string[]>();
             var roads = TP.LoadRoadTypes(dir, ancestries);
@@ -2499,8 +2499,8 @@ road(-750)
                 && intersections["child"].typeData.junctions.Keys.SequenceEqual(intersections["psdl"].typeData.junctions.Keys)
                 && SameJson(intersections["child"].typeData, intersections["psdl"].typeData));
 
-            var props = TP.LoadPropsElementTypes(dir);
-            Check("inherited props element: label overridden, parameters inherited, abstract one not listed", props.ContainsKey("narrow") && !props.ContainsKey("hidden")
+            var props = TP.LoadPropsTypes(dir);
+            Check("inherited props type: label overridden, parameters inherited, abstract one not listed", props.ContainsKey("narrow") && !props.ContainsKey("hidden")
                 && props["narrow"].typeData.label == "PROP_TYPE_NARROW" && SameJson(props["narrow"].typeData.parametersInfo, props["psdl"].typeData.parametersInfo));
 
             var bad = Path.Combine(folder + "_types", "bad");

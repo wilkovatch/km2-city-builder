@@ -11,10 +11,8 @@ using TP = CityElements.Types.Parsers.TypeParser;
 
 //All scene and physics access stays on the main thread. Only the authored shape and settings are saved.
 public static class PropPlacerGeometry {
-    public sealed class Instance {
-        public string container, mesh;
-        public Vector3 position, rotation, scale = Vector3.One;
-    }
+    const float GuideStep = 2; //the distance between the points of a guide on the ground, as the cells of the terrain
+    const int MaxGuidePoints = 512;
 
     //Stable across runtime versions, independent of the application's shared expression random sequence.
     public sealed class RandomSequence {
@@ -24,22 +22,6 @@ public static class PropPlacerGeometry {
             state = unchecked(state * 1664525u + 1013904223u);
             return state / 4294967296.0;
         }
-    }
-
-    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<PropPlacerStrip, Dictionary<string, CityElements.Types.Runtime.PropsElementType>> profiles = new();
-
-    public static CityElements.Types.Runtime.PropsElementType ScopedType(PropPlacerStrip strip, string name) {
-        if (name == null || !TP.GetPropsElementTypes().TryGetValue(name, out var original)) return null;
-        if (strip == null || strip.placementRules == null) return original;
-        var cache = profiles.GetOrCreateValue(strip);
-        if (!cache.TryGetValue(name, out var result)) {
-            result = new CityElements.Types.Runtime.PropsElementType(new PropsElementType { label = original.typeData.label,
-                maxMeshes = original.typeData.maxMeshes, fixedMeshes = original.typeData.fixedMeshes, exportSlots = original.typeData.exportSlots,
-                parametersInfo = strip.parametersInfo ?? original.typeData.parametersInfo,
-                uiInfo = strip.uiInfo ?? original.typeData.uiInfo, placementRules = strip.placementRules }, name);
-            cache[name] = result;
-        }
-        return result;
     }
 
     public static PropPlacerStrip Strip(ObjectState owner, string name) {
@@ -67,32 +49,55 @@ public static class PropPlacerGeometry {
             if (pair.Value is not ObjectState container) continue;
             var strip = settings.strips.FirstOrDefault(x => x.name == pair.Key);
             if (strip == null) throw new ArgumentException("Unknown prop placer strip: " + pair.Key);
-            var containerType = container.Str("type", null);
-            if (containerType == null && strip.allowedContainerTypes?.Length > 0) container.SetStr("type", containerType = strip.allowedContainerTypes[0]);
-            if (strip.allowedContainerTypes?.Length > 0 && !strip.allowedContainerTypes.Contains(containerType)) throw new ArgumentException("Container type is not allowed by strip " + pair.Key);
-            var definition = Operations.Props.GetContainerType(container) ?? throw new ArgumentException("Unknown prop container");
-            foreach (var slot in definition.parameters) {
-                var elements = slot.maxNumber == 1 ? new[] { container.State(slot.name) } : container.Array<ObjectState>(slot.name);
-                if (slot.maxNumber > 1 && elements?.Length > slot.maxNumber) throw new ArgumentException("Too many prop elements");
-                foreach (var element in elements ?? Array.Empty<ObjectState>()) {
-                    if (element == null) continue;
-                    var id = element.Str("type", "");
-                    if (!TP.GetPropsElementTypes().ContainsKey(id) || (slot.allowedTypes?.Length > 0 && !slot.allowedTypes.Contains(id))) throw new ArgumentException("Prop element type is not allowed");
-                    foreach (var range in strip.ranges ?? new Dictionary<string, float[]>()) {
-                        var value = element.properties.TryGetValue(range.Key, out var raw) ? Convert.ToSingle(raw) : 0;
-                        if (range.Value.Length < 2 || range.Value.Length > 3 || !float.IsFinite(value) || value < range.Value[0] || value > range.Value[1]) throw new ArgumentException("Prop parameter out of range: " + range.Key);
-                        if (range.Value.Length == 3) {
-                            var step = range.Value[2];
-                            if (!float.IsFinite(step) || step <= 0 || Math.Abs((value - range.Value[0]) / step - MathF.Round((value - range.Value[0]) / step)) > 0.0001f)
-                                throw new ArgumentException("Prop parameter does not match its step: " + range.Key);
-                        }
-                        var parameter = ScopedType(strip, id).parameterContainer.parameters.FirstOrDefault(p => p.fullName() == range.Key);
-                        if (parameter?.type == "int" && value != MathF.Truncate(value)) throw new ArgumentException("Prop parameter must be an integer: " + range.Key);
-                    }
-                    Operations.States.Normalize(element, ScopedType(strip, id).parameterContainer.parameters);
-                }
-            }
+            if (string.IsNullOrEmpty(container.Str("type", null)) && strip.allowedContainerTypes?.Length > 0) container.SetStr("type", strip.allowedContainerTypes[0]);
+            ValidateProps(container, strip.allowedContainerTypes);
         }
+    }
+
+    //checks a new state of a props container of a prop placer
+    public static void ValidateContainer(ObjectState owner, string name, ObjectState state) {
+        if (Strip(owner, name) == null) return;
+        var candidate = (ObjectState)owner.Clone();
+        Operations.Props.GetPropRule(candidate, true).SetState(name, state);
+        Validate(candidate, candidate.Str("type"));
+    }
+
+    //a props state and those nested in it: their types and the ranges of their parameters
+    static void ValidateProps(ObjectState state, string[] allowedTypes) {
+        var id = state.Str("type", "");
+        var type = Operations.Props.TypeOf(state) ?? throw new ArgumentException("Unknown props type: " + id);
+        if (allowedTypes?.Length > 0 && !allowedTypes.Contains(id)) throw new ArgumentException("Props type is not allowed here: " + id);
+        foreach (var parameter in type.parameterContainer.parameters ?? Array.Empty<Parameter>()) {
+            if (parameter.range != null) CheckRange(state, parameter);
+        }
+        foreach (var list in Operations.Props.Lists(state)) {
+            var items = state.Array<ObjectState>(list.fullName()) ?? Array.Empty<ObjectState>();
+            if (list.arrayProperties.maxElements > 0 && items.Length > list.arrayProperties.maxElements) throw new ArgumentException("Too many props in " + list.fullName());
+            foreach (var item in items) ValidateProps(item, list.arrayProperties.propsTypes);
+        }
+        Operations.States.Normalize(state, type.parameterContainer.parameters);
+    }
+
+    public static bool InRange(ObjectState state, Parameter parameter) {
+        try {
+            CheckRange(state, parameter);
+            return true;
+        } catch (ArgumentException) {
+            return false;
+        }
+    }
+
+    static void CheckRange(ObjectState state, Parameter parameter) {
+        var name = parameter.fullName();
+        var range = parameter.range;
+        var value = state.properties.TryGetValue(name, out var raw) ? Convert.ToSingle(raw) : 0;
+        if (range.Length < 2 || range.Length > 3 || !float.IsFinite(value) || value < range[0] || value > range[1]) throw new ArgumentException("Prop parameter out of range: " + name);
+        if (range.Length == 3) {
+            var step = range[2];
+            if (!float.IsFinite(step) || step <= 0 || Math.Abs((value - range[0]) / step - MathF.Round((value - range[0]) / step)) > 0.0001f)
+                throw new ArgumentException("Prop parameter does not match its step: " + name);
+        }
+        if (parameter.type == "int" && value != MathF.Truncate(value)) throw new ArgumentException("Prop parameter must be an integer: " + name);
     }
 
     public static Vector3 Project(CustomElement element, Vector3 position) {
@@ -104,8 +109,56 @@ public static class PropPlacerGeometry {
         Validate(element.state, element.TypeName);
         element.propPlacementError = null;
         var geometry = settings.type == "spline" ? Spline(element) : Polygon(element);
-        foreach (var line in geometry.lines) line.heightOffset += settings.guideHeightOffset;
+        var lines = new List<GeometryLine>();
+        foreach (var line in geometry.lines) {
+            line.heightOffset += settings.guideHeightOffset;
+            line.wideCollider = true;
+            if (element.ProjectsPlacement) {
+                line.points = Subdivided(line.points, line.closed).Select(p => Project(element, p)).ToList();
+                lines.Add(line);
+            } else {
+                lines.AddRange(SplitWhereCovered(element, line));
+            }
+        }
+        geometry.lines = lines;
         return geometry;
+    }
+
+    //the points of a line with enough others to follow the ground (the shapes are projected only at their sections or
+    //controls); a closed line doesn't repeat its first point
+    static List<Vector3> Subdivided(List<Vector3> points, bool closed) {
+        if (points.Count < 2) return points;
+        var shape = closed ? points.Append(points[0]).ToList() : points;
+        var length = shape.Zip(shape.Skip(1), (a, b) => a.DistanceTo(b)).Sum();
+        var step = Math.Max(GuideStep, length / MaxGuidePoints);
+        var res = new List<Vector3>();
+        for (int i = 0; i < shape.Count - 1; i++) {
+            var count = Math.Max(1, (int)Math.Ceiling(shape[i].DistanceTo(shape[i + 1]) / step));
+            for (int j = 0; j < count; j++) res.Add(shape[i].Lerp(shape[i + 1], j / (float)count));
+        }
+        if (!closed) res.Add(shape[^1]);
+        return res;
+    }
+
+    //a line of a guide showing where the props are: the parts under a surface are drawn through it, also the terrain doesn't
+    //hide them by itself as it's a transparent grid
+    static List<GeometryLine> SplitWhereCovered(CustomElement element, GeometryLine line) {
+        var points = Subdivided(line.points, line.closed);
+        if (points.Count < 2) return new List<GeometryLine> { line };
+        if (line.closed) points.Add(points[0]);
+        var covered = points.Select(p => Project(element, p).Y > p.Y + line.heightOffset).ToList();
+        if (!covered.Contains(true)) return new List<GeometryLine> { line };
+        var res = new List<GeometryLine>();
+        int start = 0;
+        for (int i = 1; i < points.Count; i++) {
+            if (covered[i] == covered[start] && i < points.Count - 1) continue;
+            //each part ends at the first point of the next one, so that there's no gap between them
+            var part = line.WithPoints(points.GetRange(start, i - start + 1));
+            part.drawnThrough = covered[start];
+            res.Add(part);
+            start = i;
+        }
+        return res;
     }
 
     static GeometryResult Spline(CustomElement element) {
@@ -120,15 +173,19 @@ public static class PropPlacerGeometry {
             var end = RuntimeCalculator.Parsers.FloatParser.ParseExpression(strip.end);
             start.SetIndices(variables); end.SetIndices(variables);
             var a = start.GetValue(variables); var b = end.GetValue(variables);
+            var propsType = Operations.Props.TypeOf(element.state.State("propRule")?.State(strip.name))?.typeData;
+            if (propsType?.lineOnly == true) a = b = 0;
+            var positions = sections.Select(s => s.Position).ToList();
+            if (propsType?.authoredLine == true && element.splineData.authored?.Count == positions.Count) positions = element.splineData.authored;
             if (!float.IsFinite(a) || !float.IsFinite(b)) throw new ArgumentException("Non-finite prop strip bounds");
             var line = new GeometryPropLine { container = strip.name };
             for (int i = 0; i < sections.Length; i++) {
-                var previous = sections[Math.Max(0, i - 1)].Position;
-                var next = sections[Math.Min(sections.Length - 1, i + 1)].Position;
+                var previous = positions[Math.Max(0, i - 1)];
+                var next = positions[Math.Min(sections.Length - 1, i + 1)];
                 var tangent = next - previous; tangent.Y = 0;
                 var right = tangent.LengthSquared() > 1e-8f ? tangent.Normalized().Cross(Vector3.Up) : Vector3.Right;
-                line.startBound.Add(sections[i].Position + right * a);
-                line.endBound.Add(sections[i].Position + right * b);
+                line.startBound.Add(positions[i] + right * a);
+                line.endBound.Add(positions[i] + right * b);
             }
             geometry.propLines.Add(line);
             if (Math.Abs(a - b) > 1e-5f) {
@@ -209,12 +266,15 @@ public static class PropPlacerGeometry {
             if (!result.TryRead<LuaTable>(out var table) || host.ErrorCount != errors) throw new ArgumentException("Prop placement callback must return a list");
             if (table.ArrayLength > 100000) throw new ArgumentException("Too many generated props");
             for (int i = 1; i <= table.ArrayLength; i++) {
-                var item = table[i].Read<LuaTable>();
-                var model = item["model"].Read<int>() - 1;
-                if (model < 0 || model >= models.Length) throw new ArgumentException("Invalid generated prop model index");
-                geometry.props.Add(new Instance { container = "models", mesh = models[model].Str("mesh"), position = item["position"].Read<LuaVec3>().value,
-                    rotation = item["rotation"].TryRead<LuaVec3>(out var rotation) ? rotation.value : Vector3.Zero,
-                    scale = item["scale"].TryRead<LuaVec3>(out var scale) ? scale.value : Vector3.One });
+                //the model is an entry of the models of the element, or a mesh
+                var modelValue = table[i].Read<LuaTable>()["model"];
+                var placement = PropPlacement.ReadPlacement(table[i], "models");
+                if (modelValue.Type == LuaValueType.Number) {
+                    var model = modelValue.Read<int>() - 1;
+                    if (model < 0 || model >= models.Length) throw new ArgumentException("Invalid generated prop model index");
+                    placement.mesh = models[model].Str("mesh");
+                }
+                geometry.props.Add(placement);
             }
         } else {
             foreach (var model in models) {
@@ -226,19 +286,19 @@ public static class PropPlacerGeometry {
                     triangle = Math.Min(triangle, areas.Count - 1) * 3;
                     var u = Math.Sqrt(random.Next()); var v = random.Next();
                     var position = points[indices[triangle]] * (float)(1 - u) + points[indices[triangle + 1]] * (float)(u * (1 - v)) + points[indices[triangle + 2]] * (float)(u * v);
-                    geometry.props.Add(new Instance { container = "models", mesh = model.Str("mesh"), position = position,
+                    geometry.props.Add(new Placement { container = "models", mesh = model.Str("mesh"), position = position,
                         rotation = new Vector3(0, (float)(model.Float("minYaw") + random.Next() * (model.Float("maxYaw", 360) - model.Float("minYaw"))), 0) });
                 }
             }
         }
         foreach (var prop in geometry.props) {
             if (!prop.position.IsFinite() || !prop.rotation.IsFinite() || !prop.scale.IsFinite()) throw new ArgumentException("Non-finite generated prop transform");
-            if (element.ProjectsPlacement && element.Settings.propPlacer.projectProps) prop.position = Project(element, prop.position);
+            if (element.ProjectsPlacement) prop.position = Project(element, prop.position);
         }
         return geometry;
     }
 
-    static LuaValue StateTable(object value) {
+    public static LuaValue StateTable(object value) {
         if (value is ObjectState state) { var table = new LuaTable(); foreach (var p in state.properties) table[p.Key] = StateTable(p.Value); return table; }
         if (value is System.Collections.IEnumerable items && value is not string) { var table = new LuaTable(); int i = 0; foreach (var item in items) table[++i] = StateTable(item); return table; }
         return value switch { string s => new LuaValue(s), bool b => new LuaValue(b), int n => new LuaValue(n), long n => new LuaValue(n), float n => new LuaValue(n), double n => new LuaValue(n), _ => LuaValue.Nil };

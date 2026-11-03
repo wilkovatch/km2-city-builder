@@ -101,9 +101,13 @@ namespace ElementPlacer {
 
         public override bool SnapsToGrid => false;
 
+        public override bool Raycast(Node3D parent, Vector3 origin, Vector3 direction, out RaycastHit hit, float distance, int mask) {
+            return GameEngine.Raycast.DoPickRaycast(parent, origin, direction, out hit, distance, mask);
+        }
+
         //the element of the city a collider belongs to (as CityBuilderMenuBar.SelectObject finds it), null if none
         public static object ElementOf(Node node) {
-            for (var obj = node as Node3D; obj != null; obj = obj.GetParentNode3D()) {
+            for (var obj = node as Node3D; obj != null; obj = obj.GetParent() as Node3D) { //not GetParentNode3D, null for a top level node (e.g. a line)
                 var customElement = GS.Cast<CustomElement>(obj);
                 if (customElement != null) return customElement;
                 var road = GS.Cast<Road>(obj);

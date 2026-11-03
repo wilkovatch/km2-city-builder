@@ -88,7 +88,7 @@ namespace Operations {
                 } else if (p.type == "array") {
                     var items = state.Array<ObjectState>(key);
                     var old = original?.Array<ObjectState>(key);
-                    for (int i = 0; i < (items?.Length ?? 0); i++) Filter(items[i], i < (old?.Length ?? 0) ? old[i] : null, States.GetSubparams(p), restore);
+                    for (int i = 0; i < (items?.Length ?? 0); i++) Filter(items[i], i < (old?.Length ?? 0) ? old[i] : null, States.GetSubparams(p, items[i]), restore);
                 }
             }
         }

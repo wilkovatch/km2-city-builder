@@ -267,26 +267,24 @@ namespace CityEncoder {
                 }
                 baseData.fields.SetArray("lanes", lanes.ToArray());
             }
-            baseData.propLines = GetPropLines(generator.props, generator.propSlots);
+            baseData.propLines = GetPropLines(generator.placements);
             elem.data = baseData;
             return elem;
         }
 
         //the props placed by a prop rule (see PropPlacement), by props container
-        IO.ExportedCity.PropLine[] GetPropLines(List<(string container, string meshName, GameObject obj)> props, List<(string container, Vector3 position, Vector3 forward)> slots) {
+        IO.ExportedCity.PropLine[] GetPropLines(List<Placement> placements) {
             var propLanes = new Dictionary<string, List<IO.ExportedCity.MeshReference>>();
-            foreach (var (container, meshName, prop) in props) {
-                if (!propLanes.ContainsKey(container)) propLanes[container] = new List<IO.ExportedCity.MeshReference>();
+            foreach (var placement in placements) {
+                if (!propLanes.ContainsKey(placement.container)) propLanes[placement.container] = new List<IO.ExportedCity.MeshReference>();
                 var mr = new IO.ExportedCity.MeshReference();
-                mr.meshId = meshLookup.ContainsKey(meshName) ? meshLookup[meshName] : -1;
-                mr.b64v3_position = GetEncodedVector3(GO.GetPosition(prop));
-                mr.b64q_rotation = GetEncodedQuaternion(GO.GetRotationQuaternion(prop));
-                mr.b64v3_scale = GetEncodedVector3(GO.GetLocalScale(prop));
-                propLanes[container].Add(mr);
-            }
-            //a line can have slots without any prop
-            foreach (var slot in slots) {
-                if (!propLanes.ContainsKey(slot.container)) propLanes[slot.container] = new List<IO.ExportedCity.MeshReference>();
+                var prop = placement.obj;
+                mr.meshId = prop != null && meshLookup.ContainsKey(placement.mesh) ? meshLookup[placement.mesh] : -1;
+                mr.b64v3_position = GetEncodedVector3(prop != null ? GO.GetPosition(prop) : placement.position);
+                mr.b64q_rotation = GetEncodedQuaternion(prop != null ? GO.GetRotationQuaternion(prop) : GameEngine.Quaternion.FromRotation(placement.rotation));
+                mr.b64v3_scale = GetEncodedVector3(prop != null ? GO.GetLocalScale(prop) : placement.scale);
+                mr.data = placement.data;
+                propLanes[placement.container].Add(mr);
             }
             var res = new IO.ExportedCity.PropLine[propLanes.Count];
             int laneI = 0;
@@ -294,11 +292,6 @@ namespace CityEncoder {
                 var tmp = new IO.ExportedCity.PropLine();
                 tmp.name = key;
                 tmp.props = propLanes[key].ToArray();
-                var lineSlots = slots.FindAll(s => s.container == key);
-                if (lineSlots.Count > 0) {
-                    tmp.b64v3a_slots = GetEncodedVector3s(lineSlots.ConvertAll(s => s.position).ToArray());
-                    tmp.b64v3a_slotForwards = GetEncodedVector3s(lineSlots.ConvertAll(s => s.forward).ToArray());
-                }
                 res[laneI] = tmp;
                 laneI++;
             }
@@ -424,7 +417,7 @@ namespace CityEncoder {
                 return target == null ? -1 : IdOf(target);
             }));
             baseData.mesh = GetMeshData(GO.GetObject(element.generator));
-            baseData.propLines = GetPropLines(element.generator.props, element.generator.propSlots);
+            baseData.propLines = GetPropLines(element.generator.placements);
             elem.data = baseData;
             elem.points = GetCustomElementPoints(element.points, leaf => GetCustomElementPoint(leaf.point, leaf.def.rotatable, leaf.def.scalable));
             elem.vertices = new Newtonsoft.Json.Linq.JArray();

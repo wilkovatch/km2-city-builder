@@ -59,7 +59,7 @@ Everything related to meshes and colliders:
 
 ### `Raycast`
 
-`DoRaycast` (ray against a collision mask, returning a `RaycastHit` with point, body and shape), `ProjectPoint` (drops a point vertically onto layer 3, the terrain, by default) and `GetRayFromScreen`.
+`DoRaycast` (ray against a collision mask, returning a `RaycastHit` with point, body and shape), `DoPickRaycast` (the same for the actions picking an element, which also hits the wide colliders of the lines), `ProjectPoint` (drops a point vertically onto layer 3, the terrain, by default) and `GetRayFromScreen`.
 
 ### `LineRenderer`
 

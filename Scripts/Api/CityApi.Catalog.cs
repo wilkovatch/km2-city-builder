@@ -10,7 +10,7 @@ namespace Api {
     public partial class CityApi {
         public static readonly string[] TypeKinds = {
             "road", "intersection", "terrainPatch", "borderMesh", "buildingLine", "building", "buildingSide", "buildingBlock",
-            "propContainer", "propElement", "cityProperties", "meshInstance", "parametricObject", "customElement"
+            "props", "cityProperties", "meshInstance", "parametricObject", "customElement"
         };
 
         [ApiMethod("cores.list", "The installed cores")]
@@ -47,8 +47,7 @@ namespace Api {
                 case "borderMesh": return TI.BorderMeshes;
                 case "buildingLine": case "building": case "buildingSide": return TI.Buildings;
                 case "buildingBlock": return TI.BuildingBlocks;
-                case "propContainer": return TI.PropsContainers;
-                case "propElement": return TI.PropsElements;
+                case "props": return TI.PropsTypes;
                 case "parametricObject": return TI.ParametricObjects;
                 case "customElement": return TI.CustomElements;
                 default: return null;
@@ -95,20 +94,17 @@ namespace Api {
                     return TypesOf(kind, TP.GetBuildingSideTypes(), t => t.typeData.GetUI().label, t => Params(t.parameterContainer));
                 case "buildingBlock":
                     return TypesOf(kind, TP.GetBuildingBlockTypes(), t => t.typeData.GetUI().label, t => Params(t.parameterContainer));
-                case "propContainer":
-                    var containers = new List<object>();
-                    foreach (var t in TP.GetPropsContainersTypes()) {
+                case "props":
+                    var props = new List<object>();
+                    foreach (var t in TP.GetPropsTypes()) {
+                        var parameters = Params(t.Value.parameterContainer);
                         var lists = new List<object>();
-                        foreach (var p in t.Value.parameters) lists.Add(new { name = p.name, allowedTypes = p.allowedTypes, maxNumber = p.maxNumber });
-                        containers.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.label), ancestry = AncestryOf(kind, t.Key), lists });
+                        foreach (var p in parameters) {
+                            if (p.arrayProperties?.propsTypes != null) lists.Add(new { name = p.fullName(), allowedTypes = p.arrayProperties.propsTypes, maxElements = p.arrayProperties.maxElements });
+                        }
+                        props.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.typeData.label), ancestry = AncestryOf(kind, t.Key), nestedOnly = t.Value.typeData.nestedOnly, group = t.Value.IsGroup, parameters = SchemaOf(parameters), lists });
                     }
-                    return containers;
-                case "propElement":
-                    var elems = new List<object>();
-                    foreach (var t in TP.GetPropsElementTypes()) {
-                        elems.Add(new { name = t.Key, label = SM.GetOrKey(t.Value.typeData.label), ancestry = AncestryOf(kind, t.Key), maxMeshes = t.Value.typeData.maxMeshes, fixedMeshes = t.Value.typeData.fixedMeshes, exportSlots = t.Value.typeData.exportSlots, parameters = SchemaOf(Params(t.Value.typeData.parametersInfo)) });
-                    }
-                    return elems;
+                    return props;
                 case "cityProperties":
                     return TypesOf(kind, TP.GetCitySettings(), t => null, t => Params(t.parameterContainer));
                 case "meshInstance":
@@ -152,7 +148,7 @@ namespace Api {
             return res;
         }
 
-        [ApiMethod("presets.list", "The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, propContainer, propElem, roadPropRule, customElement/<type> for enabled custom element types, or a container such as rail); the first one is the default")]
+        [ApiMethod("presets.list", "The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, props/<type> for the props types, roadPropRule, customElement/<type> for enabled custom element types, or a container such as rail); the first one is the default")]
         public List<string> ListPresets(string category) {
             RequireCity();
             try { return PresetNames(category); }

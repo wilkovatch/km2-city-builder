@@ -133,6 +133,7 @@ public partial class CameraController : Camera3D {
         Vector3 rayDirection = cam.ProjectRayNormal(screenPos);
         var spaceState = GetWorld3D().DirectSpaceState;
         var queryParams = PhysicsRayQueryParameters3D.Create(rayOrigin, rayOrigin + rayDirection * 999999f);
+        queryParams.CollisionMask = ~(uint)GameEngine.Raycast.LinePickMask;
         var result = spaceState.IntersectRay(queryParams);
         if (result.Count > 0) {
             hitPoint = (Vector3)result["position"];

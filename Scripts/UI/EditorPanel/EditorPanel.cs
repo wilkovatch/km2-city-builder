@@ -37,6 +37,8 @@ public abstract partial class EditorPanel {
     private EditorPanels.ArrayElemEditorPanel arrayElemPanel = null;
     private EditorPanels.ArrayListPanel arrayListPanel = null;
     private Dictionary<string, CityElements.Types.Parameter> parameterMap = new Dictionary<string, CityElements.Types.Parameter>();
+    //the object holding an array parameter, when it's not the one of the panel (e.g. the props of an element shown in its panel)
+    private Dictionary<CityElements.Types.Parameter, System.Func<IObjectWithState>> parameterOwners = new Dictionary<CityElements.Types.Parameter, System.Func<IObjectWithState>>();
     bool initializationPending = true;
     bool initializedForActivation = false;
     readonly List<(EditorPanelElements.Button button, ConverterCatalog.ConverterInfo converter)> conversionButtons = new();
@@ -191,6 +193,7 @@ public abstract partial class EditorPanel {
                 var pFullName = Operations.States.GetParameterPath(param, prependstate);
                 if (SingleStateParameters) pFullName = pFullName.Replace("instanceState.", "state.");
                 parameterMap.Add(pFullName, param);
+                parameterOwners[param] = getObject;
                 EditorPanelElement field = null;
                 switch (param.type) {
                     case "bool":
@@ -236,6 +239,10 @@ public abstract partial class EditorPanel {
                         field = p.AddFieldInputField(GetString(param.label), GetString(param.placeholder), GameEngine.InputContentType.Standard, getObject, pFullName, null, elem.width * 0.8f, GetString(param.tooltip));
                         p.AddButton("...", delegate { BrowsePath(param, getObject, pFullName); }, elem.width * 0.2f, GetString(param.tooltip));
                         break;
+                    case "meshList":
+                        AddMeshList(p, param, getObject, elem.width);
+                        curW = 0;
+                        break;
                     case "array":
                         if (OpensInSubPanel(param)) {
                             p.AddButton(GetString(param.label), delegate { OpenArrayList(param); }, elem.width, GetString(param.tooltip), null);
@@ -274,6 +281,77 @@ public abstract partial class EditorPanel {
                 break;
             }
         }
+    }
+
+    //a meshList parameter: a list of mesh paths in the state, which can have empty entries
+    void AddMeshList(EditorPanelPage p, CityElements.Types.Parameter param, System.Func<IObjectWithState> getOwner, float width) {
+        if (!complexElements.ContainsKey(typeof(IOList))) AddComplexElement(new IOList(this));
+        var name = param.fullName();
+        var label = GetString(param.label);
+        ObjectState State() => getOwner()?.GetState();
+        List<string> Meshes() => new List<string>(State()?.Array<string>(name) ?? new string[0]);
+        //the mesh selector calls back outside of the undo step of the button opening it
+        void Change(System.Action change) {
+            History.UndoManager.Record(label, () => {
+                History.UndoManager.Touch(GetUndoTarget());
+                change();
+                builder.NotifyChange();
+            });
+            ReadCurValues();
+        }
+        var l = GetComplexElement<IOList>();
+        var extraButtons = new List<(string, System.Action<string, int>, IOListButtonMode)>() {
+            (SM.Get("ADD_EMPTY"), (x, y) => { Operations.Props.AddMesh(State(), name, ""); builder.NotifyChange(); }, IOListButtonMode.NotFull)
+        };
+        l.AddFullEditableList(p, name, label, SM.Get("ADD"), SM.Get("CHANGE"), SM.Get("DELETE"), param.arrayProperties?.maxElements ?? 0,
+            x => builder.OpenMeshSelector(this, null, mesh => Change(() => Operations.Props.AddMesh(State(), name, mesh)), null, true),
+            (x, i) => builder.OpenMeshSelector(this, null, mesh => Change(() => Operations.Props.SetMesh(State(), name, i, mesh)), null, true, Meshes()[i]),
+            (x, i) => { Operations.Props.RemoveMesh(State(), name, i); builder.NotifyChange(); },
+            Meshes, 5.0f, width, GetString(param.tooltip), null, extraButtons, Meshes);
+    }
+
+    //The panel part of a props state: its preset, its type (if it can have other types) and the fields of its type.
+    //getState can give another object after an undo, a preset or a new selection.
+    protected void AddPropsFields(EditorPanelPage p, ref float curW, float width, System.Func<ObjectState> getState, System.Action<ObjectState> applyPreset,
+        List<string> allowedTypes, bool withPreset, bool nested = false) {
+        var state = getState();
+        var type = Operations.Props.TypeOf(state);
+        if (type == null) return;
+        if (withPreset) {
+            if (!complexElements.ContainsKey(typeof(PresetSelector))) AddComplexElement(new PresetSelector(this));
+            GetComplexElement<PresetSelector>().AddPresetLoadAndSaveDropdown(p, SM.Get("PROPS_PRESET"), true, Operations.Props.PresetCategory(type.name), x => {
+                applyPreset(x);
+                return getState();
+            }, getState, true, x => { getState().Name = x; }, null, null, width);
+        }
+        if (allowedTypes != null && allowedTypes.Count > 1) {
+            var names = allowedTypes.ConvertAll(t => CityElements.Types.Parsers.TypeParser.GetPropsTypes().TryGetValue(t, out var info) ? GetString(info.typeData.label) : t);
+            var dropdown = p.AddDropdown(SM.Get("PROPS_TYPE"), names, i => {
+                Operations.Props.SwitchType(getState(), allowedTypes[i]);
+                builder.NotifyChange();
+                Reinitialize();
+            }, width);
+            dropdown.actionEnabled = false;
+            dropdown.SetValue(allowedTypes.IndexOf(type.name));
+            dropdown.actionEnabled = true;
+            p.IncreaseRow();
+        }
+        foreach (var ui in type.typeData.uiInfo ?? new CityElements.Types.TabElement[0]) {
+            if (ui.boundsOnly && !nested && EditsPlacerProps && type.typeData.lineOnly) continue;
+            AddParameters(p, ref curW, width, type.parameterContainer.parameters, ui, getState, false);
+        }
+        p.EnsureNewRow();
+    }
+
+    //the props edited are those of a prop placer, not of a road: the panels of its props ask the panel of the element
+    protected virtual bool EditsPlacerProps => parentPanel != null && parentPanel.EditsPlacerProps;
+
+    //rebuilds the panel staying on the tab shown (the new pages are all visible)
+    protected virtual void Reinitialize() {
+        var page = ActivePage();
+        Initialize(lastCanvas);
+        ReadCurValues();
+        if (page >= 0 && pages.Count > 0) SetPage(System.Math.Min(page, pages.Count - 1));
     }
 
     //a file or folder parameter: chosen with the file dialog
@@ -374,6 +452,7 @@ public abstract partial class EditorPanel {
             elem.Destroy();
         }
         parameterMap.Clear();
+        parameterOwners.Clear();
         arrayElemPanel = null;
         arrayListPanel = null;
     }
@@ -588,11 +667,16 @@ public abstract partial class EditorPanel {
         return 0;
     }
 
+    //the object holding an array parameter
+    IObjectWithState OwnerOf(CityElements.Types.Parameter param) {
+        return parameterOwners.TryGetValue(param, out var owner) ? owner?.Invoke() : getObject?.Invoke();
+    }
+
     CityElements.Types.Parameter GetArrayLabelProperty(CityElements.Types.Parameter param) {
         var labelKey = GetArraylabel(param.arrayProperties);
         var elemProperties = GetArrayProperties(param.arrayProperties);
         CityElements.Types.Parameter labelProperty = null;
-        foreach(var p in elemProperties) {
+        foreach(var p in elemProperties ?? new CityElements.Types.Parameter[0]) {
             if (p.name == labelKey) {
                 return p;
             }
@@ -605,7 +689,7 @@ public abstract partial class EditorPanel {
         var label = GetArrayLabelProperty(param);
         if (IsMesh(label)) return label;
         CityElements.Types.Parameter result = null;
-        foreach (var property in GetArrayProperties(param.arrayProperties)) {
+        foreach (var property in GetArrayProperties(param.arrayProperties) ?? new CityElements.Types.Parameter[0]) {
             if (!IsMesh(property)) continue;
             if (result != null) return null; //a record with several meshes needs a designated mesh label
             result = property;
@@ -615,7 +699,7 @@ public abstract partial class EditorPanel {
 
     List<string> GetArrayMeshes(CityElements.Types.Parameter param, CityElements.Types.Parameter meshProperty) {
         var result = new List<string>();
-        var obj = getObject?.Invoke();
+        var obj = OwnerOf(param);
         if (obj != null) {
             foreach (var elem in GetArrayList(param, obj)) result.Add(GetArrayElementLabel(elem, meshProperty, result.Count));
         }
@@ -648,18 +732,26 @@ public abstract partial class EditorPanel {
         }
     }
 
+    //an element of an array of props: the name of its preset (marked if it was changed), or the label of its type
+    string GetPropsElementLabel(ObjectState elem) {
+        if (string.IsNullOrEmpty(elem.Name)) return SM.GetOrKey(Operations.Props.TypeOf(elem)?.typeData.label ?? elem.Str("type"));
+        var type = elem.Str("type");
+        var preset = PresetManager.GetPresetByName(elem.Name, Operations.Props.PresetCategory(type));
+        return elem.Name + (preset != null && !elem.Equals(preset) ? "*" : "");
+    }
+
     List<ObjectState> GetArrayList(CityElements.Types.Parameter param, IObjectWithState obj) {
         return Operations.States.GetArray(obj.GetState(), param);
     }
 
     List<string> GetArray(CityElements.Types.Parameter param) {
-        var obj = getObject?.Invoke();
+        var obj = OwnerOf(param);
         if (obj != null) {
             var res = new List<string>();
             var arr = GetArrayList(param, obj);
             var labelProperty = GetArrayLabelProperty(param);
             foreach (var elem in arr) {
-                res.Add(GetArrayElementLabel(elem, labelProperty, res.Count));
+                res.Add(param.arrayProperties.propsTypes != null ? GetPropsElementLabel(elem) : GetArrayElementLabel(elem, labelProperty, res.Count));
             }
             return res;
         } else {
@@ -668,7 +760,7 @@ public abstract partial class EditorPanel {
     }
 
     void AddArrayElement(CityElements.Types.Parameter param) {
-        var obj = getObject?.Invoke();
+        var obj = OwnerOf(param);
         if (obj != null) {
             Operations.States.AddArrayElement(obj.GetState(), param);
             builder.NotifyChange();
@@ -676,30 +768,53 @@ public abstract partial class EditorPanel {
     }
 
     void CloneArrayElement(CityElements.Types.Parameter param, int i) {
-        var obj = getObject?.Invoke();
+        var obj = OwnerOf(param);
         if (obj != null && Operations.States.CloneArrayElement(obj.GetState(), param, i)) {
             builder.NotifyChange();
         }
     }
 
     void ShiftArrayElement(CityElements.Types.Parameter param, int i, bool positive) {
-        var obj = getObject?.Invoke();
+        var obj = OwnerOf(param);
         if (obj != null && Operations.States.ShiftArrayElement(obj.GetState(), param, i, positive)) {
             builder.NotifyChange();
         }
     }
 
     void SelectArrayElement(CityElements.Types.Parameter param, int i) {
-        var obj = getObject?.Invoke();
+        var obj = OwnerOf(param);
         if (obj != null) {
             var arr = obj.GetState().Array<ObjectState>(param.fullName());
             if (i < 0 || i >= arr.Length) return;
+            if (EditMeshDirectly(param, arr[i])) return;
             ShowArrayElementPanel(param, arr[i], i);
         }
     }
 
+    //the element of an array of props whose only parameter is a mesh: a panel for it would only have a button, so the
+    //selector is opened at once
+    bool EditMeshDirectly(CityElements.Types.Parameter param, ObjectState elem) {
+        if (param.arrayProperties.propsTypes == null || param.arrayProperties.propsTypes.Length != 1) return false;
+        var subparams = GetSubparams(param, elem);
+        if (subparams.Length != 1 || subparams[0].type != "mesh") return false;
+        var name = subparams[0].fullName();
+        builder.OpenMeshSelector(this, null, mesh => {
+            History.UndoManager.Record(GetString(subparams[0].label), () => {
+                History.UndoManager.Touch(GetUndoTarget());
+                elem.SetStr(name, mesh);
+                builder.NotifyChange();
+            });
+            ReadCurValues();
+        }, null, true, elem.Str(name));
+        return true;
+    }
+
     protected CityElements.Types.Parameter[] GetSubparams(CityElements.Types.Parameter param) {
         return Operations.States.GetSubparams(param);
+    }
+
+    protected CityElements.Types.Parameter[] GetSubparams(CityElements.Types.Parameter param, ObjectState element) {
+        return Operations.States.GetSubparams(param, element);
     }
 
     void SelectArrayElementByState(ObjectState state, string paramName, Stack<GameObject> stack = null) {
@@ -715,9 +830,9 @@ public abstract partial class EditorPanel {
             //check subparameters and stop if there's only one objectInstance
             //(since in that case it would open the parent which would go straight back to the current object)
             var subparams = GetSubparams(param);
-            if (subparams.Length == 0 || (subparams.Length == 1 && subparams[0].type == "objectInstance")) return;
+            if (subparams == null || subparams.Length == 0 || (subparams.Length == 1 && subparams[0].type == "objectInstance")) return;
 
-            var obj = getObject?.Invoke();
+            var obj = OwnerOf(param);
             if (obj != null) {
                 if (param.type == "array") {
                     var arr = obj.GetState().Array<ObjectState>(param.fullName());
@@ -750,7 +865,7 @@ public abstract partial class EditorPanel {
                 break;
             }
         }
-        var obj = getObject?.Invoke();
+        var obj = param == null ? null : OwnerOf(param);
         if (param == null || obj == null) return null;
         if (index.HasValue) {
             if (param.type != "array") return null;
@@ -786,7 +901,7 @@ public abstract partial class EditorPanel {
             arrayListPanel.parentPanel = this;
             childPanels.Add(arrayListPanel);
         }
-        arrayListPanel.InitializeWithData(lastCanvas, param, getObject);
+        arrayListPanel.InitializeWithData(lastCanvas, param, parameterOwners.TryGetValue(param, out var owner) ? owner : getObject);
         Hide(true);
         arrayListPanel.SetActive(true);
         return arrayListPanel;
@@ -813,7 +928,7 @@ public abstract partial class EditorPanel {
     }
 
     void DeleteArrayElement(CityElements.Types.Parameter param, int i) {
-        var obj = getObject?.Invoke();
+        var obj = OwnerOf(param);
         if (obj != null && Operations.States.DeleteArrayElement(obj.GetState(), param, i)) {
             builder.NotifyVisibilityChange();
             builder.NotifyChange();
@@ -829,7 +944,7 @@ public abstract partial class EditorPanel {
     }
 
     void SelectCustomCityProperties(CityElements.Types.Parameter param, Stack<GameObject> stack = null) {
-        var obj = getObject?.Invoke();
+        var obj = OwnerOf(param);
         if (obj != null) {
             var subObj = Operations.States.EnsureCustomCityProperties(obj.GetState(), param);
             ShowArrayElementPanel(param, subObj, null, stack);

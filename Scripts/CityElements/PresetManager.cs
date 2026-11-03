@@ -9,6 +9,8 @@ static class PresetManager {
         public ObjectState[] GetList(string type) {
             var customElementType = Operations.CustomElementPresets.TypeOfCategory(type);
             if (customElementType != null && !presets.ContainsKey(type)) presets[type] = new[] { Operations.CustomElementPresets.DefaultPreset(customElementType) };
+            var propsType = Operations.Props.TypeOfCategory(type);
+            if (propsType != null && !presets.ContainsKey(type)) presets[type] = new[] { Operations.Props.DefaultPreset(propsType) };
             if (!presets.ContainsKey(type)) presets[type] = new ObjectState[1] { new ObjectState() { Name = Operations.Presets.DefaultName } }; //an empty name is an element without preset
             return presets[type];
         }
@@ -105,15 +107,6 @@ static class PresetManager {
         var res = (ObjectState)GetPresets().GetList(type)[index].Clone();
         res.FlagAsChanged();
         return res;
-    }
-
-    public static ObjectState GetFirstPresetByAllowedTypes(string type, List<string> allowedTypes) {
-        if (allowedTypes == null || allowedTypes.Count == 0) return GetPreset(type, 0);
-        var propElems = GetPresets().presets["propElem"];
-        for (int i = 0; i < propElems.Length; i++) {
-            if (allowedTypes.Contains(propElems[i].Str("type"))) return (ObjectState)propElems[i].Clone();
-        }
-        return new ObjectState();
     }
 
     //READ ONLY USAGE

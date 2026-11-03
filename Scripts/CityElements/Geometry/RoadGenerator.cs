@@ -50,7 +50,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     public GameObject propsContainer;
     //Godot sanitizes and deduplicates node names, so the export can't recover these from the prop object name
     public List<(string container, string meshName, GameObject obj)> props = new List<(string, string, GameObject)>();
-    public readonly List<(string container, Vector3 position, Vector3 forward)> propSlots = new List<(string, Vector3, Vector3)>();
+    public readonly List<Placement> placements = new List<Placement>(); //also those without a model
     List<LineRenderer> lineRenderers = new List<LineRenderer>();
 
     List<List<Vector3>> lanes = new List<List<Vector3>>();
@@ -423,7 +423,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     void PlaceProps() {
         GO.Destroy(propsContainer);
         props.Clear();
-        propSlots.Clear();
+        placements.Clear();
         RandomManager.rnds.Clear();
         propsContainer =  GO.Create("PropsContainer");
         GO.SetParent(propsContainer, this);
@@ -431,7 +431,7 @@ public partial class RoadGenerator : PhysicsScriptable {
             if (!propsLanesDict.ContainsKey(containerType)) return null;
             var indices = propsLanesDict[containerType];
             return (lanes[indices.startBoundIndex].ToArray(), lanes[indices.endBoundIndex].ToArray());
-        }, propsContainer, props, propSlots, runtimeState);
+        }, propsContainer, props, placements, runtimeState);
     }
 
     public List<Vector3> GetCurvePoints() {

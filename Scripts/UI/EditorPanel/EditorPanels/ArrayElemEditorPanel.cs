@@ -18,10 +18,12 @@ namespace EditorPanels {
             if (OwnedId != "" && Operations.PropertyContainers.Find(OwnedId) == null) Operations.PropertyContainers.Sync(builder.helper.elementManager);
             var groups = Operations.PropertyContainers.ContentGroups(Operations.PropertyContainers.Find(OwnedId)?.settings);
             if (groups.Length > 0) contentsPanel = AddChildPanel<ContainerContentsPanel>(canvas);
-            var elemProperties = GetSubparams(param);
-            var layout = GetCustomType()?.uiInfo ?? System.Array.ConvertAll(elemProperties, x => new CityElements.Types.TabElement { name = x.fullName(), width = 1.5f });
-            var placedGroups = new HashSet<int>();
             var curW = 0.0f;
+            var propsTypes = param?.arrayProperties?.propsTypes;
+            if (propsTypes != null) AddPropsFields(p0, ref curW, 1.5f, () => curState, x => Operations.Props.ApplyPreset(curState, x), new List<string>(propsTypes), true, true);
+            var elemProperties = GetSubparams(param, curState);
+            var layout = propsTypes != null ? new CityElements.Types.TabElement[0] : GetCustomType()?.uiInfo ?? System.Array.ConvertAll(elemProperties, x => new CityElements.Types.TabElement { name = x.fullName(), width = 1.5f });
+            var placedGroups = new HashSet<int>();
             foreach (var elem in layout) {
                 if (elem.name.StartsWith("content:")) {
                     var label = elem.name.Substring("content:".Length);
@@ -95,7 +97,7 @@ namespace EditorPanels {
 
         void EditDirectlyIfObjectOnly() {
             if (ActiveSelf()) {
-                var elemProperties = GetSubparams(param);
+                var elemProperties = GetSubparams(param, curState);
                 if (param != null && elemProperties.Length == 1) {
                     var subparam = elemProperties[0];
                     if (subparam.type == "objectInstance") {

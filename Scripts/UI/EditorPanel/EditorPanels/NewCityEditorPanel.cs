@@ -99,7 +99,11 @@ namespace EditorPanels {
         }
 
         void SetTerrainSize(string value) {
-            int val = int.Parse(value);
+            //a terrain needs a size: otherwise the field goes back to the last one
+            if (!int.TryParse(value, out var val) || val <= 0) {
+                sizeField.SetValue(terrSize);
+                return;
+            }
             terrSize = val;
         }
 

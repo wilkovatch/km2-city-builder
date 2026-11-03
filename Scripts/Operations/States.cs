@@ -18,7 +18,7 @@ namespace Operations {
                     state.SetFloat(name, number);
                 } else if (p.type == "int" || p.type == "enum") state.SetInt(name, System.Convert.ToInt32(value));
                 else if (p.type == "array") {
-                    foreach (var item in state.Array<ObjectState>(name) ?? new ObjectState[0]) Normalize(item, GetSubparams(p));
+                    foreach (var item in state.Array<ObjectState>(name) ?? new ObjectState[0]) Normalize(item, GetSubparams(p, item));
                 } else if (p.type == "customCityProperties") Normalize(state.State(name), GetSubparams(p));
                 else if (p.type == "objectInstance") {
                     var obj = state.State(name);
@@ -49,6 +49,12 @@ namespace Operations {
             }
             GameEngine.LogWarning("invalid subparameters for parameter " + param.fullName());
             return null;
+        }
+
+        //the parameters of an element of an array parameter: an array of props has those of the type of each element
+        public static Parameter[] GetSubparams(Parameter param, ObjectState element) {
+            if (param.arrayProperties?.propsTypes == null) return GetSubparams(param);
+            return Props.TypeOf(element)?.parameterContainer.parameters ?? new Parameter[0];
         }
 
         public static Parameter[] GetArrayProperties(CityElements.Types.ArrayProperties type) {
@@ -85,7 +91,8 @@ namespace Operations {
         //adds an element with the default values of its parameters, returns its index
         public static int AddArrayElement(ObjectState owner, Parameter param) {
             var arr = GetArray(owner, param);
-            var newObj = ObjectState.CreateFromDefaultProperties(GetArrayProperties(param.arrayProperties));
+            var newObj = param.arrayProperties?.propsTypes?.Length > 0 ? Props.NewState(param.arrayProperties.propsTypes[0])
+                : ObjectState.CreateFromDefaultProperties(GetArrayProperties(param.arrayProperties));
             var ctName = param.arrayProperties?.customCityPropertiesType;
             if (ctName != null && CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()[ctName].elementContainer != null) PropertyContainers.EnsureId(newObj);
             arr.Add(newObj);

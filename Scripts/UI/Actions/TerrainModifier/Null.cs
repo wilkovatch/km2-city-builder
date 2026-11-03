@@ -32,6 +32,10 @@ namespace TerrainModifier {
 
         public override bool SnapsToGrid => false;
 
+        public override bool Raycast(Node3D parent, Vector3 origin, Vector3 direction, out RaycastHit hit, float distance, int mask) {
+            return groundOnly ? base.Raycast(parent, origin, direction, out hit, distance, mask) : GameEngine.Raycast.DoPickRaycast(parent, origin, direction, out hit, distance, mask);
+        }
+
         public override List<int> GetLayerMasks() {
             if (groundOnly) {
                 return new List<int> { 1 << 7 };

@@ -19,17 +19,12 @@ namespace Api {
         public int index;
     }
 
-    public class PropContainerPart {
+    //the state of a props container of an element (a road, a custom element), or an element of one of its lists
+    public class PropsPart {
         public IObjectWithState road;
         public string container;
-        public ObjectState state;
-    }
-
-    public class PropElementPart {
-        public IObjectWithState road;
-        public string container;
-        public string list;
-        public int index; //-1: the single element of the list
+        public string list; //null: the state of the container
+        public int index = -1;
         public ObjectState state;
     }
 
@@ -83,8 +78,7 @@ namespace Api {
                 case BuildingSideGenerator: return "buildingSide";
                 case BlockPart: return "buildingBlock";
                 case BorderMeshPart: return "borderMesh";
-                case PropContainerPart: return "propContainer";
-                case PropElementPart: return "propElement";
+                case PropsPart: return "props";
                 case ParameterElementPart p: return p.index.HasValue ? "arrayElement" : "customCityProperties";
                 default: return element?.GetType().Name ?? "null";
             }
@@ -162,18 +156,12 @@ namespace Api {
                 if (r.container == null) throw ApiException.InvalidParam("missing props container");
                 var containerState = Operations.Props.GetPropRule(road.GetState(), false)?.State(r.container);
                 if (containerState == null) throw ApiException.NotFound("props container '" + r.container + "' (enable it first)");
-                if (r.list == null) return new PropContainerPart { road = road, container = r.container, state = containerState };
+                if (r.list == null) return new PropsPart { road = road, container = r.container, state = containerState };
                 if (Operations.Props.GetListParameter(containerState, r.list) == null) throw ApiException.NotFound("props list '" + r.list + "'");
-                ObjectState elem;
-                if (r.index.HasValue) {
-                    var arr = containerState.Array<ObjectState>(r.list);
-                    if (arr == null || r.index.Value < 0 || r.index.Value >= arr.Length) throw ApiException.NotFound("props element " + r.index.Value);
-                    elem = arr[r.index.Value];
-                } else {
-                    elem = containerState.State(r.list);
-                    if (elem == null) throw ApiException.NotFound("props element of '" + r.list + "' (add it first)");
-                }
-                return new PropElementPart { road = road, container = r.container, list = r.list, index = r.index ?? -1, state = elem };
+                if (!r.index.HasValue) throw ApiException.InvalidParam("missing index of the props element");
+                var arr = containerState.Array<ObjectState>(r.list);
+                if (arr == null || r.index.Value < 0 || r.index.Value >= arr.Length) throw ApiException.NotFound("props element " + r.index.Value);
+                return new PropsPart { road = road, container = r.container, list = r.list, index = r.index.Value, state = arr[r.index.Value] };
             }
             if (r.parent != null) {
                 var parent = GetStateTarget(r.parent);
@@ -374,32 +362,25 @@ namespace Api {
                     t.state = cp.state;
                     t.parameters = Params(TypeOf(TP.GetCitySettings(), "city")?.parameterContainer);
                     break;
-                case PropContainerPart pc:
-                    t.owner = pc.road;
-                    t.state = pc.state;
-                    t.presetCategory = "propContainer";
-                    t.applyPreset = x => Operations.Props.GetPropRule(pc.road.GetState(), true).SetState(pc.container, x);
-                    var strip = PropPlacerGeometry.Strip(pc.road.GetState(), pc.container);
-                    t.types = () => strip?.allowedContainerTypes?.Length > 0 ? strip.allowedContainerTypes : TP.GetPropsContainersTypes().Keys;
-                    t.afterChange = () => { if (pc.road is CustomElement owner) ValidatePropPlacerState(owner.state, owner.TypeName); pc.road.GetState().FlagAsChanged(); };
-                    break;
-                case PropElementPart pe:
-                    t.owner = pe.road;
-                    t.state = pe.state;
-                    var elementStrip = PropPlacerGeometry.Strip(pe.road.GetState(), pe.container);
-                    t.parameters = Params(PropPlacerGeometry.ScopedType(elementStrip, pe.state.Str("type", null))?.typeData.parametersInfo);
-                    var containerState = Operations.Props.GetPropRule(pe.road.GetState(), false).State(pe.container);
-                    var allowed = Operations.Props.GetAllowedTypes(containerState, pe.list);
-                    t.presetCategory = "propElem";
-                    t.presetAllowedTypes = allowed;
-                    t.applyPreset = x => pe.state.properties = x.properties;
-                    t.types = () => allowed.Count > 0 ? allowed : new List<string>(TP.GetPropsElementTypes().Keys);
-                    t.afterChange = () => { if (pe.road is CustomElement owner) ValidatePropPlacerState(owner.state, owner.TypeName); pe.road.GetState().FlagAsChanged(); };
+                case PropsPart part:
+                    t.owner = part.road;
+                    t.state = part.state;
+                    t.parameters = Params(Operations.Props.TypeOf(part.state)?.parameterContainer);
+                    if (part.state.Str("type", null) != null) t.presetCategory = Operations.Props.PresetCategory(part.state.Str("type"));
+                    if (part.list == null) {
+                        t.applyPreset = x => Operations.Props.GetPropRule(part.road.GetState(), true).SetState(part.container, x);
+                        t.types = () => Operations.Props.AllowedTypes(part.road.GetState(), part.container);
+                    } else {
+                        var allowed = Operations.Props.GetListParameter(Operations.Props.GetPropRule(part.road.GetState(), false).State(part.container), part.list).arrayProperties.propsTypes;
+                        t.applyPreset = x => Operations.Props.ApplyPreset(part.state, x);
+                        t.types = () => allowed;
+                    }
+                    t.afterChange = () => { if (part.road is CustomElement owner) ValidatePropPlacerState(owner.state, owner.TypeName); part.road.GetState().FlagAsChanged(); };
                     break;
                 case ParameterElementPart pp:
                     t.owner = pp.parent.owner;
                     t.state = pp.state;
-                    t.parameters = Operations.States.GetSubparams(pp.param) ?? new Parameter[0];
+                    t.parameters = Operations.States.GetSubparams(pp.param, pp.state) ?? new Parameter[0];
                     var parentAfter = pp.parent.afterChange;
                     var parentState = pp.parent.state;
                     t.afterChange = () => { parentState.FlagAsChanged(); parentAfter?.Invoke(); };

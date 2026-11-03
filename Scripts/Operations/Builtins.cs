@@ -99,8 +99,7 @@ namespace Operations {
             ["meshInstance"] = new Property[0],
             ["borderMesh"] = new Property[0],
             ["cityProperties"] = new Property[0],
-            ["propContainer"] = new Property[0],
-            ["propElement"] = new Property[0],
+            ["props"] = new Property[0],
         };
 
         public static IEnumerable<string> Kinds => properties.Keys;

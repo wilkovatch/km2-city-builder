@@ -54,6 +54,23 @@ namespace Api {
             var fields = pages.Cast<object>().SelectMany(page => Field<Dictionary<EditorPanelElement, FieldStatus>>(page, "fieldElements"));
             var widthField = fields.First(p => p.Value.fieldName == "state.properties.width");
             var input = Field<LineEdit>(widthField.Key, "inputField");
+            void TypeIn(LineEdit field, string text) {
+                field.EmitSignal(LineEdit.SignalName.EditingToggled, true);
+                field.Text = text;
+                field.EmitSignal(LineEdit.SignalName.EditingToggled, false);
+            }
+            TypeIn(input, "2");
+            TypeIn(input, "");
+            Check("an empty decimal field is 0, also in the field", Draft().Float("width") == 0 && input.Text == "0");
+            TypeIn(input, "-");
+            Check("a decimal field with just a sign is 0", Draft().Float("width") == 0 && input.Text == "0");
+            var integerField = fields.First(p => p.Key is EditorPanelElements.InputField && Field<GameEngine.InputContentType>(p.Key, "contentType") == GameEngine.InputContentType.Integer);
+            var integerInput = Field<LineEdit>(integerField.Key, "inputField");
+            var integerValue = integerInput.Text;
+            TypeIn(integerInput, "7");
+            TypeIn(integerInput, "");
+            Check("an empty integer field is 0, also in the field", Convert.ToInt32(integerField.Value.GetValue()) == 0 && integerInput.Text == "0");
+            TypeIn(integerInput, integerValue);
             input.EmitSignal(LineEdit.SignalName.EditingToggled, true);
             input.Text = "3.5";
             input.EmitSignal(LineEdit.SignalName.EditingToggled, false);

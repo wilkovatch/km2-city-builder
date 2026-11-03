@@ -30,7 +30,7 @@ public partial class CityBuilderMenuBar : Control {
     TransformPropertiesEditorPanel transformPropertiesEditorPanel = new TransformPropertiesEditorPanel();
     SettingsEditorPanel settingsEditorPanel = new SettingsEditorPanel();
     public CityPropertiesEditorPanel cityPropertiesEditorPanel = new CityPropertiesEditorPanel();
-    public EditorPanels.Props.ContainerEditorPanel propContainerEditorPanel = new EditorPanels.Props.ContainerEditorPanel();
+    public EditorPanels.Props.PropsEditorPanel propsEditorPanel = new EditorPanels.Props.PropsEditorPanel();
     public TerrainPatchBorderMeshEditorPanel tpBorderMeshEditorPanel = new TerrainPatchBorderMeshEditorPanel();
     BatchUpdateEditorPanel batchUpdateEditorPanel = new BatchUpdateEditorPanel();
     WholeCityRotationEditorPanel rotateCityPanel = new WholeCityRotationEditorPanel();
@@ -245,7 +245,7 @@ public partial class CityBuilderMenuBar : Control {
             transformPropertiesEditorPanel,
             buildingLineEditorPanel,
             settingsEditorPanel,
-            propContainerEditorPanel,
+            propsEditorPanel,
             tpBorderMeshEditorPanel,
             batchUpdateEditorPanel,
             rotateCityPanel,

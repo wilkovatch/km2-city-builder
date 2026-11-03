@@ -21,8 +21,7 @@ Static entry point. Every getter reads its folder of the current core (`Files/co
 | `GetTerrainPatchBorderMeshTypes` | `terrainPatches/borderMeshes/<name>/` (+ `sharedComponents/`) | `Runtime.RoadType` (border meshes are road-like) |
 | `GetBuildingTypes` | `buildings/<name>/` | `Runtime.Buildings.BuildingType` (with `GetBuildingLineTypes`, `GetBuildingBuildingTypes`, `GetBuildingSideTypes` returning its parts) |
 | `GetBuildingBlockTypes` | `buildingBlocks/<name>/` | `Runtime.Buildings.BlockType` |
-| `GetPropsElementTypes` | `props/elements/<name>.json` | `Runtime.PropsElementType` |
-| `GetPropsContainersTypes` | `props/containers/<name>.json` | `PropsContainerType` (no expressions, no runtime type) |
+| `GetPropsTypes` | `props/types/<name>.json` | `Runtime.PropsType` |
 | `GetMeshInstanceTypes` | `customElements/<name>/` with `meshInstance` (loaded with the custom element types, kept apart) | `Runtime.MeshInstanceType` |
 | `GetParametricMeshInstanceSettings` | `props/parametric/<name>.json` | `Runtime.MeshInstanceSettings` per object type |
 | `GetCitySettings` | `cityProperties/` | `Runtime.CitySettings` under the key `"city"` |
@@ -63,7 +62,7 @@ A type can extend another type of its category (see [Core Type Inheritance](Core
 * **Roads and intersections** (`RoadComponents.cs`): `RoadType` (reads `ui.json`, `parameters.json`, `settings.json` and the component files, looking in `components/` first and then in the shared components folder), `RoadSettings`, `RoadComponent`, `RoadComponentMesh`, `PropLine`, `TrafficType`, `TrafficLane`; `IntersectionType` (reads every file in `junctions/` and the components they use), `IntersectionSettings`, `JunctionType`, `ImportedParameter`, `ImportedPropContainer`, `ImportedTrafficType`, `TextureDefinition`, `ExtraTerrainSpline`, `ExtraTerrainPiece`.
 * **Terrain patches** (`TerrainPatchComponents.cs`): `TerrainPatchType`, `TerrainPatchSettings`.
 * **Buildings** (`BuildingComponents.cs`): `BuildingType` (container of `BuildingLineType`, `BuildingBuildingType` and `BuildingSideType`, read from the `line_*`, `building_*` and `side_*` files of one folder), `BlockType`, `BlockSettings`, `BlockComponent`, `BuildingSideSettings`.
-* **Props** (`PropsComponents.cs`): `PropsElementType`, `PropsElementPlacementRules`, `PropsContainerType`, `PropsContainerParameter`, `MeshInstanceSettings`, `MeshInstancePlacementRules`.
+* **Props** (`PropsComponents.cs`): `PropsType`, `PropsPlacementRules`, `MeshInstanceSettings`, `MeshInstancePlacementRules`.
 * **City** (`CitySettings.cs`): `CitySettings`, `Settings`, `ParameterInjection`.
 
 ### `CalculatorArray<T, R>` (`CalculatorArrays.cs`)
@@ -104,7 +103,7 @@ Subclasses fill the variables in this order, through the protected helpers:
 | `TerrainPatchType` | `Types.TerrainPatchType` | Parameters and definitions only. |
 | `Buildings.BuildingType` | `Types.Buildings.BuildingType` | Three runtime types: `Line`, `Building`, `Side`. |
 | `Buildings.BlockType` (via `MeshType.MeshType<T>`) | `Types.Buildings.BlockType` | Parametric building block meshes, with the `y0`, `y1`, `xMult`, `scale` variables. |
-| `PropsElementType` | `Types.PropsElementType` | Prop placement rules and their variables. |
+| `PropsType` | `Types.PropsType` | The placement callback or the placement rules of the type and their variables. |
 | `MeshInstanceSettings` | `Types.MeshInstanceSettings` | Layer, placer mask and automatic Y offset rules of the parametric objects. |
 | `MeshInstanceType` | `Types.CustomElementType` | A mesh instance type: its parameters and the placement rules of `settings.meshInstance`. Both it and `MeshInstanceSettings` implement `IMeshPlacementType`, used by `MeshInstance` to evaluate the rules. |
 | `CitySettings` | `Types.CitySettings.CitySettings` | City properties. |

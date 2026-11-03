@@ -43,8 +43,8 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 6. [Core Intersections](Core-Intersections): intersection types, junctions, extra terrain pieces.
 7. [Core Terrain Patches](Core-Terrain-Patches): terrain patch types and border meshes.
 8. [Core Buildings](Core-Buildings): building types and building blocks.
-9. [Core Props and Objects](Core-Props-and-Objects): prop elements and containers, mesh instances, parametric objects.
-   - [Core Prop Placers](Core-Prop-Placers): spline strips and seeded polygon distributions, projection, scoped containers and custom placement callbacks.
+9. [Core Props and Objects](Core-Props-and-Objects): props types and their placement callbacks, mesh instances, parametric objects.
+   - [Core Prop Placers](Core-Prop-Placers): spline strips and seeded polygon distributions, projection, props in the panel of the element and custom placement callbacks.
 10. [Core City Properties](Core-City-Properties): city-wide parameters and custom city properties types.
 11. [Core Custom Elements](Core-Custom-Elements): elements mapping to the primitives of the game (the PSDL attributes for MM2), their Lua geometry and constraints, the converters from the procedural elements, ghosts.
 12. [Core Lua Scripts](Core-Lua-Scripts): definitions computed by Lua functions (variables, context, vectors, sandbox).

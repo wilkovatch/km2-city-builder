@@ -21,8 +21,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   ├── buildings/<type>/
 │   ├── buildingBlocks/<type>/
 │   ├── props/
-│   │   ├── elements/<type>.json
-│   │   ├── containers/<type>.json
+│   │   ├── types/<type>.json
 │   │   └── parametric/<type>.json
 │   ├── cityProperties/
 │   ├── customCityPropertiesTypes/<type>.json

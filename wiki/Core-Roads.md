@@ -211,7 +211,7 @@ Lane points follow the road's point order. Swapping the bounds changes the place
 ]
 ```
 
-A props line is a strip along the road, between two bounds, where props are placed. `containerName` must be one of the road type's `propsContainers`. The bounds are evaluated at each section; props are placed by distance along the middle of the strip, and by position across it (0 = first bound, 1 = second bound), according to the props element types (see [Core Props and Objects](Core-Props-and-Objects)). The props line bounds are also exported as `props_<container>_start` and `props_<container>_end` lanes.
+A props line is a strip along the road, between two bounds, where props are placed. `containerName` must be one of the road type's `propsContainers`. The bounds are evaluated at each section; props are placed by distance along the middle of the strip, and by position across it (0 = first bound, 1 = second bound), according to the props types (see [Core Props and Objects](Core-Props-and-Objects)). The props line bounds are also exported as `props_<container>_start` and `props_<container>_end` lanes.
 
 Users enable containers and fill them in the road's props tab (`propsGroup`). Each container needs the string `EDIT_PROP_CONTAINER_<NAME>` (container name in upper case).
 

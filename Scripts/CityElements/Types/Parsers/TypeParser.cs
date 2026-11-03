@@ -13,7 +13,6 @@ namespace CityElements.Types.Parsers {
             SplineCurves.Reset();
             roadTypes = null;
             propsTypes = null;
-            propsContainersTypes = null;
             terrainPatchBorderMeshTypes = null;
             terrainPatchTypes = null;
             intersectionTypes = null;
@@ -110,22 +109,13 @@ namespace CityElements.Types.Parsers {
 
 
         //Props
-        static Dictionary<string, Runtime.PropsElementType> propsTypes;
-        public static Dictionary<string, Runtime.PropsElementType> GetPropsElementTypes(bool reload = false) {
-            return GetTypes(ref propsTypes, TI.PropsElements, LoadPropsElementTypes, reload);
+        static Dictionary<string, Runtime.PropsType> propsTypes;
+        public static Dictionary<string, Runtime.PropsType> GetPropsTypes(bool reload = false) {
+            return GetTypes(ref propsTypes, TI.PropsTypes, LoadPropsTypes, reload);
         }
 
-        public static Dictionary<string, Runtime.PropsElementType> LoadPropsElementTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
-            return LoadFileTypes(elementsDir, TI.PropsElements, ancestries, (file, key) => new Runtime.PropsElementType(TI.LoadSingle<PropsElementType>(file), key));
-        }
-
-        static Dictionary<string, PropsContainerType> propsContainersTypes;
-        public static Dictionary<string, PropsContainerType> GetPropsContainersTypes(bool reload = false) {
-            return GetTypes(ref propsContainersTypes, TI.PropsContainers, LoadPropsContainersTypes, reload);
-        }
-
-        public static Dictionary<string, PropsContainerType> LoadPropsContainersTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
-            return LoadFileTypes(elementsDir, TI.PropsContainers, ancestries, (file, key) => TI.LoadSingle<PropsContainerType>(file));
+        public static Dictionary<string, Runtime.PropsType> LoadPropsTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
+            return LoadFileTypes(elementsDir, TI.PropsTypes, ancestries, (file, key) => new Runtime.PropsType(TI.LoadSingle<PropsType>(file), key));
         }
 
 
@@ -307,8 +297,7 @@ namespace CityElements.Types.Parsers {
             GetTerrainPatchBorderMeshTypes();
             GetBuildingTypes();
             GetBuildingBlockTypes();
-            GetPropsElementTypes();
-            GetPropsContainersTypes();
+            GetPropsTypes();
             GetParametricMeshInstanceSettings();
             GetCustomCityPropertiesTypes();
             GetCustomElementTypes();

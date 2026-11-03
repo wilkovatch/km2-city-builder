@@ -1,125 +1,174 @@
 using System.Collections.Generic;
+using CityElements.Types;
+using TP = CityElements.Types.Parsers.TypeParser;
 
 namespace Operations {
-    //The props containers of the road prop rules (see Roads.EnablePropContainer) and their elements
+    //The props of the prop rules: the state of a props container of an element has a props type, which gives its
+    //parameters, its panel and how it's placed. What the types are made of is up to the core.
     public static class Props {
-        public static void NormalizeRule(ObjectState rule) {
-            if (rule == null) return;
-            var elementTypes = CityElements.Types.Parsers.TypeParser.GetPropsElementTypes();
-            foreach (var value in rule.properties.Values) {
-                if (value is not ObjectState container) continue;
-                var type = GetContainerType(container);
-                if (type == null) throw new System.ArgumentException("unknown prop container type");
-                foreach (var slot in type.parameters) {
-                    var elements = slot.maxNumber == 1 ? new[] { container.State(slot.name) } : container.Array<ObjectState>(slot.name);
-                    foreach (var e in elements ?? new ObjectState[0]) {
-                        if (e == null) continue;
-                        if (!elementTypes.TryGetValue(e.Str("type"), out var element)) throw new System.ArgumentException("unknown prop element type");
-                        States.Normalize(e, element.parameterContainer.parameters);
-                    }
+        const string CategoryPrefix = "props/";
+
+        public static CityElements.Types.Runtime.PropsType TypeOf(ObjectState state) {
+            var type = state?.Str("type", null);
+            return type != null && TP.GetPropsTypes().TryGetValue(type, out var res) ? res : null;
+        }
+
+        //the types that a props container of an element can have, without the limits of the element
+        public static List<string> ContainerTypes() {
+            var res = new List<string>();
+            foreach (var t in TP.GetPropsTypes()) {
+                if (!t.Value.typeData.nestedOnly) res.Add(t.Key);
+            }
+            return res;
+        }
+
+        // Presets: a category for each type, as the custom elements
+
+        public static string PresetCategory(string type) => CategoryPrefix + type;
+
+        public static string TypeOfCategory(string category) {
+            if (category == null || !category.StartsWith(CategoryPrefix, System.StringComparison.Ordinal)) return null;
+            var type = category.Substring(CategoryPrefix.Length);
+            return TP.GetPropsTypes().ContainsKey(type) ? type : null;
+        }
+
+        public static ObjectState DefaultPreset(string type) {
+            var state = ObjectState.CreateFromDefaultProperties(TP.GetPropsTypes()[type].parameterContainer.parameters ?? new Parameter[0]);
+            state.SetStr("type", type);
+            state.Name = Presets.DefaultName;
+            return state;
+        }
+
+        //a new state of the type: its first preset
+        public static ObjectState NewState(string type) {
+            var state = (ObjectState)PresetManager.GetPresets().GetList(PresetCategory(type))[0].Clone();
+            state.SetStr("type", type);
+            state.FlagAsChanged();
+            return state;
+        }
+
+        //gives the state another type: it keeps the values of the parameters both types have, if the new type allows them,
+        //and gets those of the first preset of the new type for the others; it's not linked to a preset of the old type anymore
+        public static void SwitchType(ObjectState state, string type) {
+            var oldParameters = TypeOf(state)?.parameterContainer.parameters ?? new Parameter[0];
+            var kept = new Dictionary<string, object>();
+            foreach (var p in TP.GetPropsTypes()[type].parameterContainer.parameters ?? new Parameter[0]) {
+                var shared = System.Array.Exists(oldParameters, x => x.fullName() == p.fullName() && x.type == p.type);
+                if (shared && AllowedValue(state, p) is object value) kept[p.fullName()] = value;
+            }
+            state.ReplaceWith(NewState(type));
+            foreach (var value in kept) {
+                if (value.Value is ObjectState[] items) state.SetArray(value.Key, items);
+                else state.SetProperty(value.Key, value.Value);
+            }
+            state.Name = "";
+            state.SetStr("type", type);
+        }
+
+        //the value of a parameter of another type as this parameter allows it (for a list of props: the elements it allows),
+        //null if there's nothing it allows
+        static object AllowedValue(ObjectState state, Parameter parameter) {
+            var name = parameter.fullName();
+            if (!state.properties.TryGetValue(name, out var value) || value == null) return null;
+            if (parameter.range != null && !PropPlacerGeometry.InRange(state, parameter)) return null;
+            var array = parameter.arrayProperties;
+            if (parameter.type != "array" || array?.propsTypes == null) return value;
+            var items = new List<ObjectState>();
+            foreach (var item in state.Array<ObjectState>(name) ?? new ObjectState[0]) {
+                if (System.Array.IndexOf(array.propsTypes, item.Str("type", "")) < 0) continue;
+                if (array.maxElements <= 0 || items.Count < array.maxElements) items.Add(item);
+            }
+            return items.Count > 0 ? items.ToArray() : null;
+        }
+
+        //applies a preset to a state keeping the same object (the fields of the panels are bound to it)
+        public static void ApplyPreset(ObjectState state, ObjectState preset) {
+            state.ReplaceWith(preset);
+            state.FlagAsChanged();
+        }
+
+        // The structure of a props state
+
+        //the array parameters of the type containing other props
+        public static IEnumerable<Parameter> Lists(ObjectState state) {
+            var parameters = TypeOf(state)?.parameterContainer.parameters;
+            if (parameters == null) yield break;
+            foreach (var p in parameters) {
+                if (p.type == "array" && p.arrayProperties?.propsTypes != null) yield return p;
+            }
+        }
+
+        //the states that place props (those of a type that isn't a group), in order: the state, then the elements of its lists
+        public static IEnumerable<ObjectState> Placing(ObjectState state) {
+            var type = TypeOf(state);
+            if (type == null) yield break;
+            if (!type.IsGroup) yield return state;
+            foreach (var list in Lists(state)) {
+                foreach (var item in state.Array<ObjectState>(list.fullName()) ?? new ObjectState[0]) {
+                    foreach (var placing in Placing(item)) yield return placing;
                 }
             }
         }
-        //the type of the container: the first one if not set yet (as shown by its editor, which sets it)
-        public static CityElements.Types.PropsContainerType GetContainerType(ObjectState container) {
-            var types = CityElements.Types.Parsers.TypeParser.GetPropsContainersTypes();
-            var type = container.Str("type", null);
-            if (string.IsNullOrEmpty(type)) {
-                foreach (var t in types.Values) return t;
-                return null;
+
+        public static void NormalizeRule(ObjectState rule) {
+            if (rule == null) return;
+            foreach (var value in rule.properties.Values) {
+                if (value is not ObjectState container) continue;
+                var type = TypeOf(container);
+                if (type == null) throw new System.ArgumentException("unknown props type");
+                States.Normalize(container, type.parameterContainer.parameters);
             }
-            return types.TryGetValue(type, out var res) ? res : null;
         }
 
-        public static void EnsureContainerType(ObjectState container) {
-            States.EnsureType(container, CityElements.Types.Parsers.TypeParser.GetPropsContainersTypes());
+        //a props container without a type gets the first one
+        public static void EnsureType(ObjectState container) {
+            if (!string.IsNullOrEmpty(container.Str("type", null))) return;
+            var types = ContainerTypes();
+            if (types.Count > 0) container.SetStr("type", types[0]);
         }
 
-        public static CityElements.Types.PropsContainerParameter GetListParameter(ObjectState container, string list) {
-            var type = GetContainerType(container);
-            if (type == null) return null;
-            foreach (var parameter in type.parameters) {
-                if (parameter.name == list) return parameter;
+        public static Parameter GetListParameter(ObjectState state, string list) {
+            foreach (var p in Lists(state)) {
+                if (p.fullName() == list) return p;
             }
             return null;
         }
 
-        //the types of the props elements allowed in a list of the container (all if empty)
-        public static List<string> GetAllowedTypes(ObjectState container, string list) {
-            var parameter = GetListParameter(container, list);
-            return parameter?.allowedTypes != null ? new List<string>(parameter.allowedTypes) : new List<string>();
-        }
-
-        public static bool IsListFull(ObjectState container, string list) {
-            var parameter = GetListParameter(container, list);
-            if (parameter == null || parameter.maxNumber <= 0) return false;
-            return (container.Array<ObjectState>(list)?.Length ?? 0) >= parameter.maxNumber;
-        }
-
-        //adds the first props element preset of an allowed type to the list, returns its index
-        public static int AddElement(ObjectState container, string list) {
-            EnsureContainerType(container);
-            var elem = PresetManager.GetFirstPresetByAllowedTypes("propElem", GetAllowedTypes(container, list));
-            var elems = new List<ObjectState>();
-            var array = container.Array<ObjectState>(list);
-            if (array != null) elems.AddRange(array);
-            elems.Add(elem);
-            container.SetArray(list, elems.ToArray());
-            return elems.Count - 1;
-        }
-
-        public static bool RemoveElement(ObjectState container, string list, int i) {
-            var array = container.Array<ObjectState>(list);
-            if (array == null || i < 0 || i >= array.Length) return false;
-            var elems = new List<ObjectState>(array);
-            elems.RemoveAt(i);
-            container.SetArray(list, elems.ToArray());
-            return true;
-        }
-
-        //the element of a list of the container with a single element (maxNumber 1), created empty if missing
-        public static ObjectState EnsureSingleElement(ObjectState container, string name) {
-            EnsureContainerType(container);
-            var elem = container.State(name);
-            if (elem == null) {
-                elem = new ObjectState();
-                container.SetState(name, elem);
+        //the first parameter of the type with this parameter type (mesh, meshList)
+        public static Parameter FindParameter(ObjectState state, string parameterType) {
+            foreach (var p in TypeOf(state)?.parameterContainer.parameters ?? new Parameter[0]) {
+                if (p.type == parameterType) return p;
             }
-            return elem;
+            return null;
         }
 
-        // The meshes of a props element
+        // The meshes of a meshList parameter
 
-        static List<string> GetMeshes(ObjectState elem) {
-            var meshes = elem.Array<string>("meshes");
+        static List<string> GetMeshes(ObjectState state, string list) {
+            var meshes = state.Array<string>(list);
             return meshes == null ? new List<string>() : new List<string>(meshes);
         }
 
-        public static void AddMesh(ObjectState elem, string mesh) {
-            var lst = GetMeshes(elem);
+        public static void AddMesh(ObjectState state, string list, string mesh) {
+            var lst = GetMeshes(state, list);
             lst.Add(mesh);
-            elem.SetArray("meshes", lst.ToArray());
+            state.SetArray(list, lst.ToArray());
         }
 
-        public static bool SetMesh(ObjectState elem, int i, string mesh) {
-            var lst = GetMeshes(elem);
+        public static bool SetMesh(ObjectState state, string list, int i, string mesh) {
+            var lst = GetMeshes(state, list);
             if (i < 0 || i >= lst.Count) return false;
             lst[i] = mesh;
-            elem.SetArray("meshes", lst.ToArray());
+            state.SetArray(list, lst.ToArray());
             return true;
         }
 
-        public static bool RemoveMesh(ObjectState elem, int i) {
-            var lst = GetMeshes(elem);
+        public static bool RemoveMesh(ObjectState state, string list, int i) {
+            var lst = GetMeshes(state, list);
             if (i < 0 || i >= lst.Count) return false;
             lst.RemoveAt(i);
-            elem.SetArray("meshes", lst.ToArray());
+            state.SetArray(list, lst.ToArray());
             return true;
-        }
-
-        //the mesh of the props element types with a single one
-        public static void SetSingleMesh(ObjectState elem, string mesh) {
-            elem.SetStr("mesh", mesh);
         }
 
         // Prop rules: the props containers of an element (a road, or a custom element of a type with props
@@ -136,7 +185,7 @@ namespace Operations {
         }
 
         public static void SetPropRule(ObjectState owner, ObjectState rule) {
-            if (owner != null && CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().TryGetValue(owner.Str("type", ""), out var type)
+            if (owner != null && TP.GetCustomElementTypes().TryGetValue(owner.Str("type", ""), out var type)
                 && type.typeData.settings.propPlacer != null) {
                 var candidate = (ObjectState)owner.Clone();
                 candidate.SetState("propRule", rule);
@@ -150,11 +199,19 @@ namespace Operations {
             return rule != null && rule.State(container) != null;
         }
 
+        //the types allowed in a props container of the element
+        public static List<string> AllowedTypes(ObjectState owner, string container) {
+            var strip = PropPlacerGeometry.Strip(owner, container);
+            return strip?.allowedContainerTypes?.Length > 0 ? new List<string>(strip.allowedContainerTypes) : ContainerTypes();
+        }
+
         public static void EnablePropContainer(ObjectState owner, string container, bool enabled) {
             if (owner == null) return;
-            var value = enabled ? new ObjectState(true) : null;
-            var strip = PropPlacerGeometry.Strip(owner, container);
-            if (value != null && strip?.allowedContainerTypes?.Length > 0) value.SetStr("type", strip.allowedContainerTypes[0]);
+            ObjectState value = null;
+            if (enabled) {
+                var types = AllowedTypes(owner, container);
+                value = types.Count > 0 ? NewState(types[0]) : new ObjectState(true);
+            }
             GetPropRule(owner, true).SetState(container, value);
             owner.FlagAsChanged();
         }

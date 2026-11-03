@@ -22,7 +22,7 @@ Helpers: deep cloning of arrays, `DeJsonify` (converts Newtonsoft `JObject`/`JAr
 
 ### `PresetManager` (`PresetManager.cs`)
 
-Reads and writes `presets.json` in the city folder (deserialized into a `PresetContainer`). Presets are grouped by category (`road`, `intersection`, `rail`, `propElem`, `propContainer`, `roadPropRule`, `buildingLine`, `building`, `buildingSide`, `buildingBlock`, `terrainPatchBorderMesh`, ...; a category is created on first use). The first preset of each category is the default one and cannot be deleted; the others are kept sorted by name. `GetPreset(type, index)` returns a clone flagged as changed. `lastIntersection` remembers the last intersection state so that new intersections copy it. See [Core Templates and Presets](Core-Templates-and-Presets).
+Reads and writes `presets.json` in the city folder (deserialized into a `PresetContainer`). Presets are grouped by category (`road`, `intersection`, `rail`, `props/<type>`, `roadPropRule`, `buildingLine`, `building`, `buildingSide`, `buildingBlock`, `terrainPatchBorderMesh`, ...; a category is created on first use). The first preset of each category is the default one and cannot be deleted; the others are kept sorted by name. `GetPreset(type, index)` returns a clone flagged as changed. `lastIntersection` remembers the last intersection state so that new intersections copy it. See [Core Templates and Presets](Core-Templates-and-Presets).
 
 ### `MeshManager` (`MeshManager.cs`)
 

@@ -8,24 +8,38 @@ This page covers everything placed in the city as a mesh loaded from a file:
 
 ```
 elements/props/
-├── elements/<type>.json        props element types
-├── containers/<type>.json      props container types
+├── types/<type>.json           props types
 └── parametric/<type>.json      parametric object types
 ```
 
-## Props along roads
+## Props
 
-The hierarchy is: a road's **prop rule** (state property `propRule`, preset category `roadPropRule`) contains one **container** per props container name of the road type (`left`, `right`, `middle`... as listed in the road type's `propsContainers`); each container (preset category `propContainer`) contains one or more **elements** (preset category `propElem`); each element places one kind of prop along the container's props line using its element type's placement rules. The custom elements of the types with `propsContainers` have a prop rule too (see [Core Custom Elements](Core-Custom-Elements)).
+A road's **prop rule** (state property `propRule`, preset category `roadPropRule`) has one **props container** for each name listed in the road type's `propsContainers` (`left`, `right`, `middle`...). The custom elements of the types with `propsContainers` have a prop rule too (see [Core Custom Elements](Core-Custom-Elements)). A container holds the state of a **props type**:
 
-The props lines themselves (where the props go) are defined by the road type, see [Core Roads](Core-Roads#props-lines).
+```json
+{ "type": "line", "name": "Default", "mesh": "geometry/tree.pkg", "elemDistance": 5, "xPos": 0.5 }
+```
 
-### Container types (`containers/<type>.json`)
+The builder knows only this one concept. How deep the props go, what fills a list and how they're placed comes from the types of the core, so a type can be as simple as one mesh in a row or as involved as a game needs.
+
+The lines where the props go are defined by the road type, see [Core Roads](Core-Roads#props-lines), or by the [prop placer](Core-Prop-Placers) or the geometry of a custom element.
+
+### Props types (`types/<type>.json`)
 
 ```json
 {
-    "label": "PROP_CONTAINER_TYPE_LINE",
-    "parameters": [
-        { "name": "element", "allowedTypes": ["line"], "maxNumber": 1 }
+    "label": "PROP_TYPE_ROW",
+    "placement": "my_props.row",
+    "meshTransform": true,
+    "parametersInfo": {
+        "parameters": [
+            { "name": "mesh", "label": "PROP_MESH", "type": "mesh" },
+            { "name": "spacing", "label": "PROP_SPACING", "type": "float", "defaultValueInArray": 5.0, "range": [0.25, 64.0] }
+        ]
+    },
+    "uiInfo": [
+        { "name": "mesh", "width": 1.5 },
+        { "name": "spacing", "width": 1.5 }
     ]
 }
 ```
@@ -33,95 +47,86 @@ The props lines themselves (where the props go) are defined by the road type, se
 | Key | Description |
 |---|---|
 | `label` | String key of the type name. |
-| `parameters` | The slots of the container. Each one has a `name`, optional `allowedTypes` (element type names; all types if missing or empty) and `maxNumber`: 1 for a single element, edited directly, any other value for a list of elements (0 or negative for no limit). |
+| `nestedOnly` | Optional, default false: the type is only for the lists of other types, it can't be chosen for a props container. |
+| `parametersInfo` | A `parameters.json`-like object: parameters, definitions, loop variables. Parameters cannot be `instanceSpecific`. Any [parameter type](Parameters-and-UI) works, in particular `mesh`, `meshList` and an `array` of other props (see below). |
+| `uiInfo` | The fields of the panel (`name`, `width`), without tabs or built-in groups. The preset and the type are added by the program. A field can also have `boundsOnly`: it's not shown where the props have no bounds (a `lineOnly` type directly on a [prop placer](Core-Prop-Placers)). |
+| `placement` | The Lua callback giving the placements, `<module>.<function>` (see below). |
+| `meshTransform` | Optional, default false: the meshes are placed with the transform the core gives for them (see [Mesh transforms](#mesh-transforms)). |
+| `autoYOffset` | Optional, default true: if there is no core transform, a mesh is raised so that its lowest point sits on the line. |
+| `lineOnly` | Optional, default false: the props follow a single line, so a [prop placer strip](Core-Prop-Placers) doesn't use its bounds. |
+| `authoredLine` | Optional, default false: on a [prop placer spline](Core-Prop-Placers#projection-and-export) the lines are the spline before its projection, so the ground gives only the height of each prop. |
 
-String keys built from the slot name (in upper case): `PROP_ELEM_NAME_<NAME>` and `PROP_CONTAINER_EDIT_PROPERTY_<NAME>` for single elements, `PROP_ELEM_LIST_<NAME>` for lists.
+The panel of a type is built from its parameters, like those of the other elements. Its changes apply at once and go through undo. In the panel of a road a props container opens a panel of its own, while a [prop placer strip](Core-Prop-Placers) can have the fields directly in the panel of the element.
 
-A container state is `{ "type": ..., "name": ..., "<slot>": <element state or list of element states> }`.
+Each type has its own preset category, `props/<type>` (see [Core Templates and Presets](Core-Templates-and-Presets)). Changing the type of a state keeps the values of the parameters the two types have in common, if the new type allows them: a value outside the `range` of the new parameter isn't kept, and a list keeps only the elements of the `propsTypes` it allows, up to its `maxElements`. The others come from the first preset of the new type (or the `defaultValueInArray` of its parameters, when the category is created), the values of the old type's other parameters are dropped, and the state isn't linked to a preset anymore.
 
-### Element types (`elements/<type>.json`)
+### Groups
+
+A type without `placement` is a **group**: its props are those of the elements of its `array` parameters with `arrayProperties.propsTypes`, the types an element of the list can have.
 
 ```json
 {
-    "label": "PROP_TYPE_LINE",
-    "maxMeshes": 1,
+    "label": "PROP_TYPE_MIXED",
     "parametersInfo": {
-        "parameters": [
-            { "name": "start", "label": "PROP_ELEM_START", "placeholder": "VALUE_PH", "type": "float" },
-            { "name": "elemDistance", "label": "PROP_ELEM_DISTANCE", "placeholder": "VALUE_PH", "type": "float" },
-            { "name": "maxNumber", "label": "PROP_ELEM_MAX_NUM", "placeholder": "VALUE_PH", "type": "int" },
-            { "name": "xPos", "label": "PROP_ELEM_XPOS", "placeholder": "VALUE_PH", "type": "float" }
-        ]
+        "parameters": [{
+            "name": "elements", "label": "PROP_ELEMENTS", "type": "array",
+            "arrayProperties": { "propsTypes": ["row", "scattered"] }
+        }]
     },
-    "uiInfo": [
-        { "name": "start", "width": 0.75 },
-        { "name": "elemDistance", "width": 1.5 }
-    ],
-    "placementRules": {
-        "whileCondition": "elemDistance > 0 and i < maxNumber and z <= totalLength",
-        "xPos": "xPos",
-        "zPos": "if(i=0, start, lastZ+elemDistance)",
-        "forward": "localForward"
-    }
+    "uiInfo": [{ "name": "elements", "width": 1.5 }]
 }
 ```
 
+Each element of such a list has the parameters of its own type, shown in a panel with its preset and, if more than one type is allowed, its type. It's labelled with the name of its preset (followed by `*` if it was changed) or else the label of its type. An element whose type has only one parameter, a mesh, opens the mesh selector directly. A type can have other parameters too and place props itself along with its lists.
+
+### The placement callback
+
+`placement` is called with `(variables, ctx)`, on each rebuild of the element for each state of the type. `variables` has the values of the parameters of the state, the definitions of the type, `totalLength` (the same as `ctx.length`) and `_GLOBAL_<parameter>`, the city properties injected on the element that owns the props (see [Core City Properties](Core-City-Properties#injectable-parameters)).
+
+| `ctx` | Description |
+|---|---|
+| `length` | The length of the lines (measured on the line halfway between the two bounds). |
+| `limit` | The most props the callback can give: 1000 on a road (the others are left out) and 100000 on a prop placer (reaching it is a placement error, as a procedural export must not silently disagree with a truncated preview). |
+| `placer` | Whether the lines are those of a [prop placer](Core-Prop-Placers), instead of a container of a road or another element. |
+| `projected` | Whether the placements are put on the ground after the callback (on a prop placer with **Project to ground**): only the height of their positions changes. |
+| `sample(x, z)` | The point `z` metres along the lines, `x` across them (0 on the first bound, 1 on the second): a table with `position`, `right` (horizontal, from the second bound to the first), `forward` (horizontal, along the lines) and `tangent` (along the line, including slopes). |
+| `edges()` | The spans between two points of the lines that aren't empty, in order, for what restarts on each one: a list of tables with their `length` and `sample(x, z)`. |
+| `random()` | The next number in `[0, 1)` of a sequence of its own, starting from the name of the container and the position of the state in it. So it's the same at each rebuild, and it doesn't depend on the rest of the city. |
+| `parameters` | The whole state as a table, for the values that aren't numbers (such as `parameters.mesh` and `parameters.meshes`). |
+
+It returns a list of placements:
+
 | Key | Description |
 |---|---|
-| `label` | String key of the type name. |
-| `maxMeshes` | 1: the element has a single mesh (state property `mesh`). Any other value: a list of meshes (state property `meshes`), chosen with `meshIndex`. |
-| `fixedMeshes` | Optional list of mesh paths used instead of the meshes of the element, chosen with `meshIndex`. The panel has no mesh selection for these types, and the API refuses to change their meshes. |
-| `exportSlots` | Optional, default false. Exports the position and direction of every iteration that passes `whileCondition`, also those skipped by `ifCondition` or whose mesh is missing (`slots` and `slotForwards` of the props line, see [Input and Output](Input-and-Output)). For types whose props are only a preview of what the game does with the exported positions. |
-| `parametersInfo` | A `parameters.json`-like object: parameters, definitions, loop variables. Parameters cannot be `instanceSpecific`. |
-| `uiInfo` | The list of fields of the element panel (`name`, `width`), without tabs or built-in groups. Type, preset and mesh selection are added by the program. |
-| `placementRules` | See below. |
+| `position` | `vec3`, required. The program puts it on the surface if the type and the element ask for it. |
+| `rotation` or `forward` | `rotation`: Euler degrees. `forward`: the direction the prop faces, rotating only around the vertical axis. Default no rotation. |
+| `scale` | `vec3`, default one. |
+| `model` | The mesh path. Without one the placement is only a place: nothing is shown, but it's exported, for what the game fills by itself (as the parked cars of the MM2 core). |
+| `data` | Optional table for the exporters, as it is. |
 
-#### Placement rules
+```lua
+return { row = function(v, ctx)
+    local result = {}
+    local mesh = ctx.parameters.mesh
+    for z = 0, ctx.length, v.spacing do
+        local line = ctx.sample(0.5, z)
+        result[#result + 1] = { position = line.position, forward = line.forward, model = mesh }
+    end
+    return result
+end }
+```
 
-| Rule | Type | Description |
-|---|---|---|
-| `iterationScope` | string | `"path"` (default), or `"edge"`: restart placement on each nonzero polyline edge. |
-| `zPos` | float | Distance along the props line (measured on the line halfway between its two bounds). |
-| `xPos` | float | Position across the props line: 0 on the first bound, 1 on the second. |
-| `whileCondition` | bool | Placement continues while this is true. |
-| `ifCondition` | bool | Optional: a prop is placed at this step only if true. |
-| `meshIndex` | float | Index into the `meshes` list (clamped), for types with `maxMeshes` other than 1. |
-| `forward` | vec3 | Direction the prop faces (rotation around the vertical axis only). Default `localForward`. |
-| `meshTransform` | bool | Optional: the mesh is placed with the transform the core gives for it (see [Mesh transforms](#mesh-transforms)). Default false. |
-| `autoYOffset` | bool | Optional: if there is no core transform, the mesh is raised so that its lowest point sits on the line. Default true. |
+An error in the script, a result that isn't a list or a non-finite value is reported once in the log, as with the other scripts of the core. On a prop placer it's also the placement error of the element (see [Core Prop Placers](Core-Prop-Placers)).
 
-The placement loop, for `i = 0, 1, 2, ...`:
+For randomness use `ctx.random()`. `rnd(min, max, seed)` is also available, but its sequences are shared with the other props of the element and restart with each of its rebuilds, so its results depend on what's placed before. The numbers of the scripts are doubles while the positions use single precision: `single(x)` gives `x` in single precision.
 
-1. set `i`, `lastX`, `lastZ` and evaluate the dynamic definitions;
-2. evaluate `xPos` and `zPos`, find the point and the local frame at that position;
-3. stop if `whileCondition` is false (or after 1000 props);
-4. if `ifCondition` is true (or missing), place the mesh (chosen with `meshIndex`) at the point, facing `forward`, moved from the point as `meshTransform` and `autoYOffset` ask;
-5. `lastX = x`, `lastZ = z`.
+### Export
 
-Variables of element types:
-
-| Variable | Type | Meaning |
-|---|---|---|
-| `i` | float | Iteration index. |
-| `x`, `z` | float | Position of the current prop (after step 2). |
-| `lastX`, `lastZ` | float | Position of the previous iteration (0 at the first). |
-| `totalLength` | float | Length of the props line. |
-| `meshNum` | float | Number of meshes in the element's list (1 for single-mesh types). |
-| `pathForward` | vec3 | Current path tangent, including slopes. |
-| `localRight` | vec3 | Horizontal direction across the props line, pointing from the second bound to the first. |
-| `localForward` | vec3 | Direction along the props line. |
-| `localUp`, `worldUp`, `worldRight`, `worldForward` | vec3 | |
-| `_GLOBAL_<parameter>` | float or bool | The city properties injected on the element that owns the prop (see [Core City Properties](Core-City-Properties#injectable-parameters)). |
-
-For random placements use `rnd(min, max, seed)`: its sequences restart each time the road is rebuilt, so the props do not move at every rebuild.
-
-Props are put on layer 13 and exported with the road at their placement points (`propLines`, see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)).
+Props are put on layer 13. The placements are exported with their element, in order, by container (`propLines`, see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)): a place without a model (or whose model wasn't found) has `meshId` -1, so an exporter of props must leave it out.
 
 ## Prop placers
 
-Core-defined [PropPlacers](Core-Prop-Placers) place props along spline strips or inside polygons. They are ordinary custom elements with click-by-click placement, presets, undo/redo, point attachments and a saved automatic ground-projection toggle. The core configures the number of polygon models, their optional densities and custom parameters, or each spline strip's permitted road-style containers.
-
-Prop element `placementRules.iterationScope` is `"path"` by default. `"edge"` restarts the expressions for every nonzero polyline edge, with `i`, `lastX`, `lastZ` reset and `totalLength` equal to that edge's length. `pathForward` is the normalized path tangent. Roads retain their 1000-iteration guard. PropPlacers report an error above 100,000 iterations or generated instances, so a procedural export cannot silently disagree with a truncated preview.
+Core-defined [PropPlacers](Core-Prop-Placers) place props along spline strips or inside polygons. They are ordinary custom elements with click-by-click placement, presets, undo/redo, point attachments and a saved automatic ground-projection toggle. The core configures the number of polygon models, their optional densities and custom parameters, or each spline strip's permitted props types.
 
 ## Placement rules
 

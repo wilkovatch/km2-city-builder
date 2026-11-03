@@ -15,6 +15,8 @@ using V3 = GameEngine.Vector3;
 public partial class CustomElementGenerator : PhysicsScriptable {
     const float MinLineWidth = 0.1f;
     const float MinColliderLineWidth = 0.5f;
+    const float WideColliderScale = 6;
+    const float LineWidthTolerance = 0.03f;
 
     public MeshRenderer mr;
     public Mesh m;
@@ -39,7 +41,7 @@ public partial class CustomElementGenerator : PhysicsScriptable {
     //the props of the prop rule (see PropPlacement), placed along the propLines of the geometry
     public GameObject propsContainer;
     public readonly List<(string container, string meshName, GameObject obj)> props = new List<(string, string, GameObject)>();
-    public readonly List<(string container, Vector3 position, Vector3 forward)> propSlots = new List<(string, Vector3, Vector3)>();
+    public readonly List<Placement> placements = new List<Placement>(); //also those without a model
 
     public void Initialize() {
         GO.SetLayer(this, 7);
@@ -62,18 +64,18 @@ public partial class CustomElementGenerator : PhysicsScriptable {
         GO.Destroy(propsContainer);
         propsContainer = null;
         props.Clear();
-        propSlots.Clear();
+        placements.Clear();
         if (state.State("propRule") == null) return;
         propsContainer = GO.Create("PropsContainer");
         GO.SetParent(propsContainer, this);
         if (GetParent() is CustomElement owner && owner.Settings?.propPlacer != null) {
-            PropPlacement.PlaceLines(state.State("propRule"), propLines, propsContainer, props, owner, propSlots);
+            PropPlacement.PlaceLines(state.State("propRule"), propLines, propsContainer, props, placements, owner);
             return;
         }
         PropPlacement.Place(state.State("propRule"), containers, container => {
             var line = propLines.Find(l => l.container == container);
             return line == null ? null : (line.startBound.ToArray(), line.endBound.ToArray());
-        }, propsContainer, props, propSlots, (GetParent() as CustomElement)?.cityPropertiesState);
+        }, propsContainer, props, placements, (GetParent() as CustomElement)?.cityPropertiesState);
     }
 
     public void Rebuild(CustomElements.GeometryResult geometry, ObjectState state, string[] propsContainers) {
@@ -148,8 +150,11 @@ public partial class CustomElementGenerator : PhysicsScriptable {
                 GO.SetParent(propsContainer, this);
             }
             var settings = placer.Settings.propPlacer;
-            foreach (var prop in geometry.props) PropPlacement.PlaceInstance(prop.container, prop.mesh, prop.position, prop.rotation, prop.scale,
-                settings.meshTransform, settings.autoYOffset, propsContainer, props);
+            foreach (var prop in geometry.props) {
+                prop.meshTransform = settings.meshTransform;
+                prop.autoYOffset = settings.autoYOffset;
+                PropPlacement.Add(prop, propsContainer, props, placements);
+            }
         }
     }
 
@@ -167,7 +172,11 @@ public partial class CustomElementGenerator : PhysicsScriptable {
             if (line.closed) points.Add(points[0]);
             lr.SetPositions(points.ToArray());
             var texture = line.texture != null ? MaterialManager.GetTextureName(state, line.texture) : null;
-            lr.material = !string.IsNullOrEmpty(texture) ? MaterialManager.GetMaterial(texture) : MaterialManager.GetHandleMaterial(line.color);
+            lr.material = !string.IsNullOrEmpty(texture) ? MaterialManager.GetMaterial(texture)
+                : line.drawnThrough ? MaterialManager.GetDrawnThroughLineMaterial(line.color) : MaterialManager.GetHandleMaterial(line.color);
+            lr.drawnThrough = line.drawnThrough;
+            lr.colliderLayer = line.wideCollider ? GameEngine.Raycast.LinePickLayer : -1;
+            lr.colliderScale = line.wideCollider ? WideColliderScale : 0;
             lr.heightOffset = line.heightOffset;
             lr.arrowDirection = line.arrowDirection;
             if (line.width.HasValue) {
@@ -202,6 +211,8 @@ public partial class CustomElementGenerator : PhysicsScriptable {
         var camPos = GO.GetPosition(cam);
         var dist = V3.Distance(GeometryHelper.ClosestPointToCurve(camPos, points, out _), camPos);
         var width = Mathf.Max(MinLineWidth * (dist / 20.0f), MinLineWidth);
+        //a small change isn't worth rebuilding the line at every frame the camera moves
+        if (Mathf.Abs(width - lr.startWidth) <= lr.startWidth * LineWidthTolerance) return;
         lr.startWidth = width;
         lr.endWidth = width;
     }
@@ -262,6 +273,7 @@ public partial class CustomElementGenerator : PhysicsScriptable {
         }
         foreach (var line in newLines) {
             if (!AlwaysShown(line)) continue; //the lines shown only while the element is edited (or hidden by a view toggle) can't be clicked
+            if (line.wideCollider) continue; //it has its own, not a surface for what's projected on the element
             var width = Mathf.Max(line.width ?? 0, MinColliderLineWidth);
             var points = new List<Vector3>(line.points);
             if (line.closed) points.Add(points[0]);

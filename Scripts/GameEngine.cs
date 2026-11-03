@@ -276,6 +276,12 @@ public static partial class GameEngine {
     public static class Quaternion {
         public static Godot.Quaternion Decode(Godot.Quaternion q) => new Godot.Quaternion(-q.X, -q.Y, q.Z, q.W).Normalized();
         public static Godot.Quaternion Encode(Godot.Quaternion q) => new Godot.Quaternion(-q.X, -q.Y, q.Z, q.W).Normalized();
+        //the rotation of an object with these euler angles in degrees, both in program coordinates (as GetRotationQuaternion)
+        public static Godot.Quaternion FromRotation(Godot.Vector3 rotation) {
+            var decoded = Vector3.DecodeRotation(rotation);
+            return Encode(Godot.Quaternion.FromEuler(new Godot.Vector3(Mathf.DegToRad(decoded.X), Mathf.DegToRad(decoded.Y), Mathf.DegToRad(decoded.Z))));
+        }
+
         public static Godot.Quaternion AngleAxis(float angle, Godot.Vector3 axis) {
             return new Godot.Quaternion(axis.Normalized(), Mathf.DegToRad(angle));
         }
@@ -1594,6 +1600,9 @@ public static partial class GameEngine {
     }
     public static class Raycast {
         public const int ProjectionSurfaceMask = 1 << 20; //physics only, outside the render layers
+        //physics only: the wide colliders of the lines to click on, only the actions picking an element hit them (see DoPickRaycast)
+        public const int LinePickLayer = 21;
+        public const int LinePickMask = 1 << LinePickLayer;
         public struct RaycastHit {
             public Godot.Vector3 point;
             public Node collider;
@@ -1618,7 +1627,7 @@ public static partial class GameEngine {
             var rayParams = new PhysicsRayQueryParameters3D {
                 From = from,
                 To = to,
-                CollisionMask = (uint)collisionMask
+                CollisionMask = unchecked((uint)(collisionMask & ~LinePickMask))
             };
             if (exclude != null) rayParams.Exclude = new Godot.Collections.Array<Rid> { exclude.GetRid() };
 
@@ -1657,8 +1666,16 @@ public static partial class GameEngine {
             return spaceState.IntersectRay(rayParams);
         }
 
+        //the element clicked on: the first thing on the ray, or a line drawn through what covers it, as it can be seen there
+        public static bool DoPickRaycast(Node3D parent, Godot.Vector3 origin, Godot.Vector3 direction, out RaycastHit hit, float distance, int collisionMask) {
+            if (DoRaycast(parent, origin, direction, out hit, distance, LinePickMask, includeLinePicking: true)
+                && hit.collider.GetParent() is LineRenderer { drawnThrough: true }) return true;
+            return DoRaycast(parent, origin, direction, out hit, distance, collisionMask | LinePickMask, includeLinePicking: true);
+        }
+
         public static bool DoRaycast(Node3D parent, Godot.Vector3 origin, Godot.Vector3 direction, out RaycastHit hit, float distance, int collisionMask,
-            bool includeProjectionSurfaces = false, CollisionObject3D exclude = null) {
+            bool includeProjectionSurfaces = false, CollisionObject3D exclude = null, bool includeLinePicking = false) {
+            if (!includeLinePicking) collisionMask &= ~LinePickMask;
             var spaceState = parent.GetWorld3D().DirectSpaceState;
             var godotOrigin = Vector3.DecodePosition(origin);
             var godotDirection = Vector3.DecodePosition(direction);
@@ -1841,7 +1858,24 @@ public static partial class GameEngine {
             }
         }
 
+        // A collider this many times wider than the line, with a vertical ribbon too, to click on it from any angle
+        // (0: only the ribbon of the line).
+        public float colliderScale {
+            get => _colliderScale;
+            set {
+                if (_colliderScale != value) {
+                    _colliderScale = value;
+                    colliderPoints = null;
+                    rebuilt = false;
+                }
+            }
+        }
+
+        // Drawn through what covers it (by its material: MaterialManager.GetDrawnThroughLineMaterial), so it's clicked through it too.
+        public bool drawnThrough;
+
         private UVs? _uvs = null;
+        private float _colliderScale = 0;
         private bool _miterCorners = false;
         private float _heightOffset = 0;
         const float MaxMiter = 2.0f;
@@ -2027,16 +2061,26 @@ public static partial class GameEngine {
             if (colliderPoints != null && colliderPoints.AsSpan().SequenceEqual(points) && Mathf.Abs(width - colliderWidth) <= colliderWidth * ColliderRebuildRatio) return;
             colliderPoints = points;
             colliderWidth = width;
-            var faces = new Godot.Vector3[(points.Length - 1) * 6];
-            for (int i = 0; i < points.Length - 1; i++) {
-                faces[i * 6] = b[i];
-                faces[i * 6 + 1] = a[i];
-                faces[i * 6 + 2] = b[i + 1];
-                faces[i * 6 + 3] = a[i];
-                faces[i * 6 + 4] = a[i + 1];
-                faces[i * 6 + 5] = b[i + 1];
+            var faces = new List<Godot.Vector3>((points.Length - 1) * (_colliderScale > 0 ? 12 : 6));
+            void AddQuad(Godot.Vector3 b0, Godot.Vector3 a0, Godot.Vector3 b1, Godot.Vector3 a1) {
+                faces.Add(b0);
+                faces.Add(a0);
+                faces.Add(b1);
+                faces.Add(a0);
+                faces.Add(a1);
+                faces.Add(b1);
             }
-            colliderShape.Shape = new ConcavePolygonShape3D { BackfaceCollision = true, Data = faces };
+            for (int i = 0; i < points.Length - 1; i++) {
+                if (_colliderScale <= 0) {
+                    AddQuad(b[i], a[i], b[i + 1], a[i + 1]);
+                    continue;
+                }
+                Godot.Vector3 Wide(Godot.Vector3 side, int point) => points[point] + (side - points[point]) * _colliderScale;
+                AddQuad(Wide(b[i], i), Wide(a[i], i), Wide(b[i + 1], i + 1), Wide(a[i + 1], i + 1));
+                var up = Godot.Vector3.Up * (width * _colliderScale * 0.5f);
+                AddQuad(points[i] + up, points[i] - up, points[i + 1] + up, points[i + 1] - up);
+            }
+            colliderShape.Shape = new ConcavePolygonShape3D { BackfaceCollision = true, Data = faces.ToArray() };
         }
 
         // How much v grows along a segment.

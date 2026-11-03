@@ -30,6 +30,16 @@ namespace CustomElements {
         public string toggle; //a view toggle of the core (see Rendering.ViewToggles) hiding it, when always, while it's off
         public bool withContainer; //shown also while the container of the element, or an element in it, is being edited
         public bool traffic; //shown also by "Show all traffic lanes" (as the lanes of the roads and the intersections)
+        public bool wideCollider; //clicked on through a collider of its own, of about the same size on screen (see LineRenderer.colliderScale)
+        public bool drawnThrough; //under a surface: drawn faintly through what covers it, and it can be clicked on through it
+
+        //a part of the line, as an open line with the same style
+        public GeometryLine WithPoints(List<Vector3> points) {
+            var res = (GeometryLine)MemberwiseClone();
+            res.points = points;
+            res.closed = false;
+            return res;
+        }
     }
 
     //the lines along which the props of a props container of the prop rule are placed (as the propsLines of the roads)
@@ -41,7 +51,7 @@ namespace CustomElements {
     }
 
     public class GeometryResult {
-        public List<PropPlacerGeometry.Instance> props = new();
+        public List<Placement> props = new();
         public List<GeometryMesh> meshes = new List<GeometryMesh>();
         public List<GeometryLine> lines = new List<GeometryLine>();
         public List<GeometryPropLine> propLines = new List<GeometryPropLine>();

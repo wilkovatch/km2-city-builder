@@ -23,15 +23,22 @@ Use `"propPlacer": {"type": "spline", ...}` together with the ordinary `spline` 
     "strips": [{
       "name": "main", "label": "EDIT_MAIN_PROPS",
       "start": "-0.5*width", "end": "0.5*width",
-      "allowedContainerTypes": ["line", "custom"]
+      "allowedContainerTypes": ["line", "custom"],
+      "inline": true,
+      "boundsParameters": ["width"]
     }]
   }
 }
 ```
 
-Define `width` in `parameters.json` in this example. Each named strip has its own existing [props container](Core-Props-and-Objects), in `state.propRule.<name>`. `start` and `end` are signed lateral-offset expressions over the element's parameters. Equal offsets give a zero-width strip. Strip names must be unique and cannot contain dots. An omitted or empty `allowedContainerTypes` permits every core container type; a nonempty list restricts the editor, API and presets.
+Define `width` in `parameters.json` in this example. Each named strip has its own [props container](Core-Props-and-Objects), in `state.propRule.<name>`. `start` and `end` are signed lateral-offset expressions over the element's parameters. Equal offsets give a zero-width strip, without its outer guide lines. Strip names must be unique and cannot contain dots. An omitted or empty `allowedContainerTypes` permits every props type that isn't `nestedOnly`; a nonempty list restricts the editor, API and presets, and the first one is the default. The ranges of the parameters of a type (`range`, inclusive `[minimum, maximum]` optionally followed by the step) are checked here: a value outside them is a placement error, shown in the panel.
 
-A strip can also define a scoped placement profile: `placementRules` has the same fields as a props element's placement rules, `parametersInfo` supplies its parameter schema, and `uiInfo` supplies the exposed fields. The profile applies only inside that strip. The original props element's model multiplicity is retained. Supply all required placement expressions when defining a profile. Optional `ranges` maps parameter names to inclusive `[minimum, maximum]` values, optionally followed by a third value specifying the step; integer parameters must also contain integers. Ordinary road containers keep their original definitions.
+| Strip setting | Meaning |
+|---|---|
+| `inline` | The type and the fields of the props are directly in the panel of the element, in `propsGroup`, always enabled. Without it the group has a checkbox and a button opening a panel, as for the roads. It needs a type with a single strip (the fields of a second strip would be the same ones) and with `presets: true`: the only preset dropdown is the one of the element, which saves the props too. |
+| `boundsParameters` | The parameters of the element that give the bounds, hidden from the panel while the props type is `lineOnly`. |
+
+A props type with `lineOnly` has no bounds on a strip, whatever `start` and `end` give: the props follow the spline and there are no outer guide lines. The panel is rebuilt when the type of the props changes, also through a preset or an undo.
 
 Use `mainGroup`, `projectToGround`, `splineGroup`, `pointsGroup`, `propsGroup` and `propPlacerGroup` in the type's UI. Ordinary core parameters, such as width, can be inserted between these groups. Placer properties use per-type custom-element presets; they do not expose the road-rule preset selector.
 
@@ -56,13 +63,13 @@ Use `mainGroup`, `projectToGround`, `seed`, `models`, `pointsGroup` and `propPla
 
 ### Custom polygon logic
 
-The callback receives `(variables, context)`. `variables` contains normal expression variables. The context includes the usual custom-element context plus:
+The callback works like the [one of a props type](Core-Props-and-Objects#the-placement-callback), with this context. It receives `(variables, context)`. `variables` contains normal expression variables. The context includes the usual custom-element context plus:
 
 - `perimeter`: ordered `vec3` vertices; `triangles`: flat zero-based triangulation indices; `area`: XZ area in square metres.
 - `parameters`: the complete element parameter state; `models`: model entries with normal and custom per-model values.
 - `random()`: the next number in `[0, 1)` from this element's seeded sequence. Use this for repeatable custom randomness.
 
-Return a list of `{model = index, position = vec3(...), rotation = vec3(...), scale = vec3(...)}` entries. Model indices are **one-based**; rotations are Euler degrees. Rotation defaults to zero and scale to one. Invalid model indices or non-finite transforms report a placement error. The builder applies projection and mesh-placement transforms after the callback.
+Return a list of `{model = index, position = vec3(...), rotation = vec3(...), scale = vec3(...)}` entries. `model` is an index in `models`, **one-based**, or a mesh path; without one the entry is exported as a place only. Rotations are Euler degrees (or `forward`, a direction). Rotation defaults to zero and scale to one. `data` is an optional table for the exporters. Invalid model indices or non-finite transforms report a placement error. The builder applies projection and mesh-placement transforms after the callback.
 
 ```lua
 return { fill = function(v, ctx)
@@ -82,7 +89,14 @@ Both macro types have a saved **Project to ground** toggle. Its initial value co
 
 `propPlacer.guideHeightOffset` lifts the displayed guides and their picking colliders above the authored geometry, defaulting to 0.05 m. It is added to any spline line-style offset and does not change control points, generated props or exported paths.
 
-`projectProps` defaults to `true`: each generated position is projected separately. A core can set it to `false` for native procedural paths whose props must interpolate the projected path. Disabling the saved toggle preserves authored shape heights. Random choices do not change when only projection changes.
+Each generated position is projected separately, after the placement callback, which can tell it from `projected` in its context. The spline is projected at its sections too, and the callback walks that line, so the ground changes the distances along it: a props type with `authoredLine` walks the spline as authored instead, and the ground gives only the height of each prop. Disabling the saved toggle preserves authored shape heights. Random choices do not change when only projection changes.
+
+The guides show where the props go, without changing the shape the props and the exporters read:
+
+- With **Project to ground** on, each guide line (also the outer ones) is on the surface under it, with a point every 2 m at most (up to 512 points per line).
+- With it off, the guides stay on the path of the props. The parts under a surface of `projectionMask` are drawn faintly through whatever covers them. This check doesn't use the depth buffer, because the terrain is a transparent grid that doesn't hide what's under it.
+
+A guide is clicked through a collider of its own instead of the collider of the element: about 6 times the width of the line, so it keeps about the same size on screen, with a vertical ribbon to click it with a low camera too. It's on a physics-only layer that only the actions picking an element use (`Raycast.DoPickRaycast`), so it's not a surface for projections and placement. A part drawn through a surface can be clicked through it.
 
 Exports contain ordinary custom elements, evaluated `data.propLines` placements and, for splines, the evaluated `spline` data. `validationError`, when present, identifies an invalid placement that the core exporter must report. Exporters choose native paths or evaluated individual placements according to the core type; road-specific prop suppression must not suppress standalone placer instances.
 

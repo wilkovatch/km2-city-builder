@@ -154,7 +154,8 @@ namespace EditorPanels.Props {
                 placer.deleteMode = false;
                 placer.randomRotation = false;
                 builder.terrainClick.modifier = placer;
-            } else {
+            } else if (builder.terrainClick.modifier == builder.meshPlacer) {
+                //only its own click mode ends: it's also hidden when built, the first time the mesh list opens from another panel
                 builder.SetSelectObjectMode();
             }
             base.SetActive(active);

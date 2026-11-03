@@ -23,7 +23,7 @@ Create `Files/cores/<CoreName>/` (the folder name is the core's permanent identi
 │   ├── roads/  intersections/  sharedComponents/
 │   ├── terrainPatches/terrainPatches/  terrainPatches/borderMeshes/
 │   ├── buildings/  buildingBlocks/
-│   ├── props/elements/  props/containers/  props/parametric/
+│   ├── props/types/  props/parametric/
 │   ├── cityProperties/
 │   └── customCityPropertiesTypes/
 ├── templates/_common/preferences.json

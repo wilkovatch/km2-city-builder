@@ -64,8 +64,7 @@ A preset contains the values of the core's parameters and of the program's built
 | `intersection` | Intersections | `type` must be an intersection type; `sidewalkSegments`, `sizeIncrease`. New intersections copy the last intersection state used. |
 | `<container>` | Container presets (`PRESET_<container>` UI element) | One category per container name, for example `rail` in MM2. The keys are the parameter names **without** the container prefix (`type`, `height`...). |
 | `roadPropRule` | Road props rules | One state per props container name of the road type, plus `type` (a road type, to filter rules by road type). |
-| `propContainer` | Props containers | `type` (a container type) and the slots of the container. |
-| `propElem` | Props elements | `type` (an element type), `mesh` or `meshes`, and the element parameters. |
+| `props/<type>` | A [props type](Core-Props-and-Objects) | One category per type, with matching `type`, and the parameters of the type. The first preset is the state of a new element of the type. |
 | `buildingLine` | Building lines | `type` must be a building type; `height`, `frontOnly`, `loop`, ... |
 | `building` | Buildings | `type`, enabled sides, `height`, `depth`, and the side states (`frontState`, `leftState`, `rightState`, `backState`). |
 | `buildingSide` | Building sides | `type`, floors and block dictionary (see [Core Buildings](Core-Buildings#side)). |

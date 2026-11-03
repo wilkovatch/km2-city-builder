@@ -171,3 +171,7 @@ for i = 1, intersection.roadCount do
     end
 end
 ```
+
+## Props
+
+The [props types](Core-Props-and-Objects#the-placement-callback) and the polygon [prop placers](Core-Prop-Placers#custom-polygon-logic) can give their placements with a function of a script. `single(x)` gives `x` in the single precision of the expressions and of the positions (the numbers of the scripts are doubles).

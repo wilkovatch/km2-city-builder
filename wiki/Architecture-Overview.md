@@ -127,6 +127,7 @@ Elements are put on numbered layers, used to choose what each mouse tool can hit
 | 13 | Props |
 | 14 | Lines along the roads, to connect another road to their middle |
 | 20 | Additional physics-only bit for mesh types marked `projectionSurface`; no render layer |
+| 21 | Physics-only: the wide colliders of the lines to click on (`LineRenderer.colliderScale`), hit only by the actions picking an element; no render layer |
 
 Layers can be referenced by cores in the mesh instance placement rules (see [Core Props and Objects](Core-Props-and-Objects)).
 

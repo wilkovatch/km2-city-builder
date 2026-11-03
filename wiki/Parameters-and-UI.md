@@ -40,6 +40,7 @@ Definitions and loop variables are described in [Expression Language](Expression
 | `arrayProperties` | For `array`, see below. |
 | `customCityPropertiesType` | For `customCityProperties`: name of a file in `customCityPropertiesTypes/`. |
 | `objectInstanceSettings` | For `objectInstance`, see [Core Props and Objects](Core-Props-and-Objects#parametric-objects). |
+| `range` | For `float` and `int` in a props type: the inclusive `[minimum, maximum]` and optionally the step, checked by the [prop placers](Core-Prop-Placers). |
 | `defaultValueInArray` | Default value of the parameter when it is part of an array element or custom city properties and a new element is added. For `float`, `int` and `enum` write it with a decimal point (`5.0`), otherwise it is rejected with a warning. |
 
 ### Parameter types
@@ -47,8 +48,8 @@ Definitions and loop variables are described in [Expression Language](Expression
 | Type | Editor field | Value in state | In expressions |
 |---|---|---|---|
 | `bool` | Checkbox | `true`/`false` | float variable, 0 or 1 |
-| `float` | Decimal input | number | float variable |
-| `int` | Integer input | integer | float variable |
+| `float` | Decimal input (empty is 0) | number | float variable |
+| `int` | Integer input (empty is 0) | integer | float variable |
 | `enum` | Dropdown (`enumLabels`) | index of the option | float variable |
 | `string` | Text input | string | — |
 | `texture` | Texture field + selector | relative texture path | — (referenced by name in `textures` lists) |
@@ -56,6 +57,7 @@ Definitions and loop variables are described in [Expression Language](Expression
 | `vec2`, `vec3` | none | vector | vector variable |
 | `array` | Editable list | array of states | — |
 | `customCityProperties` | Button opening a sub-panel | nested state | — |
+| `meshList` | List of meshes with thumbnails, with Add, Change, Delete and Add empty buttons | list of strings | — |
 | `objectInstance` | Button selecting the placed object | nested state | — |
 | `reference` | Reference field: the name of the element, **Pick** (then click the element in the city: the handle under the mouse is green on the elements it accepts, red on the others; Pick again or Escape cancels) and **X** (no element). Also set by the converters and the API (`state.setParam` with the id of the element) | `{"kind": ..., "id": ...}`: another element of the city (`referenceTypes`: the kinds it accepts, `road`, `intersection`, `terrainPatch`, `buildingLine`, `customElement` or `customElement/<type>`; any element if missing). Not the element itself, a ghost or a deleted element | — (given to the Lua scripts of the [custom elements](Core-Custom-Elements)) |
 
@@ -87,6 +89,7 @@ Values not set yet read as 0, false, an empty string or a zero vector. Default v
 | `hideAddButton` | Remove the Add button of the list, for elements added some other way, such as a [property container command](Core-City-Properties#owned-elements-and-contextual-creation) (default `false`). |
 | `elementProperties` | Parameters of each element (any type, including nested arrays, custom city properties and object instances). |
 | `customCityPropertiesType` | Alternative to `elementProperties`: use the parameters of a custom city properties type. |
+| `propsTypes` | Alternative to `elementProperties`, in a props type: the elements are props of these [types](Core-Props-and-Objects#groups), each with the parameters of its own type. |
 | `elementLabel` | Name of the element parameter whose value is shown in the list (with `customCityPropertiesType`, the custom city properties type's `label` is used instead). Elements without a label are shown as "Element N". |
 | `drawLine` | Draws a line through the parametric objects of the elements, in order (for example the points of a path). By default it is a thin yellow line whose width grows with the camera distance. Clicking the line selects the element that owns the array. Its collider is on the layer of the objects, so the placers that skip the objects (their `placerLayerMask`) skip the line too. |
 | `lineSettings` | With `drawLine`, optional: how the line is drawn, see below. |
@@ -169,7 +172,7 @@ A `label:<string key>` element shows a text, for example a title above fields si
 | 0.2 | One line of text above a row of buttons: the text stays one line tall and goes over the empty margin at the top of the buttons. |
 | More | Text on more lines. |
 
-Labels work in the `ui.json` of the elements and of the scripts and in the [layout](Core-City-Properties#panel-layout) of the custom city properties types, not in the `uiInfo` of props elements and parametric objects.
+Labels work in the `ui.json` of the elements and of the scripts and in the [layout](Core-City-Properties#panel-layout) of the custom city properties types, not in the `uiInfo` of props types and parametric objects.
 
 ### Built-in groups
 
@@ -189,7 +192,7 @@ Built-in groups insert the program's own controls (type and preset selectors, pl
 
 Spline-driven custom element types use `splineGroup` for curve mode, resolution and Hermite controls, and `pointsGroup` for road-style point placement. Custom element type `createMenu` settings choose direct Create entries or a localized group; see [Core Custom Elements](Core-Custom-Elements#spline-driven-elements).
 
-Props elements and parametric objects have no groups: their `uiInfo` is a flat list of elements (see [Core Props and Objects](Core-Props-and-Objects)).
+Props types and parametric objects have no groups: their `uiInfo` is a flat list of elements (see [Core Props and Objects](Core-Props-and-Objects)).
 
 ## Strings
 

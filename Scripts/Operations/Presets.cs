@@ -30,6 +30,8 @@ namespace Operations {
         public static void Save(ObjectState state, string category, string name) {
             var type = CustomElementPresets.TypeOfCategory(category);
             if (type != null) CustomElementPresets.Extract(state, type); //validate before changing the link
+            var propsType = Props.TypeOfCategory(category);
+            if (propsType != null && state.Str("type") != propsType) throw new System.ArgumentException("preset type must be '" + propsType + "'");
             if (category == "road") {
                 var types = CityElements.Types.Parsers.TypeParser.GetRoadTypes();
                 if (types.TryGetValue(state.Str("type"), out var roadType)) SplineCurves.ValidateState(roadType.typeData.settings, state);

@@ -6,6 +6,7 @@ namespace EditorPanelElements {
     public class InputField : EditorPanelElement {
         System.Action<string> action;
         Godot.LineEdit inputField;
+        GameEngine.InputContentType contentType;
 
         protected override string TemplateName() {
             return "InputField";
@@ -15,6 +16,7 @@ namespace EditorPanelElements {
             System.Action<string> action, Control parent, Vector2 pos, float widthFactor = 1.0f, string tooltip = null, string tag = null, double? fixedDragStep = null)
         : base(title, parent, pos, widthFactor, tooltip, tag) {
             this.action = action;
+            this.contentType = contentType;
             inputField = GetControl<Godot.LineEdit>();
             inputField.MaxLength = 255;
             inputField.PlaceholderText = placeholder;
@@ -33,7 +35,16 @@ namespace EditorPanelElements {
         }
 
         void ChangeValue() {
+            if (!IsValidNumber()) inputField.Text = "0"; //an empty numeric field (or one with just "-") is 0
             if (actionEnabled) action.Invoke(inputField.Text);
+        }
+
+        bool IsValidNumber() {
+            return contentType switch {
+                GameEngine.InputContentType.Integer => int.TryParse(inputField.Text, out _),
+                GameEngine.InputContentType.Decimal => float.TryParse(inputField.Text, out _),
+                _ => true
+            };
         }
 
         public override void SetInteractable(bool interactable) {

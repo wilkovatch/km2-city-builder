@@ -12,7 +12,6 @@ namespace CityElements.Types {
         public Parameter[] modelParameters;
         public string placement; //optional Lua callback (variables, context) -> placements
         public bool projectToGround = true;
-        public bool projectProps = true; //false: props interpolate the projected shape
         public int projectionMask = (1 << 3) | (1 << 7);
         public bool meshTransform;
         public bool autoYOffset = true;
@@ -32,6 +31,8 @@ namespace CityElements.Types {
                 if (strips == null || strips.Length == 0 || strips.Select(x => x.name).Distinct().Count() != strips.Length
                     || strips.Any(x => string.IsNullOrWhiteSpace(x.name) || x.name.Contains('.'))) throw new Exception("Prop placer strips need unique names");
                 settings.propsContainers = strips.Select(x => x.name).ToArray();
+                //the fields are shown in the panel of the element: its presets save them, and a second strip would have the same fields
+                if (strips.Any(x => x.inline) && (strips.Length != 1 || !settings.presets)) throw new Exception("An inline prop placer strip needs to be the only one of a type with presets");
             } else {
                 if (settings.spline != null) throw new Exception("Polygon prop placers cannot define spline settings");
                 if (maxModels < 0) throw new Exception("maxModels cannot be negative");
@@ -57,9 +58,7 @@ namespace CityElements.Types {
         public string name, label;
         public string start = "0", end = "0"; //signed lateral offsets, expressions over the element's parameters
         public string[] allowedContainerTypes;
-        public PropsElementPlacementRules placementRules; //optional scoped override of the container element rules
-        public ParameterContainer parametersInfo; //the fields exposed by the scoped placement profile
-        public TabElement[] uiInfo;
-        public Dictionary<string, float[]> ranges; //inclusive [minimum, maximum] and optional step for the scoped profile
+        public bool inline; //the type and the fields of the props are in the panel of the element, always enabled
+        public string[] boundsParameters; //the parameters of the element giving the bounds: hidden with a props type with lineOnly
     }
 }

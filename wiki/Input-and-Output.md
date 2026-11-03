@@ -95,7 +95,7 @@ Top-level structure (`ExportedCity`):
 | `fields` | The public fields of the element's generator, converted with `States.Utils.GetFieldsAsState`: in particular `state`, `instanceState`, `runtimeState` where present, plus scalar fields. For roads it also contains `lanes`: the traffic lanes and props line bounds, each with `name` and `b64v3a_points`. |
 | `mesh` | `MeshData`: vertices, normals, UVs and `submeshes` (`materialId` into `materialDict` and the triangle indices). |
 | `collider` | Same format, when the element has a separate collider mesh. |
-| `propLines` | Props placed by the road's prop rule, grouped by container name, each a `MeshReference` (at its placement point, as the mesh instances). For the element types with `exportSlots`, `b64v3a_slots` and `b64v3a_slotForwards` also give the position and direction of every iteration, with or without a prop; a line can then have slots and no props. |
+| `propLines` | The placements of the road's prop rule, grouped by container name, in order, each a `MeshReference` (at its placement point, as the mesh instances). A place without a model has `meshId` -1, and the placements given by a [script](Core-Props-and-Objects#the-placement-callback) can have `data`. |
 
 ## Meshes and textures
 

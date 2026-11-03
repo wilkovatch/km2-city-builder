@@ -94,11 +94,11 @@ A reference (`ref` in the method reference) is one of:
 | `{"line": <ref>, "building": 0, "side": "front", "block": 1}` | a block of the block dictionary of a side |
 | `{"patch": <ref>, "borderMesh": 0}` | a border mesh of a terrain patch |
 | `{"road": <ref>, "container": "right"}` | a props container of the prop rule of a road |
-| `{"road": <ref>, "container": "right", "list": "elements", "index": 0}` | a props element (no `index`: the element of a list with a single one) |
+| `{"road": <ref>, "container": "right", "list": "elements", "index": 0}` | a props element of a list of the container |
 | `{"parent": <ref>, "param": "trafficCars", "index": 0}` | an element of an array parameter (no `index`: a custom city properties parameter) |
 | `{"owner": <ref>, "object": "trafficLight", "path": ["races.0"]}` | a parametric object (an `objectInstance` parameter) of a road or of the city properties; `path` lists the array elements leading to it, from the owner |
 
-The kinds are `road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`, `terrainPoint`, `cityProperties`, `customElement`, and for the parts of elements `building`, `buildingSide`, `buildingBlock`, `borderMesh`, `propContainer`, `propElement`, `arrayElement`, `customCityProperties`, `parametricObject`.
+The kinds are `road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`, `terrainPoint`, `cityProperties`, `customElement`, and for the parts of elements `building`, `buildingSide`, `buildingBlock`, `borderMesh`, `props`, `arrayElement`, `customCityProperties`, `parametricObject`.
 
 ### Points
 
@@ -286,7 +286,7 @@ Custom element types opt in with `settings.json` `presets: true`. Their category
 |---|---|---|---|
 | `presets.delete` | `category: string`<br>`name: string` | - | Deletes a preset (not the default one); linked elements, including enabled custom element types, are unlinked from it |
 | `presets.get` | `category: string`<br>`name: string` | state | The values of a preset |
-| `presets.list` | `category: string` | string[] | The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, propContainer, propElem, roadPropRule, or a container such as rail); the first one is the default |
+| `presets.list` | `category: string` | string[] | The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, props/<type> for the props types, roadPropRule, or a container such as rail); the first one is the default |
 | `presets.save` | `category: string`<br>`name: string`<br>`values: state` | - | Saves a preset with the given values (overwriting the one with the same name) |
 | `presets.sync` | `category: string`<br>`name: string` | - | Gives the current values of a preset to linked roads, intersections, building parts or enabled custom element types |
 
@@ -339,7 +339,7 @@ Custom element types opt in with `settings.json` `presets: true`. Their category
 | `state.schema` | `ref: ref` | object | The parameters of the core and the built-in properties an element or part of one can have, and its types and presets |
 | `state.setBuiltin` | `ref: ref`<br>`name: string`<br>`value: any` | object | Sets a built-in property (see state.schema), e.g. the curve type of a road or the slices of a building side |
 | `state.setParam` | `ref: ref`<br>`name: string`<br>`value: any` | object | Sets a parameter of the core (bool, int, float, enum, string, texture, mesh) |
-| `state.setType` | `ref: ref`<br>`type: string` | object | Changes the type: the other values are kept (the missing ones read as defaults) |
+| `state.setType` | `ref: ref`<br>`type: string` | object | Changes the type: the other values are kept (the missing ones read as defaults). A props state keeps only what its new type allows, see [Core Props and Objects](Core-Props-and-Objects) |
 
 ### `roads.*`
 
@@ -493,12 +493,12 @@ Every mesh instance has a mesh instance type (see [Core Custom Elements](Core-Cu
 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
-| `props.element.meshes.add` | `element: ref`<br>`mesh: string` | - | Adds a mesh to the meshes of a props element |
-| `props.element.meshes.remove` | `element: ref`<br>`index: int` | - | Removes a mesh from a props element |
-| `props.element.meshes.set` | `element: ref`<br>`index: int`<br>`mesh: string` | - | Replaces a mesh of a props element |
+| `props.element.meshes.add` | `element: ref`<br>`mesh: string` | - | Adds a mesh to the list of meshes of a props element |
+| `props.element.meshes.remove` | `element: ref`<br>`index: int` | - | Removes a mesh from the list of meshes of a props element |
+| `props.element.meshes.set` | `element: ref`<br>`index: int`<br>`mesh: string` | - | Replaces a mesh of the list of meshes of a props element |
 | `props.element.setMesh` | `element: ref`<br>`mesh: string` | - | Sets the mesh of a props element with a single one |
-| `props.elements.add` | `container: ref`<br>`list: string` | int | Adds a props element (the first preset of an allowed type) to a list of a props container, returns its index (-1 for the lists with a single element) |
-| `props.elements.remove` | `container: ref`<br>`list: string`<br>`index: int` | - | Removes a props element from a list of a props container |
+| `props.elements.add` | `container: ref`<br>`list: string` | int | Adds a props element (the first preset of its first allowed type) to a list of a props container or element, returns its index |
+| `props.elements.remove` | `container: ref`<br>`list: string`<br>`index: int` | - | Removes a props element from a list of a props container or element |
 
 ### `terrain.*`
 

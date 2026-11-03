@@ -206,46 +206,49 @@ namespace Api {
                 Invoke("Cancel");
             } finally { fields.Destroy(); }
 
-            var types = CityElements.Types.Parsers.TypeParser.GetPropsElementTypes();
             foreach (var single in new[] { false, true }) {
-                var type = types.First(t => (t.Value.typeData.maxMeshes == 1) == single);
                 var state = new ObjectState();
-                state.SetStr("type", type.Key);
+                state.SetStr("type", single ? "line" : "customProp");
                 state.SetStr("mesh", assets[2]);
                 state.SetArray("meshes", new[] { assets[0], "", assets[1] });
-                var prop = new EditorPanels.Props.ElemEditorPanel();
+                var owner = new ObjectState();
+                Operations.Props.GetPropRule(owner, true).SetState("main", state);
+                var prop = new EditorPanels.Props.PropsEditorPanel();
                 prop.Initialize(builder);
-                prop.SetEditedElem(state);
+                prop.SetContainer(owner, "main");
                 prop.SetActive(true);
                 try {
                     var list = PreviewField<EditorPanelElements.ScrollList>(picker, "lst");
                     var preview = PreviewField<EditorPanelElements.MeshPreview>(picker, "preview");
-                    void PropAction(string name, params object[] args) => prop.GetType().GetMethod(name, PreviewFlags).Invoke(prop, args);
-                    if (!single) {
+                    System.Collections.IDictionary Controls() {
                         var complex = (System.Collections.IDictionary)typeof(EditorPanel).GetField("complexElements", PreviewFlags).GetValue(prop);
                         var io = complex.Values.Cast<object>().Single(c => c.GetType().Name == "IOList");
-                        var controls = (System.Collections.IDictionary)io.GetType().GetField("listControls", PreviewFlags).GetValue(io);
-                        var meshes = PreviewField<EditorPanelElements.ScrollList>(controls["propMeshes"], "list");
+                        return (System.Collections.IDictionary)io.GetType().GetField("listControls", PreviewFlags).GetValue(io);
+                    }
+                    if (!single) {
+                        var meshes = PreviewField<EditorPanelElements.ScrollList>(Controls()["meshes"], "list");
                         await Frames(32);
                         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
                         using (var screen = GetViewport().GetTexture().GetImage()) screen.SavePng(Path.Combine(Path.GetDirectoryName(folder), "mesh_prop_list.png"));
                         Check("prop mesh lists show thumbnails and preserve empty entries", PreviewRows(meshes)[0].Texture != null
                             && PreviewRows(meshes)[1].Texture == null && PreviewRows(meshes)[2].Texture != null);
-                        PropAction("OpenMeshListForChange", "propMeshes", 2);
+                        ((System.Action<string, int>)Controls()["meshes"].GetType().GetField("selectAction").GetValue(Controls()["meshes"])).Invoke("meshes", 2);
                     } else {
-                        PropAction("OpenMeshListForSingleChange");
+                        var pages = (List<EditorPanelPage>)typeof(EditorPanel).GetField("pages", PreviewFlags).GetValue(prop);
+                        var field = PreviewField<Dictionary<EditorPanelElement, FieldStatus>>(pages[0], "fieldElements").First(x => x.Key is EditorPanelElements.MeshField).Key;
+                        builder.OpenMeshSelector(prop, null, x => { }, null, true, ((EditorPanelElements.MeshField)field).GetValue());
                     }
                     await Frames(3);
                     Check((single ? "single" : "indexed") + " prop Change preselects its existing mesh", PreviewField<string>(picker, "curVal") == (single ? assets[2] : assets[1])
                         && PreviewField<int>(list, "selected") >= 0 && preview.renderer.HasPreview);
                     Invoke("Cancel");
                     if (!single) {
-                        PropAction("OpenMeshList", "propMeshes");
+                        ((System.Action<string>)Controls()["meshes"].GetType().GetField("addAction").GetValue(Controls()["meshes"])).Invoke("meshes");
                         Check("prop Add opens without inheriting Change's selection", PreviewField<int>(list, "selected") == -1);
                         Invoke("Cancel");
                     }
-                    Check("cancelling prop mesh changes preserves the draft", prop.GetCurElem().Str("mesh") == assets[2]
-                        && prop.GetCurElem().Array<string>("meshes").SequenceEqual(new[] { assets[0], "", assets[1] }));
+                    Check("cancelling prop mesh changes preserves the state", prop.GetContainer().Str("mesh") == assets[2]
+                        && prop.GetContainer().Array<string>("meshes").SequenceEqual(new[] { assets[0], "", assets[1] }));
                 } finally { prop.Destroy(); }
             }
             await Frames(2);
