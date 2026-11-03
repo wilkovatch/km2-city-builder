@@ -97,7 +97,8 @@ public partial class CustomElementGenerator : PhysicsScriptable {
                 phUVs.AddRange(mesh.uvs);
                 phIndices.Add(mesh.triangles.ConvertAll(i => i + phOffset).ToArray());
                 var phTexture = mesh.texture == null ? "" : MaterialManager.GetTextureName(state, mesh.texture);
-                phMaterials.Add(MaterialManager.GetMaterial(string.IsNullOrEmpty(phTexture) ? "_TRANSPARENT_" : phTexture));
+                phMaterials.Add(mesh.color.HasValue ? MaterialManager.GetHandleMaterial(mesh.color.Value)
+                    : MaterialManager.GetMaterial(string.IsNullOrEmpty(phTexture) ? "_TRANSPARENT_" : phTexture));
                 continue;
             }
             if (mesh.pickOnly) {
@@ -112,10 +113,11 @@ public partial class CustomElementGenerator : PhysicsScriptable {
             var submesh = new int[mesh.triangles.Count];
             for (int i = 0; i < submesh.Length; i++) submesh[i] = mesh.triangles[i] + offset;
             indices.Add(submesh);
-            var texture = mesh.texture == null ? "" : MaterialManager.GetTextureName(state, mesh.texture);
+            var texture = mesh.color.HasValue ? "_HANDLE_" : mesh.texture == null ? "" : MaterialManager.GetTextureName(state, mesh.texture);
             textures.Add(texture);
-            //a mesh without a texture is not drawn
-            materials.Add(MaterialManager.GetMaterial(string.IsNullOrEmpty(texture) ? "_TRANSPARENT_" : texture));
+            //a mesh without a texture or solid colour is not drawn
+            materials.Add(mesh.color.HasValue ? MaterialManager.GetHandleMaterial(mesh.color.Value)
+                : MaterialManager.GetMaterial(string.IsNullOrEmpty(texture) ? "_TRANSPARENT_" : texture));
         }
         if (indices.Count == 0) {
             GameEngine.Mesh.Clear(m);

@@ -107,6 +107,21 @@ Rows are filled from the right, so the element meant for the left comes second. 
 
 ## Owned elements and contextual creation
 
+The city itself can be a singleton container. Set `elementContainer` in `elements/cityProperties/settings.json`, using the same metadata as a custom city properties type. Its state is the city-properties state, its identity is the usual `_elementContainerId`, and its contents use the same ownership, lists, creation and undo paths as other containers.
+
+An optional `tab` (the string key of a city-properties tab) automatically selects the singleton when that tab, its contents list, an owned element or its creation draft is edited. Like the other containers it stays selected when these editors are closed, so that its contents stay visible and can be clicked, until it is deselected from the Containers menu (which also closes the editors) or the city-properties panel switches from its tab to another one. Its Containers-menu Edit action opens that tab. For example:
+
+```json
+"elementContainer": {
+    "category": "annotations",
+    "tab": "ANNOTATIONS_TAB",
+    "types": ["annotation"],
+    "contentGroups": [{ "label": "ANNOTATIONS_LIST", "types": ["annotation"] }]
+}
+```
+
+Place `content:ANNOTATIONS_LIST` in the tab's `elements` to open the shared contents list. These singleton content buttons take a full row. Core geometry scripts define what owned elements draw; the container only controls ownership and visibility. Saved cities use the existing identity/owner fields.
+
 A custom city properties type can own freely placed mesh instances and custom elements by defining `elementContainer`:
 
 ```json
@@ -123,7 +138,7 @@ Each command adds ordinary single-object array entries by clicking in the city. 
 
 While a container is selected, the containers menu at the end of the menu bar has an entry to open its panel and one to deselect it. Their text is "Edit" and "Deselect" followed by the name of the category (the `CUSTOM_ELEMENT_CATEGORY_<CATEGORY>` string); `editLabel` and `deselectLabel` (string keys, optional) replace it where a more specific text fits. A container can have empty `types`, to get only the commands and the menu entries: it owns nothing, every Create entry keeps targeting the city, and its panel has no contents list.
 
-The container panel has a button for each list of its owned elements, opening it in a sub-panel with Edit and Delete actions. By default there is one list of all the contents. `contentGroups` splits them:
+The container panel has a button for each list of its owned elements, opening it in a sub-panel with Edit and Delete actions. The element selected in the list is outlined in the city while the list is shown. By default there is one list of all the contents. `contentGroups` splits them:
 
 ```json
 "contentGroups": [
@@ -136,6 +151,28 @@ The container panel has a button for each list of its owned elements, opening it
 
 The panel of an owned element has a Back button: it returns to the list it was opened from, or to the panel of the container if it was opened by clicking it in the city. An array of single objects added by a command can set `arrayProperties.hint` to point to the Create entry and `arrayProperties.hideAddButton` to remove the Add button (see [Parameters and UI](Parameters-and-UI)). Deleting an array object clicked in the city closes its panels, while one opened from the panels returns to them.
 
-Owned geometry, guides, handles and colliders are hidden while another container is selected or the category is deselected. Placement captures its target when started and is cancelled when that target is deselected or deleted. Radius erasing stays within the captured ownership scope.
+Owned geometry, guides, handles and colliders are hidden while another container is selected or the category is deselected. Placement captures its target when started and is cancelled when that target is deselected or deleted. Closing a container from the containers menu also closes the open panels of what it owns (its elements and array objects, the lists of its contents, and the same for its subcontainers); the panels of other containers stay open. Radius erasing stays within the captured ownership scope.
 
 Container identities are stored as `_elementContainerId`, with `_propertyContainerId` in the owned custom-element state or mesh-instance settings. These identifiers survive save/load, reordering and undo/redo, and are excluded from property presets. Cloning a container copies its contents with new identities and independent points, retaining sharing within the copy. Deleting it deletes its contents in the same undo step. The export JSON retains the identifiers; the core decides how to export each scope.
+
+### Nested containers
+
+A nested custom city properties type can set `elementContainer.parentCategory` to the category of its nearest enclosing container. It uses its own `category` and matching `exclusiveEditing.category`, so the parent and one of its children can be selected together. The containers menu counts both selections and offers separate Edit and Deselect entries. Opening a child selects the parents on the path to it. Switching or deselecting the parent clears its child selection and cancels placement into it; deselecting only the child keeps the parent selected.
+
+For variants already stored as an int or enum on the parent's elements, a child can inherit a filtered part of the parent's contents:
+
+```json
+"exclusiveEditing": {"enabled": true, "category": "scenarioVariant"},
+"elementContainer": {
+    "category": "scenarioVariant",
+    "parentCategory": "scenario",
+    "filterParameter": "variant",
+    "filterValue": 1,
+    "types": ["route"],
+    "commands": [{"label": "ADD_MARKER", "path": "markers"}]
+}
+```
+
+`filterParameter` and `filterValue` select the accepted types with that value (0 if missing). Those elements keep the parent's `_propertyContainerId`, so existing saves and exporters retain their format. Their editor scope is the matching child: its list, visibility, picking, Back navigation and placement cancellation follow the child selection. Creation through the child's category sets the filter value automatically, including in the draft, and applying a preset preserves it. Omit that parameter from the element's layout when membership is chosen by selecting the child. Parent types not accepted by any filtered child keep the parent's scope.
+
+Commands use paths relative to the child state. Fixed `customCityProperties` containers are initialized even before they have contents. Existing int/enum membership and existing nested array data need no migration; cloning the parent copies each owned element once and gives the child containers new identities.

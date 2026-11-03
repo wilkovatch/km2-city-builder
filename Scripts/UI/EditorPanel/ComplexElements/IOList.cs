@@ -9,6 +9,8 @@ public abstract partial class EditorPanel {
         ElementSelected,
         NotFull, //TODO: not showing at all if used
         ElementSelectedAndNotFull,
+        ElementSelectedNotFirst,
+        ElementSelectedNotLast,
     }
     protected class IOList : ComplexElement {
         public class ListTuple {
@@ -41,7 +43,7 @@ public abstract partial class EditorPanel {
         Dictionary<string, int> selectedIs = new Dictionary<string, int>();
         Dictionary<string, ListTuple> listControls = new Dictionary<string, ListTuple>();
         Dictionary<string, List<string>> curNames = new Dictionary<string, List<string>>();
-        List<(IOListButtonMode mode, EPM.Button btn)> extraButtons = new List<(IOListButtonMode mode, EPM.Button btn)>();
+        List<(string key, IOListButtonMode mode, EPM.Button btn)> extraButtons = new List<(string key, IOListButtonMode mode, EPM.Button btn)>();
 
         public IOList(EditorPanel panel) : base(panel) { }
 
@@ -61,12 +63,13 @@ public abstract partial class EditorPanel {
         public void AddFullEditableList(EditorPanelPage p, string key, string listName, string addText, string selectText, string deleteText, int maxNumber,
             System.Action<string> addAction, System.Action<string, int> selectAction, System.Action<string, int> deleteAction, System.Func<List<string>> listGetter,
             float height, float width, string tooltip, string emptyLabel = null, List<(string, System.Action<string, int>, IOListButtonMode)> extraButtons = null,
-            System.Func<List<string>> meshPathGetter = null) {
+            System.Func<List<string>> meshPathGetter = null, System.Func<int, Godot.Node> itemNode = null) {
 
             var list = meshPathGetter != null
                 ? p.AddScrollList(listName, new List<string>(), new List<string>(), x => { SetIndex(key, x); }, width, tooltip, null, emptyLabel)
                 : p.AddScrollList(listName, new List<string>(), x => { SetIndex(key, x); }, width, tooltip, null, emptyLabel);
             if (meshPathGetter != null) list.EnableMeshThumbnails();
+            if (itemNode != null) panel.builder?.listHighlight.Add(list, itemNode);
             p.IncreaseRow(height);
             var divider = GetDiv(addText) + GetDiv(selectText) + GetDiv(deleteText);
             var partWidth = width / divider;
@@ -86,7 +89,7 @@ public abstract partial class EditorPanel {
                 foreach (var elem in extraButtons) {
                     System.Action extraAction = delegate { ExtraAction(key, elem.Item2); };
                     var btn = p.AddButton(elem.Item1, extraAction, width / System.Math.Min(extraBtnCount, 3));
-                    this.extraButtons.Add((elem.Item3, btn));
+                    this.extraButtons.Add((key, elem.Item3, btn));
                     btnCount += 1;
                     if (btnCount >= 3) {
                         btnCount = 0;
@@ -115,6 +118,7 @@ public abstract partial class EditorPanel {
             listControls[name].selectBtn?.SetInteractable(elemSelected);
             listControls[name].delBtn?.SetInteractable(elemSelected);
             foreach (var elem in extraButtons) {
+                if (elem.key != name) continue;
                 switch(elem.mode) {
                     case IOListButtonMode.ElementSelected:
                         elem.btn?.SetInteractable(elemSelected);
@@ -124,6 +128,12 @@ public abstract partial class EditorPanel {
                         break;
                     case IOListButtonMode.ElementSelectedAndNotFull:
                         elem.btn?.SetInteractable(elemSelected && notFull);
+                        break;
+                    case IOListButtonMode.ElementSelectedNotFirst:
+                        elem.btn?.SetInteractable(selectedIs[name] > 0);
+                        break;
+                    case IOListButtonMode.ElementSelectedNotLast:
+                        elem.btn?.SetInteractable(elemSelected && selectedIs[name] < curNames[name].Count - 1);
                         break;
                     default:
                         break;

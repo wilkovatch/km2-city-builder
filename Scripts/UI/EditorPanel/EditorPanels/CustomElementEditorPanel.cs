@@ -59,6 +59,7 @@ namespace EditorPanels {
             if (draft?.Str("type") != type) draft = Operations.CustomElementPresets.CreationState(type);
             if (GetPlacer() is ElementPlacer.CustomElementPlacer placer) {
                 placer.createType = type;
+                Operations.PropertyContainers.Assign(draft, placer.propertyContainerId);
                 placer.creationState = draft;
             }
         }
@@ -88,12 +89,8 @@ namespace EditorPanels {
         bool shownHandle = false; //the move handle of the container was selected when last shown
         readonly PropRuleGroup propRule;
         EditorPanelElements.Label propPlacementErrorLabel;
-        //the content picked in the contents dropdown, outlined (in a colour of its own, on a free render layer) and with
-        //its points selected
-        const uint ContentOutlineLayer = 1u << 16;
+        //the content picked in the contents dropdown, outlined (see HighlightedGeometry) and with its points selected
         CustomElement highlighted = null;
-        RuntimeGizmos.SelectionOutline contentOutline;
-        List<GeometryInstance3D> outlinedRenderers = new List<GeometryInstance3D>();
         //the container whose elements (and itself) show their lines shown with the container (e.g. the BAI lanes of a room)
         CustomElement linesContainer = null;
         //the list of containers to change the container to, or to merge into
@@ -273,7 +270,7 @@ namespace EditorPanels {
                 || elem.name == "propsGroup";
             if (builtIn) p.EnsureNewRow(); //after a parameter sharing its row
             if (elem.name == "mainGroup") {
-                var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Owner(GetElement()?.state));
+                var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Scope(GetElement()?.state));
                 var mainW = owner != null ? w / 3 : w * 0.5f;
                 p.AddButton(SM.Get("END_EDITING"), Terminate, mainW);
                 p.AddButton(SM.Get("DELETE"), Delete, mainW).SetInteractable(GetElement() != null);
@@ -382,6 +379,7 @@ namespace EditorPanels {
                         names.Add(name.Length > prefix.Length && name.StartsWith(prefix, System.StringComparison.Ordinal) ? name.Substring(prefix.Length) : name);
                     }
                     contentsList = p.AddScrollList(SM.Get("CE_CONTENTS").Replace("$NUMBER", contents.Count.ToString()), names, PickContent, w);
+                    builder.listHighlight.Add(contentsList, _ => HighlightedGeometry());
                     p.IncreaseRow(5.0f);
                     editContentButton = p.AddButton(SM.Get("EDIT"), EditContent, w);
                     editContentButton.SetInteractable(false); //until a content is picked
@@ -689,25 +687,11 @@ namespace EditorPanels {
             foreach (var c in contents) {
                 if (!GO.IsNull(c) && !c.IsDeleted()) c.Select(c == highlighted);
             }
-            UpdateContentOutline();
         }
 
-        //called every frame, as the renderers of the content change with its geometry (and GO.SetLayer resets the layers)
-        void UpdateContentOutline() {
+        Godot.Node HighlightedGeometry() {
             if (highlighted != null && (GO.IsNull(highlighted) || highlighted.IsDeleted())) highlighted = null;
-            foreach (var render in outlinedRenderers) RuntimeGizmos.SelectionOutline.RemoveFromMask(render, ContentOutlineLayer);
-            outlinedRenderers = highlighted != null ? RuntimeGizmos.SelectionOutline.GetRenderers(GO.GetObject(highlighted.generator))
-                : new List<GeometryInstance3D>();
-            if (contentOutline == null) {
-                if (outlinedRenderers.Count == 0 || builder?.gizmo == null) return;
-                contentOutline = new RuntimeGizmos.SelectionOutline {
-                    Name = "ContentOutline",
-                    maskLayer = ContentOutlineLayer,
-                    outlineColor = new Color(0.0f, 0.85f, 1.0f)
-                };
-                builder.gizmo.AddChild(contentOutline);
-            }
-            contentOutline.UpdateOutline(outlinedRenderers);
+            return highlighted != null ? GO.GetObject(highlighted.generator) : null;
         }
 
         void EditContent() {
@@ -1003,7 +987,6 @@ namespace EditorPanels {
             if (builder.propsEditorPanel.parentPanel == this && builder.propsEditorPanel.ActiveSelf()) builder.propsEditorPanel.ShowError(placementError);
             if ((GetElement() != builtElement || (GetElement()?.TypeName ?? draft?.Str("type", null)) != builtType || propRule.InlineType() != builtPropsType) && lastCanvas != null) Rebuild();
             ShowSelectedPoint();
-            UpdateContentOutline();
             RefreshTransform();
             GetPlacer()?.UpdatePlacementPoint();
         }
@@ -1092,11 +1075,14 @@ namespace EditorPanels {
 
         //to the panel of the city-property group owning the element, or to the list it was opened from
         void BackToContainer() {
-            var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Owner(GetElement()?.state));
+            var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Scope(GetElement()?.state));
             if (owner == null) return;
             var group = contentsGroup;
-            var panel = Operations.PropertyContainers.Open(builder, owner) as ArrayElemEditorPanel;
-            if (group >= 0) panel?.OpenContents(group);
+            var panel = Operations.PropertyContainers.Open(builder, owner);
+            if (group >= 0) {
+                if (panel is ArrayElemEditorPanel arrayPanel) arrayPanel.OpenContents(group);
+                else if (panel is CityPropertiesEditorPanel cityPanel) cityPanel.OpenContents(group);
+            }
         }
 
         public override void Terminate() {

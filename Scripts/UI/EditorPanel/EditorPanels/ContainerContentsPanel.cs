@@ -25,6 +25,7 @@ namespace EditorPanels {
             owned = PC.Contents(containerId, group);
             selected = -1;
             list = p.AddScrollList(SM.Get(group.label), owned.ConvertAll(GameEngine.GameObject.GetName), i => selected = i, 1.5f);
+            builder.listHighlight.Add(list, i => i < owned.Count ? owned[i] : null);
             p.IncreaseRow(5);
             p.AddButton(SM.Get("EDIT"), Edit, 0.75f);
             p.AddButton(SM.Get("DELETE"), Delete, 0.75f);
@@ -77,7 +78,7 @@ namespace EditorPanels {
 
         public override System.Func<EditorPanel, EditorPanel> CaptureReopen() {
             var group = groupIndex;
-            return parent => (parent as ArrayElemEditorPanel)?.OpenContents(group);
+            return parent => parent is CityPropertiesEditorPanel city ? city.OpenContents(group) : (parent as ArrayElemEditorPanel)?.OpenContents(group);
         }
 
         public override void SetActive(bool active) {

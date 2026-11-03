@@ -614,6 +614,7 @@ public partial class ElementManager : Scriptable {
             changed = updatedCustomElements[i] != customElements[i] || customElements[i].NeedsUpdate();
         }
         if (!changed) {
+            if (splinePhysicsReady) splineProjectionPending = false; //the projection of the point elements moved nothing
             PlaceMoveHandles();
             return 0;
         }

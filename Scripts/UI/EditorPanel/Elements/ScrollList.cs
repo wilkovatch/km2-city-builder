@@ -30,6 +30,16 @@ namespace EditorPanelElements {
         ScrollListComponent scrl;
         string emptyLabel = "EMPTY";
 
+        public int Selected => selected;
+
+        public bool IsFreed() {
+            return !GodotObject.IsInstanceValid(obj);
+        }
+
+        public bool IsShown() {
+            return obj.IsVisibleInTree();
+        }
+
         protected override string TemplateName() {
             return "ScrollList";
         }

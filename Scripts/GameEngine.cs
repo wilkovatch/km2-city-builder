@@ -1294,6 +1294,10 @@ public static partial class GameEngine {
             return (mr, m);
         }
 
+        public static void SetCastShadows(GeometryInstance3D mr, bool cast) {
+            mr.CastShadow = cast ? GeometryInstance3D.ShadowCastingSetting.On : GeometryInstance3D.ShadowCastingSetting.Off;
+        }
+
         public static void SetShadowsTwoSidedRecursive(Node3D parent) {
             foreach (var mr in Scriptable.FindMultipleRecursive<GeometryInstance3D>(parent)) {
                 mr.CastShadow = GeometryInstance3D.ShadowCastingSetting.DoubleSided;

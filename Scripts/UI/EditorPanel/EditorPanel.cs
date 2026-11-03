@@ -260,15 +260,15 @@ public abstract partial class EditorPanel {
                         System.Func<List<string>> GetArrayD = delegate { return GetArray(param); };
                         var extraButtons = new List<(string, System.Action<string, int>, IOListButtonMode)>() {
                             (SM.Get("ARRAY_CLONE"), CloneArrayElementD, IOListButtonMode.ElementSelectedAndNotFull),
-                            (SM.Get("ARRAY_MOVE_UP"), MoveUpArrayElementD, IOListButtonMode.ElementSelected),
-                            (SM.Get("ARRAY_MOVE_DOWN"), MoveDownArrayElementD, IOListButtonMode.ElementSelected),
+                            (SM.Get("ARRAY_MOVE_UP"), MoveUpArrayElementD, IOListButtonMode.ElementSelectedNotFirst),
+                            (SM.Get("ARRAY_MOVE_DOWN"), MoveDownArrayElementD, IOListButtonMode.ElementSelectedNotLast),
                         };
                         var l = GetComplexElement<IOList>();
                         var meshProperty = GetArrayMeshProperty(param);
                         l.AddFullEditableList(p, param.fullName(), GetString(param.label),
                             param.arrayProperties.hideAddButton ? null : SM.Get("ARRAY_ADD"), SM.Get("ARRAY_EDIT"), SM.Get("ARRAY_DELETE"), param.arrayProperties.maxElements,
                             AddArrayElementD, SelectArrayElementD, DeleteArrayElementD, GetArrayD, 5.0f, elem.width, GetString(param.tooltip), null, extraButtons,
-                            meshProperty != null ? () => GetArrayMeshes(param, meshProperty) : null);
+                            meshProperty != null ? () => GetArrayMeshes(param, meshProperty) : null, i => ArrayElementNode(param, i));
                         if (param.arrayProperties.hint != null) {
                             p.AddLabel(GetString(param.arrayProperties.hint), elem.width);
                             p.IncreaseRow();
@@ -531,6 +531,7 @@ public abstract partial class EditorPanel {
         for (int i = 0; i < pages.Count; i++) {
             pages[i].SetActive(i == 0 ? active : false);
         }
+        OnPageChanged();
     }
 
     public void ShowWithStack(Stack<GameObject> stack) {
@@ -539,14 +540,22 @@ public abstract partial class EditorPanel {
         var elem = stack.Pop();
         var arrayObject = GS.Cast<ArrayObject>(elem);
         if (arrayObject != null) {
+            ShowParameterPage(arrayObject.paramInParent);
             SelectArrayElementByState(arrayObject.state, arrayObject.paramInParent, stack);
         }
     }
+
+    protected virtual void ShowParameterPage(string parameter) { }
 
     private void SetPage(int page = 0) {
         for (int i = 0; i < pages.Count; i++) {
             pages[i].SetActive(i == page ? true : false);
         }
+        OnPageChanged();
+    }
+
+    protected virtual void OnPageChanged() {
+        builder?.NotifyVisibilityChange();
     }
 
     protected int ActivePage() {
@@ -589,6 +598,7 @@ public abstract partial class EditorPanel {
 
     public virtual void Hide(bool hide) {
         if (hide) {
+            if (keepActive && !ActiveSelf()) return; //a deeper child must not replace the saved tab with -1
             lastPage = ActivePage();
             keepActive = true;
             SetActive(false);
@@ -757,6 +767,13 @@ public abstract partial class EditorPanel {
         } else {
             return new List<string>();
         }
+    }
+
+    //the node with the parametric objects of an element of an array parameter of the element edited, if it has one
+    Godot.Node ArrayElementNode(CityElements.Types.Parameter param, int i) {
+        var arr = OwnerOf(param)?.GetState()?.Array<ObjectState>(param.fullName());
+        if (arr == null || i < 0 || i >= arr.Length) return null;
+        return (GetUndoTarget() as IParametricObjectContainer)?.FindArrayObject(arr[i]);
     }
 
     void AddArrayElement(CityElements.Types.Parameter param) {

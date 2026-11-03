@@ -194,9 +194,14 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "races") {
+                if (focus == "mapLabels") {
                     await NewCity();
+                    await MapLabels();
+                } else if (focus == "races") {
+                    await NewCity();
+                    ArrayListMoveButtons();
                     await RaceCreation();
+                    await RaceSubcontainers();
                     await OpponentWaypointUndo();
                 } else if (focus == "arrows") {
                     await NewCity();
@@ -262,6 +267,7 @@ namespace Api {
                     await Anchors();
                     await Heights();
                     await States();
+                    ArrayListMoveButtons();
                     await ArrayPoints();
                     await Decals();
                     await SingleDecals();
@@ -293,6 +299,7 @@ namespace Api {
                     await MeshSelection();
                     await SurfaceProjection();
                     await CustomElementPresetWorkflow();
+                    await MapLabels();
                 }
             } catch (Abort e) {
                 Log("aborted: " + e.Message);

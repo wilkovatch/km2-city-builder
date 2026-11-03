@@ -10,6 +10,7 @@ using RuntimeCalculator.Scripting;
 namespace CustomElements {
     public class GeometryMesh {
         public string texture; //a texture parameter of the element (or a built-in material name)
+        public Color? color; //optional solid, unshaded colour instead of a texture
         public List<Vector3> vertices = new List<Vector3>();
         public List<Vector2> uvs = new List<Vector2>();
         public List<int> triangles = new List<int>();
@@ -179,6 +180,7 @@ namespace CustomElements {
                     if (m == null) continue;
                     var mesh = new GeometryMesh {
                         texture = String(m["texture"]),
+                        color = m["color"].Type == LuaValueType.Nil ? null : ReadColor(m["color"], new Color(1, 1, 1)),
                         vertices = Vector3s(m["vertices"], "meshes[" + i + "].vertices"),
                         uvs = Vector2s(m["uvs"], "meshes[" + i + "].uvs"),
                         triangles = Ints(m["triangles"], "meshes[" + i + "].triangles"),

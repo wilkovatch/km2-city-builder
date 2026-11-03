@@ -28,7 +28,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
     public CustomElementSplineGeometry.Data splineData;
     public string propPlacementError;
     public bool ProjectsPlacement => Settings?.propPlacer != null && state.Bool("projectToGround", Settings.propPlacer.projectToGround);
-    public bool ProjectsSurface => ProjectsPlacement || Settings?.spline?.projectSections == true;
+    public bool ProjectsSurface => ProjectsPlacement || Settings?.spline?.projectSections == true || Settings?.point?.project == true;
     bool propProjectionInvalid = true, propProjectionEnabled;
     readonly Dictionary<TerrainPoint, Vector3> splineProjectedPoints = new();
     int splineProjectionUndoVersion = -1;
@@ -121,6 +121,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         generator = GS.Cast<CustomElementGenerator>(generatorObj);
         generator.Initialize();
         GO.SetLayer(generator, Settings?.geometryLayer ?? 7);
+        if (Settings?.castShadows == false) GameEngine.Mesh.SetCastShadows(generator.mr, false);
     }
 
     public ObjectState GetState() {
@@ -320,8 +321,10 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
             ApplyPointState(p);
         }
         foreach (var p in old) ReleasePoint(p);
-        if (History.UndoManager.IsLoading && Settings?.spline != null) {
+        //the first update of a load keeps the saved heights: the surfaces it builds aren't in the physics world yet
+        if (History.UndoManager.IsLoading && (Settings?.spline != null || Settings?.point?.project == true)) {
             foreach (var p in GetAllPoints()) splineProjectedPoints[p] = p.GetPoint();
+            if (Settings.point != null) propProjectionInvalid = false;
         }
         structureVersion++;
     }
@@ -573,12 +576,14 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         if (projection is (int projectionMask, bool autoProjection)) {
             //Projection is a placement/move rule. Unrelated edits must not reproject saved points onto transient
             //colliders (e.g. while a road is replaced); undo/redo restores the recorded heights exactly.
+            //Prop placers and point elements also follow their surfaces: the geometry of a point element is built
+            //from its height (the sections of a spline are projected on their own, its points don't need to).
             var restored = splineProjectionUndoVersion != History.UndoManager.AppliedVersion;
             splineProjectionUndoVersion = History.UndoManager.AppliedVersion;
             foreach (var p in GetUpdatePoints()) {
                 var position = p.GetPoint();
                 if (!restored && !History.UndoManager.IsLoading && GO.IsNull(p.anchor) &&
-                    (Settings?.propPlacer != null && propProjectionInvalid || !splineProjectedPoints.TryGetValue(p, out var old) || !GeometryHelper.AreVectorsEqual(old, position))) {
+                    ((Settings?.propPlacer != null || Settings?.point != null) && propProjectionInvalid || !splineProjectedPoints.TryGetValue(p, out var old) || !GeometryHelper.AreVectorsEqual(old, position))) {
                     //with the rule of the sections, if they're projected too (as the clicks placing the points)
                     var projected = autoProjection
                         ? GeometryHelper.AutoProjectOnSurface(position, CityGroundHelper.ExcludeHiddenTerrain(projectionMask), generator)
@@ -837,7 +842,10 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
     }
 
     internal void InvalidateSplineSurface() {
-        if (ProjectsSurface) { structureVersion++; propProjectionInvalid = true; }
+        if (!ProjectsSurface) return;
+        propProjectionInvalid = true;
+        //the geometry of a point element only depends on its point: it's rebuilt if the projection moves it
+        if (Settings?.point == null) structureVersion++;
     }
 
     //rebuilds the geometry if anything changed, returns 1 if it did
@@ -977,6 +985,10 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         var ctx = new LuaTable();
         ctx["typeName"] = TypeName ?? "";
         ctx["name"] = GO.GetName(this);
+        //A detached snapshot also exposes string parameters to geometry scripts (v contains only numeric variables).
+        var parameters = PropPlacerGeometry.StateTable(state).Read<LuaTable>();
+        foreach (var entry in cityPropertiesState.properties) parameters[entry.Key] = PropPlacerGeometry.StateTable(entry.Value);
+        ctx["parameters"] = parameters;
         ctx["points"] = CustomElementScripting.PointsTable(points, leaf => RC.Scripting.LuaVectors.ToLua(leaf.point.GetPoint()));
         ctx["rotations"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.rotatable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetRotation()) : LuaValue.Nil);
         ctx["scales"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.scalable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetScale()) : LuaValue.Nil);

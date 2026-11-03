@@ -53,6 +53,7 @@ public partial class CityBuilderMenuBar : Control {
     Alert alert;
     InputFieldPopup inputFieldPopup;
     public RuntimeGizmos.TransformGizmo gizmo;
+    public readonly ListHighlight listHighlight = new ListHighlight();
     public static RuntimeGizmos.TransformGizmo staticGizmo;
     public static int panelsActive = 0;
     TerrainModifier.Null nullModifier;
@@ -968,6 +969,8 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     public void NotifyVisibilityChange() {
+        Operations.PropertyContainers.SyncTabSelections();
+        Operations.PropertyContainers.PruneSelections();
         CancelInvalidContainerPlacement();
         if (helper != null) {
             if (helper.elementManager != null) {
@@ -975,6 +978,25 @@ public partial class CityBuilderMenuBar : Control {
                 SyncSelectedEntityMenuItemVisibility();
             }
         }
+    }
+
+    //A tab-bound singleton gets selected while its tab, one of its contents (or a captured creation draft) is edited.
+    //Closing a container closes these panels: what they edit gets hidden with it.
+    public bool IsEditingPropertyContainer(string id, string tab) {
+        if (cityPropertiesEditorPanel.ShowsTab(tab)) return true;
+        var panel = GetActivePanel();
+        if (panel is EditorPanels.ContainerContentsPanel contents && Operations.PropertyContainers.IsWithin(contents.containerId, id)) return true;
+        var onTransformPanel = panel == transformPropertiesEditorPanel;
+        //on a control point the undo target is the point, not its element
+        var target = (onTransformPanel ? ControlPointOwnerCustomElement : null) ?? panel?.GetUndoTarget();
+        var state = target is CustomElement element ? element.state : (target as MeshInstance)?.settings;
+        if (Operations.PropertyContainers.IsWithin(Operations.PropertyContainers.Scope(state), id)) return true;
+        //an object of an array of the container (the state of a root container is the whole city: they aren't part of it)
+        var entry = Operations.PropertyContainers.Find(id);
+        if (onTransformPanel && entry?.path.Count > 0 && transformPropertiesEditorPanel.instance != null
+            && Operations.Meshes.GetArrayObject(transformPropertiesEditorPanel.instance)?.state.IsContainedIn(entry.state) == true) return true;
+        return Operations.PropertyContainers.IsWithin(customElementPlacer.propertyContainerId, id) && (customElementEditorPanel.IsOpen()
+            || (terrainClick.modifier == customElementPlacer && customElementPlacer.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.Create));
     }
 
     public void CancelInvalidContainerPlacement() {
@@ -986,7 +1008,7 @@ public partial class CityBuilderMenuBar : Control {
         if (gizmo?.mainTargetRoot != null) {
             var target = History.UndoManager.ResolveOwner(gizmo.mainTargetRoot);
             var state = target is MeshInstance mesh ? mesh.settings : (target as CustomElement)?.state;
-            var owner = Operations.PropertyContainers.Owner(state);
+            var owner = Operations.PropertyContainers.Scope(state);
             if (owner != "" && !Operations.PropertyContainers.IsCurrent(owner)) transformPropertiesEditorPanel.SetActive(false);
         }
     }
@@ -1024,6 +1046,12 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     void DeselectEntity(string type) {
+        var active = Operations.PropertyContainers.Active(type);
+        //the open panels can be editing another container
+        if (active != null && IsEditingPropertyContainer(Operations.PropertyContainers.EnsureId(active.state), active.settings.tab)) CloseAllPanels();
+        //the state of a root container is the whole city: the other containers are in it, but they aren't part of it
+        //(NotifyVisibilityChange deselects its subcontainers)
+        if (active?.path.Count != 0) ArrayObject.PruneSelections(ArrayObject.activeElements[type]);
         ArrayObject.activeElements[type] = null;
         NotifyVisibilityChange();
     }
@@ -1097,6 +1125,12 @@ public partial class CityBuilderMenuBar : Control {
             DisablePanelIfNeeded(childPanel, excluded);
         }
         if (excluded != panel) {
+            for (var parent = excluded?.parentPanel; parent != null; parent = parent.parentPanel) {
+                if (parent == panel) {
+                    panel.Hide(true);
+                    return;
+                }
+            }
             if (panel.parentPanel != null) {
                 //closed child panels are terminated too, and their parent with them (e.g. after editing a road's
                 //props, every selection terminated the road editor, deleting the preset dummy road and rebuilding the city)
@@ -1904,6 +1938,7 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     public override void _Process(double delta) {
+        listHighlight.Update(gizmo);
         if (Api.ScriptRunner.IsRunning) return; //the editor is locked while a script runs
         if (Input.GetInputStart(KeyCommand.Close)) {
             //Escape ends a picker first, keeping its panel open

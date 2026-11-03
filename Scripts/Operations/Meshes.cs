@@ -92,7 +92,7 @@ namespace Operations {
             var type = RequireMassPlacement(settings).name;
             var delList = new List<MeshInstance>();
             foreach (var mesh in manager.meshes) {
-                if (mesh.TypeName == type && PropertyContainers.Owner(mesh.settings) == PropertyContainers.Owner(settings)) {
+                if (mesh.TypeName == type && PropertyContainers.Scope(mesh.settings) == PropertyContainers.Scope(settings)) {
                     // The root sits on the placement point (only its children are raised by the
                     // y offset), so it is compared as is.
                     // center is in program coordinates, so the position must be read through GO.

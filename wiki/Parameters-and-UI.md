@@ -81,6 +81,8 @@ Values not set yet read as 0, false, an empty string or a zero vector. Default v
 }
 ```
 
+The element selected in the list is outlined in the city while the list is shown, if it has parametric objects (for example, the checkpoints of a race).
+
 | Field | Description |
 |---|---|
 | `maxElements` | Maximum number of elements; 0 or negative for no limit. |

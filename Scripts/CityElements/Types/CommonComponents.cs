@@ -71,6 +71,10 @@ namespace CityElements.Types {
     //Optional ownership of freely placed elements by a city-property group.
     public class PropertyContainerSettings {
         public string category;
+        public string tab; //optional: activate this singleton while its city-properties tab or contents are edited
+        public string parentCategory; //a nested selection; its parent must be selected too
+        public string filterParameter; //inherit the parent's owned elements with this int/enum value
+        public int filterValue;
         public string[] types;
         public PropertyContainerCommand[] commands;
         public PropertyContainerContentGroup[] contentGroups; //if not set, the panel of the container has one list of all its contents

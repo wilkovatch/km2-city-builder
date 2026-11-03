@@ -65,6 +65,7 @@ namespace CityElements.Types {
         public bool requiresPropertyContainer;
         public string placementObject; //first click positions this objectInstance; subsequent clicks draw the spline
         public int geometryLayer = 7;
+        public bool castShadows = true; //the meshes of the geometry cast shadows (not the placeholders, nor the props)
         public CustomElementPointNode[] controlPoints;
         public CustomElementMeshSettings mesh; //null: no mesh
         public CustomElementContainerSettings container; //null: not a container

@@ -451,7 +451,7 @@ namespace EditorPanels {
                 return;
             }
             parentPanel = null;
-            var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Owner(GS.Cast<MeshInstance>(instance)?.settings));
+            var owner = Operations.PropertyContainers.Find(Operations.PropertyContainers.Scope(GS.Cast<MeshInstance>(instance)?.settings));
             if (owner != null) Operations.PropertyContainers.Open(builder, owner);
         }
 

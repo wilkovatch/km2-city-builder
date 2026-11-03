@@ -13,6 +13,7 @@ namespace CityElements.Types.CitySettings {
     }
 
     public class Settings {
+        public PropertyContainerSettings elementContainer; //optional singleton owning city-wide elements
         public ParameterInjection[] injectableParameters;
     }
 

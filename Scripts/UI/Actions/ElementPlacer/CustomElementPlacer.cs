@@ -38,7 +38,7 @@ namespace ElementPlacer {
             if (element != curElement) EndPlacementRotation();
             if (!GO.IsNull(curElement) && !curElement.IsDeleted()) curElement.SetPlacementPoint(null);
             curElement = GO.IsNull(element) || (element != null && element.IsDeleted()) ? null : element;
-            if (curElement != null) propertyContainerId = Operations.PropertyContainers.Owner(curElement.state);
+            if (curElement != null) propertyContainerId = Operations.PropertyContainers.Scope(curElement.state);
         }
 
         public CustomElement GetElement() {

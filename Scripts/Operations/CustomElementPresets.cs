@@ -157,7 +157,7 @@ namespace Operations {
 
         public static ObjectState Apply(ObjectState original, ObjectState preset, string type) {
             var copy = Extract(preset, type);
-            PropertyContainers.Assign(copy, PropertyContainers.Owner(original));
+            PropertyContainers.Assign(copy, PropertyContainers.Scope(original));
             Filter(copy, original, TP.GetCustomElementTypes()[type].parameterContainer.parameters, true);
             original.ReplaceWith(copy);
             original.FlagAsChanged();

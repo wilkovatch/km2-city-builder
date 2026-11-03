@@ -15,6 +15,7 @@ public interface IParametricObjectContainer {
     string FindObjectKey(GameObject holder);
     int IndexOfArrayObject(ArrayObject arrayObject);
     MeshInstance FindParametricObject(string key, List<string> parentParams);
+    ArrayObject FindArrayObject(ObjectState elementState);
 }
 
 public abstract partial class ParametricObjectContainer<T> : Scriptable, IParametricObjectContainer {
@@ -142,6 +143,19 @@ public abstract partial class ParametricObjectContainer<T> : Scriptable, IParame
         if (key == null || !objectInstances.TryGetValue(key, out var holder)) return null;
         if (holder == null || !IsInstanceValid(holder) || holder.IsQueuedForDeletion()) return null;
         return GS.FindRecursive<MeshInstance>(holder);
+    }
+
+    //the object of an element of an array or of custom city properties, also in the nested ones, null if there is none
+    public ArrayObject FindArrayObject(ObjectState elementState) {
+        foreach (var list in arrayObjects.Values) {
+            foreach (var arrayObject in list) {
+                if (arrayObject == null || !IsInstanceValid(arrayObject) || arrayObject.IsQueuedForDeletion()) continue;
+                if (arrayObject.state == elementState) return arrayObject;
+                var nested = arrayObject.FindArrayObject(elementState);
+                if (nested != null) return nested;
+            }
+        }
+        return null;
     }
 
     ObjectState GetParametricObjectState(string key) {

@@ -33,6 +33,209 @@ namespace Api {
             }
         }
 
+        //two array lists, to check that their buttons follow only their own list
+        class ArrayListsPanel : EditorPanel {
+            public ObjectState state = new();
+            public CT.Parameter[] parameters;
+
+            public ArrayListsPanel() => AddComplexElement(new IOList(this));
+
+            public override void Initialize(Control canvas) {
+                Initialize(canvas, 1);
+                getObject = () => state;
+                float width = 0;
+                foreach (var parameter in parameters) {
+                    AddParameters(GetPage(0), ref width, 1.5f, parameters, new CT.TabElement { name = parameter.name, width = 1.5f }, () => state, false);
+                }
+            }
+
+            public EditorPanelElements.ScrollList List(string name) => PreviewField<Dictionary<string, IOList.ListTuple>>(GetComplexElement<IOList>(), "listControls")[name].list;
+            public bool Enabled(string name, IOListButtonMode mode) => PreviewField<List<(string key, IOListButtonMode mode, EditorPanelElements.Button btn)>>(GetComplexElement<IOList>(), "extraButtons")
+                .First(b => b.key == name && b.mode == mode).btn.GetInteractable();
+        }
+
+        void ArrayListMoveButtons() {
+            Log("array list move buttons");
+            CT.Parameter List(string name) => new CT.Parameter { name = name, type = "array", arrayProperties = new CT.ArrayProperties {
+                elementLabel = "name", elementProperties = new[] { new CT.Parameter { name = "name", type = "string" } } } };
+            ObjectState[] Elements(int count) => Enumerable.Range(0, count).Select(i => { var e = new ObjectState(); e.SetStr("name", "Element " + i); return e; }).ToArray();
+            var panel = new ArrayListsPanel { parameters = new[] { List("three"), List("one") } };
+            panel.state.SetArray("three", Elements(3));
+            panel.state.SetArray("one", Elements(1));
+            panel.Initialize(builder);
+            panel.SetActive(true);
+            try {
+                const EditorPanel.IOListButtonMode up = EditorPanel.IOListButtonMode.ElementSelectedNotFirst, down = EditorPanel.IOListButtonMode.ElementSelectedNotLast;
+                Check("without a selection the move buttons are disabled", !panel.Enabled("three", up) && !panel.Enabled("three", down));
+                panel.List("three").SetValue(0);
+                Check("the first element can only move down", !panel.Enabled("three", up) && panel.Enabled("three", down));
+                panel.List("three").SetValue(1);
+                Check("a middle element can move both ways", panel.Enabled("three", up) && panel.Enabled("three", down));
+                panel.List("three").SetValue(2);
+                Check("the last element can only move up", panel.Enabled("three", up) && !panel.Enabled("three", down));
+                Check("selecting in a list leaves the move buttons of the other list", !panel.Enabled("one", up) && !panel.Enabled("one", down));
+                panel.List("one").SetValue(0);
+                Check("the only element of a list can't move", !panel.Enabled("one", up) && !panel.Enabled("one", down));
+                Check("selecting in a list keeps the move buttons of the other list", panel.Enabled("three", up) && !panel.Enabled("three", down));
+                panel.RefreshValues();
+                Check("reloading the lists disables the move buttons again", !panel.Enabled("three", up) && !panel.Enabled("three", down));
+            } finally { panel.Destroy(); }
+        }
+
+        async Task RaceSubcontainers() {
+            Log("race difficulty subcontainers");
+            builder.CloseAllPanels();
+            var city = M.GetDummy<CityProperties>();
+            var race = city.state.Array<ObjectState>("circuitRaces").First(r => PC.Contents(PC.EnsureId(r)).OfType<CustomElement>().Any(e => e.TypeName == "opponent"));
+            var owner = PC.EnsureId(race);
+            var amateurId = PC.EnsureId(race.State("policeCars"));
+            var professionalId = PC.EnsureId(race.State("policeCars_professional"));
+            var amateur = PC.Contents(amateurId).OfType<CustomElement>().First();
+            var prop = PC.Contents(owner).First(n => n is MeshInstance);
+            void Select(string id) {
+                builder.CloseAllPanels();
+                PC.Open(builder, PC.Find(id));
+                M.ProcessUpdate();
+            }
+            PopupMenu Create() {
+                builder.ReloadCreateMenu();
+                return CallBuilder<MenuBar>("GetMenuBar").FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>()
+                    .First(b => b.Text == StringManager.Get("CREATE")).GetPopup();
+            }
+            bool Has(PopupMenu menu, string key) => Enumerable.Range(0, menu.ItemCount).Any(i => menu.GetItemText(i) == StringManager.Get(key));
+            void Command(string key) {
+                var menu = Create();
+                var index = Enumerable.Range(0, menu.ItemCount).First(i => menu.GetItemText(i) == StringManager.Get(key));
+                menu.EmitSignal(PopupMenu.SignalName.IdPressed, menu.GetItemId(index));
+            }
+            bool PoliceVisible(string id) {
+                var setup = PC.Find(id).state;
+                return city.FindChildren("*", "", true, false).OfType<ArrayObject>()
+                    .Where(a => a.state == setup).Any(a => a.IsVisibleInTree() && a.ProcessMode != ProcessModeEnum.Disabled
+                        && a.FindChildren("*", "", true, false).OfType<MeshInstance>().Any(m => m.IsVisibleInTree()));
+            }
+            ArrayObject.activeElements["raceDifficulty"] = null;
+            Select(owner);
+            Check("a selected race alone exposes checkpoints but no difficulty commands", Has(Create(), "CREATE_RACE_CHECKPOINT") && !Has(Create(), "CREATE_RACE_POLICE") && !Has(Create(), "CREATE_OPPONENT"));
+            Check("without a difficulty the race props stay visible and opponents are hidden", prop.IsVisibleInTree() && !amateur.IsVisibleInTree());
+            Select(amateurId);
+            Check("opening a subcontainer selects its parent and itself", PC.Active("race")?.state == PC.Find(owner).state && PC.Active("raceDifficulty")?.state == PC.Find(amateurId).state);
+            Check("existing opponents belong to their difficulty without changing saved ownership", PC.Scope(amateur.state) == amateurId && PC.Owner(amateur.state) == owner && amateur.IsVisibleInTree());
+            Check("the amateur police are visible and the professional police hidden", PoliceVisible(amateurId) && !PoliceVisible(professionalId));
+            var bar = CallBuilder<MenuBar>("GetMenuBar");
+            var containers = bar.FindChildren("*", nameof(MenuButton), true, false).OfType<MenuButton>()
+                .First(b => b.Text == StringManager.Get("CONTAINERS_SELECTED_PLUR").Replace("$NUMBER", "2")).GetPopup();
+            containers.EmitSignal(Window.SignalName.AboutToPopup);
+            Check("the two selected containers include difficulty edit and deselect entries", Has(containers, "EDIT_RACE_AMATEUR") && Has(containers, "DESELECT_RACE_AMATEUR"));
+            Select(professionalId);
+            Check("switching difficulty hides amateur routes and switches police picking", !amateur.IsVisibleInTree() && amateur.ProcessMode == ProcessModeEnum.Disabled && !PoliceVisible(amateurId) && PoliceVisible(professionalId));
+            Command("CREATE_OPPONENT");
+            Check("a professional opponent draft inherits its selected difficulty", builder.customElementPlacer.creationState.Int("difficulty") == 1 && builder.customElementPlacer.propertyContainerId == professionalId);
+            var hit = new GameEngine.Raycast.RaycastHit { collider = builder.helper, point = new Vector3(-100,0,-110) };
+            History.UndoManager.Record("place professional opponent", () => builder.customElementPlacer.PlaceAt(hit));
+            M.ProcessUpdate(); await Frames(2);
+            var professional = builder.customElementPlacer.GetElement();
+            Check("new opponents go into the selected professional subcontainer", professional.state.Int("difficulty") == 1 && PC.Scope(professional.state) == professionalId && PC.Contents(professionalId).Contains(professional) && !PC.Contents(amateurId).Contains(professional));
+            History.UndoManager.Record("apply amateur preset to professional", () => {
+                var preset = Operations.CustomElementPresets.Extract(amateur);
+                Operations.CustomElementPresets.Apply(professional, preset);
+            });
+            M.ProcessUpdate();
+            Check("presets preserve difficulty membership", professional.state.Int("difficulty") == 1 && PC.Scope(professional.state) == professionalId);
+            builder.PerformUndo(); await Frames(2);
+            Check("undo keeps both parent and difficulty selected", PC.Active("race")?.state == PC.Find(owner).state && PC.Active("raceDifficulty")?.state == PC.Find(professionalId).state && professional.IsVisibleInTree());
+            Select(professionalId);
+            Command("CREATE_OPPONENT");
+            var count = M.customElements.Count;
+            ArrayObject.activeElements["raceDifficulty"] = PC.Find(amateurId).state;
+            builder.NotifyVisibilityChange(); M.ProcessUpdate();
+            History.UndoManager.Record("stale professional draft", () => builder.customElementPlacer.PlaceAt(hit));
+            Check("switching difficulty cancels the captured opponent draft", M.customElements.Count == count && builder.customElementPlacer.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.None);
+            Select(professionalId);
+            Command("CREATE_RACE_POLICE");
+            var before = PC.Find(professionalId).state.Array<ObjectState>("policeCars").Length;
+            History.UndoManager.Record("add professional police", () => builder.arrayPointPlacer.PlaceAt(new Vector3(-107,0,-110)));
+            M.ProcessUpdate();
+            Check("police creation targets the selected setup without a target dropdown", PC.Find(professionalId).state.Array<ObjectState>("policeCars").Length == before + 1);
+            builder.PerformUndo(); await Frames(2);
+            Check("undo restores police and keeps its subcontainer selected", PC.Active("raceDifficulty")?.state == PC.Find(professionalId).state && PC.Find(professionalId).state.Array<ObjectState>("policeCars").Length == before);
+            CallBuilder<object>("DeselectEntity", "raceDifficulty"); M.ProcessUpdate();
+            Check("deselecting a difficulty leaves its race and props selected", PC.Active("race") != null && PC.Active("raceDifficulty") == null && prop.IsVisibleInTree() && !professional.IsVisibleInTree());
+            Select(professionalId);
+            Command("CREATE_RACE_POLICE");
+            CallBuilder<object>("DeselectEntity", "race"); M.ProcessUpdate();
+            Check("deselecting the parent clears the child and its placement", PC.Active("race") == null && PC.Active("raceDifficulty") == null && !professional.IsVisibleInTree() && !prop.IsVisibleInTree());
+            var policeCount = PC.Find(professionalId).state.Array<ObjectState>("policeCars").Length;
+            builder.arrayPointPlacer.PlaceAt(new Vector3(-109,0,-110)); M.ProcessUpdate();
+            Check("a deselected parent cannot receive police clicks", PC.Find(professionalId).state.Array<ObjectState>("policeCars").Length == policeCount);
+            Select(professionalId);
+            var param = TP.GetCitySettings()["city"].typeData.parametersInfo.parameters.First(p => p.name == "circuitRaces");
+            History.UndoManager.Record("clone race with difficulty sets", () => {
+                History.UndoManager.Touch(city);
+                Operations.States.CloneArrayElement(city.state, param, Array.IndexOf(city.state.Array<ObjectState>("circuitRaces"), PC.Find(owner).state));
+                M.FlagAsChanged();
+            });
+            M.ProcessUpdate();
+            var copy = city.state.Array<ObjectState>("circuitRaces")[^1];
+            Check("cloning creates independent subcontainers and copies each opponent once", PC.EnsureId(copy.State("policeCars")) != amateurId && PC.EnsureId(copy.State("policeCars_professional")) != professionalId
+                && PC.Contents(PC.EnsureId(copy)).Count == PC.Contents(owner).Count && PC.Contents(PC.EnsureId(copy.State("policeCars_professional"))).Count == PC.Contents(professionalId).Count);
+            builder.PerformUndo(); await Frames(2);
+            //A different core may allow mesh instances in its filtered subcontainers too.
+            var amateurSettings = PC.Find(amateurId).settings;
+            var professionalSettings = PC.Find(professionalId).settings;
+            var amateurTypes = amateurSettings.types;
+            var professionalTypes = professionalSettings.types;
+            try {
+                amateurSettings.types = amateurTypes.Append("individualProp").ToArray();
+                professionalSettings.types = professionalTypes.Append("individualProp").ToArray();
+                History.UndoManager.Record("generic filtered mesh scopes", () => {
+                    var a = Operations.Meshes.NewSettings("individualProp"); PC.Assign(a, amateurId);
+                    var p = Operations.Meshes.NewSettings("individualProp"); PC.Assign(p, professionalId);
+                    var point = new Vector3(-160,0,-160);
+                    var aMesh = Operations.Meshes.Create(M, "race_test.obj", point, a);
+                    var pMesh = Operations.Meshes.Create(M, "race_test.obj", point, p);
+                    Check("a subcontainer eraser preserves the other subcontainer's overlapping meshes", Operations.Meshes.EraseInRadius(M, point, 1, p) == 1 && !aMesh.IsQueuedForDeletion() && pMesh.IsQueuedForDeletion());
+                    aMesh.Delete(); M.FlagAsChanged();
+                });
+                M.ProcessUpdate(); await Frames(2);
+            } finally {
+                amateurSettings.types = amateurTypes;
+                professionalSettings.types = professionalTypes;
+            }
+            builder.CloseAllPanels();
+            await Call("city.save"); await Call("city.reload");
+            Select(professionalId);
+            Check("save and reload preserve subcontainer identities and difficulty membership", PC.Active("race")?.state == PC.Find(owner).state && PC.Active("raceDifficulty")?.state == PC.Find(professionalId).state
+                && PC.Contents(professionalId).OfType<CustomElement>().Any(e => e.state.Int("difficulty") == 1 && e.IsVisibleInTree()));
+            await Frames(2);
+            Screenshot("race_professional_subcontainer.png");
+            //the hudmap holds the whole city state, with the races in it, but closing it must leave them selected
+            var cityPanel = builder.cityPropertiesEditorPanel;
+            void OpenHudmap() {
+                builder.CloseAllPanels();
+                builder.SelectObject(M.GetDummy<CityProperties>());
+                cityPanel.ShowTab("CP_HUDMAP");
+                M.ProcessUpdate();
+            }
+            OpenHudmap();
+            Check("a race and the hudmap can be selected together", PC.Active("race")?.state == PC.Find(owner).state && PC.Active("hudmap") != null);
+            CallBuilder<object>("DeselectEntity", "hudmap"); M.ProcessUpdate();
+            Check("closing the hudmap closes its tab and leaves the race and its difficulty selected", PC.Active("hudmap") == null && !cityPanel.IsOpen()
+                && PC.Active("race")?.state == PC.Find(owner).state && PC.Active("raceDifficulty")?.state == PC.Find(professionalId).state);
+            OpenHudmap();
+            builder.CloseAllPanels();
+            Select(owner);
+            var racePanel = CallBuilder<EditorPanel>("GetActivePanel");
+            CallBuilder<object>("DeselectEntity", "hudmap"); M.ProcessUpdate();
+            Check("closing the hudmap leaves the panel of the race open", PC.Active("hudmap") == null && PC.Active("race")?.state == PC.Find(owner).state
+                && racePanel is EditorPanels.ArrayElemEditorPanel && CallBuilder<EditorPanel>("GetActivePanel") == racePanel);
+            OpenHudmap();
+            CallBuilder<object>("DeselectEntity", "race"); M.ProcessUpdate();
+            Check("closing the race leaves the hudmap selected", PC.Active("race") == null && PC.Active("hudmap") != null);
+            CallBuilder<object>("DeselectEntity", "hudmap"); M.ProcessUpdate();
+            builder.CloseAllPanels();
+        }
+
         //undoing a waypoint of an opponent keeps its race selected, so what the race owns stays shown; deleting the opponent
         //afterwards removes it from the manager
         async Task OpponentWaypointUndo() {
@@ -49,6 +252,7 @@ namespace Api {
             var race = city.state.Array<ObjectState>("circuitRaces")[^1];
             var owner = PC.EnsureId(race);
             ArrayObject.activeElements["race"] = race;
+            ArrayObject.activeElements["raceDifficulty"] = race.State("policeCars");
             builder.NotifyVisibilityChange(); M.ProcessUpdate();
             History.UndoManager.Record("start opponent", () => CallBuilder<object>("StartCustomElementCreation", "opponent", "CREATE_CUSTOM_ELEMENT"));
             var hit = new GameEngine.Raycast.RaycastHit { collider = builder.helper, point = new Vector3(-100,0,-100) };
@@ -116,6 +320,7 @@ namespace Api {
             var otherOwner = PC.EnsureId(other);
             void Select(ObjectState state) {
                 ArrayObject.activeElements["race"] = state;
+                ArrayObject.activeElements["raceDifficulty"] = state?.State("policeCars");
                 builder.NotifyVisibilityChange();
                 M.ProcessUpdate();
             }
@@ -139,11 +344,15 @@ namespace Api {
             builder.CloseAllPanels();
             Command("CREATE_RACE_POLICE");
             History.UndoManager.Record("place amateur police", () => builder.arrayPointPlacer.PlaceAt(new Vector3(-111,0,-111)));
-            builder.containerPlacementPanel.SelectTarget(1);
+            builder.CloseAllPanels();
+            ArrayObject.activeElements["raceDifficulty"] = race.State("policeCars_professional");
+            builder.NotifyVisibilityChange(); M.ProcessUpdate();
+            Command("CREATE_RACE_POLICE");
             History.UndoManager.Record("place professional police", () => builder.arrayPointPlacer.PlaceAt(new Vector3(-112,0,-112)));
             M.ProcessUpdate();
             Check("police placement selects both difficulty targets", race.State("policeCars")?.Array<ObjectState>("policeCars")?.Length == 1 && race.State("policeCars_professional")?.Array<ObjectState>("policeCars")?.Length == 1);
             builder.CloseAllPanels();
+            Select(race);
             History.UndoManager.Record("start opponent", () => CallBuilder<object>("StartCustomElementCreation", "opponent", "CREATE_CUSTOM_ELEMENT"));
             Check("opponent draft opens before placement", builder.customElementEditorPanel.IsOpen() && builder.customElementPlacer.GetElement() == null);
             Check("opponent draft exposes the car model before placement", builder.customElementPlacer.creationState.State("carModel") != null);
@@ -280,6 +489,7 @@ namespace Api {
             Log("containers menu and roam police cars");
             builder.CloseAllPanels();
             var city = M.GetDummy<CityProperties>();
+            ArrayObject.activeElements["raceDifficulty"] = null;
             var race = city.state.Array<ObjectState>("circuitRaces")[0];
             var param = TP.GetCitySettings()["city"].typeData.parametersInfo.parameters.First(p => p.name == "roamPoliceCars");
             ObjectState roam = null;
@@ -389,7 +599,10 @@ namespace Api {
             List<Godot.Button> ButtonsOf(EditorPanel panel, string text) => Elements(panel).OfType<EditorPanelElements.Button>()
                 .Select(b => (Godot.Button)typeof(EditorPanelElements.Button).GetField("button", flags).GetValue(b)).Where(b => b.Text == text).ToList();
             string amateur = StringManager.Get("RACE_AMATEUR"), professional = StringManager.Get("RACE_PROFESSIONAL"), props = StringManager.Get("RACE_PROPS");
-            void OpenOpponents(EditorPanel panel, string difficulty) => ButtonsOf(panel, difficulty)[1].EmitSignal(Godot.Button.SignalName.Pressed); //after the police cars
+            void OpenOpponents(EditorPanel panel, string difficulty) {
+                Press(panel, difficulty);
+                Press(Shown(), StringManager.Get("RACE_OPPONENTS"));
+            }
             List<List<EditorPanelElement>> Rows(EditorPanel panel) {
                 var pages = (System.Collections.IList)typeof(EditorPanel).GetField("pages", flags).GetValue(panel);
                 return (List<List<EditorPanelElement>>)typeof(EditorPanelPage).GetField("elements", flags).GetValue(pages[0]);
@@ -398,13 +611,13 @@ namespace Api {
             var back = StringManager.Get("BACK");
 
             var racePanel = PC.Open(builder, PC.Find(owner));
-            Check("a race panel has a button for each list", ButtonsOf(racePanel, amateur).Count == 2 && ButtonsOf(racePanel, professional).Count == 2 && ButtonOf(racePanel, props) != null);
+            Check("a race panel has both difficulty subcontainers and its props", ButtonsOf(racePanel, amateur).Count == 1 && ButtonsOf(racePanel, professional).Count == 1 && ButtonOf(racePanel, props) != null);
             Check("the amateur and professional values are side by side", Rows(racePanel).Count(r => r.OfType<EditorPanelElements.Dropdown>().Count() == 2) == 2 && Rows(racePanel).Count(r => r.OfType<EditorPanelElements.InputField>().Count() == 2) == 3);
             Check("the values have one label each", Rows(racePanel).Where(r => r.OfType<EditorPanelElements.Dropdown>().Count() == 2).All(r => r.OfType<EditorPanelElements.Label>().Count() == 0));
             Check("the checkpoints are not listed in the race panel", !Elements(racePanel).OfType<EditorPanelElements.ScrollList>().Any() && ButtonOf(racePanel, StringManager.Get("CHECKPOINTS")) != null);
             await Frames(2);
             Screenshot("race_contents_panel.png");
-            Check("amateur is on the left of professional, in the police cars and opponents rows", Enumerable.Range(0, 2).All(i => ButtonsOf(racePanel, amateur)[i].GlobalPosition.X < ButtonsOf(racePanel, professional)[i].GlobalPosition.X));
+            Check("amateur is on the left of professional", ButtonOf(racePanel, amateur).GlobalPosition.X < ButtonOf(racePanel, professional).GlobalPosition.X);
             History.UndoManager.Record("different time of day", () => { race.SetInt("timeOfDay", 1); race.SetInt("timeOfDay_professional", 2); });
             builder.CloseAllPanels();
             racePanel = PC.Open(builder, PC.Find(owner));
@@ -424,7 +637,9 @@ namespace Api {
             var police = racePanel.OpenArrayElement("policeCars", null);
             await Frames(2);
             Check("the police cars panel opens", police != null && Shown() == police);
-            Check("the police cars have no Add button", ButtonOf(police, StringManager.Get("ARRAY_ADD")) == null && ButtonOf(police, goUp) != null);
+            Check("the difficulty panel offers police and opponents", ButtonOf(police, StringManager.Get("POLICE_CARS")) != null && ButtonOf(police, StringManager.Get("RACE_OPPONENTS")) != null);
+            Press(police, StringManager.Get("POLICE_CARS"));
+            Check("the police cars have no Add button", ButtonOf(Shown(), StringManager.Get("ARRAY_ADD")) == null && ButtonOf(Shown(), goUp) != null);
             Check("the back button of the panels is called Back", goUp == StringManager.Get("BACK"));
             Screenshot("race_police_panel.png");
             builder.CloseAllPanels();
@@ -444,6 +659,35 @@ namespace Api {
                 M.FlagAsChanged();
             });
             M.ProcessUpdate();
+            //what is selected in a list is outlined, while the list is shown
+            bool Outlined(Node node) {
+                var renderers = RuntimeGizmos.SelectionOutline.GetRenderers(node);
+                return renderers.Count > 0 && renderers.All(r => (r.Layers & (1u << 16)) != 0);
+            }
+            var checkpointStates = undoRace.Array<ObjectState>("checkpoints");
+            bool CheckpointOutlined(int i) => Outlined(Checkpoint(checkpointStates[i]));
+            checkpointsList.RefreshValues();
+            var checkpointItems = Elements(checkpointsList).OfType<EditorPanelElements.ScrollList>().First();
+            await Frames(2);
+            Check("no checkpoint is outlined before one is selected in the list", !CheckpointOutlined(0) && !CheckpointOutlined(1));
+            checkpointItems.SetValue(1);
+            await Frames(2);
+            Check("the checkpoint selected in the list is outlined", CheckpointOutlined(1) && !CheckpointOutlined(0));
+            Screenshot("race_checkpoint_outline.png");
+            checkpointItems.SetValue(0);
+            await Frames(2);
+            Check("selecting another checkpoint moves the outline", CheckpointOutlined(0) && !CheckpointOutlined(1));
+            checkpointsList.SetActive(false);
+            await Frames(2);
+            Check("hiding the list removes the outline", !CheckpointOutlined(0));
+            checkpointsList.SetActive(true);
+            await Frames(2);
+            Check("showing the list again selects nothing", checkpointItems.Selected == -1 && !CheckpointOutlined(0));
+            checkpointItems.SetValue(0);
+            await Frames(2);
+            checkpointsList.RefreshValues();
+            await Frames(2);
+            Check("deselecting in the list removes the outline", checkpointItems.Selected == -1 && !CheckpointOutlined(0));
             History.UndoManager.Undo(); await Frames(3);
             race = PC.Find(owner).state;
             Check("undo reopens the checkpoints sub-panel", Shown() is EditorPanels.ArrayListPanel);
@@ -461,6 +705,10 @@ namespace Api {
             Check("the race stays selected in its lists", ArrayObject.activeElements["race"] == race);
             await Frames(2);
             Screenshot("race_contents_props.png");
+            var outlinedProp = Listed(list).First(n => RuntimeGizmos.SelectionOutline.GetRenderers(n).Count > 0);
+            Pick(list, outlinedProp);
+            await Frames(2);
+            Check("the prop selected in the props list is outlined", Outlined(outlinedProp));
             var line = Listed(list).OfType<CustomElement>().First(e => e.TypeName == "propLine");
             line.state.State("propRule")?.State("main")?.SetStr("mesh", "race_test.obj");
             Pick(list, line);
@@ -513,7 +761,7 @@ namespace Api {
             M.FlagAsChanged(); M.ProcessUpdate();
             Check("deleting from a list updates it and stays there", Shown() == list && !Listed(list).Contains(prop) && PC.Contents(owner).Count == before - 1);
             History.UndoManager.Undo(); await Frames(3);
-            Check("undo restores the deleted prop and reopens the list", PC.Contents(owner).Count == before && Shown() is EditorPanels.ContainerContentsPanel reopened && Listed(reopened).Count == PC.Contents(owner, PC.ContentGroups(PC.Find(owner).settings)[2]).Count);
+            Check("undo restores the deleted prop and reopens the list", PC.Contents(owner).Count == before && Shown() is EditorPanels.ContainerContentsPanel reopened && Listed(reopened).Count == PC.Contents(owner, PC.ContentGroups(PC.Find(owner).settings)[0]).Count);
             list = (EditorPanels.ContainerContentsPanel)Shown();
             Pick(list, Listed(list).OfType<CustomElement>().Last(e => e.TypeName == "propLine"));
             Press(list, StringManager.Get("DELETE"));
@@ -553,6 +801,9 @@ namespace Api {
             racePanel = PC.Open(builder, PC.Find(owner));
             OpenOpponents(racePanel, professional);
             Check("a professional opponent is in the professional list", Listed((EditorPanels.ContainerContentsPanel)Shown()).Contains(opponent));
+            Pick((EditorPanels.ContainerContentsPanel)Shown(), opponent);
+            await Frames(2);
+            Check("the opponent selected in its list is outlined", Outlined(opponent));
             builder.CloseAllPanels();
             opponent.state.SetInt("difficulty", 0);
 
@@ -562,7 +813,9 @@ namespace Api {
             Check("an opponent clicked in the city has a back button", ButtonOf(builder.customElementEditorPanel, back) != null);
             Press(builder.customElementEditorPanel, back);
             await Frames(1);
-            Check("back from an opponent clicked in the city goes to its race", Shown() is EditorPanels.ArrayElemEditorPanel && PC.Active("race")?.state == PC.Find(owner).state);
+            Check("back from an opponent clicked in the city goes to its difficulty", Shown() is EditorPanels.ArrayElemEditorPanel panel
+                && typeof(EditorPanels.ArrayElemEditorPanel).GetField("curState", flags).GetValue(panel) == PC.Find(owner).state.State("policeCars")
+                && PC.Active("raceDifficulty")?.state == PC.Find(owner).state.State("policeCars"));
             builder.CloseAllPanels();
 
             //deleting a checkpoint: from the race panel it goes back to it, clicked in the city it just closes
@@ -597,6 +850,77 @@ namespace Api {
             Screenshot("race_checkpoint_deleted.png");
             builder.CloseAllPanels();
 
+            //closing a container closes the panels of what it owns, which gets hidden with it
+            var amateurId = PC.EnsureId(PC.Find(owner).state.State("policeCars"));
+            void SelectRace(bool difficulty) {
+                ArrayObject.activeElements["race"] = PC.Find(owner).state;
+                ArrayObject.activeElements["raceDifficulty"] = difficulty ? PC.Find(amateurId).state : null;
+                builder.NotifyVisibilityChange(); M.ProcessUpdate();
+            }
+            void Close(string category) { CallBuilder<object>("DeselectEntity", category); M.ProcessUpdate(); }
+            bool AllClosed() => Shown() == null && !builder.cityPropertiesEditorPanel.IsOpen() && builder.gizmo.mainTargetRoot == null;
+            void Edit(Node3D node) { History.UndoManager.Record("click element", () => builder.SelectObject(node)); }
+            SelectRace(true);
+            Edit(opponent);
+            await Frames(1);
+            Check("an opponent panel opens before closing its difficulty", Shown() == builder.customElementEditorPanel && builder.customElementPlacer.GetElement() == opponent);
+            Close("raceDifficulty");
+            Check("closing a difficulty closes the panel of its opponent", AllClosed());
+            Check("closing a difficulty leaves its race selected", PC.Active("race") != null);
+            SelectRace(true);
+            Edit(opponent);
+            await Frames(1);
+            Close("race");
+            Check("closing a race closes the panel of an opponent of its difficulty", AllClosed() && PC.Active("race") == null);
+            SelectRace(true);
+            var ownedLine = PC.Contents(owner).OfType<CustomElement>().First(e => e.TypeName == "propLine");
+            Edit(ownedLine);
+            await Frames(1);
+            Close("raceDifficulty");
+            Check("closing a difficulty leaves the panel of a prop line of the race open", Shown() == builder.customElementEditorPanel && builder.customElementPlacer.GetElement() == ownedLine);
+            Close("race");
+            Check("closing a race closes the panel of its prop line", AllClosed());
+            SelectRace(false);
+            Edit(ownedLine);
+            await Frames(1);
+            builder.gizmo.AddTarget(ownedLine.GetAllPoints()[0].GetObject());
+            CallBuilder<object>("EditCurSelectedObjectTransform");
+            await Frames(1);
+            Check("the transform panel of a control point of a prop line opens", Shown() == transformPanel && builder.ControlPointOwnerCustomElement == ownedLine);
+            Close("race");
+            Check("closing a race closes the transform panel of a control point and the hidden element panel", AllClosed() && !builder.customElementEditorPanel.IsOpen() && builder.ControlPointOwnerCustomElement == null);
+            SelectRace(false);
+            racePanel = PC.Open(builder, PC.Find(owner));
+            Press(racePanel, props);
+            list = (EditorPanels.ContainerContentsPanel)Shown();
+            Pick(list, Listed(list).OfType<MeshInstance>().First());
+            Press(list, StringManager.Get("EDIT"));
+            await Frames(1);
+            Check("a prop opens from its list before closing the race", Shown() == transformPanel);
+            Close("race");
+            Check("closing a race closes the panel of its prop and the list it was opened from", AllClosed());
+            SelectRace(false);
+            racePanel = PC.Open(builder, PC.Find(owner));
+            Press(racePanel, props);
+            Close("race");
+            Check("closing a race closes the list of its contents", AllClosed());
+            SelectRace(false);
+            History.UndoManager.Record("click checkpoint", () => CallBuilder<bool>("SelectCityPropertiesObject", Checkpoint(PC.Find(owner).state.Array<ObjectState>("checkpoints")[0])));
+            await Frames(1);
+            Check("a checkpoint panel opens before closing the race", Shown() == transformPanel);
+            Close("race");
+            Check("closing a race closes the panel of its checkpoint", AllClosed());
+            //the other containers keep their panels open
+            SelectRace(true);
+            Edit(opponent);
+            await Frames(1);
+            ArrayObject.activeElements["hudmap"] = city.state;
+            Close("hudmap");
+            Check("closing the hudmap leaves the panel of an opponent open", Shown() == builder.customElementEditorPanel && builder.customElementPlacer.GetElement() == opponent);
+            builder.CloseAllPanels();
+            SelectRace(true);
+            race = PC.Find(owner).state;
+
             //the layout of the race panels: what it doesn't list can't be edited or selected
             foreach (var typeName in new[] { "circuitRace", "checkpointRace", "blitzRace" }) {
                 var type = TP.GetCustomCityPropertiesTypes()[typeName];
@@ -617,8 +941,8 @@ namespace Api {
                 circuitRace.uiInfo = new[] { new CT.TabElement { name = "content:RACE_PROPS", width = 1.5f }, new CT.TabElement { name = "name", width = 1.5f } };
                 racePanel = PC.Open(builder, PC.Find(owner));
                 await Frames(2);
-                Check("the lists a layout doesn't place are after it", ButtonOf(racePanel, props).GlobalPosition.Y < ButtonOf(racePanel, amateur).GlobalPosition.Y
-                    && ButtonsOf(racePanel, amateur).Count == 1 && ButtonsOf(racePanel, professional).Count == 1);
+                Check("a layout can place the props list and omit the difficulty buttons", ButtonOf(racePanel, props) != null
+                    && ButtonsOf(racePanel, amateur).Count == 0 && ButtonsOf(racePanel, professional).Count == 0);
                 Press(racePanel, props);
                 Check("a list placed by a layout opens", Shown() is EditorPanels.ContainerContentsPanel);
             } finally {
@@ -679,8 +1003,12 @@ namespace Api {
                 var addedPanel = PC.Open(builder, PC.Find(PC.EnsureId(added)));
                 await Frames(2);
                 Screenshot(key + "_panel.png");
-                Check(key + " have the opponents only if they can own them", ButtonsOf(addedPanel, amateur).Count == (withOpponents ? 2 : 1) && ButtonOf(addedPanel, props) != null && ButtonOf(addedPanel, StringManager.Get("CHECKPOINTS")) != null);
+                Check(key + " have difficulty subcontainers, props and checkpoints", ButtonsOf(addedPanel, amateur).Count == 1 && ButtonOf(addedPanel, props) != null && ButtonOf(addedPanel, StringManager.Get("CHECKPOINTS")) != null);
                 Check(key + " have their values side by side", Rows(addedPanel).Count(r => r.OfType<EditorPanelElements.InputField>().Count() == 2) == inputRows);
+                Press(addedPanel, amateur);
+                Check(key + " have the opponents only if supported", (ButtonOf(Shown(), StringManager.Get("RACE_OPPONENTS")) != null) == withOpponents);
+                builder.CloseAllPanels();
+                addedPanel = PC.Open(builder, PC.Find(PC.EnsureId(added)));
                 Press(addedPanel, props);
                 Check(key + " open their props list", Shown() is EditorPanels.ContainerContentsPanel);
                 builder.CloseAllPanels();
