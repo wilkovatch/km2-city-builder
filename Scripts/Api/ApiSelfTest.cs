@@ -247,6 +247,9 @@ namespace Api {
                 } else if (focus == "propPlacers") {
                     await NewCity();
                     await PropPlacers();
+                } else if (focus == "splineState") {
+                    await NewCity();
+                    await SplineInstanceState();
                 } else if (System.Environment.GetEnvironmentVariable("KM2_SELFTEST_INCREMENTAL") == "1") {
                     await NewCity();
                     IncrementalUpdates();
@@ -304,6 +307,7 @@ namespace Api {
                     await SurfaceProjection();
                     await CustomElementPresetWorkflow();
                     await MapLabels();
+                    await SplineInstanceState();
                 }
             } catch (Abort e) {
                 Log("aborted: " + e.Message);
@@ -1442,6 +1446,7 @@ namespace Api {
         //the elements created by the API are the same as the ones created with the editor tools
         async Task Parity() {
             //road: the road tool, clicked point by point with the road editor open
+            PresetManager.lastRoadInstanceState = null; //otherwise it takes the spline values of the last road selected, which the API doesn't
             UndoManagerRecord("create road", () => CallBuilder<object>("CreateRoad"));
             await Frames(3);
             var placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;

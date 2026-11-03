@@ -502,7 +502,7 @@ namespace Api {
             types[key] = new CityElements.Types.Runtime.CustomElementType(source, key);
             int id = -1;
             try {
-                id = (await Call("customElement.create", new { type = key, state = new { width = 3, drawStrip = true, texture = "texture/decal_zigzag_l.tex" },
+                id = (await Call("customElement.create", new { type = key, state = new { width = 3, drawStrip = true, texture = "texture/decal_zigzag_l.tex", curveType = 2 },
                     points = new { spline = new[] { new { position = new[] { 600, 0, 600 } }, new { position = new[] { 600, 0, 610 } }, new { position = new[] { 600, 0, 620 } } } } })).Value<int>();
                 var element = (CustomElement)History.UndoManager.GetAliveElement(id);
                 Check("spline components evaluate dynamic definitions per section", Mathf.Abs(element.splineData.sections[0].vertices[1][0] - element.splineData.sections[0].vertices[0][0]) == 4 &&

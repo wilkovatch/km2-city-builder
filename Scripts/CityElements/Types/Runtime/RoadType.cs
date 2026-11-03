@@ -137,12 +137,12 @@ namespace CityElements.Types.Runtime {
             FillBaseInitialVariables(variableContainer, state, instanceState, runtimeState);
         }
 
-        public GeometryHelper.CurveType GetCurveType(ObjectState state) {
-            return (GeometryHelper.CurveType)state.Int("curveType");
+        public GeometryHelper.CurveType GetCurveType(ObjectState instanceState) {
+            return (GeometryHelper.CurveType)instanceState.Int("curveType");
         }
 
-        public virtual bool NeedsLowPolyFix(ObjectState state, int segments) {
-            return segments > 2 && (GetCurveType(state) == GeometryHelper.CurveType.LowPoly || state.Bool("adjustLowPolyWidth"));
+        public virtual bool NeedsLowPolyFix(ObjectState instanceState, int segments) {
+            return segments > 2 && (GetCurveType(instanceState) == GeometryHelper.CurveType.LowPoly || instanceState.Bool("adjustLowPolyWidth"));
         }
 
         public override void FillInitialSegmentVariables(RC.VariableContainer variableContainer, Vector3 right0, Vector3 right1, Vector3 up0, Vector3 up1,
@@ -178,7 +178,7 @@ namespace CityElements.Types.Runtime {
                 FillFloat(variableContainer, "absY" + i, sectionVertices[i][1]);
                 FillFloat(variableContainer, "absZ" + i, sectionVertices[i][2]);
             }
-            if (NeedsLowPolyFix(state, segments)) {
+            if (NeedsLowPolyFix(instanceState, segments)) {
                 var loyPolyAdjust = GetLowpolyCurveMult(section - 1, curvePoints);
                 foreach (var param in typeData.parameters.parameters) {
                     if ((param.type == "float") && widths.Contains(param.fullName())) {

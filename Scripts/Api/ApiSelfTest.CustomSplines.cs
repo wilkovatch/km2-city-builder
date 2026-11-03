@@ -589,16 +589,16 @@ namespace Api {
                 await Call("roads.setPointRotation",new {road=id,index=1,yaw=4,roll=8});
                 Check("custom road interpolates banking values",road.customCurve.Interpolate(road.GetPointRotations(),.5f).Length() > 0);
                 points = road.points.Select(GO.GetPosition).ToList();
-                curve = SplineCurves.Create(settings,road.state,points);
+                curve = SplineCurves.ForRoad(settings,road.state,road.instanceState,points);
                 var oldPrepared = road.customCurve;
                 await Call("roads.movePoint",new { road=id,index=1,position=SplinePosition(points[1]+new Vector3(2,0,1)) });
                 Check("editing a road invalidates its prepared curve",road.customCurve != oldPrepared);
-                points = road.points.Select(GO.GetPosition).ToList(); curve = SplineCurves.Create(settings,road.state,points);
+                points = road.points.Select(GO.GetPosition).ToList(); curve = SplineCurves.ForRoad(settings,road.state,road.instanceState,points);
                 var originalHandle = road.points[0];
                 var originalRotations = road.GetPointRotations();
                 var split = SplineCurveOperations.Split(road,.5f);
                 Check("custom split retains source handles and the exact join",split.first.sources[0] == originalHandle && split.first.points[^1].DistanceTo(curve.Position(.5f)) < .001f);
-                var firstCurve = SplineCurves.Create(settings,split.first.state,split.first.points);
+                var firstCurve = SplineCurves.ForRoad(settings,split.first.state,road.instanceState,split.first.points);
                 Check("custom split preserves its source curve",Enumerable.Range(0,17).All(i => firstCurve.Position(i/16f).DistanceTo(curve.Position(i/32f)) < .001f));
                 var temporary = new List<Road>();
                 try {
@@ -614,7 +614,7 @@ namespace Api {
                 try {
                     definition.evaluate = "zzSplineSelfTest.invalid";
                     bool invalid = false;
-                    try { SplineCurves.Create(settings,road.state,points).Position(.5f); } catch (ArgumentException) { invalid=true; }
+                    try { SplineCurves.ForRoad(settings,road.state,road.instanceState,points).Position(.5f); } catch (ArgumentException) { invalid=true; }
                     Check("non-finite custom curve results are rejected",invalid);
                     definition.evaluate = evaluate;
                     definition.split = "zzSplineSelfTest.fail";
@@ -643,11 +643,11 @@ namespace Api {
                 Check("retained road endpoint keeps its identity",Road().points[0] == originalHandle);
                 Check("custom split/merge restores banking controls",Road().GetPointRotations().Zip(originalRotations).All(p => p.First.DistanceTo(p.Second)<.001f));
                 await Call("history.undo"); await Call("history.redo");
-                Check("custom road topology supports undo/redo",Road().points.Count == 4 && Road().state.Int("curveType") == 90);
+                Check("custom road topology supports undo/redo",Road().points.Count == 4 && Road().instanceState.Int("curveType") == 90);
                 await Call("presets.save",new { category="road",name="Custom road",values=JObject.FromObject(Road().state) });
                 await Call("city.save"); await Call("city.reload");
                 road = M.roads.First(r => r.state.Str("type") == "zzSplineTest");
-                Check("custom road survives save/reload",road.customCurve != null && road.state.Int("curveType") == 90);
+                Check("custom road survives save/reload",road.customCurve != null && road.instanceState.Int("curveType") == 90);
                 var geometry = await Call("elements.geometry",new { @ref=History.ElementRegistry.GetId(road) });
                 Check("custom road export retains authored control count",(geometry["element"]["b64v3a_points"] ?? geometry["element"]["points"]) != null);
                 await Call("presets.delete",new {category="road",name="Custom road"});

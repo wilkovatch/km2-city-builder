@@ -75,6 +75,8 @@ static class PresetManager {
     public static bool loaded = false;
 
     public static ObjectState lastIntersection = null;
+    //the instance state of the last road selected in the editor (it stays valid after the road is deleted)
+    public static ObjectState lastRoadInstanceState = null;
 
     public static PresetContainer GetPresets() {
         if (!loaded) {
@@ -88,6 +90,7 @@ static class PresetManager {
             }
             loaded = true;
             lastIntersection = null;
+            lastRoadInstanceState = null;
             Operations.CustomElementPresets.ClearLastPresets();
             if (PreferencesManager.workingDirectory != "") {
                 var changed = false;

@@ -26,6 +26,16 @@ namespace CityElements.Types {
     public class RoadSettings {
         public int[] curveTypes; //null: the three built-in curves
         public int defaultCurveType;
+        //the initial values of the spline of a new element (kept in its instance state, never in the presets)
+        public int segments = 10;
+        public bool segmentsPer100m;
+        public float hermiteTension = 0.5f;
+        public bool subdivideEqually;
+        public bool project = true;
+        public bool projectAll;
+        public int lpf;
+        public bool adjustLowPolyWidth;
+        public bool makeCoplanar; //also applied if the type hides it, so a core has to enable it
         public bool variableSections;
         public bool allowYaw = true; //whether the control points can rotate the sections around the vertical axis
         public bool allowRoll = true; //whether the control points can bank the sections

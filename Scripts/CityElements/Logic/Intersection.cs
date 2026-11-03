@@ -252,7 +252,7 @@ public partial class Intersection: IObjectWithState {
         }
         var pos = GO.GetPosition(point);
         foreach (var road in roads) {
-            if (road.state.Bool("project")) {
+            if (road.instanceState.Bool("project")) {
                 pos = GeometryHelper.ProjectPoint(pos);
                 break;
             }
@@ -307,7 +307,7 @@ public partial class Intersection: IObjectWithState {
     //horizontally, their projection is not a move.
     Vector3? GetMovedRoadEnd() {
         foreach (var road in roads) {
-            var projected = road.state.Bool("project") || road.state.Bool("projectAll");
+            var projected = road.instanceState.Bool("project") || road.instanceState.Bool("projectAll");
             foreach (var index in GetEndIndices(road)) {
                 var pos = GO.GetPosition(road.points[index]);
                 if (!endPositions.TryGetValue((road, index), out var last)) continue;
@@ -569,8 +569,8 @@ public partial class Intersection: IObjectWithState {
                 roadGen.instanceState = (ObjectState)roads[startRoad].instanceState.Clone();
                 roadGen.runtimeState = (ObjectState)roads[startRoad].runtimeState.Clone();
                 roadGen.runtimeState.SetBool("throughIntersection", true);
-                roadGen.state.SetInt("curveType", (int)GeometryHelper.CurveType.Hermite);
-                roadGen.state.SetBool("adjustLowPolyWidth", false);
+                roadGen.instanceState.SetInt("curveType", (int)GeometryHelper.CurveType.Hermite);
+                roadGen.instanceState.SetBool("adjustLowPolyWidth", false);
                 roadGen.segments = 2;
                 roadGen.ResetSubGen();
 

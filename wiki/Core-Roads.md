@@ -103,7 +103,21 @@ A getter that is missing, or points to a missing definition, logs a warning once
 
 ### Built-in parameters
 
-Besides the core's parameters, every road has these built-in state properties (edited in `mainGroup` and `intersectionGroup`): `type`, `segments`, `segmentsPer100m`, `project`, `projectAll`, `lpf` (smoothing), `makeCoplanar`, `pointPlaneTreshold`, `adjustLowPolyWidth`, `curveType` (0 Bézier, 1 Hermite, 2 low-poly), `subdivideEqually`, `hermiteTension`, `startCrosswalkSize`, `endCrosswalkSize`, `startIntersectionAdd`, `endIntersectionAdd`, `startIntersectionTexture`, `endIntersectionTexture`, `propRule`; and in the instance state `startIntersectionStart`, `startIntersectionEnd`, `endIntersectionStart`, `endIntersectionEnd`, `intersectionMove`, `startConnectionHeight`, `endConnectionHeight`, `startConnectionHeightAuto`, `endConnectionHeightAuto`. Preset values for them should be provided by the templates.
+Besides the core's parameters, every road has these built-in state properties (edited in `mainGroup` and `intersectionGroup`): `type`, `pointPlaneTreshold`, `startCrosswalkSize`, `endCrosswalkSize`, `startIntersectionAdd`, `endIntersectionAdd`, `startIntersectionTexture`, `endIntersectionTexture`, `propRule`. Preset values for them should be provided by the templates.
+
+These are in the instance state, so presets never store or change them: the values of the spline, `segments`, `segmentsPer100m`, `project`, `projectAll`, `lpf` (smoothing), `makeCoplanar`, `adjustLowPolyWidth`, `curveType` (0 Bézier, 1 Hermite, 2 low-poly), `subdivideEqually`, `hermiteTension`; and `startIntersectionStart`, `startIntersectionEnd`, `endIntersectionStart`, `endIntersectionEnd`, `intersectionMove`, `startConnectionHeight`, `endConnectionHeight`, `startConnectionHeightAuto`, `endConnectionHeightAuto`.
+
+A road created in the editor takes the values of the spline from the last road selected (for the session, a loaded city starts over), keeping the curve type only if its type allows it and `makeCoplanar` only if its type shows it. It also takes the instance-specific parameters of the core marked `reuseInNewRoads` (see [Parameters and UI](Parameters-and-UI)). Otherwise, and always for a road created with the API, they are the initial values in the `settings.json` of its road type:
+
+| Setting | Default | Sets |
+|---|---|---|
+| `defaultCurveType` | `0` | `curveType` |
+| `segments`, `segmentsPer100m` | `10`, `false` | The same properties |
+| `hermiteTension`, `subdivideEqually` | `0.5`, `false` | The same properties |
+| `project`, `projectAll` | `true`, `false` | The same properties |
+| `lpf` | `0` | The smoothing iterations |
+| `adjustLowPolyWidth` | `false` | The same property |
+| `makeCoplanar` | `false` | The same property. It applies even if the type hides it, so set it only on the types using it |
 
 ### Per-end parameters
 

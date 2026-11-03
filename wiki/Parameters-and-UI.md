@@ -36,6 +36,7 @@ Definitions and loop variables are described in [Expression Language](Expression
 | `tooltip` | String key of the tooltip (optional). |
 | `container` | Optional group name. The parameter's full name becomes `<container>_<name>`, which is the name to use in expressions and in `ui.json`. All parameters of a container can be saved and loaded as one preset with a `PRESET_<container>` UI element (MM2 uses it for railings: `rail_type`, `rail_height`, ...). Do not use underscores in container names or in the names of parameters inside a container. |
 | `instanceSpecific` | If true, the value belongs to this element only and presets never overwrite it (for example a block number or a per-road traffic rule). Roads, intersections, building lines and terrain patch border meshes store it in a separate *instance state*. Custom elements keep it in their single state and exclude it from presets; reference parameters of custom element types are always instance-specific. |
+| `reuseInNewRoads` | For an `instanceSpecific` parameter of a road type: a road created in the editor takes its value from the last road selected, with the values of its spline (see [Core Roads](Core-Roads#built-in-parameters)). The other instance-specific parameters start empty. |
 | `enumLabels` | For `enum`: string keys of the options. |
 | `arrayProperties` | For `array`, see below. |
 | `customCityPropertiesType` | For `customCityProperties`: name of a file in `customCityPropertiesTypes/`. |

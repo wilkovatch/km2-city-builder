@@ -193,4 +193,17 @@ public static class SplineCurves {
         ValidateState(settings, state);
         return state.Int("curveType", settings?.defaultCurveType ?? 0) > 2 ? new Curve(settings, state, points, start, end, closed) : null;
     }
+
+    //The curves see both states of a road as one, as they see the single state of a custom element.
+    public static ObjectState RoadState(ObjectState state, ObjectState instanceState) {
+        var merged = new ObjectState();
+        foreach (var p in state.properties) merged.SetProperty(p.Key, p.Value);
+        foreach (var p in instanceState.properties) merged.SetProperty(p.Key, p.Value);
+        return merged;
+    }
+
+    public static Curve ForRoad(Settings settings, ObjectState state, ObjectState instanceState, List<Vector3> points, Vector3? start = null, Vector3? end = null) {
+        ValidateState(settings, instanceState);
+        return instanceState.Int("curveType", settings?.defaultCurveType ?? 0) > 2 ? new Curve(settings, RoadState(state, instanceState), points, start, end) : null;
+    }
 }

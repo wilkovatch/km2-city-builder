@@ -98,11 +98,11 @@ public static class RoadMerger {
     }
 
     static bool IsProjected(Road road) {
-        return road.state.Bool("project") || road.state.Bool("projectAll");
+        return road.instanceState.Bool("project") || road.instanceState.Bool("projectAll");
     }
 
     static float GetTension(Road road) {
-        return road.state.Float("hermiteTension", 0.5f);
+        return road.instanceState.Float("hermiteTension", 0.5f);
     }
 
     //whether the control points of the other road describe the same curve if they are given to the kept road
@@ -110,7 +110,7 @@ public static class RoadMerger {
         var type = keep.GetCurveType();
         if (type != other.GetCurveType()) return false;
         if (type != GH.CurveType.Hermite) return true;
-        return GetTension(keep) == GetTension(other) && keep.state.Bool("subdivideEqually") == other.state.Bool("subdivideEqually");
+        return GetTension(keep) == GetTension(other) && keep.instanceState.Bool("subdivideEqually") == other.instanceState.Bool("subdivideEqually");
     }
 
     //reversed, the sections of a road are the same, but its right is the left
@@ -164,7 +164,7 @@ public static class RoadMerger {
             var samples = SampleCurve(other, reversed);
             (otherPositions, otherRotations) = type == GH.CurveType.LowPoly
                 ? SimplifyPolyline(samples, LowPolyFitTolerance)
-                : FitHermite(samples, GetTension(keep), keep.state.Bool("subdivideEqually"));
+                : FitHermite(samples, GetTension(keep), keep.instanceState.Bool("subdivideEqually"));
         }
         var firstPositions = plan.keepAtEnd ? keepPositions : otherPositions;
         var secondPositions = plan.keepAtEnd ? otherPositions : keepPositions;
@@ -239,7 +239,7 @@ public static class RoadMerger {
             res.rotations.Add(rotations[rotations.Count - 1]);
         } else {
             var tension = GetTension(road);
-            var subdivideEqually = road.state.Bool("subdivideEqually");
+            var subdivideEqually = road.instanceState.Bool("subdivideEqually");
             var cps = positions.GetRange(1, positions.Count - 2);
             var count = SamplesPerSpan * (positions.Count - 1) + 1;
             for (int i = 0; i < count; i++) {
@@ -478,8 +478,8 @@ public static class RoadMerger {
         CopyEndProperties(other.instanceState, otherSide, keep.instanceState, keepSide);
 
         //the same number of segments for each part (the low-poly curves have one for each control point)
-        if (!keep.state.Bool("segmentsPer100m") && keep.GetCurveType() != GH.CurveType.LowPoly) {
-            keep.state.SetInt("segments", keep.GetStateSegments() + other.GetStateSegments());
+        if (!keep.instanceState.Bool("segmentsPer100m") && keep.GetCurveType() != GH.CurveType.LowPoly) {
+            keep.instanceState.SetInt("segments", keep.GetStateSegments() + other.GetStateSegments());
         }
 
         Operations.Intersections.Delete(joint); //detaches both roads
@@ -498,7 +498,7 @@ public static class RoadMerger {
             //Per-end properties copied above take precedence over the prevalidated curve-specific state patch.
             var state = (ObjectState)keep.state.Clone();
             foreach (var p in plan.custom.state.properties) {
-                if (GetEndWord(p.Key) == null && p.Key != "segments") state.SetProperty(p.Key, p.Value);
+                if (GetEndWord(p.Key) == null) state.SetProperty(p.Key, p.Value);
             }
             plan.custom.state = state;
             SplineCurveOperations.Apply(new[] { (keep, plan.custom) }, originalHandles);

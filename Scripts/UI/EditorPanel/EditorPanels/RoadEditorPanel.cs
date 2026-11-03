@@ -60,13 +60,17 @@ namespace EditorPanels {
                 if (pS.EditingPreset()) pointPlacementModeDropdown.SetInteractable(false);
                 p.IncreaseRow();
 
-                p.AddFieldCheckbox(SM.Get("RD_PROJECT_ALL_TO_GROUND"), GetCurRoad, "state.properties.projectAll", null, w / 3, null, null, PlacementHeight.OnProjectionToggled);
-                p.AddFieldCheckbox(SM.Get("RD_PROJECT_TO_GROUND"), GetCurRoad, "state.properties.project", null, w / 3, null, null, PlacementHeight.OnProjectionToggled);
-                var segmentsPer100mField = p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetCurRoad, "state.properties.segmentsPer100m", null, w / 3, null);
+                var splineFields = new List<EditorPanelElement> {
+                    p.AddFieldCheckbox(SM.Get("RD_PROJECT_ALL_TO_GROUND"), GetCurRoad, "instanceState.properties.projectAll", null, w / 3, null, null, PlacementHeight.OnProjectionToggled),
+                    p.AddFieldCheckbox(SM.Get("RD_PROJECT_TO_GROUND"), GetCurRoad, "instanceState.properties.project", null, w / 3, null, null, PlacementHeight.OnProjectionToggled)
+                };
+                var segmentsPer100mField = p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetCurRoad, "instanceState.properties.segmentsPer100m", null, w / 3, null);
+                splineFields.Add(segmentsPer100mField);
                 p.IncreaseRow();
 
-                var segmentsField = p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetCurRoad, "state.properties.segments", null, w / 2, null);
-                p.AddFieldInputField(SM.Get("RD_SMOOTHING"), SM.Get("RD_SMOOTHING_PH"), GameEngine.InputContentType.Integer, GetCurRoad, "state.properties.lpf", null, w / 2, null);
+                var segmentsField = p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetCurRoad, "instanceState.properties.segments", null, w / 2, null);
+                splineFields.Add(segmentsField);
+                splineFields.Add(p.AddFieldInputField(SM.Get("RD_SMOOTHING"), SM.Get("RD_SMOOTHING_PH"), GameEngine.InputContentType.Integer, GetCurRoad, "instanceState.properties.lpf", null, w / 2, null));
                 p.IncreaseRow();
                 updateCurveFields = () => {
                     var lowPoly = GetCurRoad(false)?.GetCurveType() == GeometryHelper.CurveType.LowPoly;
@@ -74,14 +78,14 @@ namespace EditorPanels {
                 };
 
                 var withCoplanar = type.InternalParameterVisible("makeCoplanar");
-                if (withCoplanar) p.AddFieldCheckbox(SM.Get("RD_MAKE_COPLANAR"), GetCurRoad, "state.properties.makeCoplanar", null, w / 2, SM.Get("RD_COPLANAR_TOOLTIP"));
-                p.AddFieldCheckbox(SM.Get("RD_ADJUST_LOWPOLY_WIDTH"), GetCurRoad, "state.properties.adjustLowPolyWidth", null, w / (1 + (withCoplanar ? 1.0f : 0.0f)));
+                if (withCoplanar) splineFields.Add(p.AddFieldCheckbox(SM.Get("RD_MAKE_COPLANAR"), GetCurRoad, "instanceState.properties.makeCoplanar", null, w / 2, SM.Get("RD_COPLANAR_TOOLTIP")));
+                splineFields.Add(p.AddFieldCheckbox(SM.Get("RD_ADJUST_LOWPOLY_WIDTH"), GetCurRoad, "instanceState.properties.adjustLowPolyWidth", null, w / (1 + (withCoplanar ? 1.0f : 0.0f))));
                 p.IncreaseRow();
 
                 var allowed = allowedCurves = SplineCurves.Allowed(type.typeData.settings);
                 var entries = new List<int>(allowed).ConvertAll(i => SM.Get(SplineCurves.Label(i)));
                 var curveDropdown = curveTypeDropdown = p.AddDropdown(SM.Get("RD_SPLINE_TYPE"), entries, i => {
-                    GetCurRoad().state.SetInt("curveType", allowed[i]);
+                    GetCurRoad().instanceState.SetInt("curveType", allowed[i]);
                     builder.NotifyChange();
                     Update();
                 }, w * 0.4f);
@@ -89,18 +93,25 @@ namespace EditorPanels {
                 var curRoad = GetCurRoad(false);
                 if (curRoad != null) {
                     curveDropdown.actionEnabled = false;
-                    curveDropdown.SetValue(System.Array.IndexOf(allowed, curRoad.state.Int("curveType")));
+                    curveDropdown.SetValue(System.Array.IndexOf(allowed, curRoad.instanceState.Int("curveType")));
                     curveDropdown.actionEnabled = true;
                 }
                 if (System.Array.IndexOf(allowed, 1) >= 0) {
-                    var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetCurRoad, "state.properties.subdivideEqually", null, w * 0.35f, null);
-                    var tensionField = p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal, GetCurRoad, "state.properties.hermiteTension", null, w * 0.25f, null);
+                    var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetCurRoad, "instanceState.properties.subdivideEqually", null, w * 0.35f, null);
+                    var tensionField = p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal, GetCurRoad, "instanceState.properties.hermiteTension", null, w * 0.25f, null);
+                    splineFields.Add(equallyField); splineFields.Add(tensionField);
                     updateCurveFields += () => {
-                        var builtin = GetCurRoad(false)?.state.Int("curveType") == 1;
+                        var builtin = GetCurRoad(false)?.instanceState.Int("curveType") == 1;
                         equallyField.SetActive(builtin); tensionField.SetActive(builtin);
                     };
                 }
                 p.IncreaseRow();
+
+                //presets never store instance specific values
+                if (pS.EditingPreset()) {
+                    foreach (var field in splineFields) field.SetInteractable(false);
+                    curveDropdown.SetInteractable(false);
+                }
 
             } else if (elem.name == "intersectionGroup") {
                 //Intersection
@@ -323,7 +334,7 @@ namespace EditorPanels {
         public override void Update() {
             if (curveTypeDropdown != null && GetCurRoad(false) is Road road) {
                 curveTypeDropdown.actionEnabled = false;
-                curveTypeDropdown.SetValue(System.Array.IndexOf(allowedCurves, road.state.Int("curveType")));
+                curveTypeDropdown.SetValue(System.Array.IndexOf(allowedCurves, road.instanceState.Int("curveType")));
                 curveTypeDropdown.actionEnabled = true;
             }
             updateCurveFields?.Invoke();

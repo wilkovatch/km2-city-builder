@@ -52,7 +52,7 @@ namespace CityElements.Types.Runtime {
         sealed class SplineType : RoadType {
             public SplineType(Types.RoadType type, string name) : base(type, name, true) { }
             //The sampler has already applied its bounded miter to the section frame.
-            public override bool NeedsLowPolyFix(ObjectState state, int segments) => false;
+            public override bool NeedsLowPolyFix(ObjectState instanceState, int segments) => false;
         }
 
         //the names must be unique in a group, and "uniform" only makes sense in an element of another array

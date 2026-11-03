@@ -297,7 +297,7 @@ namespace Operations {
         //where a field of an element is stored, from its type and its kind (instance specific fields are in the instance state)
         static string GetFieldPath(string kind, CityElements.Types.ParameterContainer pc, string field) {
             var builtin = Builtins.Find(kind, field);
-            var instance = builtin != null ? builtin.instanceSpecific : (FindParameter(pc, field)?.instanceSpecific ?? false);
+            var instance = Builtins.IsInstanceSpecific(kind, field) || (builtin == null && (FindParameter(pc, field)?.instanceSpecific ?? false));
             return (instance ? "instanceState" : "state") + ".properties." + field;
         }
 

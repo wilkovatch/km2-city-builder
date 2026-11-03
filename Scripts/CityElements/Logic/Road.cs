@@ -45,11 +45,13 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     RoadScriptContext scriptContext;
     readonly Dictionary<PhysicsGameObject, Vector3> projectedPoints = new Dictionary<PhysicsGameObject, Vector3>();
     ulong projectedTerrainVersion = ulong.MaxValue;
+    ObjectState splineSource; //where the spline values were taken from when the road was created (see ReuseSplineValues)
 
     public void Initialize() {
         state = PresetManager.GetPreset("road", 0);
         instanceState = new ObjectState();
         runtimeState = new ObjectState();
+        ResetSplineState();
         var generatorObj = GS.Create<RoadGenerator>(null, this);
         generator = GS.Cast<RoadGenerator>(generatorObj);
         generator.Initialize(state);
@@ -63,11 +65,64 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     }
 
     public void SetState(ObjectState newState) {
-        var types = CityElements.Types.Parsers.TypeParser.GetRoadTypes();
-        if (types.TryGetValue(newState.Str("type", ""), out var type)) SplineCurves.ValidateState(type.typeData.settings, newState);
         History.UndoManager.Touch(this);
+        var typeChanged = newState.Str("type", "") != state.Str("type", "");
         state = newState;
+        //a road not placed yet starts with the values of its final type
+        if (typeChanged && points.Count == 0) {
+            ResetSplineState();
+            ReuseSplineValues(splineSource);
+        }
+        EnforceCurveType();
         resetObjectsPositions = true;
+    }
+
+    //the values of the spline of a new road, as set by the core in the settings of its type (the first one if it has none yet)
+    public void ResetSplineState() {
+        var settings = GetTypeSettings();
+        if (settings == null) {
+            foreach (var type in CityElements.Types.Parsers.TypeParser.GetRoadTypes().Values) {
+                settings = type.typeData.settings;
+                break;
+            }
+        }
+        settings ??= new CityElements.Types.RoadSettings();
+        instanceState.SetInt("curveType", settings.defaultCurveType);
+        instanceState.SetInt("segments", settings.segments);
+        instanceState.SetBool("segmentsPer100m", settings.segmentsPer100m);
+        instanceState.SetFloat("hermiteTension", settings.hermiteTension);
+        instanceState.SetBool("subdivideEqually", settings.subdivideEqually);
+        instanceState.SetBool("project", settings.project);
+        instanceState.SetBool("projectAll", settings.projectAll);
+        instanceState.SetInt("lpf", settings.lpf);
+        instanceState.SetBool("adjustLowPolyWidth", settings.adjustLowPolyWidth);
+        instanceState.SetBool("makeCoplanar", settings.makeCoplanar);
+    }
+
+    //a new road takes the values of the spline from another road (the last one selected), as far as its type allows
+    public void ReuseSplineValues(ObjectState source) {
+        splineSource = source;
+        if (source == null) return;
+        var types = CityElements.Types.Parsers.TypeParser.GetRoadTypes();
+        var type = types.TryGetValue(state.Str("type", ""), out var t) ? t : null;
+        void Copy(string name) {
+            if (source.properties.TryGetValue(name, out var value)) instanceState.SetProperty(name, value);
+        }
+        foreach (var name in Operations.Builtins.RoadSplineProperties) {
+            if (name != "makeCoplanar" || type == null || type.InternalParameterVisible(name)) Copy(name);
+        }
+        foreach (var parameter in type?.parameterContainer.parameters ?? new CityElements.Types.Parameter[0]) {
+            if (parameter.reuseInNewRoads) Copy(parameter.fullName());
+        }
+        EnforceCurveType();
+    }
+
+    //the curve type must be one of those allowed by the type of the road
+    public void EnforceCurveType() {
+        var settings = GetTypeSettings();
+        if (settings != null && System.Array.IndexOf(SplineCurves.Allowed(settings), instanceState.Int("curveType")) < 0) {
+            instanceState.SetInt("curveType", settings.defaultCurveType);
+        }
     }
 
     public void SetRailState(ObjectState newState) {
@@ -356,8 +411,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         if (customCurve != null) return customCurve.Interpolate(GetPointRotations(), t);
         var positions = new List<Vector3>();
         foreach (var p in points) positions.Add(GO.GetPosition(p));
-        var hermiteTension = state.Float("hermiteTension", 0.5f);
-        var subEq = state.Bool("subdivideEqually");
+        var hermiteTension = instanceState.Float("hermiteTension", 0.5f);
+        var subEq = instanceState.Bool("subdivideEqually");
         var first = positions[0];
         var last = positions[positions.Count - 1];
         var (evalCps, evalRotations) = GetEvaluatedControlPoints(first, positions.GetRange(1, positions.Count - 2), last, GetPointRotations());
@@ -381,7 +436,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         if (points.Count < 2 || curvePoints.Count < 2) return;
         var positions = new List<Vector3>();
         foreach (var p in points) positions.Add(GO.GetPosition(p));
-        var parameters = customCurve?.controlParameters ?? GeometryHelper.GetPointParameters(positions, GetCurveType(), state.Bool("subdivideEqually"));
+        var parameters = customCurve?.controlParameters ?? GeometryHelper.GetPointParameters(positions, GetCurveType(), instanceState.Bool("subdivideEqually"));
         var rotations = GetEffectiveRotations();
         for (int i = 0; i < points.Count; i++) {
             var handle = GetHandle(points[i]);
@@ -480,7 +535,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
 
     void UpdateCurve() {
         if (points.Count == 0) return;
-        if (state.Bool("project") || state.Bool("projectAll")) {
+        if (instanceState.Bool("project") || instanceState.Bool("projectAll")) {
             if (projectedTerrainVersion != GameEngine.Terrain.HeightmapVersion || projectedPoints.Count != points.Count) {
                 projectedPoints.Clear();
                 projectedTerrainVersion = GameEngine.Terrain.HeightmapVersion;
@@ -525,11 +580,11 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     }
 
     public GeometryHelper.CurveType GetCurveType() {
-        return (GeometryHelper.CurveType)state.Int("curveType");
+        return (GeometryHelper.CurveType)instanceState.Int("curveType");
     }
 
     public int GetStateSegments() {
-        return state.Int("segments", 2);
+        return instanceState.Int("segments", 2);
     }
 
     public Vector3 GetStandardVec3(string name) {
@@ -557,8 +612,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         if (points.Count < 2) return 2;
         if (GetCurveType() == GeometryHelper.CurveType.LowPoly) return points.Count;
         var canBeSimplified = GetStandardBool("canBeSimplified");
-        if ((int)GetCurveType() < 3 && !state.Bool("projectAll") && points.Count <= 2 && canBeSimplified) return 2;
-        if (state.Bool("segmentsPer100m")) {
+        if ((int)GetCurveType() < 3 && !instanceState.Bool("projectAll") && points.Count <= 2 && canBeSimplified) return 2;
+        if (instanceState.Bool("segmentsPer100m")) {
             var length = GetLineLength();
             return Mathf.Max(2, (int)(GetStateSegments() * length / 100));
         }
@@ -578,22 +633,22 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         var (evalCps, _) = GetEvaluatedControlPoints(start, cps, end, null);
         var (startTangent, endTangent) = GetEndTangents();
         var controls = new List<Vector3> { start }; controls.AddRange(evalCps); controls.Add(end);
-        customCurve = SplineCurves.Create(curType.typeData.settings, state, controls, startTangent, endTangent);
+        customCurve = SplineCurves.ForRoad(curType.typeData.settings, state, instanceState, controls, startTangent, endTangent);
         curveParameters.Clear();
         if (customCurve != null) {
             var samples = customCurve.Sample(segments-1);
             curvePoints.AddRange(samples.points); curveParameters.AddRange(samples.parameters);
-            if (state.Bool("project") || state.Bool("projectAll")) for (int i = 0; i < curvePoints.Count; i++) curvePoints[i] = GeometryHelper.ProjectPoint(curvePoints[i]);
+            if (instanceState.Bool("project") || instanceState.Bool("projectAll")) for (int i = 0; i < curvePoints.Count; i++) curvePoints[i] = GeometryHelper.ProjectPoint(curvePoints[i]);
         }
         for (int i = 0; customCurve == null && i < segments; i++) {
             curveParameters.Add(i / (segments-1.0f));
-            var hermiteTension = state.Float("hermiteTension", 0.5f);
-            var subEq = state.Bool("subdivideEqually");
+            var hermiteTension = instanceState.Float("hermiteTension", 0.5f);
+            var subEq = instanceState.Bool("subdivideEqually");
             var pos = GeometryHelper.GetPointOnCurve(start, evalCps, end, i / (segments - 1.0f), i, GetCurveType(), hermiteTension, subEq, startTangent, endTangent);
-            if (state.Bool("project") || state.Bool("projectAll")) pos = GeometryHelper.ProjectPoint(pos);
+            if (instanceState.Bool("project") || instanceState.Bool("projectAll")) pos = GeometryHelper.ProjectPoint(pos);
             curvePoints.Add(pos);
         }
-        if (state.Int("lpf") > 0) curvePoints = GeometryHelper.LowPassFilter(curvePoints, state.Int("lpf"), segments);
+        if (instanceState.Int("lpf") > 0) curvePoints = GeometryHelper.LowPassFilter(curvePoints, instanceState.Int("lpf"), segments);
         forceRemesh = true;
         RebuildIntersections();
     }
@@ -605,11 +660,9 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
 
     void ReloadType() {
         var type = GetRoadType();
-        if (!state.properties.ContainsKey("curveType")) state.SetInt("curveType", type.typeData.settings.defaultCurveType);
+        if (!instanceState.properties.ContainsKey("curveType")) instanceState.SetInt("curveType", type.typeData.settings.defaultCurveType);
         if (type != curType) {
-            if (curType != null && System.Array.IndexOf(SplineCurves.Allowed(type.typeData.settings), state.Int("curveType")) < 0) {
-                state.SetInt("curveType", type.typeData.settings.defaultCurveType);
-            }
+            if (curType != null) EnforceCurveType();
             variableContainer = GetRoadType().variableContainer.GetClone();
             curType = type;
         }

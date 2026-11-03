@@ -5,7 +5,7 @@ using System.IO;
 namespace CityElements.Types.Buildings {
     //Building line
     public class BuildingLineSettings {
-        //TODO
+        public bool projectToGround; //the initial value of a new line (kept in its instance state, never in the presets)
     }
 
     public class BuildingLineType : ITypeWithUI {

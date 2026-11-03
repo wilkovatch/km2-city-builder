@@ -47,6 +47,7 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
         state = PresetManager.GetPreset("buildingLine", 0);
         stateForNewBuildings = PresetManager.GetPreset("building", 0);
         instanceState = new ObjectState();
+        if (state.Str("type", null) != null) instanceState.SetBool("projectToGround", GetLineType().typeData.settings.projectToGround);
         this.container = container;
         InitializeLineRenderer();
     }
@@ -644,7 +645,7 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
                 ReloadLine();
             },
             delegate {
-                state.SetBool("projectToGround", false);
+                instanceState.SetBool("projectToGround", false);
             }, obj, point, pointOnly);
     }
 
@@ -728,7 +729,7 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
     }
 
     public bool IsProjectedToGround() {
-        return state.Bool("projectToGround");
+        return instanceState.Bool("projectToGround");
     }
 
     public void RemoveLastLinePoint() {

@@ -30,13 +30,19 @@ namespace ElementPlacer {
 
         public RoadPlacer(ElementManager manager) {
             this.manager = manager;
-            drawing = new Operations.RoadDrawing(manager);
+            drawing = new Operations.RoadDrawing(manager) { onRoadCreated = OnRoadCreated };
         }
 
         public Operations.RoadDrawing Drawing => drawing;
 
         public void SetRoad(Road road) {
             drawing.SetRoad(road);
+            if (road != null) PresetManager.lastRoadInstanceState = road.instanceState;
+        }
+
+        void OnRoadCreated(Road road) {
+            road.ReuseSplineValues(PresetManager.lastRoadInstanceState);
+            PresetManager.lastRoadInstanceState = road.instanceState;
         }
 
         public Road GetRoad(bool createIfNull = true) {
@@ -115,10 +121,10 @@ namespace ElementPlacer {
         }
 
         void DisableProjection(Road road) {
-            if (!road.state.Bool("project") && !road.state.Bool("projectAll")) return;
+            if (!road.instanceState.Bool("project") && !road.instanceState.Bool("projectAll")) return;
             History.UndoManager.Touch(road);
-            road.state.SetBool("project", false);
-            road.state.SetBool("projectAll", false);
+            road.instanceState.SetBool("project", false);
+            road.instanceState.SetBool("projectAll", false);
             manager.builder.RefreshActivePanelValues();
         }
 

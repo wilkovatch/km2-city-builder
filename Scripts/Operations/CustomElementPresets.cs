@@ -9,6 +9,7 @@ namespace Operations {
     public static class CustomElementPresets {
         const string Prefix = "customElement/";
         static readonly Dictionary<string, string> lastPresets = new();
+        static readonly string[] splineValues = { "curveType", "segments", "segmentsPer100m", "hermiteTension", "subdivideEqually" };
 
         public static string Category(string type) => type != null && TP.GetCustomElementTypes().TryGetValue(type, out var t)
             && t.typeData.settings.presets ? Prefix + type : null;
@@ -39,13 +40,22 @@ namespace Operations {
             if (TP.GetCustomElementTypes().TryGetValue(type, out var propType) && propType.typeData.settings.propPlacer != null) {
                 state.SetBool("projectToGround", propType.typeData.settings.propPlacer.projectToGround);
             }
-            if (TP.GetCustomElementTypes().TryGetValue(type, out var t) && t.typeData.settings.spline is CustomElementSplineSettings spline) {
-                state.SetInt("curveType", spline.defaultCurveType);
-                state.SetInt("segments", spline.segments);
-                state.SetBool("segmentsPer100m", spline.segmentsPer100m);
-                if (System.Array.IndexOf(spline.curveTypes, 1) >= 0) state.SetFloat("hermiteTension", 0.5f);
+            if (TP.GetCustomElementTypes().TryGetValue(type, out var t) && t.typeData.settings.spline != null) {
+                foreach (var key in splineValues) state.RemoveProperty(key); //a default preset can't set them
+                AddMissingSplineValues(state, type);
             }
             return state;
+        }
+
+        //the values of the spline of a new element: they are never part of the presets
+        public static void AddMissingSplineValues(ObjectState state, string type) {
+            if (!TP.GetCustomElementTypes().TryGetValue(type, out var t) || t.typeData.settings.spline is not CustomElementSplineSettings spline) return;
+            if (!state.properties.ContainsKey("curveType")) state.SetInt("curveType", spline.defaultCurveType);
+            if (!state.properties.ContainsKey("segments")) state.SetInt("segments", spline.segments);
+            if (!state.properties.ContainsKey("segmentsPer100m")) state.SetBool("segmentsPer100m", spline.segmentsPer100m);
+            if (Array.IndexOf(spline.curveTypes, 1) < 0) return;
+            if (!state.properties.ContainsKey("hermiteTension")) state.SetFloat("hermiteTension", spline.hermiteTension);
+            if (!state.properties.ContainsKey("subdivideEqually")) state.SetBool("subdivideEqually", spline.subdivideEqually);
         }
 
         public static ObjectState DefaultPreset(string type) {
@@ -169,7 +179,9 @@ namespace Operations {
             if (category == null) return DefaultState(type);
             PresetManager.GetPresets(); //also clears session memory after a city switch
             var preset = lastPresets.TryGetValue(type, out var name) ? PresetManager.GetPresetByName(name, category) : null;
-            return Extract(preset ?? PresetManager.GetPresets().GetList(category)[0], type);
+            var state = Extract(preset ?? PresetManager.GetPresets().GetList(category)[0], type);
+            AddMissingSplineValues(state, type);
+            return state;
         }
 
         public static void Remember(string type, string name) {

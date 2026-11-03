@@ -73,7 +73,8 @@ namespace EditorPanels {
                     tS.AddTypeDropdown(p, SM.Get("BUILDING_TYPE"), w);
                     pS.AddPresetLoadAndSaveDropdown(p, SM.Get("BUILDING_LINE_PRESET"), true, "buildingLine", SetCurLineState, delegate { return GetCurLine(true).state; }, false, null, null, CheckIfFrontOnly);
 
-                    p.AddFieldCheckbox(SM.Get("BL_PROJECT_TO_GROUND"), GetCurLine, "state.properties.projectToGround", null, w * 0.5f, null, null, PlacementHeight.OnProjectionToggled);
+                    var projectField = p.AddFieldCheckbox(SM.Get("BL_PROJECT_TO_GROUND"), GetCurLine, "instanceState.properties.projectToGround", null, w * 0.5f, null, null, PlacementHeight.OnProjectionToggled);
+                    if (pS.EditingPreset()) projectField.SetInteractable(false); //presets never store instance specific values
                     p.AddFieldCheckbox(SM.Get("BL_INV_DIR"), GetCurLine, "state.properties.invertDirection", null, w * 0.5f);
                     p.IncreaseRow();
 

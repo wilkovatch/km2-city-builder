@@ -23,7 +23,7 @@ All nine files of a building type are required (the `*_settings.json` files of l
 
 A polyline of points placed by the user (or generated around a block). Points marked as dividing split it into buildings. Its type (the `type` property of the line state) also selects the type used by its buildings.
 
-Built-in state properties: `type`, `height` (default building height), `frontOnly` (generate only the front side, as a facade along the line), `loop`, `invertDirection`, `projectToGround`, `roofTex` (texture of the roof covering the whole line when it is closed).
+Built-in state properties: `type`, `height` (default building height), `frontOnly` (generate only the front side, as a facade along the line), `loop`, `invertDirection`, `roofTex` (texture of the roof covering the whole line when it is closed). `projectToGround` is in the instance state, so presets don't store it; the initial value is `projectToGround` in `line_settings.json` (default `false`).
 
 Built-in UI groups (`line_ui.json`): `mainGroup` (type, preset, list of buildings), `propertiesGroup` (the properties above), `loopGroup` (automatic closing with random building presets).
 

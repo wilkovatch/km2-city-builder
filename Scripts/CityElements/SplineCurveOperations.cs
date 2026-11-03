@@ -22,7 +22,7 @@ public static class SplineCurveOperations {
         var rotations = new LuaTable(); var values = road.GetPointRotations();
         for (int i = 0; i < values.Count; i++) rotations[i+1] = LuaVectors.ToLua(values[i]);
         t["rotations"] = rotations;
-        t["state"] = SplineCurves.ToLua(JObject.FromObject(road.state));
+        t["state"] = SplineCurves.ToLua(JObject.FromObject(SplineCurves.RoadState(road.state, road.instanceState)));
         var tangents = road.GetEndTangents();
         t["startTangent"] = tangents.start.HasValue ? LuaVectors.ToLua(tangents.start.Value) : LuaValue.Nil;
         t["endTangent"] = tangents.end.HasValue ? LuaVectors.ToLua(tangents.end.Value) : LuaValue.Nil;
@@ -38,7 +38,7 @@ public static class SplineCurveOperations {
     }
     static SplineCurves.Curve Curve(Road road) {
         var tangents = road.GetEndTangents();
-        return SplineCurves.Create(road.GetRoadType().typeData.settings, road.state, road.points.Select(GO.GetPosition).ToList(), tangents.start, tangents.end);
+        return SplineCurves.ForRoad(road.GetRoadType().typeData.settings, road.state, road.instanceState, road.points.Select(GO.GetPosition).ToList(), tangents.start, tangents.end);
     }
     static JToken Json(LuaValue value, int depth = 0) {
         if (depth > 32) throw new ArgumentException("custom curve state is too deeply nested");
@@ -91,8 +91,7 @@ public static class SplineCurveOperations {
             Operations.States.Normalize(updates, parameters);
             foreach (var p in updates.properties) output.state.SetProperty(p.Key, p.Value);
         }
-        SplineCurves.ValidateState(keep.GetRoadType().typeData.settings, output.state);
-        var prepared = SplineCurves.Create(keep.GetRoadType().typeData.settings, output.state, output.points);
+        var prepared = SplineCurves.ForRoad(keep.GetRoadType().typeData.settings, output.state, keep.instanceState, output.points);
         foreach (var t in new[] { 0f, .25f, .5f, .75f, 1f }) { prepared.Position(t); prepared.Interpolate(output.rotations, t); }
         return output;
     }

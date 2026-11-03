@@ -119,13 +119,11 @@ namespace CityElements.Types {
 
     //Road component geometry without road connections or traffic. Curve ids match GeometryHelper.CurveType.
     public class CustomElementSplineSettings : RoadSettings {
-        public CustomElementSplineSettings() { curveTypes = new[] { 0, 1, 2 }; defaultCurveType = 2; }
+        public CustomElementSplineSettings() { curveTypes = new[] { 0, 1, 2 }; defaultCurveType = 2; segments = 20; }
         public CustomElementSplineLine line, controlLine;
         public bool DrawsLinesWhenCovered => line?.drawWhenCovered == true || controlLine?.drawWhenCovered == true;
         public float previewTolerance;
         public int previewMaxDepth = 8;
-        public int segments = 20;
-        public bool segmentsPer100m;
         public bool closed; //a loop: the last control point connects back to the first (curve types: hermite, low poly or core curves)
         public bool projectPoints;
         public bool projectSections;
@@ -170,11 +168,11 @@ namespace CityElements.Types {
             }
             if (settings.spline != null) {
                 var builtins = new[] {
-                    new Parameter { name = "curveType", type = "int" },
-                    new Parameter { name = "segments", type = "int" },
-                    new Parameter { name = "segmentsPer100m", type = "bool" },
-                    new Parameter { name = "hermiteTension", type = "float" },
-                    new Parameter { name = "subdivideEqually", type = "bool" }
+                    new Parameter { name = "curveType", type = "int", instanceSpecific = true },
+                    new Parameter { name = "segments", type = "int", instanceSpecific = true },
+                    new Parameter { name = "segmentsPer100m", type = "bool", instanceSpecific = true },
+                    new Parameter { name = "hermiteTension", type = "float", instanceSpecific = true },
+                    new Parameter { name = "subdivideEqually", type = "bool", instanceSpecific = true }
                 };
                 var parametersList = new List<Parameter>(parameters.parameters ?? new Parameter[0]);
                 foreach (var builtin in builtins) {

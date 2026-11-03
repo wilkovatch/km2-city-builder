@@ -26,11 +26,11 @@ IDs must be unique integers of at least 3; names must be unique and cannot use t
 
 A road type enables curves with `curveTypes` and `defaultCurveType` in its `settings.json`. A custom element type uses the same fields inside `spline`. Registration alone makes a curve available to neither: absent road settings retain the three built-in modes and existing defaults. For example, a core's train curve can be allowed only by its train type while its roads keep `[0, 1, 2]`.
 
-The road editor and API schema list only the allowed choices. `state.setBuiltin` accepts their stable names or persisted numeric IDs, which are not dropdown indices. A road schema's `enumValues` and `enumIds` are parallel lists. Custom elements retain the integer `curveType` parameter. Presets and imports must respect the element's allowlist.
+The road editor and API schema list only the allowed choices. `state.setBuiltin` accepts their stable names or persisted numeric IDs, which are not dropdown indices. A road schema's `enumValues` and `enumIds` are parallel lists. Custom elements retain the integer `curveType` parameter. Imports must respect the element's allowlist. Presets don't store the curve type, nor the other values of the spline: a road keeps them in its instance state, a custom element in its single state.
 
 ## Evaluation
 
-Callbacks run on the main thread under the standard Lua instruction budget, as `function(v, ctx)`. `v` is a detached table of saved element parameters. The input contains no scene nodes or mutable live state:
+Callbacks run on the main thread under the standard Lua instruction budget, as `function(v, ctx)`. `v` is a detached table of saved element parameters (for a road, those of both its state and its instance state). The input contains no scene nodes or mutable live state:
 
 | Context field | Meaning |
 |---|---|

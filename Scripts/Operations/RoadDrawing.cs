@@ -14,6 +14,7 @@ namespace Operations {
         //the road started on the middle of another road, which is split when the second point is placed
         (Road road, Vector3 point, Node3D firstPoint)? pendingStartSplit = null;
         const float MinSplitDistance = 1.0f; //between the two ends of a road connected to the middle of the same road
+        public System.Action<Road> onRoadCreated; //set by the road placer only: the API gets the same result every time
 
         public RoadDrawing(ElementManager manager) {
             this.manager = manager;
@@ -25,6 +26,7 @@ namespace Operations {
         void CreateRoad() {
             curRoad = manager.CreateRoad();
             pendingStartSplit = null;
+            onRoadCreated?.Invoke(curRoad);
         }
 
         public void SetRoad(Road road) {

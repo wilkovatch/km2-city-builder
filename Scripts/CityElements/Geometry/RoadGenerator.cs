@@ -212,16 +212,16 @@ public partial class RoadGenerator : PhysicsScriptable {
         var curveLength = 0.0f;
         subGen.Reset(curType, state, instanceState, segments, numMeshes);
 
-        var curveType = (GH.CurveType)state.Int("curveType");
-        var hermiteTension = state.Float("hermiteTension", 0.5f);
-        var subdivideEqually = state.Bool("subdivideEqually");
-        var projectAll = state.Bool("projectAll");
-        var adjustLowPolyWidth = state.Bool("adjustLowPolyWidth");
-        var lpf = state.Int("lpf");
+        var curveType = (GH.CurveType)instanceState.Int("curveType");
+        var hermiteTension = instanceState.Float("hermiteTension", 0.5f);
+        var subdivideEqually = instanceState.Bool("subdivideEqually");
+        var projectAll = instanceState.Bool("projectAll");
+        var adjustLowPolyWidth = instanceState.Bool("adjustLowPolyWidth");
+        var lpf = instanceState.Int("lpf");
 
         var controls = new List<Vector3> { start }; controls.AddRange(cps); controls.Add(end);
         //Intersection through strips have their own forced Hermite construction, independent of the source road's allowlist.
-        customCurve = runtimeState?.Bool("throughIntersection") == true ? null : SplineCurves.Create(curType.typeData.settings, state, controls, startTangent, endTangent);
+        customCurve = runtimeState?.Bool("throughIntersection") == true ? null : SplineCurves.ForRoad(curType.typeData.settings, state, instanceState, controls, startTangent, endTangent);
         var customSamples = customCurve?.Sample(segments-1);
         if (customSamples.HasValue) segments = customSamples.Value.points.Count;
         curveParameters = customSamples?.parameters ?? new List<float>();
@@ -327,7 +327,7 @@ public partial class RoadGenerator : PhysicsScriptable {
         subGen.sectionVertices.Clear();
         subGen.InitBaseSectionsInfo();
         for (int i = 0; i < segments; i++) {
-            if (curType.typeData.settings.variableSections || curType.NeedsLowPolyFix(state, segments))
+            if (curType.typeData.settings.variableSections || curType.NeedsLowPolyFix(instanceState, segments))
                 curType.FillSegmentVariables(subGen.variableContainer, state, instanceState, curvePoints[i], GameEngine.Vector3.zero, subGen.curveUpVectors[i],
                     subGen.sectionMarkers[i], 0, i + 1, new Vector3[0], curvePoints, segments);
             var v = GetRealSectionVertices(i);
@@ -510,7 +510,7 @@ public partial class RoadGenerator : PhysicsScriptable {
 
     (Vector3[], Vector3) GetRealSectionVertices(int i) {
         var v = subGen.GetRawSectionVertices(i);
-        if (i > 0 && state.Bool("makeCoplanar") && !rolled && !(i == segments - 1 && hasEndIntersection)) {
+        if (i > 0 && instanceState.Bool("makeCoplanar") && !rolled && !(i == segments - 1 && hasEndIntersection)) {
             v = GetCoplanarRawSectionVertices(v, i);
         }
         return v;

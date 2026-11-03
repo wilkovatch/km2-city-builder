@@ -36,7 +36,7 @@ namespace Api {
             var expected = Operations.CustomElementPresets.DefaultPreset("decal");
             var initial = (await Call("presets.get", new { category, name = "Default" })).ToObject<ObjectState>();
             Check("decal Default uses SF tram rails, 2 metres and Bezier", initial.Str("texture") == "texture/r4i_rails_f.tex"
-                && initial.Float("width") == 2 && initial.Int("curveType") == 0);
+                && initial.Float("width") == 2 && TP.GetCustomElementTypes()["decal"].typeData.settings.spline.defaultCurveType == 0);
             Check("template and fallback defaults agree", initial.Equals(expected));
             foreach (var template in new[] { "SF", "London" }) {
                 var json = JObject.Parse(File.ReadAllText(Path.Combine("Files/cores/MidtownMadness2/templates", template, "presets.json")));
@@ -157,8 +157,8 @@ namespace Api {
             builder.CloseAllPanels();
             Start();
             LoadPreset("Default");
-            Check("loading a preset refreshes the spline mode control", Draft().Int("curveType") == 2
-                && Field<EditorPanelElements.Dropdown>(panel, "splineTypeDropdown").GetIndex() == 2);
+            Check("loading a preset doesn't change the spline mode", Draft().Int("curveType") == 0
+                && Field<EditorPanelElements.Dropdown>(panel, "splineTypeDropdown").GetIndex() == 0);
             PresetManager.SavePreset(expected, category);
             builder.CloseAllPanels();
 

@@ -319,14 +319,14 @@ namespace History {
                 roadPanel.ShowPage(1);
                 await Frames(3);
                 GetViewport().GetTexture().GetImage().SavePng(Path.Combine(folder, "..", "undo_selftest_road_tab2.png"));
-                await CheckRestore("road editor (tab 2)", () => { UndoManager.Touch(road); FieldStatus.SetValue(road, "7", "state.properties.segments"); }, Chain);
+                await CheckRestore("road editor (tab 2)", () => { UndoManager.Touch(road); FieldStatus.SetValue(road, "7", "instanceState.properties.segments"); }, Chain);
                 Close();
 
                 //road editor adding points
                 builder.SelectObject(road, true, null);
                 roadPanel.SetPointPlacementMode((int)ElementPlacer.RoadPlacer.PlacementMode.Add);
                 var roadPlacer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
-                await CheckRestore("road editor in add mode", () => { UndoManager.Touch(road); FieldStatus.SetValue(roadPlacer.GetRoad(), "6", "state.properties.segments"); },
+                await CheckRestore("road editor in add mode", () => { UndoManager.Touch(road); FieldStatus.SetValue(roadPlacer.GetRoad(), "6", "instanceState.properties.segments"); },
                     () => Chain() + " mode " + ((builder.terrainClick.modifier as ElementPlacer.RoadPlacer)?.placementMode.ToString() ?? "-"));
                 Close();
 
@@ -618,7 +618,7 @@ namespace History {
                         await Frames(6);
                     }
                     var containerPanel = roadPanel.OpenPropContainer(container) as EditorPanels.Props.PropsEditorPanel;
-                    void EditRoad() { UndoManager.Touch(road); FieldStatus.SetValue(road, "8", "state.properties.segments"); }
+                    void EditRoad() { UndoManager.Touch(road); FieldStatus.SetValue(road, "8", "instanceState.properties.segments"); }
                     if (containerPanel != null) {
                         await CheckRestore("props container " + container, EditRoad, Chain);
                         //the first list of props of the type, with an element added if empty
@@ -720,7 +720,7 @@ namespace History {
 
                 //a standalone panel
                 CallBuilder<object>("ToggleSettings");
-                await CheckRestore("settings panel", () => { UndoManager.Touch(road); FieldStatus.SetValue(road, "9", "state.properties.segments"); }, Chain);
+                await CheckRestore("settings panel", () => { UndoManager.Touch(road); FieldStatus.SetValue(road, "9", "instanceState.properties.segments"); }, Chain);
                 Close();
 
                 //the editor of an element the undo deletes is not reopened
@@ -1115,8 +1115,8 @@ namespace History {
                 return res;
             }
             var mid = cps.GetRange(1, cps.Count - 2);
-            var tension = road.state.Float("hermiteTension", 0.5f);
-            var subdivideEqually = road.state.Bool("subdivideEqually");
+            var tension = road.instanceState.Float("hermiteTension", 0.5f);
+            var subdivideEqually = road.instanceState.Bool("subdivideEqually");
             for (int i = 0; i <= 400; i++) {
                 res.Add(GeometryHelper.GetPointOnCurve(cps[0], mid, cps[cps.Count - 1], i / 400.0f, i, type, tension, subdivideEqually));
             }
@@ -1231,8 +1231,8 @@ namespace History {
                         road.AddPoint(new Vector3(x + 120, 0, z + 150));
                     }
                     road.AddPoint(new Vector3(x + 300, 0, z - (kind == 3 ? 300 : 0)));
-                    road.state.SetInt("curveType", (int)curveType);
-                    road.state.SetBool("subdivideEqually", subdivideEqually);
+                    road.instanceState.SetInt("curveType", (int)curveType);
+                    road.instanceState.SetBool("subdivideEqually", subdivideEqually);
                 }, () => {
                     original = DenseCurve(road);
                     originalEnd = GO.GetPosition(road.points[road.points.Count - 1]);
@@ -2180,7 +2180,7 @@ namespace History {
             if (road == null || road.points.Count != 1) return;
             var ground = Operations.Terrain.GetHeight(GO.GetPosition(road.points[0]));
             Check("height: by default points are placed on the ground (" + Y(0, road) + ", ground " + ground + ")", Mathf.Abs(Y(0, road) - ground) < 0.05f);
-            UndoManager.Record("project", () => { UndoManager.Touch(road); road.state.SetBool("project", true); road.state.SetBool("projectAll", false); });
+            UndoManager.Record("project", () => { UndoManager.Touch(road); road.instanceState.SetBool("project", true); road.instanceState.SetBool("projectAll", false); });
             await Frames(3);
 
             await Raise(new Vector3(0, 0, 0), 80, false);
@@ -2192,7 +2192,7 @@ namespace History {
             Check("height: a click while dragging places a raised point", road.points.Count == 2 && Mathf.Abs(Y(1, road) - height) < 0.05f);
             Check("height: the raised point is on the vertical line of the drag", road.points.Count == 2
                 && new Vector2(GO.GetPosition(road.points[1]).X, GO.GetPosition(road.points[1]).Z).Length() < 2);
-            Check("height: placing a raised point turns off the projection", !road.state.Bool("project") && !road.state.Bool("projectAll"));
+            Check("height: placing a raised point turns off the projection", !road.instanceState.Bool("project") && !road.instanceState.Bool("projectAll"));
             Check("height: the placement stays raised after releasing Shift", PlacementHeight.Raised);
 
             await MoveTo(Screen(new Vector3(80, height, 0)));
@@ -2241,7 +2241,7 @@ namespace History {
             if (projectBox != null) {
                 projectBox.ButtonPressed = true;
                 await Frames(3);
-                Check("height: turning on the projection brings back the ground placement", !PlacementHeight.Raised && road.state.Bool("project"));
+                Check("height: turning on the projection brings back the ground placement", !PlacementHeight.Raised && road.instanceState.Bool("project"));
             }
 
             //the transform panel of a point keeps the placement session
@@ -2275,18 +2275,18 @@ namespace History {
                 await Frames(6);
                 placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
                 //a new road projected to the ground (e.g. by its preset)
-                UndoManager.Record("project", () => placer.GetRoad().state.SetBool("project", true));
+                UndoManager.Record("project", () => placer.GetRoad().instanceState.SetBool("project", true));
                 await MoveTo(Screen(new Vector3(-80, 0, -120)));
                 await Button(MouseButton.Left);
                 var hiddenRoad = placer.GetRoad(false);
                 Check("height: with the terrain hidden points are placed at zero height", hiddenRoad != null && hiddenRoad.points.Count == 1 && Mathf.Abs(Y(0, hiddenRoad)) < 0.05f);
-                Check("height: the first point with the terrain hidden turns off the projection", hiddenRoad != null && !hiddenRoad.state.Bool("project"));
+                Check("height: the first point with the terrain hidden turns off the projection", hiddenRoad != null && !hiddenRoad.instanceState.Bool("project"));
                 //turned on again, the next points keep it
-                UndoManager.Record("project", () => { UndoManager.Touch(hiddenRoad); hiddenRoad.state.SetBool("project", true); });
+                UndoManager.Record("project", () => { UndoManager.Touch(hiddenRoad); hiddenRoad.instanceState.SetBool("project", true); });
                 await MoveTo(Screen(new Vector3(-40, 0, -120)));
                 await Button(MouseButton.Left);
-                Check("height: the projection turned on again with the terrain hidden is kept", hiddenRoad.points.Count == 2 && hiddenRoad.state.Bool("project"));
-                UndoManager.Record("project", () => { UndoManager.Touch(hiddenRoad); hiddenRoad.state.SetBool("project", false); });
+                Check("height: the projection turned on again with the terrain hidden is kept", hiddenRoad.points.Count == 2 && hiddenRoad.instanceState.Bool("project"));
+                UndoManager.Record("project", () => { UndoManager.Touch(hiddenRoad); hiddenRoad.instanceState.SetBool("project", false); });
                 InvokeBuilder("DeselectAndCloseCurrentPanel");
                 await Frames(6);
                 //a road started on the end of another one (an intersection, not the ground) turns it off as well
@@ -2294,14 +2294,14 @@ namespace History {
                 UndoManager.Record("create road", () => InvokeBuilder("CreateRoad"));
                 await Frames(6);
                 placer = (ElementPlacer.RoadPlacer)builder.terrainClick.modifier;
-                UndoManager.Record("project", () => placer.GetRoad().state.SetBool("project", true));
+                UndoManager.Record("project", () => placer.GetRoad().instanceState.SetBool("project", true));
                 await MoveTo(Screen(hiddenEnd));
                 await Button(MouseButton.Left);
                 await MoveTo(Screen(new Vector3(-40, 0, -80)));
                 await Button(MouseButton.Left);
                 var connectedRoad = placer.GetRoad(false);
                 Check("height: a road started on an intersection with the terrain hidden turns off the projection", connectedRoad != null
-                    && connectedRoad.points.Count == 2 && connectedRoad.startIntersection != null && !connectedRoad.state.Bool("project"));
+                    && connectedRoad.points.Count == 2 && connectedRoad.startIntersection != null && !connectedRoad.instanceState.Bool("project"));
                 InvokeBuilder("DeselectAndCloseCurrentPanel");
                 await Frames(6);
             } finally {
@@ -2318,13 +2318,13 @@ namespace History {
             await MoveTo(Screen(new Vector3(-40, 0, 120)));
             await Button(MouseButton.Left);
             var undoRoad = placer.GetRoad(false);
-            UndoManager.Record("project", () => { UndoManager.Touch(undoRoad); undoRoad.state.SetBool("project", true); });
+            UndoManager.Record("project", () => { UndoManager.Touch(undoRoad); undoRoad.instanceState.SetBool("project", true); });
             await Frames(3);
             await Raise(new Vector3(0, 0, 120), 80, false);
             height = PlacementHeight.Height;
             await Button(MouseButton.Left, true);
             await Shift(false);
-            Check("height: a raised point on another road", undoRoad.points.Count == 3 && !undoRoad.state.Bool("project"));
+            Check("height: a raised point on another road", undoRoad.points.Count == 3 && !undoRoad.instanceState.Bool("project"));
             Road Latest() {
                 Road res = null;
                 foreach (var r in M.roads) if (ElementSnapshot.IsAlive(r) && r.points.Count > 0 && Mathf.Abs(GO.GetPosition(r.points[0]).Z - 120) < 2) res = r;
@@ -2333,11 +2333,11 @@ namespace History {
             InvokeBuilder("Undo");
             await Frames(6);
             var undone = Latest();
-            Check("height: undo removes the point and turns the projection on again", undone != null && undone.points.Count == 2 && undone.state.Bool("project"));
+            Check("height: undo removes the point and turns the projection on again", undone != null && undone.points.Count == 2 && undone.instanceState.Bool("project"));
             InvokeBuilder("Redo");
             await Frames(6);
             var redone = Latest();
-            Check("height: redo", redone != null && redone.points.Count == 3 && !redone.state.Bool("project") && Mathf.Abs(Y(2, redone) - height) < 0.05f);
+            Check("height: redo", redone != null && redone.points.Count == 3 && !redone.instanceState.Bool("project") && Mathf.Abs(Y(2, redone) - height) < 0.05f);
             await HeightSnapTests();
         }
 
@@ -2355,7 +2355,7 @@ namespace History {
             center.Y = PlacementHeight.Height;
 
             var target = M.CreateRoad();
-            target.state.SetBool("project", false);
+            target.instanceState.SetBool("project", false);
             target.AddPoint(center + Vector3.Left * 60);
             target.AddPoint(center + Vector3.Right * 60);
             await Frames(6);
@@ -2531,11 +2531,11 @@ namespace History {
             }
 
             //integer field, dragged right: one undo step for the whole drag
-            var segments = FindField("state.properties.segments");
+            var segments = FindField("instanceState.properties.segments");
             Check("the road editor has the segments field", segments != null);
             if (segments == null) return;
             await Frames(3);
-            var segments0 = System.Convert.ToInt32(Value("state.properties.segments"));
+            var segments0 = System.Convert.ToInt32(Value("instanceState.properties.segments"));
             var camera = GetViewport().GetCamera3D();
             var cameraTransform = camera.GlobalTransform;
             var before = Snapshot();
@@ -2552,7 +2552,7 @@ namespace History {
             Check("a middle press on a numeric field starts a drag, the release ends it", pressed && !NumericFieldDrag.IsDragging);
             Check("a drag without motion records nothing (" + (UndoCount() - count) + " new entries)", UndoCount() == count);
             await Drag(segments, new Vector2(10, 0), 10);
-            var segments1 = System.Convert.ToInt32(Value("state.properties.segments"));
+            var segments1 = System.Convert.ToInt32(Value("instanceState.properties.segments"));
             Log("segments: " + segments0 + " -> " + segments1 + " (field '" + segments.Text + "')");
             Check("dragging right increases an integer field and its value", segments1 > segments0 && segments.Text == segments1.ToString());
             Check("the drag is a single undo step (" + (UndoCount() - count) + " new entries)", UndoCount() == count + 1);
@@ -2561,7 +2561,7 @@ namespace History {
             UndoManager.Undo();
             await Frames(6);
             Compare("undo of the drag", before, Snapshot());
-            Check("undo of the drag restores the value", System.Convert.ToInt32(Value("state.properties.segments")) == segments0);
+            Check("undo of the drag restores the value", System.Convert.ToInt32(Value("instanceState.properties.segments")) == segments0);
             UndoManager.Redo();
             await Frames(6);
             Compare("redo of the drag", after, Snapshot());
@@ -2569,9 +2569,9 @@ namespace History {
             //two drags are two steps
             count = UndoCount();
             await Drag(segments, new Vector2(0, -10), 5); //up: positive too
-            var segments2 = System.Convert.ToInt32(Value("state.properties.segments"));
+            var segments2 = System.Convert.ToInt32(Value("instanceState.properties.segments"));
             await Drag(segments, new Vector2(-10, 0), 5);
-            var segments3 = System.Convert.ToInt32(Value("state.properties.segments"));
+            var segments3 = System.Convert.ToInt32(Value("instanceState.properties.segments"));
             Log("segments: " + segments1 + " -> " + segments2 + " -> " + segments3);
             Check("dragging up increases, dragging left decreases", segments2 > segments1 && segments3 < segments2);
             Check("two drags are two undo steps (" + (UndoCount() - count) + " new entries)", UndoCount() == count + 2);
@@ -2580,8 +2580,8 @@ namespace History {
             count = UndoCount();
             before = Snapshot();
             await Drag(segments, new Vector2(10, 0), 5, cancel: true);
-            Log("segments after the canceled drag: " + Value("state.properties.segments") + " (field '" + segments.Text + "')");
-            Check("escape restores the value of the field", System.Convert.ToInt32(Value("state.properties.segments")) == segments3 && segments.Text == segments3.ToString());
+            Log("segments after the canceled drag: " + Value("instanceState.properties.segments") + " (field '" + segments.Text + "')");
+            Check("escape restores the value of the field", System.Convert.ToInt32(Value("instanceState.properties.segments")) == segments3 && segments.Text == segments3.ToString());
             Check("a canceled drag records nothing (" + (UndoCount() - count) + " new entries)", UndoCount() == count);
             Compare("canceled drag", before, Snapshot());
             Check("escape during a drag leaves the road editor open", roadPanel.IsOpen());
@@ -2765,7 +2765,7 @@ namespace History {
                     }),
                     ("edit road A field", () => {
                         UndoManager.Touch(roadA);
-                        FieldStatus.SetValue(roadA, "5", "state.properties.segments");
+                        FieldStatus.SetValue(roadA, "5", "instanceState.properties.segments");
                     }),
                     ("edit city properties", () => {
                         var cp = M.GetDummy<CityProperties>();

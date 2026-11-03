@@ -234,6 +234,9 @@ namespace EditorPanels {
                 var segmentsField = p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetElementState,
                     "state.properties.segments", null, w / 2, null);
                 var segmentsPer100mField = p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetElementState, "state.properties.segmentsPer100m", null, w / 2, null);
+                //presets never store instance specific values
+                var editingPreset = EditingPreset();
+                if (editingPreset) { dropdown.SetInteractable(false); segmentsField.SetInteractable(false); segmentsPer100mField.SetInteractable(false); }
                 p.IncreaseRow();
                 updateCurveFields = () => {
                     var lowPoly = CurrentState()?.Int("curveType", settings.spline.defaultCurveType) == (int)GeometryHelper.CurveType.LowPoly;
@@ -243,6 +246,7 @@ namespace EditorPanels {
                     var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElementState, "state.properties.subdivideEqually", null, w / 2, null);
                     var tensionField = p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal,
                         GetElementState, "state.properties.hermiteTension", null, w / 2, null);
+                    if (editingPreset) { equallyField.SetInteractable(false); tensionField.SetInteractable(false); }
                     updateCurveFields += () => {
                         var builtin = CurrentState()?.Int("curveType", settings.spline.defaultCurveType) == 1;
                         equallyField.SetActive(builtin); tensionField.SetActive(builtin);

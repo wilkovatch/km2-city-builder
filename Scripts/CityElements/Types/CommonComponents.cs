@@ -13,6 +13,7 @@ namespace CityElements.Types {
         public string container;
         public string[] enumLabels;
         public bool instanceSpecific;
+        public bool reuseInNewRoads; //an instance specific parameter of a road type: a new road takes it from the last road selected
         public ArrayProperties arrayProperties;
         public ObjectInstanceSettings objectInstanceSettings;
         //only for the inputs of the Python scripts: the starting value, the category of a "preset" parameter and the

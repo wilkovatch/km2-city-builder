@@ -97,8 +97,8 @@ public static class RoadSplitter {
         if (controlPoints.Count < 2) return null;
         var rotations = road.GetPointRotations();
         var curveType = road.GetCurveType();
-        var tension = road.state.Float("hermiteTension", 0.5f);
-        var subdivideEqually = road.state.Bool("subdivideEqually");
+        var tension = road.instanceState.Float("hermiteTension", 0.5f);
+        var subdivideEqually = road.instanceState.Bool("subdivideEqually");
         var t = GetCurveParameter(road, segment, fraction);
         if (t <= ParamEpsilon || t >= 1.0f - ParamEpsilon) return null;
 
@@ -163,7 +163,7 @@ public static class RoadSplitter {
 
         Part NewPart(float partFrom, float partTo, bool startIsCut, bool endIsCut) => new Part {
             curveType = curveType, original = source, originalRotations = sourceRotations, tension = tension, subdivideEqually = subdivideEqually,
-            projected = road.state.Bool("project") || road.state.Bool("projectAll"),
+            projected = road.instanceState.Bool("project") || road.instanceState.Bool("projectAll"),
             from = partFrom, to = partTo, startIsCut = startIsCut, endIsCut = endIsCut
         };
         return new SplitPoints {

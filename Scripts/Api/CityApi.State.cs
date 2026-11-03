@@ -147,15 +147,17 @@ namespace Api {
                     if (target.FindParameter(property.Key) == null) throw ApiException.NotFound("parameter '" + property.Key + "'");
                 }
                 History.UndoManager.Touch(target.owner);
+                ObjectState Storage(string name) => target.FindParameter(name)?.instanceSpecific == true && target.owner is not CustomElement && target.instanceState != null ? target.instanceState : target.state;
                 void Assign(string name, object value) {
-                    if (value is ObjectState child) target.state.SetState(name, child);
-                    else if (value is ObjectState[] children) target.state.SetArray(name, children);
-                    else target.state.SetProperty(name, value);
+                    var storage = Storage(name);
+                    if (value is ObjectState child) storage.SetState(name, child);
+                    else if (value is ObjectState[] children) storage.SetArray(name, children);
+                    else storage.SetProperty(name, value);
                 }
                 foreach (var property in incoming.properties) {
                     if (append != null && System.Array.IndexOf(append, property.Key) >= 0) {
                         if (values[property.Key] is not JArray array) throw ApiException.InvalidValue("append requires an array");
-                        var existing = Json.ToToken(target.state.GetProperty<object>(property.Key, null)) as JArray ?? new JArray();
+                        var existing = Json.ToToken(Storage(property.Key).GetProperty<object>(property.Key, null)) as JArray ?? new JArray();
                         foreach (var item in array) existing.Add(item.DeepClone());
                         var merged = new JObject { [property.Key] = existing }.ToObject<ObjectState>();
                         Operations.States.Normalize(merged, target.parameters);
@@ -163,6 +165,7 @@ namespace Api {
                     } else Assign(property.Key, property.Value);
                 }
                 target.state.FlagAsChanged();
+                target.instanceState?.FlagAsChanged();
                 target.afterChange?.Invoke();
             });
         }
@@ -223,7 +226,7 @@ namespace Api {
                 object v;
                 try { v = name == "curveType" && t.roadType != null ? SplineCurves.Parse(t.roadType.typeData.settings, value) : ConvertValue(b.type, value, b.enumValues, name); }
                 catch (System.ArgumentException e) { throw ApiException.InvalidValue(e.Message); }
-                if (name == "hermiteTension" && t.state.Int("curveType") > 2) throw ApiException.InvalidValue("tension is fixed by the custom curve");
+                if (name == "hermiteTension" && t.instanceState.Int("curveType") > 2) throw ApiException.InvalidValue("tension is fixed by the custom curve");
                 var target = b.instanceSpecific ? t.instanceState : t.state;
                 History.UndoManager.Touch(t.owner);
                 SetPath(target, name, v);
@@ -242,10 +245,7 @@ namespace Api {
                 if (t.kind == "props") Operations.Props.SwitchType(t.state, type);
                 else Operations.States.SetType(t.state, type);
                 //not for the parts of the road (e.g. its props containers), which have types of their own
-                if (t.owner is Road road && t.state == road.GetState()) {
-                    var settings = TP.GetRoadTypes()[type].typeData.settings;
-                    if (System.Array.IndexOf(SplineCurves.Allowed(settings), t.state.Int("curveType")) < 0) t.state.SetInt("curveType", settings.defaultCurveType);
-                }
+                if (t.owner is Road road && t.state == road.GetState()) road.EnforceCurveType();
                 t.afterChange?.Invoke();
                 return type;
             });

@@ -37,7 +37,11 @@ namespace Operations {
                 if (types.TryGetValue(state.Str("type"), out var roadType)) SplineCurves.ValidateState(roadType.typeData.settings, state);
             }
             state.Name = name;
-            PresetManager.SavePreset((ObjectState)state.Clone(), category);
+            var preset = (ObjectState)state.Clone();
+            foreach (var key in new List<string>(preset.properties.Keys)) {
+                if (Builtins.IsInstanceSpecific(category, key)) preset.RemoveProperty(key);
+            }
+            PresetManager.SavePreset(preset, category);
         }
 
         public static bool Exists(string category, string name) {

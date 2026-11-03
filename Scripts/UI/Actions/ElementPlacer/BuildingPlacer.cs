@@ -62,7 +62,7 @@ namespace ElementPlacer {
             //a raised point (on the ground hit), or a line started with the terrain hidden, would be put back on the ground
             if (PlacementHeight.TurnsOffProjection(firstPoint && line.GetPointCount() > 0, !hits[0].HasValue && !hits[1].HasValue) && line.IsProjectedToGround()) {
                 History.UndoManager.Touch(line);
-                line.state.SetBool("projectToGround", false);
+                line.instanceState.SetBool("projectToGround", false);
                 manager.builder.RefreshActivePanelValues();
             }
         }

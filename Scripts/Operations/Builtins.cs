@@ -22,18 +22,23 @@ namespace Operations {
 
         public static readonly string[] CurveTypes = { "bezier", "hermite", "lowPoly" };
 
+        //the instance specific properties of a road a new road takes from the last road selected (not those about its intersections)
+        public static readonly string[] RoadSplineProperties = {
+            "projectAll", "project", "segmentsPer100m", "segments", "lpf", "makeCoplanar", "adjustLowPolyWidth", "curveType", "subdivideEqually", "hermiteTension"
+        };
+
         static readonly Dictionary<string, Property[]> properties = new Dictionary<string, Property[]> {
             ["road"] = new[] {
-                new Property("projectAll", "bool"),
-                new Property("project", "bool"),
-                new Property("segmentsPer100m", "bool"),
-                new Property("segments", "int"),
-                new Property("lpf", "int"),
-                new Property("makeCoplanar", "bool"), //only if the road type shows it, see GetProperties
-                new Property("adjustLowPolyWidth", "bool"),
-                new Property("curveType", "enum", false, CurveTypes),
-                new Property("subdivideEqually", "bool"),
-                new Property("hermiteTension", "float"),
+                new Property("projectAll", "bool", true),
+                new Property("project", "bool", true),
+                new Property("segmentsPer100m", "bool", true),
+                new Property("segments", "int", true),
+                new Property("lpf", "int", true),
+                new Property("makeCoplanar", "bool", true), //only if the road type shows it, see GetProperties
+                new Property("adjustLowPolyWidth", "bool", true),
+                new Property("curveType", "enum", true, CurveTypes),
+                new Property("subdivideEqually", "bool", true),
+                new Property("hermiteTension", "float", true),
                 new Property("endCrosswalkSize", "float"),
                 new Property("startCrosswalkSize", "float"),
                 new Property("endIntersectionAdd", "float"),
@@ -60,7 +65,7 @@ namespace Operations {
                 new Property("texture", "texture"),
             },
             ["buildingLine"] = new[] {
-                new Property("projectToGround", "bool"),
+                new Property("projectToGround", "bool", true),
                 new Property("invertDirection", "bool"),
                 new Property("loop", "bool"),
                 new Property("frontOnly", "bool"),
@@ -111,7 +116,7 @@ namespace Operations {
             foreach (var p in list) {
                 if (kind == "road" && p.name == "makeCoplanar" && (roadType == null || !roadType.InternalParameterVisible("makeCoplanar"))) continue;
                 if (kind == "road" && roadType != null && p.name == "curveType") {
-                    res.Add(new Property("curveType", "enum", false, SplineCurves.Allowed(roadType.typeData.settings).Select(SplineCurves.Name).ToArray()) { enumIds = SplineCurves.Allowed(roadType.typeData.settings) });
+                    res.Add(new Property("curveType", "enum", true, SplineCurves.Allowed(roadType.typeData.settings).Select(SplineCurves.Name).ToArray()) { enumIds = SplineCurves.Allowed(roadType.typeData.settings) });
                     continue;
                 }
                 if (kind == "road" && roadType != null && (p.name == "hermiteTension" || p.name == "subdivideEqually") &&
@@ -119,6 +124,11 @@ namespace Operations {
                 res.Add(p);
             }
             return res;
+        }
+
+        //whether a property of a kind is instance specific, whatever the type of the element
+        public static bool IsInstanceSpecific(string kind, string name) {
+            return properties.TryGetValue(kind, out var list) && list.Any(p => p.name == name && p.instanceSpecific);
         }
 
         //the property matching a name (array indices in the name match the # of the property paths)
