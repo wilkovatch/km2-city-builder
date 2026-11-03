@@ -80,9 +80,10 @@ public partial class TerrainClick : Control {
         }
         ApplyPlacementHeight(hits, masks, groundIndex, onUI, ray.origin, ray.direction);
         if (Input.GetInputStart(KeyCommand.Select)) strokeId++;
-        History.UndoManager.Record(modifier.GetType().Name, () => {
-            if (!modifier.UpdatePlacementRotation(GetViewport().GetMousePosition(), ray.origin, ray.direction, onUI, () => helper.elementManager.FlagAsChanged())) modifier.Apply(hits);
-            rotationAction = modifier.HasPlacementRotation ? modifier : null;
+        var action = modifier; //applying it can change the click mode (selecting an intersection clears it)
+        History.UndoManager.Record(action.GetType().Name, () => {
+            if (!action.UpdatePlacementRotation(GetViewport().GetMousePosition(), ray.origin, ray.direction, onUI, () => helper.elementManager.FlagAsChanged())) action.Apply(hits);
+            rotationAction = action.HasPlacementRotation ? action : null;
         }, (nameof(TerrainClick), strokeId));
     }
 

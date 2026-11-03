@@ -2120,6 +2120,34 @@ namespace History {
             await Move(new Vector3(30, 0, -70));
             Check("rotation: mass placement keeps its painting behavior", !meshPlacer.HasPlacementRotation);
             await Button(false);
+
+            //Selecting an intersection clears the click mode during the click itself.
+            builder.CloseAllPanels();
+            builder.SetSelectObjectMode();
+            var road = M.CreateRoad();
+            road.AddPoint(new Vector3(-60, 0, -110));
+            road.AddPoint(new Vector3(60, 0, -110));
+            await Frames(6);
+            var (intersection, _) = Operations.Roads.Split(M, road, new Vector3(0, 0, -110));
+            var branch = M.CreateRoad();
+            branch.AddPoint(GO.GetPosition(intersection.point));
+            branch.AddPoint(new Vector3(0, 0, -170));
+            branch.startIntersection = intersection;
+            intersection.roads.Add(branch);
+            M.FlagAsChanged();
+            await Frames(6);
+            foreach (var r in M.roads) r.SetActive(false); //the handles would catch the click
+            await Frames(2);
+            var clickThrew = false;
+            void OnException(object sender, System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs e) => clickThrew |= e.Exception.StackTrace?.Contains(nameof(TerrainClick)) == true;
+            System.AppDomain.CurrentDomain.FirstChanceException += OnException;
+            await Move(GO.GetPosition(intersection.point));
+            await Button(true);
+            System.AppDomain.CurrentDomain.FirstChanceException -= OnException;
+            await Button(false);
+            Check("rotation: clicking an intersection selects it", Shown() is EditorPanels.IntersectionEditorPanel panel && panel.intersection == intersection && builder.terrainClick.modifier == null);
+            Check("rotation: clicking an intersection throws nothing", !clickThrew);
+            builder.CloseAllPanels();
         }
 
         //the placement height of the road points: Shift + mouse movement raises it, a Shift tap or turning the projection on
