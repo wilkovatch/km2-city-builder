@@ -265,6 +265,9 @@ namespace Api {
                 await Frames(2);
             }
             Check("the opponent has its waypoints", opponent.GetAllPoints().Count == 3);
+            Check("the line of an opponent on the ground stays one solid line, with its arrows", CustomElementSplineGeometry.Build(opponent, out _).lines.Single() is var opponentLine
+                && !opponentLine.drawnThrough && opponentLine.wideCollider && opponentLine.arrowDirection == 1);
+            Check("the line of an opponent is drawn through what covers it and follows it", opponent.Settings.spline.line.drawWhenCovered && opponent.ProjectsSurface);
             builder.PerformUndo(); await Frames(3);
             bool LineShown() => opponent.generator.GetChildren().OfType<GameEngine.LineRenderer>().Any(l => l.enabled && l.IsVisibleInTree());
             Check("undo removes the last waypoint", opponent.GetAllPoints().Count == 2);

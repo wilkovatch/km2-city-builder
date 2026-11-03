@@ -121,6 +121,7 @@ namespace CityElements.Types {
     public class CustomElementSplineSettings : RoadSettings {
         public CustomElementSplineSettings() { curveTypes = new[] { 0, 1, 2 }; defaultCurveType = 2; }
         public CustomElementSplineLine line, controlLine;
+        public bool DrawsLinesWhenCovered => line?.drawWhenCovered == true || controlLine?.drawWhenCovered == true;
         public float previewTolerance;
         public int previewMaxDepth = 8;
         public int segments = 20;
@@ -143,6 +144,7 @@ namespace CityElements.Types {
         public bool always;
         public float heightOffset; //world-space Y offset of the displayed line and its picking collider
         public int trimStart, trimEnd;
+        public bool drawWhenCovered; //the parts under a surface are drawn faintly through it (see PropPlacerGeometry.SplitWhereCovered)
     }
 
     public class CustomElementType: ITypeWithUI {

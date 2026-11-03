@@ -6,5 +6,5 @@ uniform vec4 _Color : source_color = vec4(1.0);
 
 void fragment() {
 	ALBEDO = _Color.rgb;
-	ALPHA = 0.5;
+	ALPHA = 0.2; // blended in linear space: it looks about twice as strong
 }

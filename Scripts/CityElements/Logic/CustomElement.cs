@@ -28,7 +28,8 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
     public CustomElementSplineGeometry.Data splineData;
     public string propPlacementError;
     public bool ProjectsPlacement => Settings?.propPlacer != null && state.Bool("projectToGround", Settings.propPlacer.projectToGround);
-    public bool ProjectsSurface => ProjectsPlacement || Settings?.spline?.projectSections == true || Settings?.point?.project == true;
+    public bool ProjectsSurface => ProjectsPlacement || Settings?.spline?.projectSections == true || Settings?.point?.project == true
+        || Settings?.spline?.DrawsLinesWhenCovered == true; //these lines depend on the surfaces over them
     bool propProjectionInvalid = true, propProjectionEnabled;
     readonly Dictionary<TerrainPoint, Vector3> splineProjectedPoints = new();
     int splineProjectionUndoVersion = -1;

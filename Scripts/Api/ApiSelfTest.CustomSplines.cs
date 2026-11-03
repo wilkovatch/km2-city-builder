@@ -197,10 +197,13 @@ namespace Api {
                 && Mathf.Abs(lines[0].GetAabb().Position.Y - displayedRoute.Min(p => p.Y) - settings.line.heightOffset) < .001f);
             var middle = element.splineData.sections[element.splineData.sections.Length/2].center;
             var position = new Vector3(middle[0],middle[1],middle[2]);
-            Check("deselected train can be selected through its line collider",GameEngine.Raycast.DoRaycast(element,position+Vector3.Up*20,Vector3.Down,out var hit,40,1<<7) && hit.collider == element.generator);
-            Check("train selection collider follows the preview lift", hit.collider == element.generator && Mathf.Abs(hit.point.Y-position.Y-settings.line.heightOffset) < .001f);
+            Check("deselected train can be selected through its line collider",GameEngine.Raycast.DoPickRaycast(element,position+Vector3.Up*20,Vector3.Down,out var hit,40,1<<7) && ElementPlacer.ReferencePicker.ElementOf(hit.collider) == element);
+            //the collider is a vertical ribbon too, centered on the line
+            var colliderHeights = ((ConcavePolygonShape3D)lines[0].FindChildren("*",nameof(CollisionShape3D),true,false).OfType<CollisionShape3D>().Single().Shape).GetFaces().Select(v => v.Y).ToArray();
+            var lineBounds = lines[0].GetAabb();
+            Check("train selection collider follows the preview lift", Mathf.Abs((colliderHeights.Min()+colliderHeights.Max())*.5f-lineBounds.Position.Y-lineBounds.Size.Y*.5f) < .001f);
             var omitted = curve.Position(.125f)+offset;
-            Check("trimmed train end spans cannot be picked through the route collider", !GameEngine.Raycast.DoRaycast(element,omitted+Vector3.Up*20,Vector3.Down,out _,40,1<<7));
+            Check("trimmed train end spans cannot be picked through the route collider", !GameEngine.Raycast.DoPickRaycast(element,omitted+Vector3.Up*20,Vector3.Down,out _,40,1<<7));
             builder.SelectObject(element, true, null);
             await Frames(2);
             Check("editing a train does not restore the cyan control polygon", element.generator.FindChildren("*", "", true, false).OfType<GameEngine.LineRenderer>().Count(l => l.enabled) == 1);
@@ -239,6 +242,58 @@ namespace Api {
             Check("train save/reload rebuilds the custom preview",element.state.Int("curveType") == 3 && element.GetAllPoints().Count() == authored.Count && element.splineData.sections.Length > authored.Count);
             var json = Path.Combine(folder,"..","trains_export.json");
             await Call("city.exportJson",new {path=json});
+            await CoveredSplineLines();
+        }
+
+        //the parts of a spline line under a surface, with drawWhenCovered: faint, clickable through it, following the surface
+        async Task CoveredSplineLines() {
+            CustomElement Train(int id) => (CustomElement)History.UndoManager.GetAliveElement(id);
+            async Task<int> Create(Vector3 from, Vector3 to, string name) {
+                var points = Enumerable.Range(-1, 5).Select(i => new { position=SplinePosition(from+(to-from)*(i/2f)) }).ToArray();
+                return (await Call("customElement.create",new { type="train",name,points=new { spline=points } })).Value<int>();
+            }
+            (GameEngine.LineRenderer lr, global::CustomElements.GeometryLine line)[] Renderers(int id) =>
+                ((System.Collections.IList)typeof(CustomElementGenerator).GetField("lines",System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    .GetValue(Train(id).generator)).Cast<(GameEngine.LineRenderer, global::CustomElements.GeometryLine)>().ToArray();
+            var center = new Vector3(500,0,500);
+            var low = await Create(new Vector3(450,1,500),new Vector3(550,1,500),"Low train");
+            await Frames(2);
+            Check("a line over the ground stays one solid line",Renderers(low).Single() is var solid && !solid.lr.drawnThrough && solid.lr.MaterialOverride == MaterialManager.GetHandleMaterial(GameEngine.Color.yellow));
+            await Call("terrain.brush",new { mode="raise",position=V(center.X,0,center.Z),range=20,intensity=50 });
+            await Call("terrain.brush",new { mode="raise",position=V(center.X,0,center.Z),range=20,intensity=50 });
+            Check("the raised terrain is over the line",(await Call("terrain.height",new { x=center.X,z=center.Z })).Value<float>() > 2);
+            await Frames(3);
+            var parts = Renderers(low);
+            Check("a line follows the terrain raised over it, with the part under it drawn through",parts.Length == 3 && !parts[0].lr.drawnThrough && parts[1].lr.drawnThrough && !parts[2].lr.drawnThrough);
+            Check("the part under the terrain is faint and the others solid",parts[1].lr.MaterialOverride == MaterialManager.GetDrawnThroughLineMaterial(GameEngine.Color.yellow)
+                && parts[0].lr.MaterialOverride == MaterialManager.GetHandleMaterial(GameEngine.Color.yellow));
+            Check("the parts of the line have no gaps",parts[0].line.points[^1] == parts[1].line.points[0] && parts[1].line.points[^1] == parts[2].line.points[0]);
+            await ToSignal(GetTree(),"physics_frame"); await Frames(2);
+            var mask = (1 << 3) | (1 << 7);
+            Check("the line can be clicked through the terrain over it",GameEngine.Raycast.DoPickRaycast(builder.helper,center+Vector3.Up*50,Vector3.Down,out var hit,60,mask)
+                && ElementPlacer.ReferencePicker.ElementOf(hit.collider) == Train(low));
+            if (DisplayServer.GetName() != "headless") {
+                await Call("view.camera.set",new {position=new[] {500f,45f,455f},target=new[] {500f,0f,500f}});
+                await Frames(5); Screenshot("covered_line.png");
+            }
+            var crossing = await Create(new Vector3(460,30,490),new Vector3(460,30,510),"Raised train");
+            await Frames(3);
+            Check("a line over another one doesn't cover it",Renderers(low).Length == 3 && Renderers(low)[0].line.points.Last().X > 461 && !Renderers(low)[0].lr.drawnThrough);
+            Check("a line isn't a surface to project on",GeometryHelper.AutoProjectOnSurface(new Vector3(460,50,500),mask).Y < 29);
+            await Call("customElement.delete",new { element=crossing });
+            await Call("history.undo"); await Call("history.undo"); await Call("history.undo"); await Call("history.undo");
+            await Frames(3);
+            Check("undoing the terrain restores the solid line",Renderers(low).Single() is var restored && !restored.lr.drawnThrough);
+            //after a reload the first update has no colliders yet
+            await Call("terrain.brush",new { mode="raise",position=V(center.X,0,center.Z),range=20,intensity=50 });
+            await Call("terrain.brush",new { mode="raise",position=V(center.X,0,center.Z),range=20,intensity=50 });
+            await Call("city.save"); await Call("city.reload");
+            low = History.ElementRegistry.GetId(M.customElements.Single(e => GO.GetName(e) == "Low train"));
+            await Frames(3);
+            Check("a line under the terrain is drawn through it after a reload",Renderers(low).Length == 3 && Renderers(low)[1].lr.drawnThrough);
+            await Call("terrain.brush",new { mode="lower",position=V(center.X,0,center.Z),range=20,intensity=50 });
+            await Call("terrain.brush",new { mode="lower",position=V(center.X,0,center.Z),range=20,intensity=50 });
+            await Call("customElement.delete",new { element=low });
         }
 
         //Cardinal spline through a loop of controls with tangents 0.5 * (next - previous), on X, Y and Z

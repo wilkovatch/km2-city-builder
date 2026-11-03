@@ -117,7 +117,7 @@ public static class PropPlacerGeometry {
                 line.points = Subdivided(line.points, line.closed).Select(p => Project(element, p)).ToList();
                 lines.Add(line);
             } else {
-                lines.AddRange(SplitWhereCovered(element, line));
+                lines.AddRange(SplitWhereCovered(line, p => Project(element, p)));
             }
         }
         geometry.lines = lines;
@@ -140,13 +140,13 @@ public static class PropPlacerGeometry {
         return res;
     }
 
-    //a line of a guide showing where the props are: the parts under a surface are drawn through it, also the terrain doesn't
-    //hide them by itself as it's a transparent grid
-    static List<GeometryLine> SplitWhereCovered(CustomElement element, GeometryLine line) {
+    //a line showing where something is (e.g. a guide of the props): the parts under a surface are drawn through it, also
+    //the terrain doesn't hide them by itself as it's a transparent grid. surface gives the point on what covers a point
+    internal static List<GeometryLine> SplitWhereCovered(GeometryLine line, Func<Vector3, Vector3> surface) {
         var points = Subdivided(line.points, line.closed);
         if (points.Count < 2) return new List<GeometryLine> { line };
         if (line.closed) points.Add(points[0]);
-        var covered = points.Select(p => Project(element, p).Y > p.Y + line.heightOffset).ToList();
+        var covered = points.Select(p => surface(p).Y > p.Y + line.heightOffset).ToList();
         if (!covered.Contains(true)) return new List<GeometryLine> { line };
         var res = new List<GeometryLine>();
         int start = 0;

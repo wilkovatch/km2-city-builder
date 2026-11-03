@@ -158,12 +158,22 @@ public static class CustomElementSplineGeometry {
             return projectSections
                 ? positions.Select(p => GH.AutoProjectOnSurface(p, settings.projectionMask, element.generator)).ToList() : positions;
         }
+        void AddLine(GeometryLine line, CityElements.Types.CustomElementSplineLine style) {
+            if (style?.drawWhenCovered != true) {
+                result.lines.Add(line);
+                return;
+            }
+            line.wideCollider = true; //also so that it's not a surface covering the other lines
+            //the highest surface, not the rule of the projections: under a heightmap used as a guide it's still under the ground
+            result.lines.AddRange(PropPlacerGeometry.SplitWhereCovered(line,
+                p => GameEngine.Raycast.ProjectPoint(p, settings.projectionMask | GameEngine.Raycast.ProjectionSurfaceMask, element.generator)));
+        }
         var linePositions = LinePositions();
-        if (linePositions.Count >= 2) result.lines.Add(Line(linePositions, settings.line));
+        if (linePositions.Count >= 2) AddLine(Line(linePositions, settings.line), settings.line);
         if (settings.controlLine != null && controls.Count >= 2) {
             var controlLine = Line(controls, settings.controlLine);
             controlLine.closed = closed;
-            result.lines.Add(controlLine);
+            AddLine(controlLine, settings.controlLine);
         }
         if ((settings.components?.Length ?? 0) == 0) {
             var centerSections = new List<Section>(); float d = 0;
