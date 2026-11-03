@@ -27,13 +27,13 @@ namespace History {
         //selection: selection and deselection timings and handle cleanup, on a copy of an existing city;
         //placement: control point selection and insertion on the first roads created after startup, on a new city;
         //height: the placement height (Shift + mouse movement) and the snapping toggle, on a new city
-        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection", "placement", "height" };
+        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection", "placement", "height", "rotation" };
 
         public static void Start(CityBuilderMenuBar builder, string folder, string mode) {
             builder.AddChild(new UndoSelfTest {
                 builder = builder, folder = folder, Name = "UndoSelfTest",
                 propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", placementOnly = mode == "placement", loadExisting = mode == "load",
-                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown", selectionOnly = mode == "selection", heightOnly = mode == "height"
+                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown", selectionOnly = mode == "selection", heightOnly = mode == "height", rotationOnly = mode == "rotation"
             });
         }
 
@@ -44,6 +44,7 @@ namespace History {
         bool dropdownOnly = false;
         bool selectionOnly = false;
         bool heightOnly = false;
+        bool rotationOnly = false;
 
         //Selection on a copy of a large city, including cities with no procedural roads. Times the synchronous work
         //separately from the next frame, which includes the renderer and physics server processing the handle changes.
@@ -761,7 +762,7 @@ namespace History {
             else if (splitOnly || placementOnly) RunSplit();
             else if (dragOnly) RunDrag();
             else if (dropdownOnly) RunDropdown();
-            else if (heightOnly) RunHeight();
+            else if (heightOnly || rotationOnly) RunHeight();
             else Run();
         }
 
@@ -1910,7 +1911,8 @@ namespace History {
             var snapping = Snapping.Enabled;
             try {
                 await LoadNewCity();
-                await HeightTests();
+                if (rotationOnly) await PlacementRotationTests();
+                else await HeightTests();
             } catch (System.Exception e) {
                 Log("exception: " + e);
                 failures++;
@@ -1920,6 +1922,204 @@ namespace History {
             Log("finished with " + failures + " failures");
             File.WriteAllLines(Path.Combine(folder, "..", "undo_selftest.log"), log);
             GetTree().Quit(failures == 0 ? 0 : 1);
+        }
+
+        //Real held clicks cover all three placement paths and the stroke shared by creation and rotation.
+        async Task PlacementRotationTests() {
+            var cam = GetViewport().GetCamera3D();
+            GO.SetPosition(cam, new Vector3(0, 250, -250));
+            GO.LookAt(cam, Vector3.Zero);
+            Snapping.Enabled = false;
+            await Frames(6);
+            Vector2 Screen(Vector3 p) => cam.UnprojectPosition(GameEngine.Vector3.DecodePosition(p));
+            async Task Move(Vector3 p) {
+                GetViewport().WarpMouse(Screen(p));
+                await Frames(3);
+            }
+            async Task Button(bool pressed) {
+                var mouse = GetViewport().GetMousePosition();
+                Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = pressed, Position = mouse, GlobalPosition = mouse });
+                await Frames(4);
+            }
+            async Task ToggleSnapping() {
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.G, PhysicalKeycode = Key.G, Pressed = true });
+                await Frames(2);
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.G, PhysicalKeycode = Key.G, Pressed = false });
+                await Frames(2);
+            }
+            bool Faces(Node3D node, Vector3 target) {
+                var direction = GameEngine.Vector3.EncodePosition(-node.GlobalBasis.Z);
+                var expected = target - GO.GetPosition(node);
+                return new Vector2(direction.X, direction.Z).Normalized().Dot(new Vector2(expected.X, expected.Z).Normalized()) > 0.999f;
+            }
+            const string model = "placement_rotation.obj";
+            File.WriteAllText(Path.Combine(folder, model), "v -1 0 -2\nv 1 0 -2\nv 0 2 2\nf 1 2 3\n");
+            var meshPlacer = new ElementPlacer.MeshPlacer(M) { meshPath = model, settings = Operations.Meshes.NewSettings("instMesh") };
+            builder.terrainClick.modifier = meshPlacer;
+            UndoManager.Clear();
+            await Move(new Vector3(-70, 0, 0));
+            await Button(true);
+            var mesh = M.meshes[^1];
+            var position = GO.GetPosition(mesh);
+            Check("rotation: a stationary click keeps the initial heading", Mathf.Abs(GO.GetRotation(mesh).Y) < 0.01f);
+            await Move(position + new Vector3(50, 0, 0));
+            Check("rotation: a mesh faces the cursor while the placement click is held", Faces(mesh, position + new Vector3(50, 0, 0)));
+            Check("rotation: dragging keeps the placed position", GO.GetPosition(mesh).DistanceTo(position) < 0.01f);
+            await Move(position + new Vector3(-30, 0, 30));
+            Check("rotation: the heading follows a second drag direction", Faces(mesh, position + new Vector3(-30, 0, 30)));
+            await ToggleSnapping();
+            Check("rotation: G enables 15 degree snapping during a held drag", Snapping.Enabled && Mathf.Abs(GO.GetRotation(mesh).Y - 310) < 0.01f);
+            await Move(position + new Vector3(40, 0, 30));
+            Check("rotation: positive headings snap to the nearest 15 degrees", Mathf.Abs(GO.GetRotation(mesh).Y - 50) < 0.01f);
+            await Move(position + new Vector3(-40, 0, 30));
+            Check("rotation: negative headings snap to the nearest 15 degrees", Mathf.Abs(GO.GetRotation(mesh).Y - 310) < 0.01f);
+            await ToggleSnapping();
+            Check("rotation: G restores free rotation during the same drag", !Snapping.Enabled && Faces(mesh, position + new Vector3(-40, 0, 30)));
+            var rotation = GO.GetRotation(mesh);
+            var count = M.meshes.Count;
+            //A parallel ray, a ray pointing away from the plane and UI crossings keep the last heading.
+            var action = builder.terrainClick.modifier;
+            action.UpdatePlacementRotation(GetViewport().GetMousePosition(), position + Vector3.Up * 10, Vector3.Right, false, () => M.FlagAsChanged());
+            action.UpdatePlacementRotation(GetViewport().GetMousePosition(), position + Vector3.Up * 10, Vector3.Up, false, () => M.FlagAsChanged());
+            action.UpdatePlacementRotation(GetViewport().GetMousePosition(), position + new Vector3(10, 10, 0), Vector3.Down, true, () => M.FlagAsChanged());
+            Check("rotation: invalid plane rays and UI crossings keep the heading", GO.GetRotation(mesh).DistanceTo(rotation) < 0.01f);
+            await Button(false);
+            await Move(position + new Vector3(0, 0, -40));
+            Check("rotation: releasing the click ends rotation without creating extra meshes", GO.GetRotation(mesh).DistanceTo(rotation) < 0.01f && M.meshes.Count == count);
+            Check("rotation: placement and dragging are one undo step", UndoCount() == 1);
+            builder.PerformUndo(); await Frames(4);
+            Check("rotation: one undo removes the rotated placement", M.meshes.Count == count - 1);
+            builder.PerformRedo(); await Frames(4);
+            mesh = M.meshes[^1];
+            Check("rotation: redo restores position and heading", GO.GetPosition(mesh).DistanceTo(position) < 0.01f && GO.GetRotation(mesh).DistanceTo(rotation) < 0.01f);
+
+            builder.CloseAllPanels();
+            builder.terrainClick.modifier = meshPlacer;
+            await Move(new Vector3(-50, 0, -30));
+            var mouseStart = GetViewport().GetMousePosition();
+            PlacementHeight.BeginHold(new Vector3(-50, 0, -30), mouseStart);
+            PlacementHeight.Update(cam, mouseStart - new Vector2(0, 60));
+            PlacementHeight.EndHold();
+            await Frames(2);
+            await Button(true);
+            mesh = M.meshes[^1];
+            position = GO.GetPosition(mesh);
+            GO.SetRotation(mesh, new Vector3(15, 0, 10));
+            await Move(position + new Vector3(30, 0, 25));
+            Check("rotation: a raised mesh faces the mouse on its own horizontal plane", position.Y > 10 && Faces(mesh, position + new Vector3(30, 0, 25)));
+            Check("rotation: dragging changes only yaw", Mathf.Abs(GO.GetRotation(mesh).X - 15) < 0.01f && Mathf.Abs(GO.GetRotation(mesh).Z - 10) < 0.01f && GO.GetPosition(mesh).DistanceTo(position) < 0.01f);
+            await Button(false);
+            PlacementHeight.Reset();
+
+            var city = M.GetDummy<CityProperties>();
+            var raceParam = System.Array.Find(CityElements.Types.Parsers.TypeParser.GetCitySettings()["city"].typeData.parametersInfo.parameters, p => p.name == "circuitRaces");
+            UndoManager.Record("add race", () => { UndoManager.Touch(city); Operations.States.AddArrayElement(city.state, raceParam); M.FlagAsChanged(); });
+            var race = city.state.Array<ObjectState>("circuitRaces")[^1];
+            var ownerId = Operations.PropertyContainers.EnsureId(race);
+            ArrayObject.activeElements["race"] = race;
+            builder.NotifyVisibilityChange();
+            await Frames(3);
+            var checkpointParam = System.Array.Find(CityElements.Types.Parsers.TypeParser.GetCustomCityPropertiesTypes()["circuitRace"].parameters, p => p.name == "checkpoints");
+            builder.arrayPointPlacer.Start(this, () => race, checkpointParam, () => city);
+            UndoManager.Clear();
+            await Move(new Vector3(0, 0, 10));
+            await Button(true);
+            var checkpointState = race.Array<ObjectState>("checkpoints")[^1].State("checkpoint");
+            MeshInstance FindMesh(Node node, ObjectState state) {
+                if (node is MeshInstance m && m.settings == state) return m;
+                foreach (var child in node.GetChildren()) { var found = FindMesh(child, state); if (found != null) return found; }
+                return null;
+            }
+            var checkpoint = FindMesh(city, checkpointState);
+            Check("rotation: a checkpoint is generated on the press", checkpoint != null);
+            position = GO.GetPosition(checkpoint);
+            await Move(position + new Vector3(35, 0, -25));
+            Check("rotation: a checkpoint faces the cursor before release", Faces(checkpoint, position + new Vector3(35, 0, -25)));
+            await ToggleSnapping();
+            Check("rotation: checkpoint headings also snap to 15 degrees", Mathf.Abs(checkpointState.Vector3("localRotation").Y - 125) < 0.01f);
+            await ToggleSnapping();
+            Check("rotation: checkpoint rotation is stored with its object", checkpointState.Vector3("localRotation").DistanceTo(GO.GetLocalRotation(checkpoint)) < 0.01f);
+            Check("rotation: checkpoint drag keeps position and scale", GO.GetPosition(checkpoint).DistanceTo(position) < 0.01f && GO.GetLocalScale(checkpoint).DistanceTo(new Vector3(15, 7.5f, 15)) < 0.01f);
+            await Button(false);
+            Check("rotation: checkpoint creation and rotation share one undo step", UndoCount() == 1);
+            builder.PerformUndo(); await Frames(4);
+            race = Operations.PropertyContainers.Find(ownerId).state;
+            Check("rotation: undo removes the checkpoint", (race.Array<ObjectState>("checkpoints")?.Length ?? 0) == 0);
+            builder.PerformRedo(); await Frames(4);
+            race = Operations.PropertyContainers.Find(ownerId).state;
+            Check("rotation: redo restores the checkpoint heading", race.Array<ObjectState>("checkpoints")[^1].State("checkpoint").Vector3("localRotation").DistanceTo(checkpointState.Vector3("localRotation")) < 0.01f);
+
+            builder.CloseAllPanels();
+            builder.arrayPointPlacer.Stop();
+            UndoManager.Record("start opponent", () => Invoke(builder, "StartCustomElementCreation", "opponent", "CREATE_CUSTOM_ELEMENT"));
+            builder.customElementPlacer.creationState.State("carModel").SetStr("meshPath", model);
+            await Frames(4);
+            UndoManager.Clear();
+            await Move(new Vector3(50, 0, 40));
+            await Button(true);
+            var opponent = builder.customElementPlacer.GetElement();
+            var car = opponent.FindParametricObject("carModel", new List<string>());
+            position = GO.GetPosition(car);
+            await Move(position + new Vector3(-40, 0, 0));
+            car = opponent.FindParametricObject("carModel", new List<string>());
+            Check("rotation: an opponent start car faces the cursor before release", Faces(car, position + new Vector3(-40, 0, 0)));
+            await ToggleSnapping();
+            Check("rotation: opponent start cars also snap to 15 degrees", Mathf.Abs(opponent.state.State("carModel").Vector3("localRotation").Y - 272.5f) < 0.01f);
+            await ToggleSnapping();
+            Check("rotation: rotating an opponent adds no waypoint", opponent.GetAllPoints().Count == 0 && GO.GetPosition(car).DistanceTo(position) < 0.01f);
+            rotation = opponent.state.State("carModel").Vector3("localRotation");
+            await Button(false);
+            Check("rotation: opponent creation and rotation share one undo step", UndoCount() == 1);
+            await Move(new Vector3(80, 0, 60)); await Button(true); await Button(false);
+            Check("rotation: the next opponent click adds a waypoint", opponent.GetAllPoints().Count == 1 && opponent.state.State("carModel").Vector3("localRotation").DistanceTo(rotation) < 0.01f);
+
+            //The same creation flow must respect a core disabling yaw for its object.
+            builder.CloseAllPanels();
+            var carParam = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()["opponent"].objectInstanceParams["carModel"];
+            var yawAllowed = carParam.objectInstanceSettings.allowRotation[1];
+            try {
+                carParam.objectInstanceSettings.allowRotation[1] = false;
+                UndoManager.Record("start locked opponent", () => Invoke(builder, "StartCustomElementCreation", "opponent", "CREATE_CUSTOM_ELEMENT"));
+                builder.customElementPlacer.creationState.State("carModel").SetStr("meshPath", model);
+                await Move(new Vector3(-20, 0, 80)); await Button(true);
+                opponent = builder.customElementPlacer.GetElement();
+                rotation = opponent.state.State("carModel").Vector3("localRotation");
+                await Move(new Vector3(20, 0, 80)); await Button(false);
+                Check("rotation: an object with yaw locked keeps its heading", !builder.customElementPlacer.HasPlacementRotation && opponent.state.State("carModel").Vector3("localRotation").DistanceTo(rotation) < 0.01f);
+            } finally {
+                carParam.objectInstanceSettings.allowRotation[1] = yawAllowed;
+            }
+
+            builder.CloseAllPanels();
+            UndoManager.Record("start point element", () => Invoke(builder, "StartCustomElementCreation", "decalSingle", "CREATE_CUSTOM_ELEMENT"));
+            await Move(new Vector3(-30, 0, -40)); await Button(true);
+            var decal = builder.customElementPlacer.GetElement();
+            var center = decal.GetAllPoints()[0];
+            position = center.GetPoint();
+            await Move(position + new Vector3(20, 0, 25));
+            Check("rotation: a point element faces the cursor without moving its gizmo", Faces(center, position + new Vector3(20, 0, 25)) && center.GetPoint().DistanceTo(position) < 0.01f);
+            await Button(false);
+            builder.CloseAllPanels();
+            var pointSettings = decal.Settings.point;
+            var pointYaw = pointSettings.rotationAxes[1];
+            try {
+                pointSettings.rotationAxes[1] = false;
+                UndoManager.Record("start locked point element", () => Invoke(builder, "StartCustomElementCreation", "decalSingle", "CREATE_CUSTOM_ELEMENT"));
+                await Move(new Vector3(-50, 0, 50)); await Button(true);
+                center = builder.customElementPlacer.GetElement().GetAllPoints()[0];
+                rotation = center.GetRotation();
+                await Move(new Vector3(-10, 0, 50)); await Button(false);
+                Check("rotation: a point element with yaw locked keeps its heading", center.GetRotation().DistanceTo(rotation) < 0.01f);
+            } finally {
+                pointSettings.rotationAxes[1] = pointYaw;
+            }
+            builder.CloseAllPanels();
+            meshPlacer = new ElementPlacer.MeshPlacer(M) { meshPath = model, settings = Operations.Meshes.NewSettings("individualProp"), multiple = true };
+            builder.terrainClick.modifier = meshPlacer;
+            await Move(new Vector3(0, 0, -70)); await Button(true);
+            await Move(new Vector3(30, 0, -70));
+            Check("rotation: mass placement keeps its painting behavior", !meshPlacer.HasPlacementRotation);
+            await Button(false);
         }
 
         //the placement height of the road points: Shift + mouse movement raises it, a Shift tap or turning the projection on

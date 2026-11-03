@@ -16,6 +16,7 @@ public partial class TerrainClick : Control {
     bool isModifying = false;
     public bool uiEnabled = true;
     int strokeId = 0; //the changes made while the button is held (brush strokes, mesh painting) are a single undo step
+    TerrainAction rotationAction;
 
     public override void _Ready() {
         //run before the gizmo (on the camera, earlier in the tree): the actions must see the selection
@@ -35,6 +36,10 @@ public partial class TerrainClick : Control {
     }
 
     public override void _Process(double delta) {
+        if (!uiEnabled || modifier != rotationAction || !Input.GetInputPressed(KeyCommand.Select)) {
+            rotationAction?.EndPlacementRotation();
+            rotationAction = null;
+        }
         PlacementHeight.CheckSessionEnd(modifier);
         PlacementHeight.Active = false;
         if (!uiEnabled || modifier == null || (!Input.GetInputPressed(KeyCommand.Select) && modifier is TerrainModifier.Null)) {
@@ -75,7 +80,10 @@ public partial class TerrainClick : Control {
         }
         ApplyPlacementHeight(hits, masks, groundIndex, onUI, ray.origin, ray.direction);
         if (Input.GetInputStart(KeyCommand.Select)) strokeId++;
-        History.UndoManager.Record(modifier.GetType().Name, () => modifier.Apply(hits), (nameof(TerrainClick), strokeId));
+        History.UndoManager.Record(modifier.GetType().Name, () => {
+            if (!modifier.UpdatePlacementRotation(GetViewport().GetMousePosition(), ray.origin, ray.direction, onUI, () => helper.elementManager.FlagAsChanged())) modifier.Apply(hits);
+            rotationAction = modifier.HasPlacementRotation ? modifier : null;
+        }, (nameof(TerrainClick), strokeId));
     }
 
     //the hit on the ground replaced by the raised point (PlacementHeight), with its line from the ground

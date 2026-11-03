@@ -34,6 +34,7 @@
 	"HELP_CONTROLS_EMULATE_MIDDLE": "Act as the middle mouse button",
 	"HELP_CONTROLS_CAMERA_SETTINGS": "Change the camera scheme and mouse emulation in Settings → Preferences → Controls.",
 	"HELP_CONTROLS_SELECT": "Select an object or place a point with the current tool",
+	"HELP_CONTROLS_PLACEMENT_ROTATION": "While placing an object: face the cursor if vertical rotation is allowed (Snap to grid: 15° steps)",
 	"HELP_CONTROLS_CLICK_THROUGH": "Select through meshes",
 	"HELP_CONTROLS_DESELECT": "End editing / deselect",
 	"HELP_CONTROLS_DELETE": "Delete the selected object or control point",

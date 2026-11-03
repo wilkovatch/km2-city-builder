@@ -245,6 +245,7 @@ namespace RuntimeGizmos {
         }
 
         void TransformSelected() {
+            if (consumedClickFrame == Engine.GetProcessFrames()) return;
             if (mainTargetRoot != null) {
                 if (nearAxis != Axis.None && Input.GetInputStart(KeyCommand.Select) && GetNearAxisAllowed(GetAxesAllowed(translatingType))) {
                     StartTransform(translatingType);

@@ -329,6 +329,8 @@ The *High floors count* and *Low floors count* parameters control how many of th
 
 To place a mesh, select its type in the *Create* menu (for Midtown Madness 2, *Individual props* or *INST mesh*), select a mesh from the list (you can search it by name), click *Start placement*, then click on the ground to place one or more copies of it.
 
+To set its heading as you place it, keep the placement click held and drag the mouse. The mesh stays where you placed it and faces the cursor projected onto the horizontal plane at its height. Release the click to keep that heading. With *Edit* → *Snap to grid* (G) enabled, the heading snaps to 15° increments; you can toggle snapping while dragging. This also works for objects such as race checkpoints and opponent start cars, and for single-point custom elements, when their vertical rotation axis is unlocked. A click without dragging keeps the initial rotation; mass placement keeps its painting behavior. Placement and rotation are one undo step.
+
 ![The mesh list](images/mesh-list-panel.png)
 
 To change the position, rotation or scale of a placed mesh, exit the placement mode (click *Close* or press Escape) and click on the mesh. You can then move it (click *Move* or press W), rotate it (click *Rotate* or press E) and scale it (click *Scale* or press R), or enter the values by hand in the panel. Turn on *Edit* → *Snap to grid* (G) to apply the transforms in incremental steps (e.g. move snapped to the grid).

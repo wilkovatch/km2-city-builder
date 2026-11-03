@@ -35,6 +35,7 @@ namespace ElementPlacer {
         }
 
         public void SetElement(CustomElement element) {
+            if (element != curElement) EndPlacementRotation();
             if (!GO.IsNull(curElement) && !curElement.IsDeleted()) curElement.SetPlacementPoint(null);
             curElement = GO.IsNull(element) || (element != null && element.IsDeleted()) ? null : element;
             if (curElement != null) propertyContainerId = Operations.PropertyContainers.Owner(curElement.state);
@@ -100,6 +101,18 @@ namespace ElementPlacer {
                     curElement.SetActive(true, true);
                     curElement.Select(true);
                     onElementCreated?.Invoke();
+                    var placed = curElement;
+                    var objectKey = placed.Settings?.placementObject;
+                    if (objectKey != null && placed.GetCustomElementType().objectInstanceParams.TryGetValue(objectKey, out var objectParam) &&
+                        objectParam.objectInstanceSettings.allowRotation?[1] == true) {
+                        BeginPlacementRotation(manager.GetViewport(), () => placed.FindParametricObject(objectKey, new List<string>()),
+                            () => GetElement() == placed && manager.builder.customElementEditorPanel.ActiveSelf() &&
+                                Operations.PropertyContainers.IsCurrent(propertyContainerId) && objectParam.objectInstanceSettings.allowRotation?[1] == true);
+                    } else if (placed.Settings?.point?.RotationAxes()[1] == true) {
+                        BeginPlacementRotation(manager.GetViewport(), () => (placed.points.Get("center") as CustomElements.PointLeaf)?.point,
+                            () => GetElement() == placed && manager.builder.customElementEditorPanel.ActiveSelf() &&
+                                Operations.PropertyContainers.IsCurrent(propertyContainerId) && placed.Settings.point.RotationAxes()[1]);
+                    }
                     //a point element has its gizmo on the element, which the point deselection would remove
                     if (curElement.Settings?.point != null) {
                         UpdatePlacementPoint();

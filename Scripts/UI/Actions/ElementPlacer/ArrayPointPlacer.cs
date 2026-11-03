@@ -32,6 +32,7 @@ namespace ElementPlacer {
 
         //getUndoTarget: the city element recorded for undo before each placement (the one edited by the panel)
         public void Start(object panel, System.Func<IObjectWithState> getOwner, CityElements.Types.Parameter param, System.Func<object> getUndoTarget) {
+            EndPlacementRotation();
             this.panel = panel;
             this.getOwner = getOwner;
             this.getUndoTarget = getUndoTarget;
@@ -41,6 +42,7 @@ namespace ElementPlacer {
         }
 
         public void Stop() {
+            EndPlacementRotation();
             var wasActive = panel != null;
             panel = null;
             getOwner = null;
@@ -81,7 +83,14 @@ namespace ElementPlacer {
             History.UndoManager.Touch(getUndoTarget?.Invoke());
             //e.g. on a road a little under the terrain covering it, rather than on the terrain
             if (snapToSurface) position = GeometryHelper.ProjectOnSurface(position, layerMask);
-            if (Operations.States.AddArrayObjectAt(owner.GetState(), param, position) < 0) return false;
+            var index = Operations.States.AddArrayObjectAt(owner.GetState(), param, position);
+            if (index < 0) return false;
+            var objectParam = Operations.States.GetSingleObjectInstanceSubparam(param);
+            var state = Operations.States.GetArray(owner.GetState(), param)[index].State(objectParam.fullName());
+            if (objectParam.objectInstanceSettings.allowRotation?[1] == true) {
+                BeginPlacementRotation(builder.GetViewport(), () => FindPlacementMesh(getUndoTarget?.Invoke() as Node, state),
+                    () => this.param != null && objectParam.objectInstanceSettings.allowRotation?[1] == true && getOwner?.Invoke() == owner);
+            }
             builder.NotifyChange();
             return true;
         }

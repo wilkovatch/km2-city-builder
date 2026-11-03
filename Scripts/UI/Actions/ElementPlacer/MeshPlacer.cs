@@ -63,7 +63,9 @@ namespace ElementPlacer {
             } else {
                 if (!Input.GetInputStart(KeyCommand.Select)) return;
                 if (curPoint.HasValue) {
-                    Operations.Meshes.Create(manager, meshPath, curPoint.Value, settings, randomRotation);
+                    var mesh = Operations.Meshes.Create(manager, meshPath, curPoint.Value, settings, randomRotation);
+                    BeginPlacementRotation(manager.GetViewport(), () => mesh,
+                        () => placeEnabled && !multiple && !deleteMode && Operations.PropertyContainers.IsCurrent(propertyContainerId));
                 }
             }
         }

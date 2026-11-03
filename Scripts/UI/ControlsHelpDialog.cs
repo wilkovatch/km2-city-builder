@@ -60,6 +60,7 @@ public static class ControlsHelpDialog {
 
         var editing = AddTab(tabs, "HELP_CONTROLS_EDITING");
         Row(editing, Binding(KeyCommand.Select), "HELP_CONTROLS_SELECT");
+        Row(editing, Drag(Binding(KeyCommand.Select)), "HELP_CONTROLS_PLACEMENT_ROTATION");
         Row(editing, Chord(ctrl, Binding(KeyCommand.Select)), "HELP_CONTROLS_CLICK_THROUGH");
         Row(editing, Binding(KeyCommand.Close), "HELP_CONTROLS_DESELECT");
         Row(editing, Binding(KeyCommand.Delete), "HELP_CONTROLS_DELETE");
