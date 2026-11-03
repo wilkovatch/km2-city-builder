@@ -15,6 +15,8 @@ The script of the `Editor` control and the central coordinator of the editor.
 
 `helper` is the `CityGroundHelper`; through it the menu bar reaches the `ElementManager`.
 
+*Help→Controls* opens `ControlsHelpDialog`, a modal, resizable reference with scrollable Camera controls, Editing and Shortcuts tabs. It reads `GameEngine.Input.keyMapping` / `mouseMapping`, the active camera settings and the gizmo's currently enabled hotkeys each time it opens. It is available without a city and does not create an undo step.
+
 `Reload()` refreshes the strings, menu availability and view settings, and invalidates the panels with `DeferInitialize(canvas)`. It destroys the previous controls without rebuilding hidden panels or reloading core types. Each panel's `PrepareActivation(active)` builds pending controls before its activation logic uses them; closing a panel that has not been built does nothing. Panels whose layout depends on the selected element can still rebuild when that element or its type changes. Core definitions are invalidated by city loading and core changes, separately from the UI (see [Type System](Type-System)).
 
 ## Menu bar: `MenuBar`, `MenuBarElement` (`UI/MenuBar`)

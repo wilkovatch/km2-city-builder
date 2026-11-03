@@ -76,6 +76,8 @@ Exporting the city for the game is described in [Exporting](#exporting).
 
 ## Navigating and editing
 
+Open *Help→Controls* for a reference with the current key and mouse mappings, the active camera scheme and mouse emulation. The Editing tab also shows the transform shortcuts enabled for the current selection. The reference is refreshed each time it opens.
+
 ### Camera
 
 There are two camera control schemes, selectable in *Settings→Preferences→Controls*.

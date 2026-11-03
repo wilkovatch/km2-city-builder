@@ -210,10 +210,12 @@ public partial class CityBuilderMenuBar : Control {
 
         //Help
         entries = new List<string> {
+            SM.Get("HELP_CONTROLS"),
             SM.Get("HELP_QUICKSTART"),
             SM.Get("HELP_ABOUT")
         };
         actions = new List<System.Action> {
+            ShowControls,
             ShowQuickstart,
             ShowAbout
         };
@@ -1055,6 +1057,10 @@ public partial class CityBuilderMenuBar : Control {
 
     void HideTerrainGrid() {
         helper.SetTerrainHidden(!CityGroundHelper.TerrainHidden);
+    }
+
+    void ShowControls() {
+        ControlsHelpDialog.Show(this, gizmo);
     }
 
     void ShowQuickstart() {
