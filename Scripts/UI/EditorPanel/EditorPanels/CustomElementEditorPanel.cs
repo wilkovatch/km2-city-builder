@@ -234,21 +234,25 @@ namespace EditorPanels {
                 dropdown.SetValue(System.Array.IndexOf(allowed, CurrentState().Int("curveType", settings.spline.defaultCurveType)));
                 dropdown.actionEnabled = true;
                 p.IncreaseRow();
-                p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetElementState,
+                var segmentsField = p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetElementState,
                     "state.properties.segments", null, w / 2, null);
-                p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetElementState, "state.properties.segmentsPer100m", null, w / 2, null);
+                var segmentsPer100mField = p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetElementState, "state.properties.segmentsPer100m", null, w / 2, null);
                 p.IncreaseRow();
+                updateCurveFields = () => {
+                    var lowPoly = CurrentState()?.Int("curveType", settings.spline.defaultCurveType) == (int)GeometryHelper.CurveType.LowPoly;
+                    segmentsField.SetActive(!lowPoly); segmentsPer100mField.SetActive(!lowPoly);
+                };
                 if (System.Array.IndexOf(allowed, 1) >= 0) {
                     var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElementState, "state.properties.subdivideEqually", null, w / 2, null);
                     var tensionField = p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal,
                         GetElementState, "state.properties.hermiteTension", null, w / 2, null);
-                    updateCurveFields = () => {
+                    updateCurveFields += () => {
                         var builtin = CurrentState()?.Int("curveType", settings.spline.defaultCurveType) == 1;
                         equallyField.SetActive(builtin); tensionField.SetActive(builtin);
                     };
-                    updateCurveFields();
                     p.IncreaseRow();
                 }
+                updateCurveFields();
                 return true;
             }
             if (elem.name == "pointsGroup" && settings.spline != null) {

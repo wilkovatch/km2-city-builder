@@ -62,12 +62,16 @@ namespace EditorPanels {
 
                 p.AddFieldCheckbox(SM.Get("RD_PROJECT_ALL_TO_GROUND"), GetCurRoad, "state.properties.projectAll", null, w / 3, null, null, PlacementHeight.OnProjectionToggled);
                 p.AddFieldCheckbox(SM.Get("RD_PROJECT_TO_GROUND"), GetCurRoad, "state.properties.project", null, w / 3, null, null, PlacementHeight.OnProjectionToggled);
-                p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetCurRoad, "state.properties.segmentsPer100m", null, w / 3, null);
+                var segmentsPer100mField = p.AddFieldCheckbox(SM.Get("RD_SEGMENTS_100M"), GetCurRoad, "state.properties.segmentsPer100m", null, w / 3, null);
                 p.IncreaseRow();
 
-                p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetCurRoad, "state.properties.segments", null, w / 2, null);
+                var segmentsField = p.AddFieldInputField(SM.Get("SEGMENTS"), SM.Get("SEGMENTS_PH"), GameEngine.InputContentType.Integer, GetCurRoad, "state.properties.segments", null, w / 2, null);
                 p.AddFieldInputField(SM.Get("RD_SMOOTHING"), SM.Get("RD_SMOOTHING_PH"), GameEngine.InputContentType.Integer, GetCurRoad, "state.properties.lpf", null, w / 2, null);
                 p.IncreaseRow();
+                updateCurveFields = () => {
+                    var lowPoly = GetCurRoad(false)?.GetCurveType() == GeometryHelper.CurveType.LowPoly;
+                    segmentsField.SetActive(!lowPoly); segmentsPer100mField.SetActive(!lowPoly);
+                };
 
                 var withCoplanar = type.InternalParameterVisible("makeCoplanar");
                 if (withCoplanar) p.AddFieldCheckbox(SM.Get("RD_MAKE_COPLANAR"), GetCurRoad, "state.properties.makeCoplanar", null, w / 2, SM.Get("RD_COPLANAR_TOOLTIP"));
@@ -91,7 +95,7 @@ namespace EditorPanels {
                 if (System.Array.IndexOf(allowed, 1) >= 0) {
                     var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetCurRoad, "state.properties.subdivideEqually", null, w * 0.35f, null);
                     var tensionField = p.AddFieldInputField(SM.Get("RD_HERMITE_TENSION"), SM.Get("RD_HERMITE_TENSION_PH"), GameEngine.InputContentType.Decimal, GetCurRoad, "state.properties.hermiteTension", null, w * 0.25f, null);
-                    updateCurveFields = () => {
+                    updateCurveFields += () => {
                         var builtin = GetCurRoad(false)?.state.Int("curveType") == 1;
                         equallyField.SetActive(builtin); tensionField.SetActive(builtin);
                     };
