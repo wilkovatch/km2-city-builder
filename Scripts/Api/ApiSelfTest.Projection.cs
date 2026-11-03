@@ -193,6 +193,8 @@ namespace Api {
             ProjectionPlane(fixtures, new Vector3(3000, 40, 3000), 13);
             //a road a little under the grid covering it
             ProjectionPlane(fixtures, new Vector3(3200, 19.8f, 3200), 7);
+            //a road over the grid
+            ProjectionPlane(fixtures, new Vector3(3200, 25, 3100), 7);
             var instType = TP.GetMeshInstanceTypes()["instMesh"];
             var propType = TP.GetMeshInstanceTypes()["individualProp"];
             var instCompatible = instType.Settings.compatibleTypes;
@@ -292,6 +294,12 @@ namespace Api {
                 await Call("meshes.setTransform", new { mesh = placed, position = V(3100, 99, 3000) });
                 await Call("meshes.projectToGround", new { mesh = placed });
                 Check("project to ground puts a mesh on the visible grid", Near(GO.GetPosition(SelectionInstance(placed)).Y, 20));
+                await Call("meshes.setTransform", new { mesh = placed, position = V(3200, 99, 3100) });
+                await Call("meshes.projectToGround", new { mesh = placed });
+                Check("project to ground puts a mesh on a road over the visible grid", Near(GO.GetPosition(SelectionInstance(placed)).Y, 25));
+                await Call("meshes.setTransform", new { mesh = placed, position = V(3200, 99, 3200) });
+                await Call("meshes.projectToGround", new { mesh = placed });
+                Check("project to ground puts a mesh on a road a little under the visible grid", Near(GO.GetPosition(SelectionInstance(placed)).Y, 19.8f));
                 await Call("view.setTerrainHidden", new { hidden = true });
                 try {
                     await Call("meshes.setTransform", new { mesh = placed, position = V(3100, 99, 3000) });
@@ -320,6 +328,14 @@ namespace Api {
                     await Call("view.setTerrainHidden", new { hidden = false });
                 }
                 snapped.QueueFree();
+                //a type without the snap rule (e.g. a race checkpoint) is projected on the same layers
+                var checkpointParameter = new CityElements.Types.Parameter { objectInstanceSettings = new CityElements.Types.ObjectInstanceSettings { type = "checkpoint" } };
+                var checkpoint = MeshInstance.CreateParametric(flatPath, fixtures, false, "Projection checkpoint", checkpointParameter, objectSettings);
+                checkpoint.Start();
+                GO.SetPosition(checkpoint, new Vector3(3200, 99, 3100));
+                Operations.Meshes.ProjectToGround(checkpoint);
+                Check("project to ground puts a parametric object without the snap rule on a road", !checkpoint.SnapToSurface() && Near(GO.GetPosition(checkpoint).Y, 25));
+                checkpoint.QueueFree();
 
                 await Call("meshes.setTransform", new { mesh = target, position = V(3100, -10, 3000) });
                 Height("moving a target below the grid refreshes sections", -10);

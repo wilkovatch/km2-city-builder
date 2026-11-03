@@ -139,17 +139,19 @@ namespace Operations {
             return instance.ReplaceMesh(meshPath, manager);
         }
 
-        //puts the instance on the terrain under it; with the terrain hidden (View->Hide terrain grid) on the layers it is
-        //placed on without the terrain, or at the zero height if there is nothing under it, as for its placement
+        //puts the instance on the surface under it, on the layers it is placed on (the terrain if it has none); with the
+        //terrain hidden (View->Hide terrain grid) on those layers without the terrain, or at the zero height if there is
+        //nothing under it, as for its placement
         public static void ProjectToGround(Node3D instance) {
             //ProjectPoint works with program-space world positions
             var pos = GO.GetPosition(instance);
+            var mesh = GS.Cast<MeshInstance>(instance);
+            var placerMask = mesh?.GetPlacerLayerMask() ?? 1 << 3;
             if (!CityGroundHelper.TerrainHidden) {
-                GO.SetPosition(instance, GeometryHelper.ProjectPoint(pos));
+                GO.SetPosition(instance, GeometryHelper.ProjectOnSurface(pos, placerMask, mesh));
                 return;
             }
-            var mesh = GS.Cast<MeshInstance>(instance);
-            var mask = CityGroundHelper.ExcludeHiddenTerrain(mesh?.GetPlacerLayerMask() ?? 0) & ~GameEngine.Raycast.ProjectionSurfaceMask;
+            var mask = CityGroundHelper.ExcludeHiddenTerrain(placerMask) & ~GameEngine.Raycast.ProjectionSurfaceMask;
             if (!GameEngine.Raycast.TryProjectPoint(pos, out var res, mask, mesh)) res = new Vector3(pos.X, 0, pos.Z);
             GO.SetPosition(instance, res);
         }
