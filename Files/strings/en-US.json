@@ -15,6 +15,7 @@
 	"UNDO": "Undo\t\t(Ctrl+Z)",
 	"REDO": "Redo\t\t(Ctrl+Y)",
 	"SNAP_TO_GRID": "Snap to grid\t\t(G)",
+	"SNAP_TO_GRID_ACTIVE": "Snap to grid active",
 	"VIEW": "View",
 	"CREATE": "Create",
 	"EXPORT": "Export",

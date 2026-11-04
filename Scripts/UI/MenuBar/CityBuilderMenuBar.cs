@@ -66,6 +66,7 @@ public partial class CityBuilderMenuBar : Control {
 
     Node3D selectedObject = null;
     bool noCity = false;
+    Label snappingIndicator;
 
     //state of the editor panel hidden while the transform panel edits one of its control points
     TerrainAction controlPointOwnerModifier = null;
@@ -124,6 +125,7 @@ public partial class CityBuilderMenuBar : Control {
         //Menu bar
         var menuBar = GetMenuBar();
         menuBar.Initialize();
+        BuildSnappingIndicator();
 
         //File
         var entries = new List<string> {
@@ -852,6 +854,7 @@ public partial class CityBuilderMenuBar : Control {
 
     public void Reload() {
         SM.Reload();
+        snappingIndicator.Text = SM.Get("SNAP_TO_GRID_ACTIVE");
         DisableAllPanels(null);
         foreach (var panel in panels) {
             panel.DeferInitialize(this);
@@ -1938,7 +1941,21 @@ public partial class CityBuilderMenuBar : Control {
         return false;
     }
 
+    void BuildSnappingIndicator() {
+        snappingIndicator = UILayout.MakeLabel(SM.Get("SNAP_TO_GRID_ACTIVE"), HorizontalAlignment.Left);
+        snappingIndicator.Name = "SnappingIndicator";
+        snappingIndicator.MouseFilter = MouseFilterEnum.Ignore;
+        snappingIndicator.Visible = Snapping.Enabled;
+        snappingIndicator.GrowVertical = GrowDirection.Begin;
+        snappingIndicator.AddThemeColorOverride("font_color", Colors.White);
+        snappingIndicator.AddThemeStyleboxOverride("normal", UILayout.Box(new Color(0.12f, 0.18f, 0.24f, 0.9f), 10, 10, 5, 5, false));
+        AddChild(snappingIndicator);
+        //Above the 72px log counters in the bottom-left corner; grows with the translated text.
+        UILayout.SetRect(snappingIndicator, 0, 0, 0, 0, 12, 84, 0, 0, 0, 0);
+    }
+
     public override void _Process(double delta) {
+        if (snappingIndicator != null) snappingIndicator.Visible = Snapping.Enabled;
         listHighlight.Update(gizmo);
         if (Api.ScriptRunner.IsRunning) return; //the editor is locked while a script runs
         if (Input.GetInputStart(KeyCommand.Close)) {
