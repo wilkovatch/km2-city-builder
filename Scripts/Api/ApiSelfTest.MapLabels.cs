@@ -12,6 +12,175 @@ using PC = Operations.PropertyContainers;
 
 namespace Api {
     public partial class ApiSelfTest {
+        //A short regression for field-based labels, separate from map rendering and the full race workflow.
+        async Task CustomElementListLabels() {
+            Log("custom-element list labels");
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            T Field<T>(object obj, string name) => (T)obj.GetType().GetField(name, flags).GetValue(obj);
+            List<string> Texts(EditorPanelElements.ScrollList list) => Field<List<string>>(list, "strings");
+            var state = new ObjectState();
+            string Format(string type, string key = "value", string container = null, string[] enums = null) => Operations.States.GetParameterLabel(state,
+                new CityElements.Types.Parameter { name = key, container = container, type = type, enumLabels = enums });
+            state.SetBool("value", false); Check("false is a valid list label", Format("bool") == "False");
+            state.SetInt("value", 0); Check("zero is a valid list label", Format("int") == "0");
+            state.SetFloat("value", 1.5f); Check("float labels use array formatting", Format("float") == 1.5f.ToString());
+            state.SetInt("value", 1); Check("enum labels use array formatting", Format("enum", enums: new[] { "A", "B" }) == "B");
+            state.SetInt("value", -1); Check("invalid enum values have no label", Format("enum", enums: new[] { "A" }) == null);
+            state.SetStr("group_text", "District"); Check("container prefixes resolve full parameter names", Format("string", "text", "group") == "District");
+            state.SetStr("value", "geometry/vpcop.pkg"); Check("initial object strings label police models", Format("objectInstance") == "geometry/vpcop.pkg");
+            var model = new ObjectState(); model.SetStr("meshPath", "geometry/vpbug.pkg"); state.SetState("value", model);
+            Check("object labels read the model path", Format("objectInstance") == "geometry/vpbug.pkg");
+            Check("unsupported parameters have no label", Format("reference") == null);
+
+            var police = new ArrayListsPanel { parameters = new[] { new CityElements.Types.Parameter { name = "police", type = "array", label = "POLICE_CARS",
+                arrayProperties = new CityElements.Types.ArrayProperties { maxElements = -1, customCityPropertiesType = "policeCar" } } } };
+            var policeState = new ObjectState(); policeState.SetState("carModel", model);
+            police.state.SetArray("police", new[] { policeState });
+            police.Initialize(builder); police.SetActive(true);
+            try { Check("the police array still displays its model path", Texts(police.List("police")).SequenceEqual(new[] { "geometry/vpbug.pkg" })); }
+            finally { police.Destroy(); }
+
+            var city = M.GetDummy<CityProperties>();
+            PC.Sync(M);
+            var owner = PC.EnsureId(city.state);
+            var names = Enumerable.Range(0, 16).Select(i => "Stored label " + i).ToArray();
+            History.UndoManager.Record("create list labels", () => {
+                foreach (var name in names) {
+                    var label = Operations.CustomElements.Create(M, "mapLabel", Vector3.Zero);
+                    GO.SetName(label, name); label.state.SetStr("text", "District"); PC.Assign(label.state, owner);
+                }
+                M.FlagAsChanged();
+            });
+            M.ProcessUpdate(); await Frames(2);
+            CustomElement Label(int i) => M.customElements.First(e => !e.IsDeleted() && GO.GetName(e) == names[i]);
+            var labelType = Label(0).GetCustomElementType();
+            var settings = labelType.typeData.settings;
+            var originalKey = settings.labelParameter;
+            var originalParameters = labelType.parameterContainer.parameters;
+            try {
+                Check("MM2 labels select their text parameter", originalKey == "text" && Operations.CustomElements.GetListLabel(Label(0)) == "District");
+                foreach (var key in new[] { null, "notDeclared", "text.meshPath" }) {
+                    settings.labelParameter = key;
+                    Check("unconfigured or unknown label falls back: " + (key ?? "null"), Operations.CustomElements.GetListLabel(Label(0)) == names[0]);
+                }
+                settings.labelParameter = "text";
+                foreach (var value in new[] { "", "  ", null }) {
+                    Label(0).state.SetStr("text", value);
+                    Check("blank label falls back to its stored name", Operations.CustomElements.GetListLabel(Label(0)) == names[0]);
+                }
+                Label(0).state.RemoveProperty("text");
+                Check("missing label falls back to its stored name", Operations.CustomElements.GetListLabel(Label(0)) == names[0]);
+                var synthetic = new CityElements.Types.Parameter { name = "value", container = "group", type = "int" };
+                labelType.parameterContainer.parameters = originalParameters.Append(synthetic).ToArray();
+                settings.labelParameter = "group_value";
+                Check("missing numeric labels fall back instead of showing zero", Operations.CustomElements.GetListLabel(Label(0)) == names[0]);
+                Label(0).state.SetInt("group_value", 0);
+                Check("a configured zero is displayed", Operations.CustomElements.GetListLabel(Label(0)) == "0");
+                synthetic.type = "bool"; Label(0).state.SetBool("group_value", false);
+                Check("a configured false is displayed", Operations.CustomElements.GetListLabel(Label(0)) == "False");
+                synthetic.type = "reference";
+                Check("unsupported configured parameters fall back", Operations.CustomElements.GetListLabel(Label(0)) == names[0]);
+                synthetic.type = "string"; Label(0).state.SetStr("group_value", "Prefixed value");
+                Check("configured full parameter names resolve", Operations.CustomElements.GetListLabel(Label(0)) == "Prefixed value");
+            } finally {
+                settings.labelParameter = originalKey;
+                labelType.parameterContainer.parameters = originalParameters;
+                Label(0).state.SetStr("text", "District"); Label(0).state.RemoveProperty("group_value");
+            }
+
+            EditorPanels.ContainerContentsPanel OpenLabels() {
+                builder.CloseAllPanels(); builder.SelectObject(M.GetDummy<CityProperties>());
+                builder.cityPropertiesEditorPanel.ShowTab("CP_HUDMAP");
+                return (EditorPanels.ContainerContentsPanel)builder.cityPropertiesEditorPanel.OpenContents(0);
+            }
+            var contents = OpenLabels(); await Frames(2);
+            var list = Field<EditorPanelElements.ScrollList>(contents, "list");
+            Check("owned lists show duplicate text as separate entries", Texts(list).Count == 16 && Texts(list).All(t => t == "District"));
+            list.SetValue(6);
+            var scroll = Field<ScrollContainer>(list, "scroll"); scroll.ScrollVertical = 125; await Frames(1);
+            var scrollPosition = scroll.ScrollVertical;
+            History.UndoManager.Record("edit list text", () => {
+                History.UndoManager.Touch(Label(0)); Label(0).state.SetStr("text", "Centre"); M.FlagAsChanged();
+            });
+            M.ProcessUpdate(); await Frames(2);
+            Check("owned lists refresh text without a membership change", Texts(list)[0] == "Centre");
+            Check("label refresh preserves selection and scroll", list.Selected == 6 && Field<int>(contents, "selected") == 6
+                && scrollPosition > 0 && scroll.ScrollVertical == scrollPosition);
+            Check("changing text leaves the stored name intact", GO.GetName(Label(0)) == names[0]);
+            builder.PerformUndo(); await Frames(2);
+            contents = OpenLabels(); list = Field<EditorPanelElements.ScrollList>(contents, "list");
+            Check("undo restores the displayed label", Texts(list)[0] == "District");
+            builder.PerformRedo(); await Frames(2);
+            contents = OpenLabels(); list = Field<EditorPanelElements.ScrollList>(contents, "list");
+            Check("redo restores the edited label", Texts(list)[0] == "Centre");
+
+            builder.CloseAllPanels();
+            PC.Assign(Label(0).state, ""); //the general object list intentionally excludes owned elements
+            var objectList = Field<EditorPanels.ObjectListEditorPanel>(builder, "objectListEditorPanel");
+            objectList.SetActive(true);
+            list = Field<EditorPanelElements.ScrollList>(objectList, "lst");
+            Check("the object list displays the configured field", Texts(list).Contains("Centre") && !Texts(list).Contains(names[0]));
+            Label(0).state.SetStr("text", "Object edit"); objectList.Update();
+            Check("object-list labels refresh", Texts(list).Contains("Object edit"));
+            Label(0).state.SetStr("text", "Centre"); objectList.SetActive(false);
+            PC.Assign(Label(0).state, owner);
+
+            var room = Operations.CustomElements.Create(M, "room", Vector3.Zero);
+            var secondLabel = Label(1);
+            GO.SetName(room, "Parent");
+            var contains = room.Settings.container.contains;
+            room.Settings.container.contains = contains.Append("mapLabel").ToArray();
+            try {
+                Label(0).SetContainer(room); Label(1).SetContainer(room);
+                Label(0).state.SetStr("text", "Parent District"); Label(1).state.SetStr("text", "");
+                GO.SetName(Label(1), "Parent fallback");
+                builder.SelectObject(room); M.ProcessUpdate(); await Frames(2);
+                list = Field<EditorPanelElements.ScrollList>(builder.customElementEditorPanel, "contentsList");
+                Check("custom contents keep configured prefixes and shorten fallback names", Texts(list).SequenceEqual(new[] { "Parent District", "fallback" }));
+                list.SetValue(0); Label(0).state.SetStr("text", "Live contents"); builder.customElementEditorPanel.Update();
+                Check("custom contents refresh without losing selection", Texts(list)[0] == "Live contents" && list.Selected == 0);
+                var picker = Field<EditorPanels.CustomElementPickerPanel>(builder.customElementEditorPanel, "picker");
+                picker.Open("test", "test", new List<CustomElement> { null, Label(0), secondLabel }, null, "test", _ => { });
+                list = Field<EditorPanelElements.ScrollList>(picker, "lst");
+                Check("custom-element pickers display configured labels", Texts(list)[1] == "Live contents");
+                list.SetValue(1); Label(0).state.SetStr("text", "Live picker"); builder.NotifyUpdateCompleted();
+                Check("picker labels refresh while selected", Texts(list)[1] == "Live picker" && list.Selected == 1);
+            } finally {
+                builder.CloseAllPanels();
+                foreach (var label in M.GetCustomElementChildren(room)) label.SetContainer(null);
+                room.Settings.container.contains = contains;
+                GO.SetName(secondLabel, names[1]);
+                Label(0).state.SetStr("text", "Centre"); Label(1).state.SetStr("text", "District");
+                Operations.CustomElements.Delete(M, room); M.FlagAsChanged();
+            }
+
+            city = M.GetDummy<CityProperties>();
+            var raceParameter = CityElements.Types.Parsers.TypeParser.GetCitySettings()["city"].typeData.parametersInfo.parameters.First(p => p.name == "circuitRaces");
+            Operations.States.AddArrayElement(city.state, raceParameter);
+            var race = city.state.Array<ObjectState>("circuitRaces").Last();
+            PC.Sync(M);
+            var opponent = Operations.CustomElements.Create(M, "opponent", Vector3.Zero);
+            GO.SetName(opponent, "Stored opponent"); PC.Assign(opponent.state, PC.EnsureId(race.State("policeCars")));
+            opponent.state.SetState("carModel", (ObjectState)model.Clone());
+            opponent.InsertArrayElement("spline", 0); opponent.InsertArrayElement("spline", 1);
+            M.FlagAsChanged(); M.ProcessUpdate();
+            var racePanel = (EditorPanels.ArrayElemEditorPanel)PC.Open(builder, PC.Find(PC.EnsureId(race.State("policeCars"))));
+            contents = (EditorPanels.ContainerContentsPanel)racePanel.OpenContents(0); await Frames(2);
+            list = Field<EditorPanelElements.ScrollList>(contents, "list");
+            Check("opponent lists show their car model", Texts(list).SequenceEqual(new[] { "geometry/vpbug.pkg" }));
+            opponent.state.State("carModel").SetStr("meshPath", "geometry/vpcop.pkg"); contents.Update();
+            Check("opponent model changes update the list", Texts(list).SequenceEqual(new[] { "geometry/vpcop.pkg" }) && GO.GetName(opponent) == "Stored opponent");
+            Check("API names remain stored names", ((JArray)await Call("elements.list", new { kind = "customElement" })).Any(e => e["name"].Value<string>() == names[0]));
+            await Call("city.save"); await Call("city.reload");
+            contents = OpenLabels(); list = Field<EditorPanelElements.ScrollList>(contents, "list");
+            Check("save/reload preserves text labels and stored names", Texts(list)[0] == "Centre" && GO.GetName(Label(0)) == names[0]);
+            var exportPath = Path.Combine(folder, "..", "list_labels_export.json");
+            await Call("city.exportJson", new { path = exportPath });
+            var exported = JObject.Parse(File.ReadAllText(exportPath))["customElements"];
+            Check("exported names remain stored names", exported.Any(e => e["data"]?["name"]?.Value<string>() == names[0]) && !exported.Any(e => e["data"]?["name"]?.Value<string>() == "Centre"));
+            builder.CloseAllPanels();
+        }
+
         async Task MapLabels() {
             Log("core-generated map labels and singleton container");
             var city = M.GetDummy<CityProperties>();

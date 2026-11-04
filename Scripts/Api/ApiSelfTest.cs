@@ -200,6 +200,9 @@ namespace Api {
                 } else if (focus == "unicode") {
                     await NewCity();
                     await UnicodeCityRoundTrip();
+                } else if (focus == "listLabels") {
+                    await NewCity();
+                    await CustomElementListLabels();
                 } else if (focus == "mapLabels") {
                     await NewCity();
                     await MapLabels();

@@ -717,29 +717,7 @@ public abstract partial class EditorPanel {
     }
 
     string GetArrayElementLabel(ObjectState elem, CityElements.Types.Parameter param, int curCount) {
-        switch (param?.type) {
-            case "bool":
-                return elem.Bool(param.fullName()) ? "True" : "False";
-            case "float":
-                return elem.Float(param.fullName()).ToString();
-            case "int":
-                return elem.Int(param.fullName()).ToString();
-            case "enum":
-                return param.enumLabels[elem.Int(param.fullName())];
-            case "string":
-            case "texture":
-            case "mesh":
-            case "preset":
-            case "file":
-            case "folder":
-                return elem.Str(param.fullName());
-            case "objectInstance":
-                var res = elem.State(param.fullName())?.Str("meshPath");
-                if (res == null) res = elem.Str(param.fullName()); //the moment it's initialized it's still a string
-                return res;
-            default:
-                return "Element " + (curCount + 1);
-        }
+        return Operations.States.GetParameterLabel(elem, param) ?? "Element " + (curCount + 1);
     }
 
     //an element of an array of props: the name of its preset (marked if it was changed), or the label of its type

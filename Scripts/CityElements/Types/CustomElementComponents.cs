@@ -54,6 +54,7 @@ namespace CityElements.Types {
     }
 
     public class CustomElementSettings {
+        public string labelParameter; //optional full parameter name used in element lists, without renaming the object
         public bool presets; //optional per-type presets, in category customElement/<type>
         public ObjectState defaultPreset; //initial Default when an older city has no category yet
         public CustomElementSplineSettings spline;

@@ -10,6 +10,25 @@ namespace Operations {
         //distance within which a point of a converted element is welded to an existing point or anchor
         public const float WeldDistance = 0.01f;
 
+        //List labels are derived from state; stored names remain the identifiers used by saves, API and exports.
+        //Container prefixes are shortened only on fallback names, never on a configured parameter value.
+        public static string GetListLabel(Node3D node, string fallbackPrefix = null) {
+            if (node is CustomElement element) {
+                var type = element.GetCustomElementType();
+                var key = type?.typeData.settings.labelParameter;
+                if (!string.IsNullOrEmpty(key)) {
+                    var param = System.Array.Find(type.parameterContainer.parameters ?? System.Array.Empty<CityElements.Types.Parameter>(), p => p.fullName() == key);
+                    if (param != null && element.state.GetProperty<object>(key, null) != null) {
+                        var value = States.GetParameterLabel(element.state, param);
+                        if (!string.IsNullOrWhiteSpace(value)) return value;
+                    }
+                }
+            }
+            var name = GO.GetName(node);
+            return !string.IsNullOrEmpty(fallbackPrefix) && name.Length > fallbackPrefix.Length && name.StartsWith(fallbackPrefix, System.StringComparison.Ordinal)
+                ? name.Substring(fallbackPrefix.Length) : name;
+        }
+
         public static string GetTypeLabel(string type) {
             var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
             if (type == null || !types.TryGetValue(type, out var t)) return type ?? "";

@@ -79,9 +79,14 @@ namespace EditorPanels {
             var res = new List<string>();
             objects = builder.helper.elementManager.GetObjectList();
             foreach (var obj in objects) {
-                res.Add(GameEngine.GameObject.GetName(obj));
+                res.Add(Operations.CustomElements.GetListLabel(obj));
             }
             return res;
+        }
+
+        public override void Update() {
+            if (lst == null || objects == null) return;
+            lst.UpdateLabels(objects.ConvertAll(obj => Operations.CustomElements.GetListLabel(obj)));
         }
     }
 }

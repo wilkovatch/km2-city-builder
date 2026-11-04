@@ -24,7 +24,7 @@ namespace EditorPanels {
             var p = GetPage(0);
             owned = PC.Contents(containerId, group);
             selected = -1;
-            list = p.AddScrollList(SM.Get(group.label), owned.ConvertAll(GameEngine.GameObject.GetName), i => selected = i, 1.5f);
+            list = p.AddScrollList(SM.Get(group.label), owned.ConvertAll(node => Operations.CustomElements.GetListLabel(node)), i => selected = i, 1.5f);
             builder.listHighlight.Add(list, i => i < owned.Count ? owned[i] : null);
             p.IncreaseRow(5);
             p.AddButton(SM.Get("EDIT"), Edit, 0.75f);
@@ -69,11 +69,14 @@ namespace EditorPanels {
             var group = Group();
             if (group == null || list == null) return;
             var current = PC.Contents(containerId, group);
-            if (current.Count == owned.Count && current.TrueForAll(owned.Contains)) return;
+            if (current.Count == owned.Count && current.TrueForAll(owned.Contains)) {
+                list.UpdateLabels(owned.ConvertAll(node => Operations.CustomElements.GetListLabel(node)));
+                return;
+            }
             owned = current;
             selected = -1;
             list.Deselect();
-            list.SetItems(owned.ConvertAll(GameEngine.GameObject.GetName));
+            list.SetItems(owned.ConvertAll(node => Operations.CustomElements.GetListLabel(node)));
         }
 
         public override System.Func<EditorPanel, EditorPanel> CaptureReopen() {

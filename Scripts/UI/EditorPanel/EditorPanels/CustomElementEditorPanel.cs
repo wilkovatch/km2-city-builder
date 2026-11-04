@@ -384,8 +384,7 @@ namespace EditorPanels {
                     var names = new List<string>();
                     var prefix = GO.GetName(element) + " "; //not repeated in the contents named after the container
                     foreach (var c in contents) {
-                        var name = GO.GetName(c);
-                        names.Add(name.Length > prefix.Length && name.StartsWith(prefix, System.StringComparison.Ordinal) ? name.Substring(prefix.Length) : name);
+                        names.Add(Operations.CustomElements.GetListLabel(c, prefix));
                     }
                     contentsList = p.AddScrollList(SM.Get("CE_CONTENTS").Replace("$NUMBER", contents.Count.ToString()), names, PickContent, w);
                     builder.listHighlight.Add(contentsList, _ => HighlightedGeometry());
@@ -1144,6 +1143,18 @@ namespace EditorPanels {
 
         public override void Update() {
             if (GetElement() != builtElement && lastCanvas != null) Rebuild();
+            if (contentsList != null && GetElement() is CustomElement container) {
+                var current = builder.helper.elementManager.GetCustomElementChildren(container);
+                if (current.Count != contents.Count || !current.TrueForAll(contents.Contains)) {
+                    contents = current;
+                    HighlightContent(null);
+                    contentsList.Deselect();
+                    contentsList.SetItems(contents.ConvertAll(c => Operations.CustomElements.GetListLabel(c, GO.GetName(container) + " ")));
+                    editContentButton.SetInteractable(false);
+                } else {
+                    contentsList.UpdateLabels(contents.ConvertAll(c => Operations.CustomElements.GetListLabel(c, GO.GetName(container) + " ")));
+                }
+            }
             shownAnything = false;
             ShowSelectedPoint();
         }

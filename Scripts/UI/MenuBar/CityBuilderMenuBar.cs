@@ -1072,6 +1072,7 @@ public partial class CityBuilderMenuBar : Control {
             }
         }
         if (GetActivePanel() is EditorPanels.ContainerContentsPanel contents) contents.Update(); //a child panel, not in the list
+        if (GetActivePanel() is EditorPanels.CustomElementPickerPanel picker) picker.Update();
     }
 
     void ToggleWireframe() {

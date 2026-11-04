@@ -217,6 +217,20 @@ namespace EditorPanelElements {
             if (actionEnabled) action?.Invoke(index);
         }
 
+        //Only the labels change: keep selection, scroll, pending reveal and any thumbnails.
+        public void UpdateLabels(List<string> labels) {
+            if (labels.Count != strings.Count) throw new System.ArgumentException("Label count must match the items");
+            var changed = false;
+            for (int i = 0; i < labels.Count; i++) {
+                if (strings[i] == labels[i]) continue;
+                strings[i] = labels[i];
+                changed = true;
+            }
+            if (!changed) return;
+            lastFirstIndex = -1;
+            UpdateRows();
+        }
+
         public void SetItems(List<string> newItems, List<string> newImages = null, List<Color> newColors = null) {
             revealIndex = -1;
             if (withImages) scrl.ResetSprites();

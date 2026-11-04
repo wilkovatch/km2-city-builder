@@ -41,7 +41,7 @@ namespace EditorPanels {
             currentLabel.SetValue(currentText ?? "");
             currentLabel.SetActive(currentText != null);
             var names = new List<string>();
-            foreach (var item in items) names.Add(item == null ? SM.Get("NONE") : GO.GetName(item));
+            foreach (var item in items) names.Add(item == null ? SM.Get("NONE") : Operations.CustomElements.GetListLabel(item));
             lst.SetTitle(listTitle);
             lst.Deselect();
             lst.SetItems(names);
@@ -53,6 +53,11 @@ namespace EditorPanels {
         void Select(int i) {
             curI = i;
             actionButton.SetInteractable(i >= 0 && i < items.Count);
+        }
+
+        public override void Update() {
+            if (lst == null) return;
+            lst.UpdateLabels(items.ConvertAll(item => item == null ? SM.Get("NONE") : Operations.CustomElements.GetListLabel(item)));
         }
 
         void Act() {

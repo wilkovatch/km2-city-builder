@@ -5,6 +5,30 @@ namespace Operations {
     //Editing of element states through the parameters defined by the core: array and custom city properties parameters,
     //types, and where each parameter is stored
     public static class States {
+        //The value shown for a declared parameter in a list (null for unsupported types).
+        public static string GetParameterLabel(ObjectState state, Parameter param) {
+            if (state == null || param == null) return null;
+            var key = param.fullName();
+            switch (param.type) {
+                case "bool": return state.Bool(key) ? "True" : "False";
+                case "float": return state.Float(key).ToString();
+                case "int": return state.Int(key).ToString();
+                case "enum":
+                    var index = state.Int(key);
+                    return index >= 0 && index < (param.enumLabels?.Length ?? 0) ? param.enumLabels[index] : null;
+                case "string":
+                case "texture":
+                case "mesh":
+                case "preset":
+                case "file":
+                case "folder": return state.Str(key);
+                case "objectInstance":
+                    //During initialization an object instance can still be a model path string.
+                    return state.State(key)?.Str("meshPath") ?? state.Str(key);
+                default: return null;
+            }
+        }
+
         //JSON numbers do not carry the float/int distinction used by ObjectState. Import against the schema,
         //including nested arrays and object transforms, before publishing the state to a live element.
         public static void Normalize(ObjectState state, Parameter[] parameters) {
