@@ -6,7 +6,9 @@ The classes in `Scripts/IO` save and load cities, export them for the core expor
 
 ### File format: `IO.SavedCity` (`IO/SavedCity.cs`)
 
-`city.json.gz` is a gzip-compressed JSON serialization of the `SavedCity` struct:
+`city.json.gz` is a gzip-compressed UTF-8 JSON serialization of the `SavedCity` struct. Names and text parameters preserve Unicode characters; older ASCII saves are also valid UTF-8 and remain readable.
+
+The struct contains:
 
 | Field | Content |
 |---|---|

@@ -194,7 +194,10 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "mapLabels") {
+                if (focus == "unicode") {
+                    await NewCity();
+                    await UnicodeCityRoundTrip();
+                } else if (focus == "mapLabels") {
                     await NewCity();
                     await MapLabels();
                 } else if (focus == "races") {
@@ -308,6 +311,7 @@ namespace Api {
                     await CustomElementPresetWorkflow();
                     await MapLabels();
                     await SplineInstanceState();
+                    await UnicodeCityRoundTrip();
                 }
             } catch (Abort e) {
                 Log("aborted: " + e.Message);

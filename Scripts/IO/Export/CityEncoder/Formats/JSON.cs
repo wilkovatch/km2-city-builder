@@ -177,7 +177,7 @@ namespace CityEncoder {
 
                 var json = Newtonsoft.Json.JsonConvert.SerializeObject(savedCity, Newtonsoft.Json.Formatting.Indented);
                 if (gzip) {
-                    var bytes = System.Text.Encoding.ASCII.GetBytes(json);
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);
                     var stream = new MemoryStream(bytes);
                     using (var compressedFileStream = File.Create(filename + ".gz.temp")) {
                         using (var compressor = new GZipStream(compressedFileStream, CompressionMode.Compress)) {

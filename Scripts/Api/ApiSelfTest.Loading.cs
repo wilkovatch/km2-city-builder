@@ -4,11 +4,40 @@ using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using Lua;
+using Newtonsoft.Json.Linq;
 using RuntimeCalculator.Scripting;
 using CT = CityElements.Types;
 
 namespace Api {
     public partial class ApiSelfTest {
+        async Task UnicodeCityRoundTrip() {
+            //Latin, combining accent, Greek, Cyrillic, CJK and a supplementary-plane character.
+            const string text = "Piazza \u00e8 \u00fc e\u0301 \u0391\u03b8\u03ae\u03bd\u03b1 \u041c\u043e\u0441\u043a\u0432\u0430 \u6771\u4eac \U0001f680";
+            var id = (await Call("roads.create", new { points = new[] { Pos(-950, -950), Pos(-850, -950) } })).Value<int>();
+            await Call("elements.rename", new { @ref = id, name = text });
+            History.ElementRegistry.Get<Road>(id).state.SetStr("unicodeText", text);
+            M.GetDummy<CityProperties>().state.SetStr("unicodeText", text);
+            await Call("city.flush");
+
+            var plainPath = Path.Combine(folder, "unicode.json");
+            try {
+                var error = await new CityEncoder.JSON(false).EncodeCityAsync(M, plainPath);
+                Check("plain JSON save succeeds", error == null);
+                var plain = JObject.Parse(File.ReadAllText(plainPath));
+                Check("plain JSON preserves Unicode names and state", plain["roads"].Any(r => r["name"].Value<string>() == text
+                    && r["state"]["unicodeText"].Value<string>() == text) && plain["cityProperties"]["unicodeText"].Value<string>() == text);
+
+                await Call("city.save");
+                await Call("city.close");
+                await Call("city.load", new { folder });
+                var loaded = M.roads.FirstOrDefault(r => GameEngine.GameObject.GetName(r) == text);
+                Check("gzip save/load preserves Unicode names and element state", loaded != null && loaded.state.Str("unicodeText") == text);
+                Check("gzip save/load preserves Unicode city properties", M.GetDummy<CityProperties>().state.Str("unicodeText") == text);
+            } finally {
+                if (File.Exists(plainPath)) File.Delete(plainPath);
+            }
+        }
+
         async Task LazyEditorInitialization() {
             EditorPanel Panel(string name) => (EditorPanel)typeof(CityBuilderMenuBar).GetField(name,
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(builder);
