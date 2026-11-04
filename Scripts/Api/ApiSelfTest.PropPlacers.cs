@@ -133,7 +133,8 @@ namespace Api {
                 .First(b => b.Text == StringManager.Get("CREATE")).GetPopup();
             var menuIndex = Enumerable.Range(0, createMenu.ItemCount).FirstOrDefault(i => createMenu.GetItemText(i) == StringManager.Get("PROPS_MENU"), -1);
             var propsMenu = menuIndex < 0 ? null : createMenu.GetItemSubmenuNode(menuIndex);
-            Check("Props submenu contains the individual prop and two placers", propsMenu?.ItemCount == 3);
+            Check("Props submenu contains the individual prop, parked car and two placers", propsMenu?.ItemCount == 4 &&
+                Enumerable.Range(0, propsMenu.ItemCount).Any(i => propsMenu.GetItemText(i) == StringManager.Get("CREATE_PARKED_CAR")));
 
             //The new menu opens the full property draft without creating a city element.
             foreach (var type in new[] { "propLine", "propPolygon" }) {

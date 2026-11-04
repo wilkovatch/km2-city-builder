@@ -47,7 +47,7 @@ namespace Api {
                 buildingLines = CountAlive(M.buildings),
                 meshInstances = CountAlive(M.meshes),
                 customElements = CountAlive(M.customElements),
-                terrainPoints = M.GetTerrainPoints().Count
+                terrainPoints = M.GetTerrainPoints().FindAll(p => p.anchorable).Count
             };
         }
 
@@ -66,6 +66,7 @@ namespace Api {
             if (kind == "terrainPoint") all = new List<object>(M.GetTerrainPoints());
             if (kind == "cityProperties" || kind == null) all.Insert(0, M.GetDummy<CityProperties>());
             foreach (var e in all) {
+                if (e is TerrainPoint p && !p.anchorable) continue;
                 if (!History.ElementSnapshot.IsAlive(e)) continue;
                 if (kind != null && KindOf(e) != kind) continue;
                 if (name != null && GetName(e) != name) continue;

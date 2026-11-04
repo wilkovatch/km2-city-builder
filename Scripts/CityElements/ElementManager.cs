@@ -353,7 +353,7 @@ public partial class ElementManager : Scriptable {
     }
 
     //forCustomElements: also the anchors only for the custom elements
-    public void ShowAnchors(bool active, bool forCustomElements = false) {
+    public void ShowAnchors(bool active, bool forCustomElements = false, bool keepEditedElements = false) {
         foreach (var road in roads) {
             if (active) road.SetActive(false, false);
             road.anchorManager.ShowTerrainAnchors(active, forCustomElements);
@@ -371,6 +371,7 @@ public partial class ElementManager : Scriptable {
             building.Select(false);
         }
         foreach (var element in customElements) {
+            if (keepEditedElements && element.IsEditing) continue;
             if (active) ShowCustomElementTraffic(element, false);
             element.SetActive(active, false);
             element.Select(false);

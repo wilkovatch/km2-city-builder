@@ -84,6 +84,7 @@ namespace CityElements.Types {
     //A single point (named center), placed with one click and edited as a mesh instance is: the gizmo is on the element
     //itself (the point has no handle) and its panel has the transform fields. The mesh is given by the geometry script
     public class CustomElementPointSettings {
+        public bool anchorable;
         public bool rotatable = true;
         public bool scalable;
         public bool presetRotation; //include the point rotation in property presets (opt-in)
@@ -206,7 +207,7 @@ namespace CityElements.Types {
 
         public static CustomElementPointNode[] PointNodes(CustomElementPointSettings point) {
             return new[] { new CustomElementPointNode { name = "center", label = "CE_POINT", rotatable = point.rotatable, scalable = point.scalable,
-                anchorable = false, defaultScale = point.defaultScale, defaultPosition = point.defaultPosition } };
+                anchorable = point.anchorable, defaultScale = point.defaultScale, defaultPosition = point.defaultPosition } };
         }
 
         public static CustomElementPointNode[] SplinePoints(bool closed = false) {

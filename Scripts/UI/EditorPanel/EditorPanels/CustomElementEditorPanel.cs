@@ -95,6 +95,9 @@ namespace EditorPanels {
         CustomElement linesContainer = null;
         //the list of containers to change the container to, or to merge into
         CustomElementPickerPanel picker;
+        ElementPlacer.TerrainPointAttachmentPicker pointAttachmentPicker;
+        EditorPanelElements.Label pointAttachmentStatus;
+        EditorPanelElements.Button pointAttachButton, pointLineButton, pointColumnButton, pointDetachButton;
 
         public CustomElementEditorPanel() {
             AddComplexElement(new PresetSelector(this));
@@ -118,6 +121,8 @@ namespace EditorPanels {
             insertBeforeButton = insertAfterButton = removeButton = detachButton = addInnerButton = removeInnerButton = editContentButton = changeContainerButton = mergeButton = null;
             uField = vField = null;
             spaceLabel = null;
+            pointAttachmentStatus = null;
+            pointAttachButton = pointLineButton = pointColumnButton = pointDetachButton = null;
             shownTransform = null;
             propPlacementErrorLabel = null;
             appendArrays.Clear();
@@ -505,7 +510,7 @@ namespace EditorPanels {
                 placer.arrayPath = path;
                 placer.atStart = atStart;
             }
-            builder.helper.elementManager.ShowAnchors(mode > 0, true);
+            placer.UpdateAnchorVisibility();
             var element = GetElement();
             if (element == null) return;
             element.SetActive(true, mode == 0);
@@ -526,6 +531,7 @@ namespace EditorPanels {
                 3 or 4 => ElementPlacer.CustomElementPlacer.PlacementMode.InsertPoint,
                 _ => ElementPlacer.CustomElementPlacer.PlacementMode.None
             };
+            placer.UpdateAnchorVisibility();
             GetElement()?.SetActive(true, true);
             placer.UpdatePlacementPoint();
         }
@@ -756,6 +762,7 @@ namespace EditorPanels {
         }
 
         public override void Hide(bool hide) {
+            if (hide) CancelPointAttachment();
             var placer = GetPlacer() ?? builder.customElementPlacer;
             if (hide && !suspendedPlacement.HasValue) {
                 suspendedPlacement = placer.placementMode;
@@ -779,6 +786,7 @@ namespace EditorPanels {
                 suspendedPlacement = null;
                 suspendedElement = null;
             }
+            placer.UpdateAnchorVisibility();
         }
 
         public override void SetActive(bool active) {
@@ -814,6 +822,7 @@ namespace EditorPanels {
                     SetTitle(creationType != null ? Operations.CustomElements.GetTypeLabel(creationType) : SM.Get(creationGroup), false);
                 }
             }
+            GetPlacer()?.UpdateAnchorVisibility(true);
         }
 
         //the element is shown as while edited: its points (and the ones of its contents) moveable, its lines, its move
@@ -867,6 +876,17 @@ namespace EditorPanels {
                 return;
             }
             var third = w / 3.0f;
+            if (point.anchorable) {
+                pointAttachmentStatus = p.AddLabel("", w);
+                p.IncreaseRow();
+                pointAttachButton = p.AddButton(SM.Get("POINT_ATTACH_CUSTOM_ELEMENT"), () => AttachPoint(ElementPlacer.TerrainPointAttachmentPicker.Target.Anchor), w * 0.65f, SM.Get("POINT_ATTACH_CUSTOM_ELEMENT_TOOLTIP"));
+                pointDetachButton = p.AddButton(SM.Get("POINT_DETACH"), DetachElementPoint, w * 0.35f, SM.Get("POINT_DETACH_TOOLTIP"));
+                p.IncreaseRow();
+                pointLineButton = p.AddButton(SM.Get("POINT_ATTACH_LINE"), () => AttachPoint(ElementPlacer.TerrainPointAttachmentPicker.Target.Line), w * 0.5f, SM.Get("POINT_ATTACH_LINE_TOOLTIP"));
+                pointColumnButton = p.AddButton(SM.Get("POINT_ATTACH_COLUMN"), () => AttachPoint(ElementPlacer.TerrainPointAttachmentPicker.Target.Column), w * 0.5f, SM.Get("POINT_ATTACH_COLUMN_TOOLTIP"));
+                p.IncreaseRow();
+                RefreshPointAttachment();
+            }
             p.AddButton(SM.Get("TRANSF_P_SCALE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Scale), third).SetInteractable(Any(scaleAxes));
             p.AddButton(SM.Get("TRANSF_P_ROTATE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Rotate), third).SetInteractable(Any(rotateAxes));
             p.AddButton(SM.Get("TRANSF_P_MOVE"), () => SetGizmoMode(RuntimeGizmos.TransformType.Move), third).SetInteractable(Any(moveAxes));
@@ -894,7 +914,64 @@ namespace EditorPanels {
 
         object GetPointTransform() {
             var point = GetElement() is CustomElement element ? PointOf(element) : null;
-            return point != null && !point.IsDeleted() ? new TransformPropertiesEditorPanel.TransformBinding(point.GetObject(), point, false) : null;
+            return point != null && !point.IsDeleted() ? new TransformPropertiesEditorPanel.TransformBinding(point.GetObject(), point, true) : null;
+        }
+
+        void RefreshPointAttachment() {
+            var element = GetElement() ?? builtElement;
+            var point = element != null ? PointOf(element) : null;
+            if (pointAttachmentStatus == null || point == null || point.IsDeleted()) return;
+            var picking = pointAttachmentPicker?.IsActive == true;
+            var target = pointAttachmentPicker?.CurrentTarget;
+            var attached = !GO.IsNull(point.anchor) && !point.anchor.IsDeleted();
+            var key = picking ? target switch {
+                ElementPlacer.TerrainPointAttachmentPicker.Target.Line => pointAttachmentPicker.LineStart == null ? "POINT_PICKING_LINE_START" : "POINT_PICKING_LINE_END",
+                ElementPlacer.TerrainPointAttachmentPicker.Target.Column => "POINT_PICKING_COLUMN",
+                _ => "POINT_PICKING_CUSTOM_ELEMENT"
+            } : !attached ? "POINT_FREE" : point.anchor is LineAnchor ? "POINT_ON_SEGMENT" : point.anchor is ColumnAnchor ? "POINT_ON_COLUMN"
+                : point.anchor is PointAnchor ? "POINT_ON_POINT" : "POINT_ANCHORED";
+            pointAttachmentStatus.SetValue(SM.Get(key));
+            pointAttachButton?.SetInteractable(!picking || target == ElementPlacer.TerrainPointAttachmentPicker.Target.Anchor);
+            pointLineButton?.SetInteractable(!picking || target == ElementPlacer.TerrainPointAttachmentPicker.Target.Line);
+            pointColumnButton?.SetInteractable(!picking || target == ElementPlacer.TerrainPointAttachmentPicker.Target.Column);
+            pointDetachButton?.SetInteractable(attached && !picking);
+        }
+
+        void AttachPoint(ElementPlacer.TerrainPointAttachmentPicker.Target target) {
+            if (CancelPointAttachment()) return;
+            var element = GetElement();
+            var point = element != null ? PointOf(element) : null;
+            if (point?.anchorable != true) return;
+            pointAttachmentPicker ??= new ElementPlacer.TerrainPointAttachmentPicker(builder);
+            builder.helper.elementManager.ShowAnchors(true, true);
+            element.SetActive(true, false);
+            pointAttachmentPicker.Start(point, () => {
+                builder.customElementPlacer.UpdateAnchorVisibility(true);
+                if (ActiveSelf()) {
+                    ShowElement(element);
+                    ReadCurValues();
+                    RefreshPointAttachment();
+                }
+            }, target, false);
+            pointAttachmentPicker.onFrame = RefreshPointAttachment;
+            builder.gizmo.ClearTargets();
+            RefreshPointAttachment();
+        }
+
+        public bool CancelPointAttachment() {
+            var active = pointAttachmentPicker?.IsActive == true;
+            pointAttachmentPicker?.Stop();
+            return active;
+        }
+
+        void DetachElementPoint() {
+            var element = GetElement();
+            var point = element != null ? PointOf(element) : null;
+            if (point == null || !point.anchorable) return;
+            Operations.TerrainPoints.Detach(point);
+            builder.NotifyChange();
+            Retarget();
+            RefreshPointAttachment();
         }
 
         void SetGizmoMode(RuntimeGizmos.TransformType type) {
@@ -986,6 +1063,7 @@ namespace EditorPanels {
         }
 
         void OnFrame() {
+            RefreshPointAttachment();
             var placementError = GetElement()?.propPlacementError is string error ? SM.Get(error) : "";
             propPlacementErrorLabel?.SetValue(placementError);
             if (builder.propsEditorPanel.parentPanel == this && builder.propsEditorPanel.ActiveSelf()) builder.propsEditorPanel.ShowError(placementError);
@@ -1095,6 +1173,7 @@ namespace EditorPanels {
         }
 
         public void Terminate(bool auto) {
+            CancelPointAttachment();
             var placer = GetPlacer() ?? builder.customElementPlacer;
             var element = placer?.GetElement();
             if (placer != null) {

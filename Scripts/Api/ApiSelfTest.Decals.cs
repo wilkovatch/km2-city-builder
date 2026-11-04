@@ -211,6 +211,200 @@ namespace Api {
         }
 
         //the single decal: a point element (one point, rotated and scaled with the gizmo) whose scale gives the size of the quad
+        async Task IndependentPoints() {
+            Log("independent point values, editing, migration and placement targets");
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+            var panel = builder.customElementEditorPanel;
+            var transformPanel = (EditorPanels.TransformPropertiesEditorPanel)typeof(CityBuilderMenuBar).GetField("transformPropertiesEditorPanel", flags).GetValue(builder);
+            CustomElement Element(int id) => History.UndoManager.GetAliveElement(id) as CustomElement;
+            TerrainPoint Center(int id) => Element(id).GetLeaves()[0].leaf.point;
+            T Field<T>(string name) => (T)panel.GetType().GetField(name, flags).GetValue(panel);
+            void Click(string name) => ((Godot.Button)typeof(EditorPanelElements.Button).GetField("button", flags)
+                .GetValue(Field<EditorPanelElements.Button>(name))).EmitSignal(Godot.BaseButton.SignalName.Pressed);
+            var ids = new List<int>();
+            foreach (var type in new[] { "parkedCar", "decalSingle", "mapLabel" }) {
+                var id = (await Call("customElement.create", new { type, name = "Independent " + type, position = V(-400 + ids.Count * 20, 8, -400) })).Value<int>();
+                ids.Add(id);
+                Check(type + " owns an unregistered independent center", !Center(id).anchorable && History.ElementRegistry.GetId(Center(id)) == -1);
+                Check(type + " cannot be an attachment target", Operations.TerrainPoints.AttachmentFromClick(Center(id).GetObject(), Center(id).GetPoint(), false) == null);
+                builder.SelectObject(Element(id), true, null);
+                CallBuilder<object>("EditCurSelectedObjectTransform");
+                Check(type + " stays in its element editor on M, with no attachment controls", panel.ActiveSelf() && !transformPanel.ActiveSelf()
+                    && Field<EditorPanelElements.Button>("pointAttachButton") == null);
+                var value = Center(id).GetPoint();
+                await CheckUndo("moving independent " + type, () => Call("customElement.movePoint", new { element = id, path = "center", position = SplinePosition(value + new Vector3(3, 0, 2)) }));
+                builder.SelectObject(Element(id), true, null);
+                var guiPosition = Center(id).GetPoint();
+                History.UndoManager.Record("move owned point with its gizmo", () => {
+                    History.UndoManager.TouchOwner(Center(id).GetObject());
+                    GO.SetPosition(Center(id).GetObject(), guiPosition + new Vector3(2, 0, 0)); M.FlagAsChanged();
+                });
+                await Frames(2);
+                var mode = type == "mapLabel" ? RuntimeGizmos.TransformType.Move : RuntimeGizmos.TransformType.Rotate;
+                builder.gizmo.transformType = mode;
+                CallBuilder<object>("Undo"); await Frames(2);
+                Check(type + " GUI undo restores its point selection and gizmo mode", panel.ActiveSelf() && builder.gizmo.mainTargetRoot == Center(id).GetObject()
+                    && builder.gizmo.transformType == mode && Center(id).GetPoint().DistanceTo(guiPosition) < 0.01f);
+                CallBuilder<object>("Redo"); await Frames(2);
+                Check(type + " GUI redo retains its point selection and mode", panel.ActiveSelf() && builder.gizmo.mainTargetRoot == Center(id).GetObject()
+                    && builder.gizmo.transformType == mode && Center(id).GetPoint().DistanceTo(guiPosition + new Vector3(2, 0, 0)) < 0.01f);
+                if (type != "mapLabel") await Call("customElement.movePoint", new { element = id, path = "center", position = SplinePosition(Center(id).GetPoint()), rotation = V(0, 35, 0),
+                    scale = type == "decalSingle" ? V(3, 1, 7) : null });
+                var kept = Center(id);
+                await CheckUndo("deleting independent " + type, () => Call("customElement.delete", new { element = id }));
+                await Call("history.undo");
+                Check(type + " deletion and undo recreate only the owned center", kept.IsDeleted() && !Center(id).anchorable && Center(id).GetLinks().Count == 1);
+                await Expect(type + " cannot be attached", "invalid_operation", "customElement.attachPoint", new { element = id, path = "center", column = 999 });
+                await Expect(type + " has no attachment to detach", "invalid_operation", "customElement.detachPoint", new { element = id, path = "center" });
+                await Expect(type + " cannot be created from a reference", "invalid_param", "customElement.create", new { type, points = new { center = new { terrainPoint = 999 } } });
+                await Expect(type + " rejects malformed direct values", "invalid_param", "customElement.create", new { type, points = new { center = new { position = new[] { 1, 2 } } } });
+            }
+            var originals = ids.ToDictionary(id => GO.GetName(Element(id)), id => (position: Center(id).GetPoint(), rotation: Center(id).GetRotation(), scale: Center(id).GetScale()));
+            await Call("city.save");
+            JObject ReadCity() {
+                using var stream = new System.IO.Compression.GZipStream(System.IO.File.OpenRead(System.IO.Path.Combine(folder, "city.json.gz")), System.IO.Compression.CompressionMode.Decompress);
+                using var reader = new System.IO.StreamReader(stream);
+                return JObject.Parse(reader.ReadToEnd());
+            }
+            var saved = ReadCity();
+            Check("independent centers save inline without shared point records", saved["customElements"].All(e => e["points"]?["center"] is JObject)
+                && ((JArray)saved["terrainPoints"]).Count == 0);
+            History.UndoManager.Record("clone independent point contents", () => {
+                var source = new ObjectState(); var owner = Operations.PropertyContainers.EnsureId(source);
+                foreach (var id in ids) Operations.PropertyContainers.Assign(Element(id).state, owner);
+                var destination = (ObjectState)source.Clone();
+                Operations.PropertyContainers.CloneContents(source, destination);
+                var copiedOwner = Operations.PropertyContainers.EnsureId(destination);
+                var copies = M.customElements.Where(e => Operations.PropertyContainers.Owner(e.state) == copiedOwner).ToArray();
+                Check("container cloning copies every independent point value", copies.Length == ids.Count && copies.All(e => {
+                    var original = Element(ids.Single(id => Element(id).TypeName == e.TypeName));
+                    var p = e.GetLeaves()[0].leaf.point; var q = original.GetLeaves()[0].leaf.point;
+                    return p != q && p.GetPoint().DistanceTo(q.GetPoint()) < 0.01f && p.GetRotation().DistanceTo(q.GetRotation()) < 0.01f && p.GetScale().DistanceTo(q.GetScale()) < 0.01f;
+                }));
+                var copied = copies[0].GetLeaves()[0].leaf.point;
+                Operations.TerrainPoints.Move(copied, copied.GetPoint() + new Vector3(15, 0, 0));
+                Check("moving a cloned point keeps the original independent", ids.All(id => Center(id).GetPoint().DistanceTo(originals[GO.GetName(Element(id))].position) < 0.01f));
+            });
+            await Call("city.reload");
+            Check("all independent transforms survive save/reload", M.customElements.Where(e => originals.ContainsKey(GO.GetName(e))).All(e => {
+                var p = e.GetLeaves()[0].leaf.point; var value = originals[GO.GetName(e)];
+                return p.GetPoint().DistanceTo(value.position) < 0.01f && p.GetRotation().DistanceTo(value.rotation) < 0.01f && p.GetScale().DistanceTo(value.scale) < 0.01f;
+            }));
+            //The old references are converted by the core before the new reader sees them.
+            var legacyPoints = (JArray)saved["terrainPoints"];
+            int pointId = 100;
+            foreach (var element in saved["customElements"]) {
+                var center = (JObject)element["points"]["center"];
+                var old = (JObject)center.DeepClone(); old["id"] = ++pointId;
+                old["linkType"] = 0; old["elementType"] = 0;
+                legacyPoints.Add(old); element["points"]["center"] = pointId;
+            }
+            using (var stream = new System.IO.Compression.GZipStream(System.IO.File.Create(System.IO.Path.Combine(folder, "city.json.gz")), System.IO.Compression.CompressionMode.Compress))
+            using (var writer = new System.IO.StreamWriter(stream)) writer.Write(saved.ToString());
+            var prefPath = System.IO.Path.Combine(folder, "preferences.json");
+            var preferences = JObject.Parse(System.IO.File.ReadAllText(prefPath)); preferences["coreVersion"] = 5;
+            System.IO.File.WriteAllText(prefPath, preferences.ToString());
+            await Call("city.load", new { folder, migrate = "always" });
+            Check("core migration runs before the independent-value reader", ReadCity()["customElements"].All(e => e["points"]?["center"] is JObject)
+                && System.IO.File.Exists(System.IO.Path.Combine(folder, "city.json.gz.v5.bak")));
+            Check("core migration preserves the saved world transforms", M.customElements.All(e => {
+                var p = e.GetLeaves()[0].leaf.point; var value = originals[GO.GetName(e)];
+                return p.GetPoint().DistanceTo(value.position) < 0.01f && p.GetRotation().DistanceTo(value.rotation) < 0.01f && p.GetScale().DistanceTo(value.scale) < 0.01f;
+            }));
+            await Call("city.save");
+            Check("saving after migration drops unused shared points", ((JArray)ReadCity()["terrainPoints"]).Count == 0);
+            foreach (var element in M.customElements.ToArray()) await Call("customElement.delete", new { element = History.ElementRegistry.GetId(element) });
+            //Opt in temporarily to exercise the generic point panel using the core's ordinary geometry.
+            var settings = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()["parkedCar"].typeData.settings;
+            var definitions = settings.controlPoints;
+            settings.point.anchorable = true;
+            settings.controlPoints = CityElements.Types.CustomElementType.PointNodes(settings.point);
+            try {
+                var id = (await Call("customElement.create", new { type = "parkedCar", position = V(-300, 5, -300) })).Value<int>();
+                var line = (await Call("customElement.create", new { type = "propLine", points = new { spline = new[] {
+                    new { position = V(-310, 0, -310) }, new { position = V(-310, 0, -280) } } } })).Value<int>();
+                var target = Element(line).GetLeaves()[0].leaf.point;
+                History.UndoManager.Record("start anchorable point placement", () => CallBuilder<object>("StartCustomElementCreation", "parkedCar", "CREATE_CUSTOM_ELEMENT"));
+                await Frames(1);
+                Check("anchorable point creation shows its targets", builder.customElementPlacer.AnchorablePlacement && target.GetObject().IsVisibleInTree());
+                History.UndoManager.Record("place anchorable point on a target", () => builder.customElementPlacer.PlaceAt(new GameEngine.Raycast.RaycastHit { collider = target.GetObject(), point = target.GetPoint() }));
+                var placedId = History.ElementRegistry.GetId(builder.customElementPlacer.GetElement());
+                Check("an anchorable point follows its placement target", Center(placedId).anchor is PointAnchor);
+                await Call("customElement.delete", new { element = placedId });
+                builder.SelectObject(Element(id), true, null); await Frames(2);
+                Check("an anchorable point exposes attachment controls in its element panel", Field<EditorPanelElements.Button>("pointAttachButton") != null);
+                Click("pointAttachButton");
+                var picker = Field<ElementPlacer.TerrainPointAttachmentPicker>("pointAttachmentPicker");
+                Check("the element panel starts attachment picking with visible targets", picker.IsActive && GameEngine.Scriptable.Cast<Handle>(target.GetObject()).IsHandleActive());
+                Check("cancelling the point picker restores the element panel", panel.CancelPointAttachment() && panel.GetElement() == Element(id));
+                Click("pointAttachButton");
+                History.UndoManager.Record("attach anchorable point", () => picker.Pick(target.GetObject(), target.GetPoint()));
+                await Frames(2);
+                Check("the element panel attaches the center without opening an M editor", Center(id).anchor is PointAnchor && panel.ActiveSelf() && !transformPanel.ActiveSelf());
+                History.UndoManager.Undo(); await Frames(2);
+                Check("point-panel attachment can be undone", GO.IsNull(Center(id).anchor));
+                History.UndoManager.Redo(); await Frames(2);
+                Check("point-panel attachment can be redone", Center(id).anchor is PointAnchor);
+                await Call("customElement.movePoint", new { element = line, path = "spline.0", position = SplinePosition(target.GetPoint() + new Vector3(2, 3, 1)) });
+                Check("an attached point follows a moved target", Center(id).GetPoint().DistanceTo(target.GetPoint()) < 0.01f);
+                builder.SelectObject(Element(id), true, null); await Frames(1);
+                Click("pointDetachButton"); await Frames(2);
+                Check("the point panel detaches its center", GO.IsNull(Center(id).anchor));
+                foreach (var button in new[] { "pointLineButton", "pointColumnButton" }) {
+                    Click(button);
+                    var other = Element(line).GetLeaves()[1].leaf.point;
+                    History.UndoManager.Record("attach center " + button, () => {
+                        picker.Pick(target.GetObject(), target.GetPoint());
+                        if (button == "pointLineButton") picker.Pick(other.GetObject(), other.GetPoint());
+                    });
+                    await Frames(2);
+                    Check("the point panel supports " + button, button == "pointLineButton" ? Center(id).anchor is LineAnchor : Center(id).anchor is ColumnAnchor);
+                    Click("pointDetachButton"); await Frames(1);
+                }
+                await Call("customElement.delete", new { element = id });
+                await PlacementAnchorTargets(line);
+            } finally {
+                builder.CloseAllPanels();
+                settings.point.anchorable = false;
+                settings.controlPoints = definitions;
+            }
+            Check("the core requires the current breaking program version", CoreManager.ProgramCompatibilityError("MidtownMadness2") == null);
+            try {
+                GlobalVariables.programVersion = 4;
+                Check("a newer core is rejected by an old builder", CoreManager.ProgramCompatibilityError("MidtownMadness2") == "MIGRATION_ERROR_CORE_IS_FOR_NEWER_PROGRAM");
+                GlobalVariables.programVersion = 6;
+                Check("an old core is rejected by a newer builder", CoreManager.ProgramCompatibilityError("MidtownMadness2") == "MIGRATION_ERROR_CORE_IS_FOR_OLDER_PROGRAM");
+            } finally { GlobalVariables.programVersion = 5; }
+        }
+
+        async Task PlacementAnchorTargets(int targetId) {
+            var target = (History.UndoManager.GetAliveElement(targetId) as CustomElement).GetLeaves()[0].leaf.point;
+            var panel = builder.customElementEditorPanel;
+            var placer = builder.customElementPlacer;
+            var roadId = (await Call("roads.create", new { points = new[] { new { position = V(-200, 0, -330) }, new { position = V(-200, 0, -270) } } })).Value<int>();
+            var road = (Road)History.UndoManager.GetAliveElement(roadId);
+            bool RoadTargetsVisible() => road.anchorManager.GetTerrainAnchors().Any(a => a.GetObject().IsVisibleInTree() && GameEngine.Scriptable.Cast<Handle>(a.GetObject()).IsHandleActive());
+            bool Visible() => GameEngine.Scriptable.Cast<Handle>(target.GetObject()).IsHandleActive() && target.GetObject().IsVisibleInTree();
+            foreach (var type in new[] { "propLine", "propPolygon" }) {
+                History.UndoManager.Record("start placement " + type, () => CallBuilder<object>("StartCustomElementCreation", type, "CREATE_CUSTOM_ELEMENT"));
+                await Frames(2);
+                Check(type + " shows anchor targets before the first click", Visible() && RoadTargetsVisible());
+                History.UndoManager.Record("place first " + type + " point", () => placer.PlaceAt(new GameEngine.Raycast.RaycastHit { collider = target.GetObject(), point = target.GetPoint() }));
+                await Frames(2);
+                var element = placer.GetElement();
+                Check(type + " anchors its first point and keeps targets visible", element.GetLeaves()[0].leaf.point == target && Visible());
+                panel.SetPointPlacementMode(0); await Frames(1);
+                Check(type + " stopping placement hides other targets", !Visible() || element.HasPoint(target));
+                panel.SetPointPlacementMode(1); await Frames(1);
+                panel.Hide(true); await Frames(1);
+                Check(type + " hides targets while its child panel is open", !placer.AnchorablePlacement || placer.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.None);
+                panel.Hide(false); await Frames(1);
+                Check(type + " restores target visibility after its child panel closes", Visible() && placer.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.AppendPoint);
+                panel.Terminate(); await Frames(1);
+                Check(type + " terminating clears anchor targets", !Visible());
+            }
+        }
+
         async Task SingleDecals() {
             var types = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes();
             if (!types.TryGetValue("decalSingle", out var type)) return;

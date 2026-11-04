@@ -9,9 +9,10 @@ namespace Operations {
         //Procedural points use ordinary generated anchors; building points can also follow patch corners and edges.
         //Without generatedOnly (the points of the custom elements) any anchor, segment or terrain point.
         public static IAnchorable AttachmentFromClick(Node3D obj, Vector3 position, bool generatedOnly = true, TerrainPoint point = null) {
-            if (obj == null) return null;
+            if (obj == null || point?.anchorable == false) return null;
             var buildingPoint = generatedOnly && point != null && point.GetLinks().Exists(e => e is BuildingLine);
             var clicked = GS.FindComponent<TerrainPoint>(obj);
+            if (clicked?.anchorable == false) return null;
             if (clicked != null && !clicked.IsDeleted() && (!generatedOnly || (buildingPoint && clicked.GetLinks().Exists(e => e is TerrainPatch)))) {
                 return DependsOn(clicked, point) ? null : new PointAnchor(clicked);
             }
@@ -21,6 +22,7 @@ namespace Operations {
             var link = GS.Cast<PointLink>(obj);
             if (link == null || GO.IsNull(link.next)) return null;
             var start = GO.GetParent(link);
+            if (GS.FindRecursive<TerrainPoint>(start)?.anchorable == false || GS.FindRecursive<TerrainPoint>(link.next)?.anchorable == false) return null;
             if (generatedOnly) {
                 var a = GS.FindRecursive<TerrainAnchor>(start);
                 var b = GS.FindRecursive<TerrainAnchor>(link.next);

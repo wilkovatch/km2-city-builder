@@ -76,7 +76,7 @@ The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, 
 
 ### Versions
 
-The program has a `programVersion` (increased on breaking changes) and a `featureVersion` (increased with new features), see `GlobalVariables` in [Engine Abstraction](Engine-Abstraction#globalvariables-scriptsglobalvariablescs). The migration helper refuses to work with a core whose `programVersion` differs from the program's, or whose `featureVersion` is higher than the program's.
+The program has a `programVersion` (increased on breaking changes) and a `featureVersion` (increased with new features), see `GlobalVariables` in [Engine Abstraction](Engine-Abstraction#globalvariables-scriptsglobalvariablescs). Loading and the migration helper refuse to work with a core whose `programVersion` differs from the program's, or whose `featureVersion` is higher than the program's. Program version 5, feature version 1 stores non-anchorable custom-element points as direct transform values; cores migrate their earlier references before the builder decodes the city.
 
 Each city stores the `coreVersion` and `coreFeatureVersion` it was last saved with in its `preferences.json`. When a city is loaded:
 

@@ -139,8 +139,8 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
 
     // Points
 
-    public TerrainPoint CreatePoint(Vector3 position, IAnchorable anchor = null) {
-        var p = TerrainPoint.Create(position, this, pointContainer, anchor);
+    public TerrainPoint CreatePoint(Vector3 position, IAnchorable anchor = null, bool anchorable = true) {
+        var p = TerrainPoint.Create(position, this, pointContainer, anchor, anchorable: anchorable);
         ApplyPointState(p);
         return p;
     }
@@ -159,7 +159,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         foreach (var link in p.GetLinks()) {
             if (link is not CustomElement e || e.deleted) continue;
             any = true;
-            hidden |= e.Settings?.point != null;
+            hidden |= e.Settings?.point != null && (!p.anchorable || e.moveable);
             active |= e.active;
             selected |= e.selected;
             moveable |= e.active && e.moveable && !e.derivedFlag;
@@ -171,7 +171,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
     }
 
     TerrainPoint CreatePoint(CityElements.Types.CustomElementPointNode def, Vector3 position) {
-        var point = CreatePoint(position);
+        var point = CreatePoint(position, anchorable: def.anchorable);
         if (def.scalable) point.SetScale(PointTree.ToVector(def.defaultScale, Vector3.One));
         return point;
     }
@@ -222,6 +222,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
     //the point is replaced with another one (e.g. shared with another element), every use of it in the element
     public void ReplacePoint(TerrainPoint oldPoint, TerrainPoint newPoint) {
         if (oldPoint == newPoint || oldPoint == null || newPoint == null) return;
+        if (!oldPoint.anchorable || !newPoint.anchorable) throw new System.InvalidOperationException("An independent point cannot be shared");
         History.UndoManager.Touch(this);
         var used = false;
         foreach (var (_, leaf) in GetLeaves()) {
@@ -471,6 +472,8 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         return active;
     }
 
+    internal bool IsEditing => active && moveable;
+
     public bool IsSelected() {
         return selected;
     }
@@ -494,10 +497,13 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         foreach (var point in all) ApplySharedPointState(point);
     }
 
-    //removes the element without deleting its points (used by undo/redo, which deletes them explicitly)
+    //Undo restores shared points separately; independent points are owned and removed with the element.
     public void RemoveForUndo() {
         SetPlacementPoint(null);
-        foreach (var point in GetAllPoints()) point.RemoveLinkSilently(this);
+        foreach (var point in GetAllPoints()) {
+            if (point.anchorable) point.RemoveLinkSilently(this);
+            else point.RemoveLink(this);
+        }
         points = new PointGroup(points.def);
         meshVertices.Clear();
         GO.Destroy(this);
@@ -520,7 +526,9 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
             ApplyPointState(p);
         }
         foreach (var p in oldPoints) {
-            if (!newAll.Contains(p)) p.RemoveLinkSilently(this);
+            if (newAll.Contains(p)) continue;
+            if (p.anchorable) p.RemoveLinkSilently(this);
+            else p.RemoveLink(this);
         }
         triangles.Clear();
         triangles.AddRange(newTriangles);
@@ -554,7 +562,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         foreach (var (_, leaf) in GetUpdateLeaves()) {
             if (leaf.point != null && leaf.point.IsDeleted()) {
                 var old = leaf.point;
-                leaf.point = CreatePoint(old.GetPointSafe());
+                leaf.point = CreatePoint(old.GetPointSafe(), anchorable: leaf.def.anchorable);
                 if (leaf.def.rotatable) leaf.point.SetRotation(old.GetRotation());
                 if (leaf.def.scalable) leaf.point.SetScale(old.GetScale());
                 structureVersion++;
@@ -769,7 +777,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
             var old = (PointTree.Find(points, path) as PointLeaf)?.point;
             TerrainPoint point = null;
             foreach (var p in siblingPoints) {
-                if (!p.IsDeleted() && p.GetPoint().DistanceTo(position) < Operations.CustomElements.WeldDistance) {
+                if (leaf.def.anchorable && p.anchorable && !p.IsDeleted() && p.GetPoint().DistanceTo(position) < Operations.CustomElements.WeldDistance) {
                     point = p;
                     break;
                 }
@@ -783,7 +791,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
                     changed = true;
                 }
             }
-            if (point == null) point = CreatePoint(position);
+            if (point == null) point = CreatePoint(position, anchorable: leaf.def.anchorable);
             if (point != old) changed = true;
             if (leaf.def.rotatable && old != null && !old.IsDeleted()) point.SetRotation(old.GetRotation());
             if (leaf.def.scalable && old != null && !old.IsDeleted()) point.SetScale(old.GetScale());

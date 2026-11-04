@@ -100,6 +100,8 @@ namespace CityDecoder {
                 return (2, "CORE_NOT_FOUND");
             }
             else {
+                var compatibilityError = CoreManager.ProgramCompatibilityError(core);
+                if (compatibilityError != null) return (2, compatibilityError);
                 if (coreVersion != curCoreVersion) {
                     var res = Migrate(false);
                     if (res.code == 1) {

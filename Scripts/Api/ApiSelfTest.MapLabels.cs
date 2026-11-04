@@ -179,7 +179,7 @@ namespace Api {
             Check("a label saved on a surface is still on it after loading (" + RaisedHeight() + ")", Mathf.Abs(RaisedHeight() - surfaceHeight) < 0.01f);
             var heightless = ReadCity(cityPath);
             var savedLabel = heightless["customElements"].First(e => e["state"]?["text"]?.Value<string>() == "Raised");
-            heightless["terrainPoints"].First(p => p["id"].Value<int>() == savedLabel["points"]["center"].Value<int>())["position"]["y"] = 0;
+            savedLabel["points"]["center"]["position"]["y"] = 0;
             WriteCity(cityPath, heightless);
             await Call("city.reload"); await Frames(3);
             Check("a label saved at height 0 is projected when the city is loaded (" + RaisedHeight() + ")", Mathf.Abs(RaisedHeight() - surfaceHeight) < 0.01f);

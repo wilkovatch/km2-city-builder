@@ -33,6 +33,7 @@ namespace ElementPlacer {
         //generatedOnly: only the anchors of the roads and intersections for everyone (see Operations.TerrainPoints.AttachmentFromClick)
         public void Start(TerrainPoint point, System.Action onEnd, Target target = Target.Anchor, bool generatedOnly = true) {
             Stop();
+            if (!point.anchorable) return;
             this.point = point;
             this.onEnd = onEnd;
             this.target = target;
@@ -55,7 +56,7 @@ namespace ElementPlacer {
 
         TerrainPoint ClickedPoint(Node3D obj) {
             var clicked = obj == null ? null : GS.FindRecursive<TerrainPoint>(obj);
-            if (clicked == null || clicked.IsDeleted() || clicked == LineStart || Operations.TerrainPoints.DependsOn(clicked, point)) return null;
+            if (clicked == null || !clicked.anchorable || clicked.IsDeleted() || clicked == LineStart || Operations.TerrainPoints.DependsOn(clicked, point)) return null;
             return clicked;
         }
 

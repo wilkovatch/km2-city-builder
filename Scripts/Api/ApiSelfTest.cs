@@ -194,7 +194,10 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "unicode") {
+                if (focus == "independentPoints") {
+                    await NewCity();
+                    await IndependentPoints();
+                } else if (focus == "unicode") {
                     await NewCity();
                     await UnicodeCityRoundTrip();
                 } else if (focus == "mapLabels") {

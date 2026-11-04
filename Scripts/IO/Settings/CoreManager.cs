@@ -65,6 +65,12 @@ public class CoreManager {
         return GetSettingsInt(core, "coreVersion");
     }
 
+    public static string ProgramCompatibilityError(string core) {
+        var version = GetSettingsInt(core, "programVersion");
+        if (version > GlobalVariables.programVersion || version == GlobalVariables.programVersion && GetSettingsInt(core, "featureVersion") > GlobalVariables.featureVersion) return "MIGRATION_ERROR_CORE_IS_FOR_NEWER_PROGRAM";
+        return version < GlobalVariables.programVersion ? "MIGRATION_ERROR_CORE_IS_FOR_OLDER_PROGRAM" : null;
+    }
+
     public static int GetCoreFeatureVersion(string core) {
         return GetSettingsInt(core, "coreFeatureVersion");
     }

@@ -230,7 +230,7 @@ namespace Operations {
                     var controls = element.GetAllPoints();
                     var json = global::CustomElements.PointTree.ToJson(element.points, p => controls.IndexOf(p));
                     copy.SetPoints((global::CustomElements.PointGroup)global::CustomElements.PointTree.FromJson(json, element.points.def,
-                        t => CopyPoint(controls[(int)t]), (def, pos) => copy.CreatePoint(pos), Vector3.Zero));
+                        t => CopyPoint(controls[(int)t]), (def, pos) => copy.CreatePoint(pos, anchorable: def.anchorable), Vector3.Zero));
                     foreach (var p in element.meshVertices) copy.meshVertices.Add(CopyPoint(p));
                     copy.triangles.AddRange(element.triangles);
                     copy.uvs.AddRange(element.uvs);

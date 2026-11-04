@@ -387,6 +387,10 @@ namespace History {
 
         static void Touch(object element, bool withAnchoredPoints) {
             if (!Recording || element == null) return;
+            if (element is TerrainPoint ownedPoint && !ownedPoint.anchorable) {
+                foreach (var owner in ownedPoint.GetLinks()) Touch(owner, withAnchoredPoints);
+                return;
+            }
             var kind = ElementSnapshot.GetKind(element);
             if (!kind.HasValue) return;
             var id = ElementRegistry.GetId(element);
@@ -452,7 +456,7 @@ namespace History {
         public static object ResolveOwner(Node3D node) {
             if (node == null || !GodotObject.IsInstanceValid(node)) return null;
             var point = GameEngine.Scriptable.FindRecursive<TerrainPoint>(node);
-            if (point != null && point.GetObject() == node) return point;
+            if (point != null && point.GetObject() == node) return point.anchorable ? point : point.GetLinks().Find(e => e is CustomElement);
             var intersection = GameEngine.Scriptable.FindRecursive<Intersection.IntersectionComponent>(node);
             if (intersection != null && GO.GetParent(intersection) == node) return intersection.intersection;
             var mesh = GameEngine.Scriptable.Cast<MeshInstance>(node);

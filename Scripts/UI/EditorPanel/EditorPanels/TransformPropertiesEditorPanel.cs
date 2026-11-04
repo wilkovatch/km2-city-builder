@@ -251,7 +251,7 @@ namespace EditorPanels {
         TerrainPoint GetProceduralPoint() {
             DropDeletedInstance();
             var point = instance == null || notOnHandle ? null : GS.FindRecursive<TerrainPoint>(instance);
-            return point != null && !point.IsDeleted() && point.GetLinks().Exists(e => e is TerrainPatch || e is BuildingLine || e is CustomElement) ? point : null;
+            return point != null && point.anchorable && !point.IsDeleted() && point.GetLinks().Exists(e => e is TerrainPatch || e is BuildingLine || e is CustomElement) ? point : null;
         }
 
         //a point of the custom elements only: it can also be attached to any point, to the line between two points or to

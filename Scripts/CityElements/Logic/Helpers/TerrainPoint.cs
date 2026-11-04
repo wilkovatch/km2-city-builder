@@ -11,6 +11,7 @@ using Input = GameEngine.Input;
 using KeyCommand = GameEngine.Input.KeyCommand;
 
 public partial class TerrainPoint : PhysicsScriptable {
+    public bool anchorable { get; private set; } = true;
     public IAnchorable anchor = null;
     Vector3 oldPoint;
     Vector3 oldRotation; //the rotation of the handle at the last update (rotatable points of the custom elements)
@@ -28,12 +29,13 @@ public partial class TerrainPoint : PhysicsScriptable {
     int updatedCount;
     bool updating = false; //in UpdatePosition (the points it depends on are updated first, see UpdateDependencies)
 
-    public static TerrainPoint Create(Vector3 point, IGroundable patch, GameObject parent, IAnchorable anchor = null, int registryId = -1, bool active = true) {
+    public static TerrainPoint Create(Vector3 point, IGroundable patch, GameObject parent, IAnchorable anchor = null, int registryId = -1, bool active = true, bool anchorable = true) {
         var obj = GameEngine.Resources.CreatePointHandle(GO.GetObject(parent), active);
         var comp = GS.Create<TerrainPoint>("TerrainPoint", obj);
+        comp.anchorable = anchorable;
         comp.Setup(point, patch, anchor);
         //the points of the elements excluded from undo (the preset dummies) are excluded too
-        if (patch == null || History.ElementRegistry.IsRegistered(patch)) History.ElementRegistry.Register(comp, registryId);
+        if (anchorable && (patch == null || History.ElementRegistry.IsRegistered(patch))) History.ElementRegistry.Register(comp, registryId);
         return comp;
     }
 
@@ -53,6 +55,7 @@ public partial class TerrainPoint : PhysicsScriptable {
 
     public void AddLink(IGroundable patch) {
         if (deleted) return;
+        if (!anchorable && links.Count > 0 && !links.Contains(patch)) throw new System.InvalidOperationException("An independent point cannot be shared");
         links.Add(patch);
         updatedCount = links.Count;
     }

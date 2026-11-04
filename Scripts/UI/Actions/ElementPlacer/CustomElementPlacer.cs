@@ -29,6 +29,7 @@ namespace ElementPlacer {
         public System.Action onFrame; //every frame while the placer is the click modifier (e.g. to follow the selected point)
         public System.Action onModeEnded; //the placement mode ended by itself (e.g. a closed array was closed)
         readonly ElementManager manager;
+        bool anchorsVisible;
 
         public CustomElementPlacer(ElementManager manager) {
             this.manager = manager;
@@ -49,6 +50,7 @@ namespace ElementPlacer {
         bool Guards(List<RaycastHit?> hits) {
             if (!manager.builder.customElementEditorPanel.ActiveSelf()) return false;
             onFrame?.Invoke();
+            UpdateAnchorVisibility();
             UpdatePlacementPoint();
             if (placementMode == PlacementMode.None) return false;
             if (GetElement()?.Settings?.spline != null && placementMode != PlacementMode.Create &&
@@ -87,6 +89,9 @@ namespace ElementPlacer {
                         }
                     }
                     Operations.PropertyContainers.Assign(curElement.state, propertyContainerId);
+                    if (curElement.Settings?.point?.anchorable == true) {
+                        Operations.TerrainPoints.Attach(((CustomElements.PointLeaf)curElement.points.Get("center")).point, obj, hit.point, false);
+                    }
                     placementMode = PlacementMode.None;
                     if (curElement.Settings?.spline != null || curElement.Settings?.propPlacer?.type == "polygon") {
                         arrayPath = curElement.Settings?.propPlacer?.type == "polygon" ? "perimeter" : "spline";
@@ -218,11 +223,33 @@ namespace ElementPlacer {
                 .TryGetValue(createType, out var type) ? type.typeData.settings : null);
         }
 
+        public bool AnchorablePlacement {
+            get {
+                var settings = GetSettings();
+                if (settings?.point != null) return settings.point.anchorable;
+                if (placementMode != PlacementMode.Create && GetElement() is CustomElement element && arrayPath != null) {
+                    return CustomElements.PointTree.Find(element.points, arrayPath)?.def.anchorable == true;
+                }
+                return settings?.spline != null || settings?.propPlacer != null;
+            }
+        }
+
+        //All placement entry points share the same target visibility, including the first click and resumed modes.
+        public void UpdateAnchorVisibility(bool force = false) {
+            var show = manager.builder.terrainClick.modifier == this && manager.builder.customElementEditorPanel.ActiveSelf()
+                && placementMode != PlacementMode.None && AnchorablePlacement;
+            if (!force && show == anchorsVisible) return;
+            anchorsVisible = show;
+            manager.ShowAnchors(show, true, true);
+            if (manager.builder.customElementEditorPanel.ActiveSelf()) manager.builder.customElementEditorPanel.ShowElement(GetElement());
+        }
+
         bool ProjectsPlacement(CityElements.Types.CustomElementSettings settings) => GetElement()?.ProjectsPlacement
             ?? creationState?.Bool("projectToGround", settings.propPlacer.projectToGround) ?? settings.propPlacer.projectToGround;
 
         //terrain points and anchors, point links, then the terrain and the generated meshes
         public override List<int> GetLayerMasks() {
+            if (!AnchorablePlacement) return new List<int> { 0, 0, (1 << 3) | (1 << 7) };
             var points = GetSettings()?.propPlacer?.type == "polygon" ? (1 << 10) | (1 << 8) : 1 << 10;
             return new List<int> { points, 1 << 12, (1 << 3) | (1 << 7) };
         }

@@ -609,7 +609,8 @@ namespace History {
 
             var type = CityElements.Types.Parsers.TypeParser.GetCustomElementTypes().TryGetValue(state?.Str("type", "") ?? "", out var t) ? t : null;
             var rootDef = CustomElements.PointTree.RootDef(type?.typeData.settings.controlPoints);
-            return (CustomElements.PointGroup)CustomElements.PointTree.FromJson(points, rootDef, getPoint, (def, pos) => element.CreatePoint(pos), origin);
+            return (CustomElements.PointGroup)CustomElements.PointTree.FromJson(points, rootDef, getPoint,
+                (def, pos) => element.CreatePoint(pos, anchorable: def.anchorable), origin, existing: element.points);
         }
 
         //same logic as the city decoder, with the registry ids as references

@@ -82,10 +82,13 @@ Each node of `controlPoints` is a point, or a group of points if it has `childre
 | `array` | `min`, `max` (0: no limit), `editable` (default `true`: the user can add and remove elements; otherwise only the converters and the API can), `uniform` (an array in an element of another array: every element of that array has as many elements in it, adding one adds one everywhere), `closed` (a loop, e.g. a perimeter: the element after the last one is the first one, so an element added at an end goes between the last and the first one), `defaultCount` and `defaultStep` (a new element: how many elements, and the offset between them). |
 | `rotatable` | The rotation of the point is given to the scripts, exported and saved (the types with `point` can edit it, the others set it through the API and the converters). |
 | `scalable` | The same for the scale of the point. |
+| `anchorable` | The point can be shared and attached to other points, anchors or segments (default `true`). With `false`, it owns a direct transform value and cannot be an attachment target. |
 | `defaultScale` | The scale of the point of a new element (default `[1, 1, 1]`). |
 | `defaultPosition` | The offset of the point from where a new element is created. |
 
 The points are **terrain points**: like the points of the terrain patches and building lines they can be attached to the anchors of roads and intersections, to the segment between two points, or shared with other elements (the same point used by a terrain patch and by two custom elements moves all of them). Unlike the points of the patches, a point on an anchor can still be moved with the gizmo: it then leaves the anchor (and stays shared). The vertices of the mesh are terrain points too.
+
+Non-anchorable leaves own their values. In the saved point tree and undo snapshots, an anchorable leaf is a terrain-point id, while a non-anchorable leaf is `{"position":{"x":0,"y":0,"z":0}}`, with `rotation` and `scale` when enabled. Independent leaves have no shared terrain-point record or registry id. The reader uses the definition of each leaf; cores must migrate earlier references to values before loading them in program version 5.
 
 Besides the anchors along their edges, the intersections have an anchor line across the end of each road whose type has `endAnchors` (see [Core Roads](Core-Roads#settingsjson)), only for the points of the custom elements: a road custom element converted from a road keeps all the points of its end section on the intersection, and they follow it when it moves or changes. These anchors are shown only by the click modes of the custom element editor and while a point is attached, and come after the other anchors of the intersection, so the indices of those don't change.
 
@@ -262,6 +265,7 @@ A type with `point` is a **single point** element: one control point, named `cen
 | Key | Description |
 |---|---|
 | `rotatable` | The point can be rotated (default `true`). |
+| `anchorable` | The center can follow other points, anchors and segments, and can be an attachment target (default `false`). Attachment controls appear directly in the element's transform group when enabled. |
 | `scalable` | The point can be scaled (default `false`). |
 | `positionAxes`, `rotationAxes`, `scaleAxes` | The axes (X, Y, Z, as three bools) the gizmo and the fields can change (default: all, none for a rotation or scale that isn't enabled). With `project`, the height can't be changed. |
 | `defaultScale` | The scale of a new element (default `[1, 1, 1]`). |
@@ -272,6 +276,8 @@ A type with `point` is a **single point** element: one control point, named `cen
 Point transforms are excluded from presets by default. Set `point.presetScale: true` to include the scale of a scalable point, or `point.presetRotation: true` to include the Euler rotation of a rotatable point. The settings are independent; a transform left out of presets keeps its current value on load, reset and sync. Enabled transforms have editable fields before placement and in preset management, respecting `scaleAxes` and `rotationAxes`. They are stored as `pointScale` and `pointRotation` vectors (`{"x": ..., "y": ..., "z": ...}`) in the preset, and are captured from the actual point when saving. Missing values in older presets use `defaultScale` (or 1, 1, 1) and zero rotation. Position is always instance-specific. The *Project to ground* button is hidden when `point.project` is true, since the point already follows the surface automatically.
 
 The API creates and edits the transforms as `rotation` and `scale` in the point target of `customElement.create` (a new scalable point without it gets `defaultScale`) and the arguments of `customElement.movePoint`. The point is exported as the other rotatable points, with `scale` as well (see [Export](#export)).
+
+Single-point elements stay in their element panel when M is pressed; their position, rotation and scale are already edited there. Non-anchorable centers accept direct position values only and cannot be shared or attached through the API. With `anchorable: true`, the element panel offers the same point/anchor/segment, line and vertical-line attachment controls as the control-point transform panel, with Escape to cancel. Creation and line/polygon point-placement modes show eligible anchor targets from the first click; targets are hidden while placement is suspended and restored when it resumes.
 
 ## Mesh instance elements
 

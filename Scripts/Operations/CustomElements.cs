@@ -158,7 +158,7 @@ namespace Operations {
         //anchor or segment between two points, or a new free point
         public static TerrainPoint PointFromClick(ElementManager manager, Node3D obj, Vector3 position) {
             var clicked = GS.FindComponent<TerrainPoint>(obj);
-            if (clicked != null && !clicked.IsDeleted()) return clicked;
+            if (clicked != null && !clicked.IsDeleted() && clicked.anchorable) return clicked;
             IAnchorable anchor = GS.FindComponent<TerrainAnchor>(obj);
             if (anchor == null && obj != null) {
                 var link = GameEngine.Scriptable.Cast<PointLink>(obj);
@@ -267,8 +267,12 @@ namespace Operations {
                 var added = (global::CustomElements.PointLeaf)other.items[other.items.Count - 1];
                 GO.SetPosition(added.point.GetObject(), center + (position - holders[nearest].center).Rotated(Vector3.Up, angle));
             }
-            var point = PointFromClick(manager, obj, position);
             var leaf = (global::CustomElements.PointLeaf)list.items[list.items.Count - 1];
+            if (!leaf.def.anchorable) {
+                TerrainPoints.Move(leaf.point, position);
+                return leaf.point;
+            }
+            var point = PointFromClick(manager, obj, position);
             element.ReplacePoint(leaf.point, point);
             if (point.GetLinks().Count == 0) point.Delete(); //not used after all
             return point.IsDeleted() ? null : point;
@@ -277,6 +281,11 @@ namespace Operations {
         public static TerrainPoint InsertPointAt(ElementManager manager, CustomElement element, string path, int index, Node3D obj, Vector3 position) {
             if (!element.InsertArrayElement(path, index)) return null;
             var list = (global::CustomElements.PointList)global::CustomElements.PointTree.Find(element.points, path);
+            var leaf = (global::CustomElements.PointLeaf)list.items[index];
+            if (!leaf.def.anchorable) {
+                TerrainPoints.Move(leaf.point, position);
+                return leaf.point;
+            }
             var point = PointFromClick(manager, obj, position);
             element.ReplacePoint(((global::CustomElements.PointLeaf)list.items[index]).point, point);
             return point;
@@ -303,7 +312,9 @@ namespace Operations {
         //the point of the element is replaced with the clicked terrain point (shared with its elements from now on), or
         //attached to the clicked anchor or segment; returns the point the element now has, null if nothing was clicked
         public static TerrainPoint AttachPoint(ElementManager manager, CustomElement element, TerrainPoint point, Node3D obj, Vector3 position) {
+            if (point == null || !point.anchorable) return null;
             var clicked = GS.FindComponent<TerrainPoint>(obj);
+            if (clicked?.anchorable == false) return null;
             if (clicked != null && !clicked.IsDeleted()) {
                 if (clicked == point) return point;
                 element.ReplacePoint(point, clicked);
@@ -316,6 +327,7 @@ namespace Operations {
         //the side of a building; false if a or b follows the point (directly or not)
         public static bool AttachToLine(TerrainPoint point, TerrainPoint a, TerrainPoint b) {
             if (point == null || a == null || b == null || a == b || a == point || b == point) return false;
+            if (!point.anchorable || !a.anchorable || !b.anchorable) return false;
             if (a.IsDeleted() || b.IsDeleted() || TerrainPoints.DependsOn(a, point) || TerrainPoints.DependsOn(b, point)) return false;
             History.UndoManager.Touch(point);
             point.anchor = new LineAnchor(a.GetObject(), b.GetObject(), point.GetPoint());
@@ -328,6 +340,7 @@ namespace Operations {
         //false if the master follows the point (directly or not)
         public static bool AttachToColumn(TerrainPoint point, TerrainPoint master) {
             if (point == null || master == null || master == point || master.IsDeleted() || TerrainPoints.DependsOn(master, point)) return false;
+            if (!point.anchorable || !master.anchorable) return false;
             History.UndoManager.Touch(point);
             point.anchor = new ColumnAnchor(master, point.GetPoint().Y);
             GO.SetPosition(point.GetObject(), point.anchor.GetPoint());

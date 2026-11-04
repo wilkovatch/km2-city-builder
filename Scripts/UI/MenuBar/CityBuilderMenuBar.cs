@@ -616,6 +616,11 @@ public partial class CityBuilderMenuBar : Control {
         if (owner is CustomElement element && element.GetMoveHandle() == node) {
             return () => (History.UndoManager.GetAliveElement(id) as CustomElement)?.GetMoveHandle();
         }
+        if (owner is CustomElement pointOwner) {
+            var point = GS.FindRecursive<TerrainPoint>(node);
+            var path = CustomElements.PointTree.PathOf(pointOwner.points, point);
+            if (path != null) return () => (CustomElements.PointTree.Find((History.UndoManager.GetAliveElement(id) as CustomElement)?.points, path) as CustomElements.PointLeaf)?.point?.GetObject();
+        }
         return null;
     }
 
@@ -1842,6 +1847,7 @@ public partial class CityBuilderMenuBar : Control {
     void EditCurSelectedObjectTransform() {
         var obj = GetCurSelectedObject();
         if (obj == null || transformPropertiesEditorPanel.ActiveSelf()) return;
+        if (gizmo.transformPanel == customElementEditorPanel) return;
         var roadEnd = GetEditedRoadEnd(obj);
         if (roadEnd != null) {
             gizmo.ClearTargets();
@@ -1961,7 +1967,7 @@ public partial class CityBuilderMenuBar : Control {
         if (Input.GetInputStart(KeyCommand.Close)) {
             //Escape ends a picker first, keeping its panel open
             if (referencePicker.IsActive()) referencePicker.Stop();
-            else if (!transformPropertiesEditorPanel.CancelAttachment()) History.UndoManager.Record(SM.Get("CLOSE"), DeselectAndCloseCurrentPanel);
+            else if (!transformPropertiesEditorPanel.CancelAttachment() && !customElementEditorPanel.CancelPointAttachment()) History.UndoManager.Record(SM.Get("CLOSE"), DeselectAndCloseCurrentPanel);
         }
         else if (Input.GetInputStart(KeyCommand.CreateRoad)) {
             History.UndoManager.Record(SM.Get("CREATE_ROAD"), CreateRoad);

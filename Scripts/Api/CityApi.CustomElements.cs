@@ -135,7 +135,11 @@ namespace Api {
                     if (points == null) {
                         element.CreateDefault(origin);
                     } else {
-                        element.SetPoints(CustomElementPoints(element, points, origin));
+                        try {
+                            element.SetPoints(CustomElementPoints(element, points, origin));
+                        } catch (System.ArgumentException ex) {
+                            throw ApiException.InvalidParam(ex.Message);
+                        }
                     }
                     if (mesh != null) SetCustomElementMesh(element, mesh);
                     var problems = CustomElements.PointTree.Validate(element.points);
@@ -345,6 +349,7 @@ namespace Api {
             return ApplyChange("attach point", () => {
                 var e = ResolveCustomElement(element);
                 var p = CustomElementPointAt(e, path, vertex);
+                if (!p.anchorable) throw ApiException.InvalidOperation("the point is not anchorable");
                 TerrainPoint TerrainPointOf(int id) => History.UndoManager.GetAliveElement(id) as TerrainPoint ?? throw ApiException.NotFound("terrain point " + id);
                 if (line != null) {
                     if (line.Length != 2) throw ApiException.InvalidParam("line must be two terrain points");
@@ -374,6 +379,7 @@ namespace Api {
             return ApplyChange("detach point", () => {
                 var e = ResolveCustomElement(element);
                 var p = CustomElementPointAt(e, path, vertex);
+                if (!p.anchorable) throw ApiException.InvalidOperation("the point is not anchorable");
                 return History.ElementRegistry.GetId(Operations.CustomElements.DetachPoint(M, e, p));
             });
         }

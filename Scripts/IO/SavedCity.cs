@@ -112,7 +112,7 @@ namespace IO.SavedCity {
         public int id;
         public string name;
         public ObjectState state; //the type and the parameters
-        public Newtonsoft.Json.Linq.JToken points; //the control points, structured as defined by the type, as terrain point ids
+        public Newtonsoft.Json.Linq.JToken points; //the tree: anchorable leaves are terrain point ids, independent leaves are transform values
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int[] meshVertices; //terrain point ids
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]

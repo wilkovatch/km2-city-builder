@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Newtonsoft.Json.Linq;
 using Def = CityElements.Types.CustomElementPointNode;
@@ -260,12 +261,16 @@ namespace CustomElements {
             return null;
         }
 
-        // Serialization (the points as ids: the city save, the undo snapshots and the converters)
+        //Serialization shared by city saves, undo and converters. Independent leaves own their transform values.
 
         public static JToken ToJson(PointNode node, System.Func<TerrainPoint, int> pointId) {
             switch (node) {
                 case PointLeaf leaf:
-                    return new JValue(pointId(leaf.point));
+                    if (leaf.def.anchorable) return new JValue(pointId(leaf.point));
+                    var value = new JObject { ["position"] = JToken.FromObject(new States.SerializableVector3(leaf.point.GetPoint())) };
+                    if (leaf.def.rotatable) value["rotation"] = JToken.FromObject(new States.SerializableVector3(leaf.point.GetRotation()));
+                    if (leaf.def.scalable) value["scale"] = JToken.FromObject(new States.SerializableVector3(leaf.point.GetScale()));
+                    return value;
                 case PointGroup group: {
                     var obj = new JObject();
                     foreach (var (name, child) in group.children) obj[name] = ToJson(child, pointId);
@@ -283,12 +288,13 @@ namespace CustomElements {
         //the node of the definition from its JSON; the missing points (or the ones that can't be resolved) are created by
         //createPoint, the missing elements of the arrays below their minimum too
         public static PointNode FromJson(JToken token, Def def, System.Func<JToken, TerrainPoint> getPoint,
-            System.Func<Def, Vector3, TerrainPoint> createPoint, Vector3 origin, bool asArray = true) {
+            System.Func<Def, Vector3, TerrainPoint> createPoint, Vector3 origin, bool asArray = true, PointNode existing = null) {
 
             if (asArray && def.array != null) {
                 var list = new PointList(def);
                 if (token is JArray arr) {
-                    foreach (var item in arr) list.items.Add(FromJson(item, def, getPoint, createPoint, origin, false));
+                    foreach (var item in arr) list.items.Add(FromJson(item, def, getPoint, createPoint, origin, false,
+                        existing is PointList old && list.items.Count < old.items.Count ? old.items[list.items.Count] : null));
                 }
                 while (list.items.Count < def.array.min) {
                     list.items.Add(CreateArrayElement(list, list.items.Count, createPoint, origin));
@@ -299,12 +305,46 @@ namespace CustomElements {
                 var group = new PointGroup(def);
                 foreach (var child in def.children) {
                     var childToken = (token as JObject)?[child.name];
-                    group.children.Add((child.name, FromJson(childToken, child, getPoint, createPoint, origin)));
+                    group.children.Add((child.name, FromJson(childToken, child, getPoint, createPoint, origin, existing: (existing as PointGroup)?.Get(child.name))));
                 }
                 return group;
             }
+            if (!def.anchorable) {
+                var position = origin + ToVector(def.defaultPosition, Vector3.Zero);
+                var rotation = Vector3.Zero;
+                var scale = ToVector(def.defaultScale, Vector3.One);
+                if (token != null && token.Type != JTokenType.Null) {
+                    if (token is not JObject value || value["position"] == null || value.Properties().Any(p => p.Name != "position" && p.Name != "rotation" && p.Name != "scale")) {
+                        throw new System.ArgumentException("An independent point needs a direct position, without point or anchor references");
+                    }
+                    position = ReadVector(value["position"]);
+                    if (value["rotation"] is JToken r && r.Type != JTokenType.Null) {
+                        if (!def.rotatable) throw new System.ArgumentException("The point cannot be rotated");
+                        rotation = ReadVector(r);
+                    }
+                    if (value["scale"] is JToken s && s.Type != JTokenType.Null) {
+                        if (!def.scalable) throw new System.ArgumentException("The point cannot be scaled");
+                        scale = ReadVector(s);
+                    }
+                }
+                var owned = (existing as PointLeaf)?.point;
+                if (owned == null || owned.IsDeleted()) owned = createPoint(def, position);
+                GameEngine.GameObject.SetPosition(owned.GetObject(), position);
+                if (def.rotatable) owned.SetRotation(rotation);
+                if (def.scalable) owned.SetScale(scale);
+                return new PointLeaf(def, owned);
+            }
             var point = token != null && token.Type != JTokenType.Null ? getPoint(token) : null;
             return new PointLeaf(def, point ?? createPoint(def, origin + ToVector(def.defaultPosition, Vector3.Zero)));
+        }
+
+        static Vector3 ReadVector(JToken token) {
+            var values = token is JArray a && a.Count == 3 ? a.ToArray()
+                : token is JObject o ? new[] { o["x"], o["y"], o["z"] } : null;
+            if (values == null || values.Any(v => v == null || v.Type != JTokenType.Integer && v.Type != JTokenType.Float || !float.IsFinite(v.Value<float>()))) {
+                throw new System.ArgumentException("A point transform vector needs three finite numbers");
+            }
+            return new Vector3((float)values[0], (float)values[1], (float)values[2]);
         }
 
         //the problems of the structure (counts of the arrays, uniform arrays with different counts), null if none
