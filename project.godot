@@ -17,6 +17,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="km2 City Builder"
 run/main_scene="uid://y8ai1vqoroe"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+boot_splash/show_image=false
 config/icon="uid://ccu66cb51rrkb"
 
 [autoload]
