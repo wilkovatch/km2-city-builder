@@ -181,17 +181,41 @@ namespace Api {
             builder.CloseAllPanels();
         }
 
+        void NumberedElementNames() {
+            var container = new Node3D();
+            void Add(string name) {
+                var node = new Node3D();
+                container.AddChild(node); GO.SetName(node, name);
+            }
+            try {
+                Check("empty containers start numbering at one", Actions.Helpers.GetLatestObjectNumber(container, "Map label ") == 1);
+                Add("Map label 1"); Add("Map label 7"); Add("Map label 3");
+                Check("multi-word names advance beyond the largest number", Actions.Helpers.GetLatestObjectNumber(container, "Map label ") == 8);
+                Add("Map label extra 99"); Add("Map label "); Add("Map labels 90"); Add("Other 80");
+                Check("unrelated and nonnumeric names do not affect numbering", Actions.Helpers.GetLatestObjectNumber(container, "Map label ") == 8);
+                Add("Road 4");
+                Check("single-word names still advance", Actions.Helpers.GetLatestObjectNumber(container, "Road ") == 5);
+                Add("Parked car 12 (geometry/car.pkg)");
+                Check("multi-word mesh prefixes support path suffixes", Actions.Helpers.GetLatestObjectNumber(container, "Parked car ") == 13);
+            } finally { container.Free(); }
+        }
+
         async Task MapLabels() {
             Log("core-generated map labels and singleton container");
+            NumberedElementNames();
             var city = M.GetDummy<CityProperties>();
             PC.Sync(M);
             var owner = PC.EnsureId(city.state);
             History.UndoManager.Record("add map labels", () => {
                 var index = 0;
+                var created = new List<CustomElement>();
                 foreach (var name in new[] { "Downtown", "Harbour" }) {
                     var label = Operations.CustomElements.Create(M, "mapLabel", new Vector3(20 + index++ * 280, 0, 30));
-                    GO.SetName(label, name); label.state.SetStr("text", name); PC.Assign(label.state, owner);
+                    created.Add(label); label.state.SetStr("text", name); PC.Assign(label.state, owner);
                 }
+                var prefix = Operations.CustomElements.GetTypeLabel("mapLabel") + " ";
+                Check("new map labels receive consecutive stored names", created.Select(GO.GetName).SequenceEqual(new[] { prefix + "1", prefix + "2" }));
+                foreach (var label in created) GO.SetName(label, label.state.Str("text"));
                 M.FlagAsChanged();
             });
             M.ProcessUpdate(); await Frames(2);

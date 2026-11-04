@@ -20,9 +20,9 @@ namespace Actions {
             for (int i = 0; i < GO.GetChildCount(container); i++) {
                 var obj = GO.GetChildI(container, i);
                 var objName = GO.GetName(obj);
-                if (objName.Substring(0, Mathf.Min(objName.Length, baseName.Length)) == baseName) {
-                    var suffix = objName.Split(' ');
-                    if (suffix.Length >= 2 && int.TryParse(suffix[1], out int num)) {
+                if (objName.StartsWith(baseName, System.StringComparison.Ordinal)) {
+                    var suffix = objName.Substring(baseName.Length).Split(' ');
+                    if (int.TryParse(suffix[0], out int num)) {
                         if (num + 1 > maxI) maxI = num + 1;
                     }
                 }
