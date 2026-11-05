@@ -22,6 +22,7 @@ namespace Operations {
 
         //the road being drawn, without creating it
         public Road CurrentRoad => curRoad;
+        internal bool HasPendingConnection => startIntersectionPoint != null || pendingStartSplit.HasValue;
 
         void CreateRoad() {
             curRoad = manager.CreateRoad();

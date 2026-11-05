@@ -33,6 +33,7 @@ namespace Api {
 
         int batchDepth = 0;
         int busy = 0;
+        bool externalChangePending;
         //the roads being drawn, so that a road started on the middle of another one is split by the next point
         readonly Dictionary<Road, Operations.RoadDrawing> drawings = new Dictionary<Road, Operations.RoadDrawing>();
 
@@ -61,6 +62,22 @@ namespace Api {
             M.worldChanged = true;
             M.ProcessUpdate();
             History.UndoManager.FinalizePending();
+            if (externalChangePending && batchDepth == 0) {
+                EndExternalChange();
+            }
+        }
+
+        void EndExternalChange() {
+            externalChangePending = false;
+            builder.EndExternalChange();
+        }
+
+        void DeferExternalChange() {
+            if (externalChangePending) return;
+            externalChangePending = true;
+            Callable.From(() => {
+                if (externalChangePending && batchDepth == 0) EndExternalChange();
+            }).CallDeferred();
         }
 
         internal Task SettleProjectedGeometry(bool force = false) {
@@ -85,7 +102,7 @@ namespace Api {
                 if (batchDepth == 0) {
                     RollBack(version);
                     if (!recordHistory) History.UndoManager.Suppress(false);
-                    builder.EndExternalChange();
+                    EndExternalChange();
                 }
                 throw;
             }
@@ -94,7 +111,8 @@ namespace Api {
             if (autoFlush) Flush();
             if (batchDepth == 0) {
                 if (!recordHistory) History.UndoManager.Suppress(false);
-                builder.EndExternalChange();
+                if (autoFlush) EndExternalChange();
+                else DeferExternalChange();
             }
             return res;
         }
@@ -138,7 +156,7 @@ namespace Api {
                     Flush();
                 }
                 if (!recordHistory) History.UndoManager.Suppress(false);
-                builder.EndExternalChange();
+                EndExternalChange();
                 throw;
             }
             batchDepth--;
@@ -146,7 +164,7 @@ namespace Api {
             M.FlagAsChanged(true);
             Flush();
             if (!recordHistory) History.UndoManager.Suppress(false);
-            builder.EndExternalChange();
+            EndExternalChange();
             return results;
         }
 

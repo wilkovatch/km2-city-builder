@@ -414,22 +414,6 @@ namespace History {
             if (alive && withAnchoredPoints && (kind == ElementKind.Road || kind == ElementKind.Intersection || kind == ElementKind.TerrainPoint)) TouchAnchoredPoints(element);
         }
 
-        static IEnumerable<Node3D> GetAnchorOwners(TerrainPoint point) {
-            if (point.IsDeleted() || GO.IsNull(point.anchor) || point.anchor.IsDeleted()) yield break;
-            if (point.anchor is PointAnchor fixedPoint) {
-                yield return fixedPoint.master.GetObject();
-            } else if (point.anchor is ColumnAnchor column) {
-                yield return column.master.GetObject();
-            } else if (point.anchor is TerrainAnchor ta) {
-                yield return GO.GetParent(ta.GetObject());
-            } else if (point.anchor is LineAnchor line) {
-                foreach (var node in new[] { line.start, line.end }) {
-                    if (node == null || !GodotObject.IsInstanceValid(node)) continue;
-                    yield return GameEngine.Scriptable.FindRecursive<TerrainPoint>(node) != null ? node : GO.GetParent(node);
-                }
-            }
-        }
-
         //Capture followers too: deleting a source or regenerating its anchors can clear their attachment.
         static void TouchAnchoredPoints(object owner) {
             var ownerNode = owner is Road road ? road : owner is TerrainPoint pointOwner ? pointOwner.GetObject() : (owner as Intersection)?.geo;
@@ -437,7 +421,7 @@ namespace History {
             if (current.anchoredPoints == null) {
                 current.anchoredPoints = new Dictionary<Node3D, List<TerrainPoint>>();
                 foreach (var point in manager.GetTerrainPoints()) {
-                    foreach (var anchorOwner in GetAnchorOwners(point)) {
+                    foreach (var anchorOwner in point.GetAnchorOwners()) {
                         if (anchorOwner == null) continue;
                         if (!current.anchoredPoints.TryGetValue(anchorOwner, out var list)) {
                             list = new List<TerrainPoint>();

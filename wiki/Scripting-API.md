@@ -175,6 +175,18 @@ A script making thousands of changes (e.g. generating a whole city) runs faster 
 - reads grouped in a `batch`, and `anchors.list` instead of reading the anchors of each element;
 - a transaction, to make its changes a single undo step.
 
+`roads.create` with position-only points defers all geometry work when `autoFlush` is off; adding each control point no longer forces a city update. Name numbering uses an index maintained as elements are added, removed or renamed, and the final editor visibility cleanup is shared until the flush or the next frame. This removes repeated city scans from a synchronous group of independent road creations. Connections to road ends/intersections and splits still update the city when they need existing curves or anchors. With the default `autoFlush: true`, each completed command still checks the city, so use deferred flushing for bulk generation:
+
+```python
+api.api.configure(autoFlush=False)
+try:
+    for points in road_paths:
+        api.roads.create(points=points)
+finally:
+    api.city.flush()
+    api.api.configure(autoFlush=True)
+```
+
 An element left with less points than it needs (a road with one point, a terrain patch with two perimeter points, a building line with one point) is deleted, as when its editor is closed: the commands removing points return `{"id", "deleted"}`.
 
 ### Long operations

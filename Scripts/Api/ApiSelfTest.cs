@@ -261,7 +261,18 @@ namespace Api {
                     await SplineInstanceState();
                 } else if (System.Environment.GetEnvironmentVariable("KM2_SELFTEST_INCREMENTAL") == "1") {
                     await NewCity();
-                    IncrementalUpdates();
+                    await IncrementalUpdates();
+                } else if (focus == "creation") {
+                    await NewCity();
+                    ApiRoadCreation();
+                } else if (focus == "roads") {
+                    await NewCity();
+                    await Roads();
+                } else if (focus == "dependencies") {
+                    await NewCity();
+                    await Roads();
+                    await PointAttachments();
+                    await DerivedPoints();
                 } else if (!string.IsNullOrEmpty(selectionMode)) {
                     await NewCity();
                     if (selectionMode == "benchmark") await MeshSelectionBenchmark();
@@ -419,7 +430,7 @@ namespace Api {
 
         //A local edit in a larger city must leave unrelated meshes alone. Run separately with
         //KM2_SELFTEST_INCREMENTAL=1 to include timings without the rest of the API suite.
-        void IncrementalUpdates() {
+        async Task IncrementalUpdates() {
             var samples = new List<Road>();
             for (int i = 0; i < 64; i++) {
                 var road = M.CreateRoad();
@@ -478,6 +489,229 @@ namespace Api {
             Check("road edits still move anchored custom element points", point.GetPoint().DistanceTo(before) > 1
                 && point.GetPoint().DistanceTo(anchor.GetPoint()) < 0.001f);
 
+            var completedUpdates = M.cityUpdateCount;
+            before = point.GetPoint();
+            M.BeginInteractiveRoadEdit(new[] { samples[0].points[0] });
+            var previewTimings = new List<double>();
+            for (int i = 0; i < 24; i++) {
+                GO.SetPosition(samples[0].points[0], GO.GetPosition(samples[0].points[0]) + new Vector3(1, 0, 0));
+                M.FlagAsChanged();
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                CheckPreview();
+                previewTimings.Add(watch.Elapsed.TotalMilliseconds);
+            }
+            void CheckPreview() {
+                if (!M.ProcessInteractiveRoadEdit()) throw new Abort("road preview unexpectedly fell back to full update");
+            }
+            previewTimings.Sort();
+            Log("isolated road drag preview: " + previewTimings[12].ToString("F2") + " ms/update (median)");
+            Check("road drag visits only the isolated road and skips city passes", M.lastRoadUpdateVisits == (1, 0) && M.cityUpdateCount == completedUpdates);
+            Check("road drag updates the attached custom element live", point.GetPoint().DistanceTo(before) > 1
+                && point.GetPoint().DistanceTo(anchor.GetPoint()) < 0.001f && M.lastRebuildCounts.customElements == 1
+                && M.lastInteractiveDependencyVisits == (0, 0, 1));
+            M.EndInteractiveRoadEdit();
+            M.ProcessUpdate();
+            Check("release settles deferred anchored followers", point.GetPoint().DistanceTo(before) > 1 && point.GetPoint().DistanceTo(anchor.GetPoint()) < 0.001f);
+
+            //Use the real gizmo start/finish hooks, including its transaction and deferred undo capture.
+            builder.SelectObject(samples[0]);
+            var gizmo = CityBuilderMenuBar.staticGizmo;
+            gizmo.ClearTargets();
+            gizmo.AddTarget(samples[0].points[0]);
+            var dragBefore = GO.GetPosition(samples[0].points[0]);
+            var undoBefore = History.UndoManager.Version;
+            var startDrag = gizmo.GetType().GetMethod("StartTransform", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var finishDrag = gizmo.GetType().GetMethod("FinishTransform", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Godot.Input.ActionPress("Select");
+            startDrag.Invoke(gizmo, new object[] { RuntimeGizmos.TransformType.Move });
+            GO.SetPosition(samples[0].points[0], dragBefore + new Vector3(7, 0, 0));
+            M.FlagAsChanged();
+            await Frames(2);
+            Check("gizmo drag uses the local update path", M.lastRoadUpdateVisits == (1, 0));
+            finishDrag.Invoke(gizmo, null);
+            Godot.Input.ActionRelease("Select");
+            await Frames(2);
+            Check("gizmo release completes one undo step", History.UndoManager.Version == undoBefore + 1);
+            History.UndoManager.Undo();
+            M.ProcessUpdate();
+            Check("undo restores road and deferred follower after a drag", GO.GetPosition(samples[0].points[0]).DistanceTo(dragBefore) < 0.001f
+                && point.GetPoint().DistanceTo(anchor.GetPoint()) < 0.001f);
+            Godot.Input.ActionPress("Select");
+            startDrag.Invoke(gizmo, new object[] { RuntimeGizmos.TransformType.Move });
+            GO.SetPosition(samples[0].points[0], dragBefore + new Vector3(4, 0, 0));
+            M.FlagAsChanged(); CheckPreview();
+            gizmo.ClearTargets();
+            Godot.Input.ActionRelease("Select");
+            await Frames(2);
+            Check("clearing gizmo targets settles the drag and closes its transaction", !gizmo.isTransforming && !History.UndoManager.IsGroupOpen
+                && point.GetPoint().DistanceTo(anchor.GetPoint()) < 0.001f && M.lastRoadUpdateVisits.roads == M.roads.Count);
+
+            var connectedId = (await Call("roads.create", new { points = new object[] {
+                new { roadEnd = new { road = History.ElementRegistry.GetId(samples[2]), end = "end" } }, Pos(-700, -450) }
+            })).Value<int>();
+            var connected = (Road)History.ElementRegistry.Get(connectedId);
+            var junction = samples[2].endIntersection;
+            var roadAnchor = samples[2].anchorManager.GetTerrainAnchors().OrderBy(a => a.GetPoint().DistanceTo(GO.GetPosition(junction.point))).First();
+            var junctionAnchor = junction.anchorManager.GetTerrainAnchors()[0];
+            TerrainPatch AttachedPatch(TerrainAnchor attached, Vector3 position) {
+                var patch = Operations.TerrainPatches.Create(M);
+                patch.state.SetBool("projectToGround", false);
+                patch.AddPerimeterPoint(attached?.GetObject(), position, true);
+                patch.AddPerimeterPoint(null, position + new Vector3(20, 0, 25), true);
+                patch.AddPerimeterPoint(null, position + new Vector3(-20, 0, 25), true);
+                return patch;
+            }
+            BuildingLine AttachedBuilding(TerrainAnchor attached, Vector3 position) {
+                var line = Operations.BuildingLines.Create(M);
+                line.instanceState.SetBool("projectToGround", false);
+                line.AddPoint(attached?.GetObject(), position, true);
+                line.AddPoint(null, position + new Vector3(0, 0, 40), true);
+                return line;
+            }
+            var attachedPatch = AttachedPatch(roadAnchor, roadAnchor.GetPoint());
+            var attachedLine = AttachedBuilding(junctionAnchor, junctionAnchor.GetPoint());
+            var unrelatedPatch = AttachedPatch(null, new Vector3(700, 0, 700));
+            var unrelatedLine = AttachedBuilding(null, new Vector3(650, 0, 650));
+            //Sharing a stationary corner of the attached patch must not flood the rest of the terrain network.
+            unrelatedPatch.AddInternalPoint(attachedPatch.GetPerimeterPointsComponents()[1].GetObject(), new Vector3(720, 0, 720));
+            var chained = Operations.CustomElements.Create(M, "roadWithSidewalks", roadAnchor.GetPoint());
+            var chainedPoint = chained.GetAllPoints()[0];
+            chainedPoint.anchor = new PointAnchor(attachedPatch.GetPerimeterPointsComponents()[0]);
+            var columnElement = Operations.CustomElements.Create(M, "roadWithSidewalks", roadAnchor.GetPoint() + Vector3.Up * 10);
+            var columnPoint = columnElement.GetAllPoints()[0];
+            columnPoint.anchor = new ColumnAnchor(chainedPoint, columnPoint.GetPoint().Y);
+            var edgeElement = Operations.CustomElements.Create(M, "roadWithSidewalks", junctionAnchor.GetPoint());
+            var edgePoint = edgeElement.GetAllPoints()[0];
+            var otherJunctionAnchor = junction.anchorManager.GetTerrainAnchors()[^1];
+            edgePoint.anchor = new LineAnchor(junctionAnchor.GetObject(), otherJunctionAnchor.GetObject(), 0.4f);
+            M.FlagAsChanged(); M.ProcessUpdate();
+            var patchVertices = GameEngine.Mesh.GetVertices(attachedPatch.generator.m);
+            var buildingVertices = GameEngine.Mesh.GetVertices(attachedLine.m);
+            var untouchedPatchVertices = GameEngine.Mesh.GetVertices(unrelatedPatch.generator.m);
+            var untouchedBuildingVertices = GameEngine.Mesh.GetVertices(unrelatedLine.m);
+            var junctionBefore = GO.GetPosition(junction.point);
+            M.BeginInteractiveRoadEdit(new[] { samples[2].points[^1] });
+            GO.SetPosition(samples[2].points[^1], junctionBefore + new Vector3(5, 0, 0));
+            M.FlagAsChanged();
+            CheckPreview();
+            Check("connected road preview visits its junction and adjacent road", M.lastRoadUpdateVisits == (2, 1)
+                && GO.GetPosition(connected.points[0]).DistanceTo(GO.GetPosition(junction.point)) < 0.001f);
+            Check("attached patch and intersection building rebuild during the drag", M.lastInteractiveDependencyVisits.patches == 1
+                && M.lastInteractiveDependencyVisits.buildings == 1 && patchVertices.Length > 0 && buildingVertices.Length > 0
+                && !patchVertices.SequenceEqual(GameEngine.Mesh.GetVertices(attachedPatch.generator.m)) && !buildingVertices.SequenceEqual(GameEngine.Mesh.GetVertices(attachedLine.m))
+                && attachedPatch.GetPerimeterPointsComponents()[0].GetPoint().DistanceTo(roadAnchor.GetPoint()) < 0.001f
+                && attachedLine.GetPointsComponents()[0].GetPoint().DistanceTo(junctionAnchor.GetPoint()) < 0.001f);
+            Check("point, column and edge followers update in the same preview", M.lastInteractiveDependencyVisits.customElements == 3
+                && chainedPoint.GetPoint().DistanceTo(roadAnchor.GetPoint()) < 0.001f
+                && new Vector2(columnPoint.GetPoint().X, columnPoint.GetPoint().Z).DistanceTo(new Vector2(chainedPoint.GetPoint().X, chainedPoint.GetPoint().Z)) < 0.001f
+                && edgePoint.GetPoint().DistanceTo(edgePoint.anchor.GetPoint()) < 0.001f);
+            Check("unrelated terrain and buildings keep their meshes during the drag", untouchedPatchVertices.SequenceEqual(GameEngine.Mesh.GetVertices(unrelatedPatch.generator.m))
+                && untouchedBuildingVertices.SequenceEqual(GameEngine.Mesh.GetVertices(unrelatedLine.m)));
+            M.EndInteractiveRoadEdit();
+            M.ProcessUpdate();
+            Check("connected release keeps the moved junction", GO.GetPosition(junction.point).DistanceTo(junctionBefore) > 1);
+
+            var connectedBefore = GO.GetPosition(samples[2].points[^1]);
+            var patchBefore = attachedPatch.GetPerimeterPointsComponents()[0].GetPoint();
+            var buildingBefore = attachedLine.GetPointsComponents()[0].GetPoint();
+            gizmo.AddTarget(samples[2].points[^1]);
+            Godot.Input.ActionPress("Select");
+            startDrag.Invoke(gizmo, new object[] { RuntimeGizmos.TransformType.Move });
+            GO.SetPosition(samples[2].points[^1], connectedBefore + new Vector3(5, 0, 0));
+            M.FlagAsChanged(); await Frames(2);
+            Check("the real gizmo keeps attached terrain and buildings live", gizmo.isTransforming
+                && attachedPatch.GetPerimeterPointsComponents()[0].GetPoint().DistanceTo(patchBefore) > 1
+                && attachedLine.GetPointsComponents()[0].GetPoint().DistanceTo(buildingBefore) > 1);
+            finishDrag.Invoke(gizmo, null); Godot.Input.ActionRelease("Select");
+            await Frames(2); gizmo.ClearTargets();
+            History.UndoManager.Undo(); M.ProcessUpdate();
+            Check("undo restores a drag with attached terrain, buildings and custom elements",
+                attachedPatch.GetPerimeterPointsComponents()[0].GetPoint().DistanceTo(patchBefore) < 0.001f
+                && attachedLine.GetPointsComponents()[0].GetPoint().DistanceTo(buildingBefore) < 0.001f
+                && chainedPoint.GetPoint().DistanceTo(roadAnchor.GetPoint()) < 0.001f);
+            History.UndoManager.Redo(); M.ProcessUpdate();
+            Check("redo restores the attached geometry", attachedPatch.GetPerimeterPointsComponents()[0].GetPoint().DistanceTo(patchBefore) > 1
+                && attachedLine.GetPointsComponents()[0].GetPoint().DistanceTo(buildingBefore) > 1);
+
+            var facadeAnchor = samples[2].anchorManager.GetTerrainAnchors()[0];
+            var facade = Operations.CustomElements.Create(M, "facade", facadeAnchor.GetPoint());
+            var bottomCorner = facade.GetLeaves().First(l => l.path == "bottomLeft").leaf.point;
+            var topCorner = facade.GetLeaves().First(l => l.path == "topLeft").leaf.point;
+            var align = facadeAnchor.GetPoint() - bottomCorner.GetPoint();
+            foreach (var corner in facade.GetAllPoints()) GO.SetPosition(corner.GetObject(), corner.GetPoint() + align);
+            bottomCorner.anchor = facadeAnchor;
+            var constrainedPatch = Operations.TerrainPatches.Create(M);
+            constrainedPatch.state.SetBool("projectToGround", false);
+            constrainedPatch.AddPerimeterPoint(topCorner.GetObject(), topCorner.GetPoint(), true);
+            constrainedPatch.AddPerimeterPoint(null, topCorner.GetPoint() + new Vector3(20, 0, 20), true);
+            constrainedPatch.AddPerimeterPoint(null, topCorner.GetPoint() + new Vector3(-20, 0, 20), true);
+            M.FlagAsChanged(); M.ProcessUpdate();
+            var constrainedVertices = GameEngine.Mesh.GetVertices(constrainedPatch.generator.m);
+            M.BeginInteractiveRoadEdit(new[] { samples[2].points[0] });
+            GO.SetPosition(samples[2].points[0], GO.GetPosition(samples[2].points[0]) + new Vector3(5, 0, 0));
+            M.FlagAsChanged(); CheckPreview();
+            Check("constraints update another attached point owner within the same preview",
+                Mathf.Abs(bottomCorner.GetPoint().X - topCorner.GetPoint().X) < 0.001f
+                && constrainedVertices.Length > 0 && !constrainedVertices.SequenceEqual(GameEngine.Mesh.GetVertices(constrainedPatch.generator.m)));
+            M.EndInteractiveRoadEdit(); M.ProcessUpdate();
+
+            var surfaceRoad = samples[3];
+            surfaceRoad.instanceState.SetBool("project", false);
+            surfaceRoad.instanceState.SetBool("projectAll", false);
+            M.FlagAsChanged(); M.ProcessUpdate();
+            var surfacePoints = surfaceRoad.generator.GetCurvePoints();
+            var decal = Operations.CustomElements.Create(M, "decalSingle", surfacePoints[surfacePoints.Count / 2]);
+            M.FlagAsChanged(); M.ProcessUpdate();
+            await M.SettleProjectedSplines();
+            var decalPoint = decal.GetAllPoints()[0];
+            var decalHeight = decalPoint.GetPoint().Y;
+            M.BeginInteractiveRoadEdit(new[] { surfaceRoad.points[0] });
+            foreach (var control in surfaceRoad.points) GO.SetPosition(control, GO.GetPosition(control) + new Vector3(0, 3, 0));
+            M.FlagAsChanged(); CheckPreview();
+            Check("road preview defers projected decals", Mathf.Abs(decalPoint.GetPoint().Y - decalHeight) < 0.001f);
+            M.EndInteractiveRoadEdit(); M.ProcessUpdate();
+            await M.SettleProjectedSplines();
+            Check("release invalidates projection even when the road was already rebuilt", decalPoint.GetPoint().Y > decalHeight + 2.9f);
+            var projectionAnchor = surfaceRoad.anchorManager.GetTerrainAnchors()[0];
+            var attachedDecal = Operations.CustomElements.Create(M, "decalSingle", projectionAnchor.GetPoint());
+            var attachedDecalPoint = attachedDecal.GetAllPoints()[0];
+            attachedDecalPoint.anchor = projectionAnchor;
+            M.FlagAsChanged(); M.ProcessUpdate(); await M.SettleProjectedSplines();
+            var attachedHeight = attachedDecalPoint.GetPoint().Y;
+            decalHeight = decalPoint.GetPoint().Y;
+            completedUpdates = M.cityUpdateCount;
+            gizmo.AddTarget(surfaceRoad.points[0]); Godot.Input.ActionPress("Select");
+            startDrag.Invoke(gizmo, new object[] { RuntimeGizmos.TransformType.Move });
+            foreach (var control in surfaceRoad.points) GO.SetPosition(control, GO.GetPosition(control) + new Vector3(0, 3, 0));
+            M.FlagAsChanged(); await Frames(4);
+            Check("attached projection physics stays local during the drag", gizmo.isTransforming && M.cityUpdateCount == completedUpdates
+                && M.lastInteractiveDependencyVisits == (0, 0, 1) && attachedDecalPoint.GetPoint().Y > attachedHeight + 2.9f
+                && Mathf.Abs(decalPoint.GetPoint().Y - decalHeight) < 0.001f);
+            finishDrag.Invoke(gizmo, null); Godot.Input.ActionRelease("Select"); gizmo.ClearTargets();
+            await Frames(3);
+            M.BeginInteractiveRoadEdit(new Node3D[] { surfaceRoad.points[0], decal });
+            Check("mixed selections keep full dependency updates", !M.ProcessInteractiveRoadEdit());
+
+            gizmo.AddTarget(samples[0].points[0]);
+            Godot.Input.ActionPress("Select");
+            startDrag.Invoke(gizmo, new object[] { RuntimeGizmos.TransformType.Move });
+            GO.SetPosition(samples[0].points[0], GO.GetPosition(samples[0].points[0]) + new Vector3(5, 0, 0));
+            M.FlagAsChanged(); CheckPreview();
+            var saveError = await new CityEncoder.JSON(false).EncodeCityAsync(M, Path.Combine(folder, "preview_save.json"));
+            Check("save settles a preview before serializing dependent points", saveError == null && !M.ProcessInteractiveRoadEdit()
+                && point.GetPoint().DistanceTo(anchor.GetPoint()) < 0.001f);
+            gizmo.ClearTargets(); Godot.Input.ActionRelease("Select");
+            decalHeight = decalPoint.GetPoint().Y;
+            gizmo.AddTarget(surfaceRoad.points[0]);
+            Godot.Input.ActionPress("Select");
+            startDrag.Invoke(gizmo, new object[] { RuntimeGizmos.TransformType.Move });
+            foreach (var control in surfaceRoad.points) GO.SetPosition(control, GO.GetPosition(control) + new Vector3(0, 3, 0));
+            M.FlagAsChanged(); CheckPreview();
+            var exportError = await new CityEncoder.JSON_Export().EncodeCityAsync(M, Path.Combine(folder, "preview_export.json"));
+            Check("export settles a preview and its projected geometry", exportError == null && !M.ProcessInteractiveRoadEdit()
+                && decalPoint.GetPoint().Y > decalHeight + 2.9f);
+            gizmo.ClearTargets(); Godot.Input.ActionRelease("Select");
+
             var terrain = builder.helper.terrainObj;
             var terrainPoint = GO.GetPosition(samples[1].points[1]);
             var pixelSize = GameEngine.Terrain.GetPixelSize(terrain);
@@ -489,6 +723,58 @@ namespace Api {
             M.FlagAsChanged();
             M.ProcessUpdate();
             Check("terrain edits invalidate cached road projections", GO.GetPosition(samples[1].points[1]).Y > terrainPoint.Y + 1);
+        }
+
+        void ApiRoadCreation() {
+            var api = ApiHost.Instance.Api;
+            api.Configure(autoFlush: false);
+            try {
+                foreach (var count in new[] { 16, 64, 128, 256 }) {
+                    var updates = M.cityUpdateCount;
+                    var first = M.roads.Count;
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    for (int i = 0; i < count; i++) {
+                        var x = (first + i) % 32 * 24 - 700;
+                        var z = (first + i) / 32 * 100 - 700;
+                        api.CreateRoad(new List<PointTarget> {
+                            new PointTarget { position = new Vector3(x, 0, z) },
+                            new PointTarget { position = new Vector3(x + 5, 0, z + 40) },
+                            new PointTarget { position = new Vector3(x, 0, z + 80) }
+                        });
+                    }
+                    watch.Stop();
+                    var creationMs = watch.Elapsed.TotalMilliseconds;
+                    Check("deferred road creation runs no full city updates (" + count + ")", M.cityUpdateCount == updates);
+                    watch.Restart();
+                    api.Flush();
+                    Log("API deferred creation " + count + " roads: " + creationMs.ToString("F2") + " ms, flush: " + watch.Elapsed.TotalMilliseconds.ToString("F2") + " ms");
+                    Check("flush builds all deferred roads (" + count + ")", M.roads.Count == first + count
+                        && M.roads.GetRange(first, count).TrueForAll(r => r.generator.mr.Mesh != null && r.curvePoints.Count >= 2));
+                }
+                var named = M.roads[^1];
+                var oldName = GO.GetName(named);
+                GO.SetName(named, "Road 9999");
+                Check("numbering index follows renames", Actions.Helpers.GetLatestObjectNumber(M.GetRoadContainer(), "Road ") == 10000);
+                GO.SetName(named, oldName);
+                Check("numbering index drops a renamed maximum", Actions.Helpers.GetLatestObjectNumber(M.GetRoadContainer(), "Road ") < 10000);
+                var duplicate = new Node3D();
+                M.GetRoadContainer().AddChild(duplicate);
+                GO.SetName(duplicate, oldName);
+                var expected = Actions.Helpers.GetLatestObjectNumber(M.GetRoadContainer(), "Road ");
+                duplicate.Free();
+                Check("removing duplicate names retains the surviving maximum", Actions.Helpers.GetLatestObjectNumber(M.GetRoadContainer(), "Road ") == expected);
+                GO.SetName(named, "");
+                Check("numbering follows metadata-only renames", Actions.Helpers.GetLatestObjectNumber(M.GetRoadContainer(), "Road ") == expected - 1);
+                GO.SetName(named, oldName);
+                var lastId = History.ElementRegistry.GetId(named);
+                var roadCount = M.roads.Count;
+                History.UndoManager.Undo(); M.ProcessUpdate();
+                Check("deferred creations remain individual undo steps", M.roads.Count == roadCount - 1 && History.UndoManager.GetAliveElement(lastId) == null);
+                History.UndoManager.Redo(); M.ProcessUpdate();
+                Check("redo restores the deferred road and numbering", M.roads.Count == roadCount
+                    && History.UndoManager.GetAliveElement(lastId) is Road restored && restored.generator.mr.Mesh != null
+                    && Actions.Helpers.GetLatestObjectNumber(M.GetRoadContainer(), "Road ") == expected);
+            } finally { api.Configure(autoFlush: true); api.Flush(); }
         }
 
         async Task Basics() {
@@ -3486,6 +3772,17 @@ road(-750)
                 Check("derived points: computed again when the other element changes", Follows() && Element(copy).GetLeaves()[1].leaf.point.GetPoint().DistanceTo(moved + Vector3.Up) < 1e-3);
                 await CheckUndo("adding a point the derived points follow", () => Call("customElement.insert", new { element = src, array = "line" }));
                 Check("derived points: the structure follows too (" + Element(copy).GetLeaves().Count + " points)", Follows() && Element(copy).GetLeaves().Count == 4);
+                var proceduralRoad = (Road)road;
+                var sourceAnchor = proceduralRoad.anchorManager.GetTerrainAnchors()[0];
+                Element(src).GetLeaves()[1].leaf.point.anchor = sourceAnchor;
+                M.FlagAsChanged(); M.ProcessUpdate();
+                var derivedBefore = Element(copy).GetLeaves()[1].leaf.point.GetPoint();
+                M.BeginInteractiveRoadEdit(new[] { proceduralRoad.points[0] });
+                GO.SetPosition(proceduralRoad.points[0], GO.GetPosition(proceduralRoad.points[0]) + new Vector3(5, 0, 0));
+                M.FlagAsChanged();
+                Check("derived source groups update during a road drag", M.ProcessInteractiveRoadEdit() && Follows()
+                    && Element(copy).GetLeaves()[1].leaf.point.GetPoint().DistanceTo(derivedBefore) > 1);
+                M.EndInteractiveRoadEdit(); M.ProcessUpdate();
                 //the editor: the points can't be moved, added or removed while computed
                 builder.SelectObject(Element(copy), true, null);
                 await Frames(3);

@@ -38,6 +38,17 @@ public partial class ElementManager : Scriptable {
     readonly List<CustomElement> updatedCustomElements = new List<CustomElement>();
     int customElementAppliedVersion = -1;
     internal (int roads, int intersections, int customElements) lastRebuildCounts;
+    internal (int roads, int intersections) lastRoadUpdateVisits;
+    internal int cityUpdateCount;
+    readonly List<Road> interactiveRoads = new();
+    readonly List<Intersection> interactiveIntersections = new();
+    readonly List<TerrainPatch> interactivePatches = new();
+    readonly List<BuildingLine> interactiveBuildings = new();
+    readonly List<CustomElement> interactiveCustomElements = new();
+    readonly List<TerrainPoint> interactivePoints = new();
+    internal (int patches, int buildings, int customElements) lastInteractiveDependencyVisits;
+    (int roads, int intersections, int patches, int buildings, int customElements) interactiveMembership;
+    bool interactiveRoadEdit, deferredRoadSurfacesChanged;
 
     public GameObject GetDummyContainer<T>() {
         if (typeof(T) == typeof(CityProperties)) {
@@ -468,13 +479,17 @@ public partial class ElementManager : Scriptable {
     public override void _PhysicsProcess(double delta) {
         if (!splineProjectionPending || splinePhysicsReady || History.UndoManager.IsLoading) return;
         splinePhysicsReady = true;
-        foreach (var element in customElements) element.InvalidateSplineSurface();
+        foreach (var element in interactiveRoadEdit ? interactiveCustomElements : customElements) element.InvalidateSplineSurface();
         worldChanged = true;
     }
 
     //New/replaced collision shapes enter the physics world at its next synchronization. API replies and exports
     //wait for that step so their evaluated spline geometry agrees with the editor's following frame.
     public async System.Threading.Tasks.Task SettleProjectedSplines() {
+        if (interactiveRoadEdit) {
+            EndInteractiveRoadEdit();
+            ProcessUpdate();
+        }
         while (splineProjectionPending && PreferencesManager.workingDirectory != "" && IsInsideTree()) {
             await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -484,8 +499,187 @@ public partial class ElementManager : Scriptable {
 
     void LateUpdate() {
         if (History.UndoManager.IsLoading) return; //the loader updates explicitly when the road anchors are ready
-        ProcessUpdate();
+        //Only a live gizmo drag uses the local preview. Explicit API/save/export updates always settle the city.
+        if (interactiveRoadEdit && CityBuilderMenuBar.staticGizmo?.isTransforming != true) EndInteractiveRoadEdit();
+        if (!ProcessInteractiveRoadEdit()) ProcessUpdate();
         History.UndoManager.FinalizePending(); //after the update, so that the recorded state includes what it derived
+    }
+
+    //The road network and its attached elements stay live during a drag. Build the attachment graph once, rather
+    //than rediscovering it across the city on every mouse movement.
+    internal void BeginInteractiveRoadEdit(IReadOnlyList<Node3D> targets) {
+        EndInteractiveRoadEdit();
+        Cleanup();
+        var selectedRoads = new HashSet<Road>();
+        var junctions = new HashSet<Intersection>();
+        foreach (var target in targets) {
+            switch (History.UndoManager.ResolveOwner(target)) {
+                case Road road: selectedRoads.Add(road); break;
+                case Intersection intersection: junctions.Add(intersection); break;
+                default: return; //mixed selections keep the normal update path
+            }
+        }
+        foreach (var road in selectedRoads) {
+            if (road.startIntersection != null) junctions.Add(road.startIntersection);
+            if (road.endIntersection != null) junctions.Add(road.endIntersection);
+        }
+        foreach (var junction in junctions) foreach (var road in junction.roads) selectedRoads.Add(road);
+        interactiveRoads.AddRange(selectedRoads);
+        interactiveIntersections.AddRange(junctions);
+        CollectInteractiveDependents();
+        //A pending full-city projection pass may have started before this drag. Its other targets still need the
+        //synchronized release update even if the drag itself ends without moving a road.
+        deferredRoadSurfacesChanged |= splineProjectionPending;
+        interactiveMembership = (roads.Count, intersections.Count, patches.Count, buildings.Count, customElements.Count);
+        interactiveRoadEdit = interactiveRoads.Count + interactiveIntersections.Count > 0;
+    }
+
+    void CollectInteractiveDependents() {
+        var dependencies = new Dictionary<object, HashSet<object>>();
+        void DependsOn(object owner, object follower) {
+            if (owner == null || follower == null || owner == follower) return;
+            if (!dependencies.TryGetValue(owner, out var followers)) dependencies[owner] = followers = new();
+            followers.Add(follower);
+        }
+        var points = new HashSet<TerrainPoint>();
+        void Owns(object owner, IEnumerable<TerrainPoint> controls, bool canMoveOtherPoints = false) {
+            foreach (var point in controls) {
+                if (point == null || point.IsDeleted()) continue;
+                points.Add(point);
+                DependsOn(point, owner);
+                //Only constraints/derived points can spread a change to the element's other points. Traversing all
+                //points of every patch would otherwise pull the entire shared terrain network into the preview.
+                if (canMoveOtherPoints) DependsOn(owner, point);
+            }
+        }
+        foreach (var patch in patches) {
+            Owns(patch, patch.GetPerimeterPointsComponents());
+            Owns(patch, patch.GetInternalPointsComponents());
+            foreach (var border in patch.GetTerrainBorderMeshes()) Owns(patch, border.segment);
+        }
+        foreach (var line in buildings) Owns(line, line.GetPointsComponents());
+        foreach (var element in customElements) {
+            var type = element.GetCustomElementType();
+            Owns(element, element.GetAllPoints(), type?.constraintsFunction != null || element.IsDerived);
+            //Derived geometry reads the other elements replacing the same source, even without shared points.
+            DependsOn(element.source, element);
+            if (element.source != null) DependsOn(element, element.source);
+            foreach (var key in type?.GetReferenceParameters() ?? Array.Empty<string>()) {
+                var reference = element.state.State(key);
+                if (reference != null) DependsOn(History.ElementRegistry.Get(reference.Int("id", -1)), element);
+            }
+        }
+        foreach (var point in points) {
+            DependsOn(point.GetObject(), point);
+            foreach (var owner in point.GetAnchorOwners()) DependsOn(owner, point);
+            //Column points and their masters share their horizontal position.
+            if (point.anchor is ColumnAnchor column) DependsOn(point, column.master);
+        }
+        var pending = new Queue<object>();
+        foreach (var road in interactiveRoads) pending.Enqueue(road);
+        foreach (var intersection in interactiveIntersections) {
+            pending.Enqueue(intersection);
+            pending.Enqueue(intersection.geo);
+        }
+        var seen = new HashSet<object>();
+        while (pending.TryDequeue(out var current)) {
+            if (!seen.Add(current)) continue;
+            switch (current) {
+                case TerrainPatch patch: interactivePatches.Add(patch); break;
+                case BuildingLine line: interactiveBuildings.Add(line); break;
+                case CustomElement element: interactiveCustomElements.Add(element); break;
+                case TerrainPoint point:
+                    interactivePoints.Add(point);
+                    pending.Enqueue(point.GetObject());
+                    break;
+            }
+            if (dependencies.TryGetValue(current, out var followers)) foreach (var follower in followers) pending.Enqueue(follower);
+        }
+    }
+
+    internal void EndInteractiveRoadEdit() {
+        if (interactiveRoadEdit) worldChanged = true;
+        interactiveRoadEdit = false;
+        interactiveRoads.Clear();
+        interactiveIntersections.Clear();
+        interactivePatches.Clear();
+        interactiveBuildings.Clear();
+        interactiveCustomElements.Clear();
+        interactivePoints.Clear();
+    }
+
+    internal bool ProcessInteractiveRoadEdit() {
+        if (!interactiveRoadEdit) return false;
+        if (!worldChanged) return true;
+        //A topology change or city-property edit during a drag requires the normal propagation/cleanup path.
+        if (splitParts.Count > 0 || GetDummy<CityProperties>().state.HasChanged()
+            || interactiveMembership != (roads.Count, intersections.Count, patches.Count, buildings.Count, customElements.Count)
+            || interactiveRoads.Exists(r => IsDestroyed(r) || r.deleted)
+            || interactiveIntersections.Exists(i => IsDestroyed(i.geo))
+            || interactivePatches.Exists(p => IsDestroyed(p) || p.IsDeleted())
+            || interactiveBuildings.Exists(b => IsDestroyed(b) || b.IsDeleted())
+            || interactiveCustomElements.Exists(e => IsDestroyed(e) || e.IsDeleted())
+            || interactivePoints.Exists(p => p.IsDeleted())) {
+            EndInteractiveRoadEdit();
+            return false;
+        }
+        worldChanged = false;
+        var counts = UpdateRoadNetwork(interactiveRoads, interactiveIntersections);
+        foreach (var point in interactivePoints) point.UpdatePosition();
+        var patchesRebuilt = 0;
+        foreach (var patch in interactivePatches) patchesRebuilt += patch.UpdatePatch();
+        foreach (var line in interactiveBuildings) line.UpdateLine();
+        if (counts.roads + counts.intersections + patchesRebuilt > 0) InvalidateInteractiveProjection();
+        var customRebuilt = 0;
+        for (int pass = 0; pass < MaxConstraintPasses; pass++) {
+            customRebuilt += UpdateCustomElements(interactiveCustomElements);
+            var followed = false;
+            foreach (var point in interactivePoints) {
+                if (point.IsDeleted()) continue;
+                var before = point.GetPoint();
+                point.UpdatePosition();
+                followed |= !GeometryHelper.AreVectorsEqual(before, point.GetPoint());
+            }
+            if (!followed) break;
+        }
+        //Custom constraints/derived points can move a point shared with a patch/building, or an anchor of another
+        //follower. Rebuild those owners after the constraints too, so they agree within the same preview frame.
+        var constrainedPatches = 0;
+        if (customRebuilt > 0) {
+            foreach (var patch in interactivePatches) constrainedPatches += patch.UpdatePatch();
+            foreach (var line in interactiveBuildings) line.UpdateLine();
+        }
+        if (constrainedPatches > 0) InvalidateInteractiveProjection();
+        deferredRoadSurfacesChanged |= counts.roads + counts.intersections + patchesRebuilt + constrainedPatches + customRebuilt > 0;
+        foreach (var road in interactiveRoads) road.UpdateObjects();
+        foreach (var element in interactiveCustomElements) element.UpdateObjects();
+        lastInteractiveDependencyVisits = (interactivePatches.Count, interactiveBuildings.Count, interactiveCustomElements.Count);
+        lastRebuildCounts = (counts.roads, counts.intersections, customRebuilt);
+        builder?.NotifyUpdateCompleted();
+        return true;
+    }
+
+    void InvalidateInteractiveProjection() {
+        foreach (var element in interactiveCustomElements) {
+            if (!element.ProjectsSurface) continue;
+            element.InvalidateSplineSurface();
+            splineProjectionPending = true;
+            splinePhysicsReady = false;
+        }
+    }
+
+    (int roads, int intersections) UpdateRoadNetwork(List<Road> updatedRoads, List<Intersection> updatedIntersections, bool finishSplits = false) {
+        lastRoadUpdateVisits = (updatedRoads.Count, updatedIntersections.Count);
+        foreach (var road in updatedRoads) road.UpdateLine();
+        foreach (var intersection in updatedIntersections) intersection.RebuildRoads(null);
+        foreach (var road in updatedRoads) road.UpdateLine(); //in case an intersection was moved
+        foreach (var intersection in updatedIntersections) intersection.RecalculateSize();
+        if (finishSplits) FinishSplitParts();
+        var roadsRebuilt = 0;
+        var intersectionsRebuilt = 0;
+        foreach (var road in updatedRoads) roadsRebuilt += road.UpdateMesh();
+        foreach (var intersection in updatedIntersections) intersectionsRebuilt += intersection.RebuildMesh();
+        return (roadsRebuilt, intersectionsRebuilt);
     }
 
     bool MeshProjectionSurfacesChanged() {
@@ -519,32 +713,13 @@ public partial class ElementManager : Scriptable {
             GetDummy<CityProperties>().SyncVisibility();
         }
         if (!worldChanged) return;
+        cityUpdateCount++;
         worldChanged = false;
         Cleanup();
 
         PropagateCityProperties();
 
-        foreach (var road in roads) {
-            road.UpdateLine();
-        }
-        foreach (var intersection in intersections) {
-            intersection.RebuildRoads(null);
-        }
-        foreach (var road in roads) { //in case an intersection was moved
-            road.UpdateLine();
-        }
-        foreach (var intersection in intersections) {
-            intersection.RecalculateSize();
-        }
-        FinishSplitParts();
-        var roadsRebuilt = 0;
-        var intersectionsRebuilt = 0;
-        foreach (var road in roads) {
-            roadsRebuilt += road.UpdateMesh();
-        }
-        foreach (var intersection in intersections) {
-            intersectionsRebuilt += intersection.RebuildMesh();
-        }
+        var (roadsRebuilt, intersectionsRebuilt) = UpdateRoadNetwork(roads, intersections, true);
         var patchesRebuilt = 0;
         foreach (var patch in patches) {
             patchesRebuilt += patch.UpdatePatch();
@@ -559,7 +734,7 @@ public partial class ElementManager : Scriptable {
             instancesUpdated += mesh.ManualUpdate();
         }
         var meshSurfacesChanged = MeshProjectionSurfacesChanged();
-        if (meshSurfacesChanged || roadsRebuilt + intersectionsRebuilt + patchesRebuilt > 0 || splineTerrainVersion != GameEngine.Terrain.HeightmapVersion) {
+        if (deferredRoadSurfacesChanged || meshSurfacesChanged || roadsRebuilt + intersectionsRebuilt + patchesRebuilt > 0 || splineTerrainVersion != GameEngine.Terrain.HeightmapVersion) {
             foreach (var element in customElements) {
                 if (!element.ProjectsSurface) continue;
                 element.InvalidateSplineSurface();
@@ -567,6 +742,7 @@ public partial class ElementManager : Scriptable {
                 splinePhysicsReady = false;
             }
         }
+        deferredRoadSurfacesChanged = false;
         splineTerrainVersion = GameEngine.Terrain.HeightmapVersion;
         var customElementsRebuilt = UpdateCustomElements();
         var objectsUpdated = 0;
@@ -595,47 +771,49 @@ public partial class ElementManager : Scriptable {
     //rebuilt
     const int MaxConstraintPasses = 4;
 
-    int UpdateCustomElements() {
-        foreach (var element in customElements) element.BeginUpdate();
+    int UpdateCustomElements(List<CustomElement> elements = null) {
+        var full = elements == null;
+        elements ??= customElements;
+        foreach (var element in elements) element.BeginUpdate();
         try {
-            return UpdateCustomElementGeometry();
+            return UpdateCustomElementGeometry(elements, full);
         } finally {
-            foreach (var element in customElements) element.EndUpdate();
+            foreach (var element in elements) element.EndUpdate();
         }
     }
 
-    int UpdateCustomElementGeometry() {
-        MoveByHandles();
-        foreach (var element in customElements) element.RefreshPoints();
+    int UpdateCustomElementGeometry(List<CustomElement> elements, bool full) {
+        MoveByHandles(elements);
+        foreach (var element in elements) element.RefreshPoints();
         //Check actual inputs before starting the constraint/derived/geometry passes. Membership changes
         //and undo also invalidate sibling inputs even when the surviving elements didn't move.
-        var changed = customElementAppliedVersion != History.UndoManager.AppliedVersion
-            || updatedCustomElements.Count != customElements.Count;
-        for (int i = 0; i < customElements.Count && !changed; i++) {
-            changed = updatedCustomElements[i] != customElements[i] || customElements[i].NeedsUpdate();
+        var changed = full && (customElementAppliedVersion != History.UndoManager.AppliedVersion
+            || updatedCustomElements.Count != elements.Count);
+        for (int i = 0; i < elements.Count && !changed; i++) {
+            changed = (full && updatedCustomElements[i] != elements[i]) || elements[i].NeedsUpdate();
         }
         if (!changed) {
             if (splinePhysicsReady) splineProjectionPending = false; //the projection of the point elements moved nothing
-            PlaceMoveHandles();
+            PlaceMoveHandles(elements);
             return 0;
         }
-        ApplyCustomElementConstraints();
+        ApplyCustomElementConstraints(elements);
         var derived = false;
         var sources = new Dictionary<object, List<CustomElement>>();
-        foreach (var element in customElements) {
+        foreach (var element in elements) {
             if (element.source == null) continue;
             if (!sources.TryGetValue(element.source, out var siblings)) sources[element.source] = siblings = new List<CustomElement>();
             siblings.Add(element);
         }
-        foreach (var element in customElements) {
+        foreach (var element in elements) {
             var siblings = element.source != null ? sources[element.source] : null;
-            if (element.UpdateDerivedPoints(siblings ?? customElements)) derived = true;
+            if (element.UpdateDerivedPoints(siblings ?? elements)) derived = true;
         }
-        if (derived) ApplyCustomElementConstraints();
+        if (derived) ApplyCustomElementConstraints(elements);
         //Projected splines read generated colliders: rebuild those surfaces first, regardless of creation order.
         var surfaces = new List<CustomElement>();
         var projected = new List<CustomElement>();
-        foreach (var element in customElements) {
+        foreach (var element in elements) {
             if (element.ProjectsSurface) projected.Add(element);
             else surfaces.Add(element);
         }
@@ -654,20 +832,22 @@ public partial class ElementManager : Scriptable {
         }
         rebuilt += projectedRebuilt;
         if (splinePhysicsReady || projected.Count == 0) splineProjectionPending = false;
-        UpdateCustomElementPlaceholders();
-        PlaceMoveHandles();
-        updatedCustomElements.Clear();
-        updatedCustomElements.AddRange(customElements);
-        foreach (var element in customElements) element.RecordUpdate();
-        customElementAppliedVersion = History.UndoManager.AppliedVersion;
+        if (full) UpdateCustomElementPlaceholders();
+        PlaceMoveHandles(elements);
+        if (full) {
+            updatedCustomElements.Clear();
+            updatedCustomElements.AddRange(elements);
+            foreach (var element in elements) element.RecordUpdate();
+            customElementAppliedVersion = History.UndoManager.AppliedVersion;
+        }
         return rebuilt;
     }
 
     //the containers whose move handle was moved (with the gizmo or the transform panel) move with their contents, in the
     //undo step of the drag or of the change in the panel. The other elements sharing their points (updated before them)
     //follow at the next update
-    void MoveByHandles() {
-        foreach (var element in customElements) {
+    void MoveByHandles(List<CustomElement> elements) {
+        foreach (var element in elements) {
             var offset = element.TakeMoveHandleOffset();
             if (!offset.HasValue) continue;
             History.UndoManager.RecordDerived(() => Operations.CustomElements.Move(this, element, offset.Value));
@@ -676,8 +856,8 @@ public partial class ElementManager : Scriptable {
     }
 
     //the move handles go to the center of their container and contents, unless selected (e.g. being dragged)
-    void PlaceMoveHandles() {
-        foreach (var element in customElements) {
+    void PlaceMoveHandles(List<CustomElement> elements) {
+        foreach (var element in elements) {
             var handle = element.GetMoveHandle();
             if (handle == null || GameEngine.Gizmo.IsTarget(handle)) continue;
             var center = Operations.CustomElements.CenterWithContents(this, element);
@@ -696,10 +876,10 @@ public partial class ElementManager : Scriptable {
         }
     }
 
-    void ApplyCustomElementConstraints() {
+    void ApplyCustomElementConstraints(List<CustomElement> elements) {
         for (int pass = 0; pass < MaxConstraintPasses; pass++) {
             var moved = false;
-            foreach (var element in customElements) {
+            foreach (var element in elements) {
                 if (element.ApplyConstraints()) moved = true;
             }
             if (!moved) break;
@@ -715,6 +895,8 @@ public partial class ElementManager : Scriptable {
     }
 
     public void EraseCity() {
+        EndInteractiveRoadEdit();
+        deferredRoadSurfacesChanged = false;
         History.UndoManager.Suppress(true);
         MaterialManager.ClearCache();
         PresetManager.loaded = false;

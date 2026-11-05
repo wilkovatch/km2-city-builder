@@ -28,6 +28,10 @@ namespace Api {
             if (!atStart && road.endIntersection != null) throw ApiException.InvalidOperation("the road already ends at an intersection");
             if (atStart && road.startIntersection != null) throw ApiException.InvalidOperation("the road already starts at an intersection");
             if (t.FormCount() != 1) throw ApiException.InvalidParam("a road point needs exactly one of position, roadEnd, intersection, roadMiddle");
+            //Connections/splits read existing curves and anchors. Plain control points need no city rebuild between
+            //clicks: the final auto-flush (or the caller's explicit flush) updates them together.
+            var needsUpdate = !t.position.HasValue || drawing.HasPendingConnection;
+            if (needsUpdate) M.ProcessUpdate();
             if (t.roadEnd != null) {
                 var other = Resolve<Road>(t.roadEnd.road, "road");
                 if (other == road) throw ApiException.InvalidOperation("a road can't be connected to itself");
@@ -48,7 +52,7 @@ namespace Api {
                 throw ApiException.InvalidParam("terrain points, anchors and links can't be road points");
             }
             M.worldChanged = true;
-            M.ProcessUpdate();
+            if (needsUpdate) M.ProcessUpdate();
         }
 
         //an element left incomplete (as only while being created in the editor) is deleted, like when its editor is closed

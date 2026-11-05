@@ -16,6 +16,7 @@ namespace Actions {
             return System.Text.RegularExpressions.Regex.Replace(input, "[0-9]+", match => match.Value.PadLeft(10, '0'));
         }
         public static int GetLatestObjectNumber(GameObject container, string baseName) {
+            if (GO.GetIndexedObjectNumber(container, baseName) is int next) return next;
             int maxI = 1;
             for (int i = 0; i < GO.GetChildCount(container); i++) {
                 var obj = GO.GetChildI(container, i);

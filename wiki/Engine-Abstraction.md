@@ -39,6 +39,8 @@ The program logic, the cores and the exported files use a left-handed coordinate
 
 Node manipulation: names, parenting (`SetParent` preserves the global transform when both nodes are in the tree), positions/rotations/scales (global and local, all in program coordinates), `SetEnabled` (hides the node *and* disables processing and collisions), `IsNull` (true for null or freed nodes), `Destroy`, `Instantiate` (duplicate), `LookAt`, `CreateLineRenderer`, `CreateLODMesh`/`ConfigureLODMesh`, and `SetLayer`/`GetLayer`.
 
+`GetIndexedObjectNumber` keeps the next numbered name for each requested prefix in a live container. Child entry, exit and rename events maintain the index; `SetName` also updates it when only the stored object-name metadata changes. Duplicate logical names are counted separately, so deleting one keeps the surviving name occupied. `Actions.Helpers.GetLatestObjectNumber` uses this index in the scene tree and falls back to a scan for detached containers.
+
 `SetLayer` maps a layer index to a Godot collision layer bit and render layer bit, and also applies the per-layer cull distance (see `Camera`).
 
 ### `Scriptable`

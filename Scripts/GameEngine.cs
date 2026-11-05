@@ -303,6 +303,61 @@ public static partial class GameEngine {
         // for readability in the remote scene tree and is never read back.
         const string NameMeta = "object_name";
 
+        //Live containers keep their numbering index as children enter, leave or are renamed. Repeated creation
+        //then avoids a scan of all existing elements; loaded/undo-restored names use the same index.
+        sealed class NumberedNames {
+            sealed class Sequence {
+                readonly Dictionary<int, int> counts = new();
+                readonly SortedSet<int> numbers = new();
+                public int Next => numbers.Count == 0 ? 1 : System.Math.Max(1, numbers.Max + 1);
+                public void Change(string name, string prefix, int delta) {
+                    if (!name.StartsWith(prefix, System.StringComparison.Ordinal)) return;
+                    var suffix = name.Substring(prefix.Length).Split(' ');
+                    if (!int.TryParse(suffix[0], out var number)) return;
+                    counts.TryGetValue(number, out var count);
+                    count += delta;
+                    if (count == 0) { counts.Remove(number); numbers.Remove(number); }
+                    else { counts[number] = count; numbers.Add(number); }
+                }
+            }
+            readonly Dictionary<Node, (string name, System.Action renamed)> children = new();
+            readonly Dictionary<string, Sequence> sequences = new();
+            public NumberedNames(Node container) {
+                foreach (var child in container.GetChildren()) Add(child);
+                container.ChildEnteredTree += Add;
+                container.ChildExitingTree += Remove;
+            }
+            void Add(Node child) {
+                if (children.ContainsKey(child)) return;
+                var name = child is Node3D obj ? GetName(obj) : child.Name.ToString();
+                System.Action renamed = () => Rename(child);
+                children.Add(child, (name, renamed));
+                child.Renamed += renamed;
+                foreach (var pair in sequences) pair.Value.Change(name, pair.Key, 1);
+            }
+            void Remove(Node child) {
+                if (!children.Remove(child, out var entry)) return;
+                child.Renamed -= entry.renamed;
+                foreach (var pair in sequences) pair.Value.Change(entry.name, pair.Key, -1);
+            }
+            public void Rename(Node child) {
+                Remove(child);
+                Add(child);
+            }
+            public int Next(string prefix) {
+                if (!sequences.TryGetValue(prefix, out var sequence)) {
+                    sequences[prefix] = sequence = new Sequence();
+                    foreach (var child in children.Values) sequence.Change(child.name, prefix, 1);
+                }
+                return sequence.Next;
+            }
+        }
+        static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Node3D, NumberedNames> numberedNames = new();
+
+        public static int? GetIndexedObjectNumber(Node3D container, string prefix) {
+            return container.IsInsideTree() ? numberedNames.GetValue(container, node => new NumberedNames(node)).Next(prefix) : null;
+        }
+
         public static string GetName(Node3D obj) {
             return obj.HasMeta(NameMeta) ? obj.GetMeta(NameMeta).AsString() : obj.Name.ToString();
         }
@@ -312,6 +367,8 @@ public static partial class GameEngine {
             obj.SetMeta(NameMeta, name);
             var nodeName = name.ValidateNodeName();
             if (nodeName != "") obj.Name = nodeName;
+            //Metadata can change even when the sanitized Godot name stays the same.
+            if (obj.GetParent() is Node3D parent && numberedNames.TryGetValue(parent, out var index)) index.Rename(obj);
         }
 
         // Godot only provides global transforms inside the scene tree, while the shared code expects

@@ -62,6 +62,7 @@ namespace RuntimeGizmos {
         public int selectOnlyLayer = 10;
 
         public Action onAnyChange;
+        public Action<IReadOnlyList<Node3D>> onTransformStarted;
         //at the end of a transform, with its targets, before its undo step is committed (so changes made by it are part of it)
         public Action<IReadOnlyList<Node3D>> onTransformFinished;
 
@@ -272,6 +273,7 @@ namespace RuntimeGizmos {
             History.UndoManager.Begin("Transform");
             undoTransactionOpen = true;
             foreach (var target in targetRootsOrdered) History.UndoManager.TouchOwner(target);
+            onTransformStarted?.Invoke(targetRootsOrdered);
             isTransforming = true;
             dragType = transType;
             totalScaleAmount = 0;
@@ -585,6 +587,7 @@ namespace RuntimeGizmos {
 
         //also allows all the axes again (the ones of an object don't apply to the next targets)
         public void ClearTargets() {
+            if (isTransforming) FinishTransform();
             ClearAllHighlightedRenderers();
             targetRootsOrdered.Clear();
             posAxesAllowed = rotAxesAllowed = scaleAxesAllowed = new bool[3] { true, true, true };

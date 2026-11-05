@@ -103,6 +103,8 @@ public partial class CityBuilderMenuBar : Control {
         gizmo.onAnyChange += transformPropertiesEditorPanel.Refresh;
         gizmo.onAnyChange += customElementEditorPanel.RefreshTransform;
         gizmo.onTransformFinished += SnapTransformedObjects;
+        gizmo.onTransformStarted += helper.elementManager.BeginInteractiveRoadEdit;
+        gizmo.onTransformFinished += _ => helper.elementManager.EndInteractiveRoadEdit();
         staticGizmo = gizmo;
         nullModifier = new TerrainModifier.Null(helper, hit => {
             if (HasActivePanels()) return; //otherwise clicks on the transform gizmo reselect the object behind it

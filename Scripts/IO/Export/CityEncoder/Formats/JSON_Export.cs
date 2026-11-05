@@ -28,6 +28,8 @@ namespace CityEncoder {
         public async System.Threading.Tasks.Task<string> EncodeCityAsync(ElementManager manager, string filename, System.IProgress<(float, string)> progress = null) {
             Node caller = manager.builder;
             await caller.ToSignal(caller.GetTree(), "process_frame");
+            manager.EndInteractiveRoadEdit();
+            manager.ProcessUpdate();
             await manager.SettleProjectedSplines();
             var progressBar = new Operations.ProgressReporter(manager.builder.helper.curProgressBar, progress);
             progressBar.SetActive(true);

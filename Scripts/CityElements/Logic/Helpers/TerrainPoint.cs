@@ -198,6 +198,23 @@ public partial class TerrainPoint : PhysicsScriptable {
         return new List<IGroundable>(links);
     }
 
+    //The nodes whose movement can move this point, shared by undo capture and incremental editing.
+    internal IEnumerable<Node3D> GetAnchorOwners() {
+        if (deleted || GO.IsNull(anchor) || anchor.IsDeleted()) yield break;
+        if (anchor is PointAnchor fixedPoint) {
+            yield return fixedPoint.master.GetObject();
+        } else if (anchor is ColumnAnchor column) {
+            yield return column.master.GetObject();
+        } else if (anchor is TerrainAnchor terrainAnchor) {
+            yield return GO.GetParent(terrainAnchor.GetObject());
+        } else if (anchor is LineAnchor line) {
+            foreach (var node in new[] { line.start, line.end }) {
+                if (GO.IsNull(node)) continue;
+                yield return GS.FindRecursive<TerrainPoint>(node) != null ? node : GO.GetParent(node);
+            }
+        }
+    }
+
     public bool OnSegment() {
         return anchor is LineAnchor;
     }
