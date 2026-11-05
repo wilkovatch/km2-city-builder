@@ -16,9 +16,9 @@ namespace CityElements.Types {
         public bool reuseInNewRoads; //an instance specific parameter of a road type: a new road takes it from the last road selected
         public ArrayProperties arrayProperties;
         public ObjectInstanceSettings objectInstanceSettings;
-        //only for the inputs of the Python scripts: the starting value, the category of a "preset" parameter and the
-        //extensions of a "file" parameter
+        //the starting value, only for the inputs of the Python scripts and the parameters of the mesh instance types
         public object defaultValue;
+        //only for the inputs of the Python scripts: the category of a "preset" parameter and the extensions of a "file" parameter
         public string presetCategory;
         public string[] extensions;
         //a "reference" parameter (another element of the city): the kinds it can reference ("road", "intersection",

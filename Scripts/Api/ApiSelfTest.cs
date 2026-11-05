@@ -201,6 +201,9 @@ namespace Api {
                     await NewCity();
                     await Roads();
                     await CustomElements();
+                } else if (focus == "instMesh") {
+                    await NewCity();
+                    await InstMeshOptions();
                 } else if (focus == "heightmapScale") {
                     await NewCity();
                     await HeightmapRescaling();
@@ -1614,6 +1617,59 @@ namespace Api {
             await Frames(1);
         }
 
+        //the INST mesh options in its panels: the parameter with a defaultValue starts checked in the placement panel and
+        //on a new instance, and the checkbox edits the instance with undo
+        async Task InstMeshOptions() {
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+            EditorPanelElements.Checkbox Option(EditorPanel panel, string name) {
+                var pages = (System.Collections.IList)typeof(EditorPanel).GetField("pages", flags).GetValue(panel);
+                foreach (var page in pages) {
+                    var fields = (Dictionary<EditorPanelElement, FieldStatus>)page.GetType().GetField("fieldElements", flags).GetValue(page);
+                    foreach (var pair in fields) {
+                        if (pair.Value.fieldName.EndsWith("." + name) && pair.Key is EditorPanelElements.Checkbox box) return box;
+                    }
+                }
+                return null;
+            }
+            void Screenshot(string name) {
+                if (DisplayServer.GetName() == "headless") return;
+                using var screen = GetViewport().GetTexture().GetImage();
+                screen.SavePng(Path.Combine(Path.GetDirectoryName(folder), name + ".png"));
+            }
+            bool Shows(EditorPanel panel) => Option(panel, "instLandmark")?.GetValue() == true && Option(panel, "instSimpleCollision")?.GetValue() == false
+                && Option(panel, "instBanger")?.GetValue() == false && Option(panel, "instMultiroom")?.GetValue() == false;
+
+            var meshList = (EditorPanels.MeshListEditorPanel)typeof(CityBuilderMenuBar).GetField("meshListEditorPanel", flags).GetValue(builder);
+            builder.CreateMeshInstance("instMesh", null);
+            await Frames(1);
+            typeof(EditorPanels.MeshListEditorPanel).GetMethod("Select", flags).Invoke(meshList, new object[] { 0 });
+            typeof(EditorPanels.MeshListEditorPanel).GetMethod("SelectAction", flags).Invoke(meshList, null);
+            await Frames(2);
+            Check("the placement panel of an INST mesh starts with only Landmark checked", Shows(meshList.propEditor));
+            Check("the next INST mesh gets the checked options", builder.meshPlacer.settings?.Bool("instLandmark") == true);
+            Screenshot("inst_mesh_placement_panel");
+            meshList.propEditor.Terminate();
+            await Frames(1);
+
+            var assets = (JArray)await Call("assets.list", new { kind = "mesh" });
+            var id = (await Call("meshes.create", new { mesh = assets.Count > 0 ? assets[0].Value<string>() : "missing.obj", position = V(-780, 0, -300), type = "instMesh", onGround = true })).Value<int>();
+            var transformPanel = (EditorPanels.TransformPropertiesEditorPanel)typeof(CityBuilderMenuBar).GetField("transformPropertiesEditorPanel", flags).GetValue(builder);
+            builder.SelectObject(M.meshes.Single(m => History.ElementRegistry.GetId(m) == id), true, null);
+            await Frames(2);
+            Check("the panel of an INST mesh shows its options", transformPanel.ActiveSelf() && Shows(transformPanel));
+            Screenshot("inst_mesh_edit_panel");
+            async Task<bool> Landmark() => (await Call("elements.get", new { @ref = id }))["data"]["settings"]["instLandmark"].Value<bool>();
+            History.UndoManager.Record("uncheck Landmark", () => Option(transformPanel, "instLandmark").SetValue(false));
+            await Frames(1);
+            await Call("city.flush");
+            Check("unchecking Landmark in the panel is saved as false", await Landmark() == false);
+            await Call("history.undo");
+            Check("undo checks Landmark again", await Landmark() == true);
+            await Call("history.redo");
+            Check("redo unchecks Landmark", await Landmark() == false);
+            await Call("meshes.delete", new { mesh = id });
+        }
+
         async Task ParametricObjectPanel(int road, string key) {
             var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var parametric = Operations.Meshes.FindParametricObject((Road)History.UndoManager.GetAliveElement(road), key, null);
@@ -1647,9 +1703,14 @@ namespace Api {
             Check("meshes.create places a mesh instance", d["mesh"].Value<string>() == meshName && d["type"].Value<string>() == "instMesh"
                 && saved["settings"]["type"].Value<string>() == "instMesh" && listed.Any(e => e["id"].Value<int>() == mesh));
             Check("an INST mesh is on layer 11 with the Mesh prefix", d["layer"].Value<int>() == 11 && saved["name"].Value<string>().StartsWith("Mesh "));
+            Check("a new INST mesh gets the defaultValue of its parameters", saved["settings"]["instLandmark"]?.Value<bool>() == true && saved["settings"]["instBanger"] == null);
+            var notLandmark = (await Call("meshes.create", new { mesh = meshName, position = V(-800, 0, -280), type = "instMesh", settings = new { instLandmark = false }, onGround = true })).Value<int>();
+            Check("a given value is kept instead of the defaultValue", (await Call("elements.get", new { @ref = notLandmark }))["data"]["settings"]["instLandmark"].Value<bool>() == false);
+            await Call("meshes.delete", new { mesh = notLandmark });
             var geometry = await Call("elements.geometry", new { @ref = mesh });
             Check("the export has the type of the mesh instance", geometry["element"]["type"].Value<string>() == "instMesh");
             await MeshPanels(mesh);
+            await InstMeshOptions();
             await CheckUndo("mesh moved", () => Call("meshes.setTransform", new { mesh, position = V(-810, 5, -300), rotation = V(0, 45, 0), scale = V(2, 2, 2) }));
             await Call("meshes.projectToGround", new { mesh });
             await Expect("no mass placement of INST meshes", "invalid_value", "meshes.scatter", new { mesh = meshName, center = V(-800, 0, 300), radius = 20, count = 3, type = "instMesh" });
@@ -1672,14 +1733,14 @@ namespace Api {
             instType.Settings.compatibleTypes = new[] { "individualProp" };
             propType.Settings.compatibleTypes = new[] { "instMesh" };
             try {
-                await Call("state.setParam", new { @ref = inst, name = "instModifiers", value = 3 });
+                await Call("state.setParam", new { @ref = inst, name = "instPaintJob", value = 3 });
                 await Call("state.setParam", new { @ref = inst, name = "hudmapCategory", value = 4 });
                 await CheckUndo("mesh type changed", () => Call("meshes.setType", new { mesh = inst, type = "individualProp" }));
                 await Call("meshes.setType", new { mesh = inst, type = "individualProp" });
                 await Call("city.flush");
                 var switched = M.meshes.Single(m => History.ElementRegistry.GetId(m) == inst);
                 Check("meshes.setType switches the layer and keeps the shared parameters", GO.GetLayer(switched) == 13 && switched.TypeName == "individualProp"
-                    && switched.settings.Int("hudmapCategory") == 4 && !switched.settings.properties.ContainsKey("instModifiers"));
+                    && switched.settings.Int("hudmapCategory") == 4 && !switched.settings.properties.ContainsKey("instPaintJob"));
             } finally {
                 instType.Settings.compatibleTypes = new string[0];
                 propType.Settings.compatibleTypes = propCompatible;

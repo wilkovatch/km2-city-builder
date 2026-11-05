@@ -18,11 +18,20 @@ namespace Operations {
             return GetMeshType(type) ?? throw new System.ArgumentException("unknown mesh instance type '" + type + "'");
         }
 
-        //the settings of a new instance: the given ones (if any) with the type
+        //the settings of a new instance: the given ones (if any) with the type, and the defaults of the parameters missing
         public static ObjectState NewSettings(string type, ObjectState settings = null) {
             var res = settings != null ? (ObjectState)settings.Clone() : new ObjectState();
             res.SetStr("type", type);
+            var t = GetMeshType(type);
+            if (t != null) FillDefaults(t, res);
             return res;
+        }
+
+        //the parameters of the type missing from the settings get their defaultValue, if they have one
+        static void FillDefaults(MeshInstanceType type, ObjectState settings) {
+            foreach (var p in type.parameterContainer.parameters ?? new CityElements.Types.Parameter[0]) {
+                if (p.defaultValue != null && !settings.properties.ContainsKey(p.fullName())) settings.SetProperty(p.fullName(), p.defaultValue);
+            }
         }
 
         static MeshInstanceType FillType(ObjectState settings) {
@@ -125,6 +134,7 @@ namespace Operations {
                 if (!HasParameter(target, key)) settings.RemoveProperty(key);
             }
             settings.SetStr("type", newType);
+            FillDefaults(target, settings);
         }
 
         static bool HasParameter(MeshInstanceType type, string name) {

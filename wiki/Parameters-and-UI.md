@@ -43,6 +43,7 @@ Definitions and loop variables are described in [Expression Language](Expression
 | `objectInstanceSettings` | For `objectInstance`, see [Core Props and Objects](Core-Props-and-Objects#parametric-objects). |
 | `range` | For `float` and `int` in a props type: the inclusive `[minimum, maximum]` and optionally the step, checked by the [prop placers](Core-Prop-Placers). |
 | `defaultValueInArray` | Default value of the parameter when it is part of an array element or custom city properties and a new element is added. For `float`, `int` and `enum` write it with a decimal point (`5.0`), otherwise it is rejected with a warning. |
+| `defaultValue` | For a parameter of a [mesh instance type](Core-Custom-Elements#mesh-instance-elements) (and for the inputs of the Python scripts): the value of a new instance. |
 
 ### Parameter types
 

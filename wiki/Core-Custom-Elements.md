@@ -321,6 +321,8 @@ The `ui.json` has these built-in groups:
 * `placementGroup`: the placement options the type allows (multiple placement with its intensity, radius and delete mode, random rotation). Only in the placement panel.
 * `transformGroup`: the mesh, the gizmo modes, snap to grid, project to ground, the space and the position, rotation and scale fields. Only in the panel of an instance.
 
+The types have no presets, so a parameter that doesn't start empty gives its starting value with `defaultValue` (for example `"defaultValue": true` on a checkbox). New instances get it, placed from the panel or with the API, and so do the parameters an instance gains when it is switched to another type; saved instances are not changed.
+
 The placement panel keeps the parameters of the next instances, one set for each type. A city whose instances have no type, or a type the core doesn't have, gets the first type (by name) with a warning; a core migration should set the type instead (as the MM2 one does from its former `prop` flag).
 
 In the export JSON, `meshInstances` have `type` (null for the parametric objects).

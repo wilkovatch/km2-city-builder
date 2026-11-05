@@ -49,6 +49,8 @@ For short spline/decal integration checks, set `KM2_SELFTEST_FOCUS=splines` befo
 
 `KM2_SELFTEST_FOCUS=meshPreviews` runs the mesh picker checks in a window: rotating previews, full-turn framing, pooled thumbnails, cache eviction, selection and placement, missing assets and cleanup. It also checks thumbnails in prop lists and core-defined arrays, current-mesh preselection from fields and prop editors, scrolling to the selected row and unchanged city/history state. It samples ten assets with a fixed seed and saves preview images next to the scratch city folder. Unset the variable afterward.
 
+`KM2_SELFTEST_FOCUS=instMesh` checks the options of the INST meshes in their panels (default values, editing and undo). A window also saves the frames of the two panels next to the scratch city folder.
+
 ### Parameters as options
 
 The options of `new`, `export`, `export-json` and `generate` are the parameters of their API method, written in lowercase with dashes: `terrainSize` is `--terrain-size`, `heightmapResolution` is `--heightmap-resolution`. `help <command>` lists them with their types and defaults, and new API parameters show up there by themselves. The boolean parameters are flags: `--null-only` sets `nullOnly` to true, `--subdivide=false` sets `subdivide` to false. `export` takes the output path as `--out` (the `path` of `city.export`), and its flags as `--flag id=true` or `--flag id=false`, repeated for each flag (`info` lists the flags of the exporters).
