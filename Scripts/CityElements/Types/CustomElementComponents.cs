@@ -65,6 +65,9 @@ namespace CityElements.Types {
         public bool roadEndAnchors; //the points can be attached to the free ends of the roads, not only to the anchors along their edges
         public string propertyContainerCategory;
         public bool requiresPropertyContainer;
+        //a reference parameter: while an element owned by a property container is shown (its container is selected), the
+        //custom element or mesh instance it references is hidden (e.g. a race bridge replacing a city bridge in that race)
+        public string replacesReference;
         public string placementObject; //first click positions this objectInstance; subsequent clicks draw the spline
         //the points of controlPoints (paths, outside the arrays) placed with a click each when an element is created, each
         //attached to what is clicked (an anchor, a road end, a point, a segment); also a placement mode to place them again

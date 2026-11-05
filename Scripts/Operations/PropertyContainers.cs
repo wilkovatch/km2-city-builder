@@ -267,17 +267,34 @@ namespace Operations {
             if (manager == null) return;
             SyncTabSelections();
             manager.builder?.CancelInvalidContainerPlacement();
+            var replaced = Replaced();
             foreach (var element in manager.customElements) {
                 var id = Owner(element.state);
-                if (id == "") continue;
-                var visible = IsCurrent(Scope(element.state));
+                if (id == "" && !replaced.Contains(element) && !hiddenByReplacement.Contains(element)) continue;
+                var visible = (id == "" || IsCurrent(Scope(element.state))) && !replaced.Contains(element);
                 if (!visible && element.Visible) { element.SetActive(false, false); element.Select(false); }
                 GO.SetEnabled(element, visible);
             }
             foreach (var mesh in manager.meshes) {
                 var id = Owner(mesh.settings);
-                if (id != "") GO.SetEnabled(mesh, IsCurrent(Scope(mesh.settings)));
+                if (id == "" && !replaced.Contains(mesh) && !hiddenByReplacement.Contains(mesh)) continue;
+                GO.SetEnabled(mesh, (id == "" || IsCurrent(Scope(mesh.settings))) && !replaced.Contains(mesh));
             }
+            hiddenByReplacement = replaced;
+        }
+
+        //the elements hidden because a shown owned element replaces them (see CustomElementSettings.replacesReference), kept
+        //to show them again when it no longer does
+        static HashSet<Node3D> hiddenByReplacement = new();
+
+        static HashSet<Node3D> Replaced() {
+            var res = new HashSet<Node3D>();
+            foreach (var element in manager.customElements) {
+                var key = element.GetCustomElementType()?.typeData.settings.replacesReference;
+                if (key == null || element.IsDeleted() || Owner(element.state) == "" || !IsCurrent(Scope(element.state))) continue;
+                if (States.ResolveReference(element.state.State(key)) is Node3D target && target != element) res.Add(target);
+            }
+            return res;
         }
 
         public static EditorPanel Open(CityBuilderMenuBar builder, Entry entry) {

@@ -212,6 +212,8 @@ namespace EditorPanels {
             var w = elem.width;
             var settings = type.typeData.settings;
             if (HidesBoundsParameter(settings, elem.name)) return true;
+            //a replacement only exists for an element owned by a property container (the panel is rebuilt for each element)
+            if (elem.name == settings.replacesReference && Operations.PropertyContainers.Owner(CurrentState()) == "") return true;
             var objectParameter = System.Array.Find(type.parameterContainer.parameters ?? System.Array.Empty<CityElements.Types.Parameter>(), parameter => parameter.fullName() == elem.name && parameter.type == "objectInstance");
             if (GetElement() == null && objectParameter != null) {
                 p.EnsureNewRow();

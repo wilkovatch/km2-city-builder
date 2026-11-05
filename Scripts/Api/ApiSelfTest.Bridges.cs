@@ -197,6 +197,7 @@ namespace Api {
             Check("the points stay on the road ends in a saved city", (Point("start").anchor as TerrainAnchor)?.roadEnd == true && (Point("finish").anchor as TerrainAnchor)?.roadEnd == true
                 && Near(Point("start").GetPoint(), new Vector3(-330, 0, z)) && Near(Point("finish").GetPoint(), new Vector3(-250, 0, z)));
             Check("the bridge shows its model after loading", Bridge().generator.placements.Count == 2);
+            await BridgeReplacement();
             await BridgePlacement(EndAnchor(M.roads.First(r => r.anchorManager.GetTerrainAnchors().Any(a => a.roadEnd && Near(a.GetPoint(), new Vector3(-400, 0, z)))), true), z);
 
             //a connected end isn't free anymore: not shown, but what's on it stays there
@@ -311,6 +312,94 @@ namespace Api {
             var redone = M.customElements.FirstOrDefault(e => !e.IsDeleted() && e.TypeName == "bridge" && Near(e.GetCenter(), new Vector3(-450, 0, z + 45)));
             Check("redo brings it back with both hinges", redone != null && M.customElements.Count(e => !e.IsDeleted()) == before + 1 && !History.UndoManager.IsIncomplete(redone));
             if (redone != null) await Call("customElement.delete", new { element = History.ElementRegistry.GetId(redone) });
+            await Call("city.flush");
+        }
+
+        //A race bridge replacing a city bridge (replacesReference): the city bridge is hidden while the race is selected
+        async Task BridgeReplacement() {
+            Log("race bridge replacing a city bridge");
+            const float z = -900;
+            var city = M.GetDummy<CityProperties>();
+            var param = CityElements.Types.Parsers.TypeParser.GetCitySettings()["city"].typeData.parametersInfo.parameters.First(p => p.name == "circuitRaces");
+            History.UndoManager.Record("add race", () => {
+                History.UndoManager.Touch(city);
+                Operations.States.AddArrayElement(city.state, param);
+                M.FlagAsChanged();
+            });
+            M.ProcessUpdate();
+            var race = city.state.Array<ObjectState>("circuitRaces")[^1];
+            var owner = Operations.PropertyContainers.EnsureId(race);
+            void Select(ObjectState state) {
+                ArrayObject.activeElements["race"] = state;
+                ArrayObject.activeElements["raceDifficulty"] = state?.State("policeCars");
+                builder.NotifyVisibilityChange();
+                M.ProcessUpdate();
+            }
+            var cityId = (await Call("customElement.create", new { type = "bridge", name = "City bridge", position = V(-290, 0, z) })).Value<int>();
+            var cityBridges = new[] { cityId, (await Call("customElement.create", new { type = "bridge", name = "Other city bridge", position = V(-290, 0, z - 100) })).Value<int>() };
+            var raceId = (await Call("customElement.create", new { type = "bridge", name = "Race bridge", position = V(-290, 0, z + 5) })).Value<int>();
+            var raceBridge = History.ElementRegistry.Get<CustomElement>(raceId);
+            Operations.PropertyContainers.Assign(raceBridge.state, owner);
+            M.FlagAsChanged();
+            await Call("city.flush");
+            bool Shown(int id) => History.ElementRegistry.Get<CustomElement>(id) is CustomElement e && e.IsVisibleInTree() && e.ProcessMode != ProcessModeEnum.Disabled;
+            Select(race);
+            Check("without a replacement the city bridges stay shown in the race", Shown(cityBridges[0]) && Shown(cityBridges[1]) && Shown(raceId));
+            //the field of the replacement: only in the panel of a race bridge, or of one created while a race is selected
+            bool HasReplaceField() => ((System.Collections.Generic.Dictionary<string, CityElements.Types.Parameter>)typeof(EditorPanel)
+                .GetField("parameterMap", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .GetValue(builder.customElementEditorPanel)).Values.Any(p => p.name == "replaces");
+            async Task<bool> PanelHasReplaceField(int id) {
+                History.UndoManager.Record("edit bridge", () => builder.SelectObject(History.ElementRegistry.Get<CustomElement>(id), true, null));
+                await Frames(3);
+                return builder.customElementEditorPanel.IsOpen() && builder.customElementPlacer.GetElement() == History.ElementRegistry.Get<CustomElement>(id) && HasReplaceField();
+            }
+            Check("the panel of a race bridge can pick the bridge it replaces", await PanelHasReplaceField(raceId));
+            Check("the panel of a city bridge can't", !await PanelHasReplaceField(cityId));
+            Screenshot("bridge_city_panel.png");
+            builder.CloseAllPanels();
+            History.UndoManager.Record("start bridge", () => CallBuilder<object>("StartCustomElementCreation", "bridge", "CREATE_CUSTOM_ELEMENT"));
+            await Frames(3);
+            Check("a new bridge in the race can pick it", builder.customElementEditorPanel.IsOpen() && HasReplaceField());
+            builder.CloseAllPanels();
+            Select(null);
+            History.UndoManager.Record("start bridge", () => CallBuilder<object>("StartCustomElementCreation", "bridge", "CREATE_CUSTOM_ELEMENT"));
+            await Frames(3);
+            Check("a new city bridge can't", builder.customElementEditorPanel.IsOpen() && !HasReplaceField());
+            builder.CloseAllPanels();
+            await Frames(2);
+            Select(race);
+            await Call("state.setParam", new { @ref = raceId, name = "replaces", value = cityId });
+            await Call("city.flush"); await Frames(2);
+            Check("the replaced city bridge is hidden while the race is selected", !Shown(cityId) && Shown(cityBridges[1]) && Shown(raceId));
+            Select(null);
+            Check("without the race the city bridge is shown again", Shown(cityId) && !Shown(raceId));
+            Select(race);
+            Check("selecting the race hides it again", !Shown(cityId));
+            await Call("history.undo");
+            await Call("city.flush"); await Frames(2);
+            Check("undoing the replacement shows the city bridge", Shown(cityId) && History.ElementRegistry.Get<CustomElement>(raceId).state.State("replaces") == null);
+            await Call("history.redo");
+            await Call("city.flush"); await Frames(2);
+            Check("redo hides it again", !Shown(cityId));
+            await Call("state.setParam", new { @ref = raceId, name = "replaces", value = cityBridges[1] });
+            await Call("city.flush"); await Frames(2);
+            Check("replacing another bridge shows the first one", Shown(cityId) && !Shown(cityBridges[1]));
+            await Call("state.setParam", new { @ref = raceId, name = "replaces", value = (int?)null });
+            await Call("city.flush"); await Frames(2);
+            Check("clearing the replacement shows the city bridge", Shown(cityId) && Shown(cityBridges[1]));
+            await Call("state.setParam", new { @ref = raceId, name = "replaces", value = cityId });
+            await Call("city.flush"); await Frames(2);
+            await Call("customElement.delete", new { element = raceId });
+            await Call("city.flush"); await Frames(2);
+            Check("deleting the race bridge shows the city bridge", Shown(cityId));
+            Select(null);
+            foreach (var id in cityBridges) await Call("customElement.delete", new { element = id });
+            History.UndoManager.Record("remove race", () => {
+                History.UndoManager.Touch(city);
+                city.state.SetProperty("circuitRaces", city.state.Array<ObjectState>("circuitRaces")[..^1]);
+                M.FlagAsChanged();
+            });
             await Call("city.flush");
         }
     }

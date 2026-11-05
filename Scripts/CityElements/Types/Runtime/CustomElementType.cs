@@ -47,6 +47,9 @@ namespace CityElements.Types.Runtime {
                 }
             }
             CheckPointNodes(settings.controlPoints, name, false);
+            if (settings.replacesReference != null && !System.Linq.Enumerable.Contains(GetReferenceParameters(), settings.replacesReference)) {
+                throw new System.Exception("custom element type '" + name + "': replacesReference '" + settings.replacesReference + "' is not a reference parameter");
+            }
         }
 
         sealed class SplineType : RoadType {
