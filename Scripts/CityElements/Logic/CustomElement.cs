@@ -139,6 +139,17 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
 
     // Points
 
+    //the roads and intersections the points of the element are attached to
+    public List<object> GetAttachedOwners() {
+        var res = new List<object>();
+        foreach (var point in GetAllPoints()) {
+            if (point?.anchor is not TerrainAnchor anchor) continue;
+            var (owner, _) = Operations.Anchors.GetOwner(anchor);
+            if (owner != null && !res.Contains(owner)) res.Add(owner);
+        }
+        return res;
+    }
+
     public TerrainPoint CreatePoint(Vector3 position, IAnchorable anchor = null, bool anchorable = true) {
         var p = TerrainPoint.Create(position, this, pointContainer, anchor, anchorable: anchorable);
         ApplyPointState(p);
@@ -993,6 +1004,16 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         var parameters = PropPlacerGeometry.StateTable(state).Read<LuaTable>();
         foreach (var entry in cityPropertiesState.properties) parameters[entry.Key] = PropPlacerGeometry.StateTable(entry.Value);
         ctx["parameters"] = parameters;
+        //the sizes of the meshes chosen by the parameters: read here, on the main thread, since the geometry can run on a worker
+        var meshSizes = new LuaTable();
+        var customElementType = GetCustomElementType();
+        if (customElementType != null) {
+            foreach (var name in customElementType.GetMeshParameters()) {
+                var size = MeshManager.GetSize(state.Str(name, ""));
+                if (size.HasValue) meshSizes[name] = RC.Scripting.LuaVectors.ToLua(size.Value);
+            }
+        }
+        ctx["meshSizes"] = meshSizes;
         ctx["points"] = CustomElementScripting.PointsTable(points, leaf => RC.Scripting.LuaVectors.ToLua(leaf.point.GetPoint()));
         ctx["rotations"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.rotatable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetRotation()) : LuaValue.Nil);
         ctx["scales"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.scalable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetScale()) : LuaValue.Nil);

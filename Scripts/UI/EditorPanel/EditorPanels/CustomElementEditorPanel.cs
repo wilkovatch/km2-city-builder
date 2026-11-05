@@ -87,6 +87,8 @@ namespace EditorPanels {
         bool shownAnything = false;
         bool shownDerived = false; //the points were computed (see CustomElement.IsDerived) when last shown
         bool shownHandle = false; //the move handle of the container was selected when last shown
+        int shownPlacing = -1; //the index of the point to place (PlacementMode.PlacePoints) when last shown, -1 if none
+        int placePointsMode = 0; //the entry of the placement dropdown that places the points one by one (0: none)
         readonly PropRuleGroup propRule;
         EditorPanelElements.Label propPlacementErrorLabel;
         //the content picked in the contents dropdown, outlined (see HighlightedGeometry) and with its points selected
@@ -126,6 +128,7 @@ namespace EditorPanels {
             shownTransform = null;
             propPlacementErrorLabel = null;
             appendArrays.Clear();
+            placePointsMode = 0;
             possibleContainers.Clear();
             HighlightContent(null);
             contents.Clear();
@@ -322,6 +325,11 @@ namespace EditorPanels {
                 var modes = new List<string> { SM.Get("CE_PM_NONE") };
                 appendArrays.Clear();
                 var element = GetElement();
+                placePointsMode = 0;
+                if (element != null && (settings.placementPoints?.Length ?? 0) > 0) {
+                    modes.Add(SM.Get("CE_PM_PLACE_POINTS"));
+                    placePointsMode = 1;
+                }
                 if (element != null) {
                     foreach (var (path, list) in CustomElements.PointTree.Lists(element.points)) {
                         if (!list.def.array.editable) continue;
@@ -435,13 +443,18 @@ namespace EditorPanels {
             var element = GetElement();
             var derived = element?.IsDerived ?? false;
             var onHandle = element != null && element.GetMoveHandle() != null && builder.gizmo.mainTargetRoot == element.GetMoveHandle();
-            if (point == shownPoint && shownAnything && derived == shownDerived && onHandle == shownHandle) return;
+            var placer = GetPlacer();
+            var placing = placer?.placementMode == ElementPlacer.CustomElementPlacer.PlacementMode.PlacePoints && !derived ? placer.placeIndex : -1;
+            if (point == shownPoint && shownAnything && derived == shownDerived && onHandle == shownHandle && placing == shownPlacing) return;
+            shownPlacing = placing;
             shownPoint = point;
             shownAnything = true;
             shownDerived = derived;
             shownHandle = onHandle;
             string text;
-            if (onHandle) {
+            if (placing >= 0 && placer.PlacementLeaf(placing) is CustomElements.PointLeaf next) {
+                text = SM.Get("CE_PLACING_POINT").Replace("$POINT", SM.GetOrKey(next.def.label ?? next.def.name));
+            } else if (onHandle) {
                 text = SM.Get("CE_MOVE_HANDLE_SELECTED");
             } else if (derived) {
                 //computed from other elements: they can't be edited
@@ -499,10 +512,13 @@ namespace EditorPanels {
         void SetPlacementMode(int mode) {
             var placer = GetPlacer();
             if (placer == null) return;
+            var arrayMode = mode - (placePointsMode > 0 ? 1 : 0);
             if (mode == 0) {
                 placer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.None;
-            } else if (mode <= appendArrays.Count) {
-                var (path, atStart) = appendArrays[mode - 1];
+            } else if (mode == placePointsMode) {
+                placer.StartPointPlacement();
+            } else if (arrayMode <= appendArrays.Count) {
+                var (path, atStart) = appendArrays[arrayMode - 1];
                 var list = GetElement() != null ? CustomElements.PointTree.Find(GetElement().points, path) as CustomElements.PointList : null;
                 placer.placementMode = list?.def.children != null ? ElementPlacer.CustomElementPlacer.PlacementMode.AppendElement
                     : ElementPlacer.CustomElementPlacer.PlacementMode.AppendPoint;
@@ -512,7 +528,8 @@ namespace EditorPanels {
             placer.UpdateAnchorVisibility();
             var element = GetElement();
             if (element == null) return;
-            element.SetActive(true, mode == 0);
+            element.SetActive(true, mode == 0 || mode == placePointsMode);
+            placer.UpdatePlacementPoint();
             element.Select(true);
             //the anchors shown and hidden again hid the contents too
             if (mode == 0) HighlightContents(element, true);
@@ -551,9 +568,11 @@ namespace EditorPanels {
                 ElementPlacer.CustomElementPlacer.PlacementMode.InsertPoint => placer.atStart ? 4 : 3,
                 _ => 0
             };
+            var offset = placePointsMode > 0 ? 1 : 0;
             switch (placer.placementMode) {
-                case ElementPlacer.CustomElementPlacer.PlacementMode.AppendPoint: return appendArrays.IndexOf((placer.arrayPath, false)) + 1;
-                case ElementPlacer.CustomElementPlacer.PlacementMode.AppendElement: return appendArrays.IndexOf((placer.arrayPath, placer.atStart)) + 1;
+                case ElementPlacer.CustomElementPlacer.PlacementMode.PlacePoints: return placePointsMode;
+                case ElementPlacer.CustomElementPlacer.PlacementMode.AppendPoint: return appendArrays.IndexOf((placer.arrayPath, false)) + 1 + offset;
+                case ElementPlacer.CustomElementPlacer.PlacementMode.AppendElement: return appendArrays.IndexOf((placer.arrayPath, placer.atStart)) + 1 + offset;
                 default: return 0;
             }
         }
@@ -942,7 +961,7 @@ namespace EditorPanels {
             var point = element != null ? PointOf(element) : null;
             if (point?.anchorable != true) return;
             pointAttachmentPicker ??= new ElementPlacer.TerrainPointAttachmentPicker(builder);
-            builder.helper.elementManager.ShowAnchors(true, true);
+            builder.helper.elementManager.ShowAnchors(true, true, false, element.Settings?.roadEndAnchors == true);
             element.SetActive(true, false);
             pointAttachmentPicker.Start(point, () => {
                 builder.customElementPlacer.UpdateAnchorVisibility(true);
@@ -1206,6 +1225,12 @@ namespace EditorPanels {
                 HighlightContents(element, false);
             }
             builder.helper.elementManager.ShowAnchors(false);
+            //left before its points were all placed (e.g. a bridge with one hinge)
+            if (element != null && Operations.CustomElements.IsIncomplete(element)) {
+                Operations.CustomElements.Delete(builder.helper.elementManager, element);
+                builder.helper.elementManager.FlagAsChanged();
+                builder.NotifyChange();
+            }
             if (!auto) SetActive(false);
             DisableTransform();
             GameEngine.Gizmo.ClearTargets();

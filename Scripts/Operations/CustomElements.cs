@@ -44,6 +44,21 @@ namespace Operations {
             return element;
         }
 
+        //the element is still being placed point by point: its type places two or more points (placementPoints) and they are
+        //all where the first one is, as after the first click. It is deleted when its editor is closed, as a road with one point
+        public static bool IsIncomplete(CustomElement element) {
+            var paths = element?.Settings?.placementPoints;
+            if (paths == null || paths.Length < 2 || element.IsDeleted() || element.points == null) return false;
+            Vector3? first = null;
+            foreach (var path in paths) {
+                var point = (global::CustomElements.PointTree.Find(element.points, path) as global::CustomElements.PointLeaf)?.point;
+                if (point == null || point.IsDeleted()) return false;
+                if (!first.HasValue) first = point.GetPoint();
+                else if (point.GetPoint().DistanceSquaredTo(first.Value) > 1e-6f) return false;
+            }
+            return true;
+        }
+
         //deletes the element; the elements it contains are left without a container. The ghost it replaces is deleted with
         //the last element replacing it (deleteGhost false: it's kept, e.g. to bring it back)
         public static void Delete(ElementManager manager, CustomElement element, bool deleteGhost = true) {
@@ -422,7 +437,7 @@ namespace Operations {
         //an anchor of a road or intersection at the position (not of a ghost: its anchors don't move with what the user sees)
         public static TerrainAnchor FindAnchorAt(ElementManager manager, Vector3 position) {
             foreach (var anchor in Anchors.GetAll(manager)) {
-                if (anchor.IsDeleted() || GameEngine.Vector3.Distance(anchor.GetPoint(), position) >= WeldDistance) continue;
+                if (anchor.IsDeleted() || anchor.roadEnd || GameEngine.Vector3.Distance(anchor.GetPoint(), position) >= WeldDistance) continue;
                 if (IsGhostAnchor(anchor)) continue;
                 return anchor;
             }

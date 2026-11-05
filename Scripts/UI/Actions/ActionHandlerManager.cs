@@ -9,6 +9,7 @@ class ActionHandlerManager {
     static Node3D discHandle = null;
     static ShaderMaterial discHandleMaterial = null;
     static PlacementHeightLine heightLine = null;
+    static PlacementHeightLine guideLine = null;
 
     static Node3D GetHandle() {
         if (handle == null) {
@@ -49,6 +50,23 @@ class ActionHandlerManager {
     public static void HideHeightLine() {
         if (heightLine != null && heightLine.Valid) heightLine.Hide();
     }
+
+    //the line from the last point placed to where the next one goes (e.g. the second hinge of a bridge), shown again by
+    //the click mode every frame (TerrainClick hides it first)
+    public static void ShowGuideLine(Vector3 from, Vector3 to) {
+        if (float.IsNaN(from.Y) || float.IsNaN(to.Y) || from.DistanceSquaredTo(to) < 1e-6f) return;
+        var cam = GameEngine.Camera.Get(manager);
+        if (cam == null) return;
+        if (guideLine == null || !guideLine.Valid) guideLine = new PlacementHeightLine(manager, MaterialManager.GetHandleMaterial(GameEngine.Color.yellow));
+        var lift = Vector3.Up * 0.2f; //above the surface they are on
+        guideLine.ShowSegment(from + lift, to + lift, cam);
+    }
+
+    public static void HideGuideLine() {
+        if (guideLine != null && guideLine.Valid) guideLine.Hide();
+    }
+
+    public static bool GuideLineShown => guideLine != null && guideLine.enabled;
 
     static void SetColor(Color color) {
         //handle.GetComponent<MeshRenderer>().material = MaterialManager.GetHandleMaterial(color); //TODO: FIX

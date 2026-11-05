@@ -722,7 +722,12 @@ namespace History {
         public static bool LastAppliedLeftIncompleteElements() {
             if (lastApplied == null) return false;
             foreach (var id in lastApplied.elements.Keys) {
-                if (IsIncomplete(GetAliveElement(id))) return true;
+                var element = GetAliveElement(id);
+                if (IsIncomplete(element)) return true;
+                //a custom element can be incomplete by where its points are, which changes only the points
+                if (element is TerrainPoint point) {
+                    foreach (var link in point.GetLinks()) if (link is CustomElement custom && IsIncomplete(custom)) return true;
+                }
             }
             return false;
         }
@@ -732,6 +737,7 @@ namespace History {
             if (element is Road road) return road.points.Count < 2;
             if (element is TerrainPatch patch) return patch.GetPerimeterPointCount() < 3;
             if (element is BuildingLine line) return line.GetPointCount() < 2;
+            if (element is CustomElement custom) return Operations.CustomElements.IsIncomplete(custom);
             return false;
         }
 

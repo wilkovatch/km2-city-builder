@@ -40,6 +40,7 @@ public partial class TerrainClick : Control {
             rotationAction?.EndPlacementRotation();
             rotationAction = null;
         }
+        ActionHandlerManager.HideGuideLine(); //until the click mode shows it again this frame
         PlacementHeight.CheckSessionEnd(modifier);
         PlacementHeight.Active = false;
         if (!uiEnabled || modifier == null || (!Input.GetInputPressed(KeyCommand.Select) && modifier is TerrainModifier.Null)) {

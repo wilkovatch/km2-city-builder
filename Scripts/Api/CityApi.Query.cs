@@ -97,6 +97,7 @@ namespace Api {
                 prev = GO.IsNull(anchor.prev) ? null : AnchorRef(anchor.prev),
                 next = GO.IsNull(anchor.next) ? null : AnchorRef(anchor.next),
                 customElementsOnly = anchor.customElementsOnly,
+                roadEnd = anchor.roadEnd,
                 usedBy
             };
         }
@@ -112,7 +113,7 @@ namespace Api {
             return res;
         }
 
-        [ApiMethod("anchors.list", "Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it, customElementsOnly; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on; customElements: also the anchors only for the custom elements (customElementsOnly: across the road ends, not for terrain patches and building lines)")]
+        [ApiMethod("anchors.list", "Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it, customElementsOnly, roadEnd; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on; customElements: also the anchors only for the custom elements (customElementsOnly: across the road ends, not for terrain patches and building lines; roadEnd: the two ends of a road, only for the types with roadEndAnchors)")]
         public List<object> ListAnchors(string unusedBy = null, bool customElements = false) {
             RequireCity();
             if (unusedBy != null && unusedBy != "terrainPatch" && unusedBy != "buildingLine") throw ApiException.InvalidValue("unusedBy must be terrainPatch or buildingLine");

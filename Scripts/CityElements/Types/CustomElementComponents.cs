@@ -62,9 +62,13 @@ namespace CityElements.Types {
         public CustomElementPointSettings point; //null: not a point element
         public CustomElementMeshInstanceSettings meshInstance; //null: not a mesh instance element
         public CustomElementCreateMenu createMenu;
+        public bool roadEndAnchors; //the points can be attached to the free ends of the roads, not only to the anchors along their edges
         public string propertyContainerCategory;
         public bool requiresPropertyContainer;
         public string placementObject; //first click positions this objectInstance; subsequent clicks draw the spline
+        //the points of controlPoints (paths, outside the arrays) placed with a click each when an element is created, each
+        //attached to what is clicked (an anchor, a road end, a point, a segment); also a placement mode to place them again
+        public string[] placementPoints;
         public int geometryLayer = 7;
         public bool castShadows = true; //the meshes of the geometry cast shadows (not the placeholders, nor the props)
         public CustomElementPointNode[] controlPoints;
@@ -204,6 +208,26 @@ namespace CityElements.Types {
                 settings.controlPoints = PointNodes(settings.point);
             }
             if (settings.controlPoints == null) settings.controlPoints = new CustomElementPointNode[0];
+            if ((settings.placementPoints?.Length ?? 0) > 0) {
+                if (settings.spline != null || settings.point != null || settings.mesh != null || settings.propPlacer != null || settings.derivedPoints != null) {
+                    throw new System.Exception("Custom element types with placementPoints cannot also define spline, point, mesh, propPlacer or derivedPoints");
+                }
+                foreach (var path in settings.placementPoints) {
+                    if (FindPointNode(settings.controlPoints, path) == null) throw new System.Exception("placementPoints: " + path + " is not a point of controlPoints outside the arrays");
+                }
+                if (new HashSet<string>(settings.placementPoints).Count != settings.placementPoints.Length) throw new System.Exception("placementPoints: a point is listed twice");
+            }
+        }
+
+        //the point (not a group) at the path ("group.point") of the nodes, outside the arrays; null if there is none
+        public static CustomElementPointNode FindPointNode(CustomElementPointNode[] nodes, string path) {
+            CustomElementPointNode res = null;
+            foreach (var name in (path ?? "").Split('.')) {
+                res = System.Array.Find(nodes ?? new CustomElementPointNode[0], n => n.name == name);
+                if (res == null || res.array != null) return null;
+                nodes = res.children;
+            }
+            return res?.children == null ? res : null;
         }
 
         public static CustomElementPointNode[] PointNodes(CustomElementPointSettings point) {

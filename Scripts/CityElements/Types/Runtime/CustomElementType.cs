@@ -89,5 +89,13 @@ namespace CityElements.Types.Runtime {
                 if (param.type == "reference") yield return param.fullName();
             }
         }
+
+        //the parameters choosing a mesh (their sizes are given to the scripts, see CustomElement.CreateScriptContext)
+        public IEnumerable<string> GetMeshParameters() {
+            if (parameterContainer.parameters == null) yield break;
+            foreach (var param in parameterContainer.parameters) {
+                if (param.type == "mesh") yield return param.fullName();
+            }
+        }
     }
 }

@@ -38,6 +38,9 @@ public static class ConverterCatalog {
             } else if (element is Road road) {
                 if (road.startIntersection != null) neighbors[1] = Snapshot(road.startIntersection);
                 if (road.endIntersection != null) neighbors[2] = Snapshot(road.endIntersection);
+            } else if (element is CustomElement custom) {
+                int i = 0;
+                foreach (var owner in custom.GetAttachedOwners()) neighbors[++i] = Snapshot(owner);
             }
             ctx["neighbors"] = neighbors;
             var host = RuntimeCalculator.Scripting.LuaScriptHost.Get();

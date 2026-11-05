@@ -731,6 +731,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             centerLines.Add(generator.GetCurvePoints());
         }
         anchorManager.Update(GO.GetObject(this), generator.sidePoints, startConns, endConns, centerLines);
+        if (curvePoints.Count > 1) anchorManager.UpdateRoadEnds(GO.GetObject(this), generator.start, curvePoints[1], generator.end, curvePoints[curvePoints.Count - 2]);
         splitLine.MarkDirty();
         OrientHandles();
         EnlargeEndsOnIntersections();

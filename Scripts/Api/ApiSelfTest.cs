@@ -194,7 +194,14 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "heightmapScale") {
+                if (focus == "bridges") {
+                    await NewCity();
+                    await Bridges();
+                } else if (focus == "customElements") {
+                    await NewCity();
+                    await Roads();
+                    await CustomElements();
+                } else if (focus == "heightmapScale") {
                     await NewCity();
                     await HeightmapRescaling();
                 } else if (focus == "independentPoints") {
@@ -330,6 +337,7 @@ namespace Api {
                     await SurfaceProjection();
                     await CustomElementPresetWorkflow();
                     await MapLabels();
+                    await Bridges();
                     await SplineInstanceState();
                     await UnicodeCityRoundTrip();
                 }

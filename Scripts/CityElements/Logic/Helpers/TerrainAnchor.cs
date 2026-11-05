@@ -11,6 +11,7 @@ public partial class TerrainAnchor : Scriptable, IAnchorable {
     public TerrainAnchor prev, next;
     public Vector3 insideDirection;
     public bool customElementsOnly = false; //only for the points of the custom elements (e.g. across a road end): not for terrain patches and building lines
+    public bool roadEnd = false; //the end of a road: customElementsOnly, and only for the types with roadEndAnchors (see TerrainAnchorLineManager)
     bool moveable = false;
     bool deleted = false;
 

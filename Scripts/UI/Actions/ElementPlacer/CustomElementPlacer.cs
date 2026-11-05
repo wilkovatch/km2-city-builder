@@ -15,7 +15,8 @@ namespace ElementPlacer {
             AppendPoint, //a point at the end of the array at arrayPath (an array of points)
             AppendElement, //a new element at the start (atStart) or end of the array at arrayPath, centered where clicked
             InsertPoint,
-            PrependPoint
+            PrependPoint,
+            PlacePoints //the placementPoints of the type, one per click (placeIndex: the next one)
         }
 
         public CustomElement curElement = null;
@@ -25,6 +26,7 @@ namespace ElementPlacer {
         public PlacementMode placementMode = PlacementMode.None;
         public string arrayPath;
         public bool atStart;
+        public int placeIndex;
         public System.Action onElementCreated;
         public System.Action onFrame; //every frame while the placer is the click modifier (e.g. to follow the selected point)
         public System.Action onModeEnded; //the placement mode ended by itself (e.g. a closed array was closed)
@@ -53,11 +55,15 @@ namespace ElementPlacer {
             UpdateAnchorVisibility();
             UpdatePlacementPoint();
             if (placementMode == PlacementMode.None) return false;
-            if (GetElement()?.Settings?.spline != null && placementMode != PlacementMode.Create &&
+            if ((GetElement()?.Settings?.spline != null || placementMode == PlacementMode.PlacePoints) && placementMode != PlacementMode.Create &&
                 (GameEngine.Gizmo.IsNearAxis() || (hits[0].HasValue &&
                 GS.FindComponent<TerrainPoint>((Node3D)hits[0].Value.collider) is TerrainPoint p && curElement.HasPoint(p)))) return false;
             if (!hits[0].HasValue && !hits[1].HasValue && !hits[2].HasValue) return false;
             ShowOnMap(hits);
+            if (placementMode == PlacementMode.PlacePoints && PlacementLeaf(placeIndex - 1)?.point is TerrainPoint last && !last.IsDeleted()) {
+                var hit = GetHit(hits);
+                ActionHandlerManager.ShowGuideLine(last.GetPoint(), Actions.Helpers.GetAnchorInfo((Node3D)hit.collider, hit.point).pos);
+            }
             if (!Input.GetInputStart(KeyCommand.Select)) return false;
             return true;
         }
@@ -93,6 +99,19 @@ namespace ElementPlacer {
                         Operations.TerrainPoints.Attach(((CustomElements.PointLeaf)curElement.points.Get("center")).point, obj, hit.point, false);
                     }
                     placementMode = PlacementMode.None;
+                    if ((curElement.Settings?.placementPoints?.Length ?? 0) > 0) {
+                        //the first point where clicked, the others wait on it for their own clicks
+                        var placementPoints = curElement.Settings.placementPoints;
+                        placeIndex = 0;
+                        PlacePoint(placementPoints[0], obj, hit.point);
+                        var first = PlacementLeaf(0)?.point;
+                        for (int i = 1; i < placementPoints.Length; i++) {
+                            var waiting = PlacementLeaf(i)?.point;
+                            if (waiting != null && first != null) GO.SetPosition(waiting.GetObject(), first.GetPoint());
+                        }
+                        placeIndex = 1;
+                        if (placeIndex < placementPoints.Length) placementMode = PlacementMode.PlacePoints;
+                    }
                     if (curElement.Settings?.spline != null || curElement.Settings?.propPlacer?.type == "polygon") {
                         arrayPath = curElement.Settings?.propPlacer?.type == "polygon" ? "perimeter" : "spline";
                         var initialObject = curElement.Settings.placementObject;
@@ -148,13 +167,62 @@ namespace ElementPlacer {
                     if (GetElement() == null) return;
                     Operations.CustomElements.AppendArrayElementAt(curElement, arrayPath, atStart, hit.point);
                     break;
+                case PlacementMode.PlacePoints:
+                    if (GetElement() == null || PlacementLeaf(placeIndex) == null) {
+                        placementMode = PlacementMode.None;
+                        return;
+                    }
+                    if (!PlacePoint(curElement.Settings.placementPoints[placeIndex], obj, hit.point)) return;
+                    placeIndex++;
+                    if (PlacementLeaf(placeIndex) == null) {
+                        placementMode = PlacementMode.None;
+                        UnselectPointDelayed();
+                        onModeEnded?.Invoke();
+                        return;
+                    }
+                    break;
             }
             UnselectPointDelayed();
             UpdatePlacementPoint();
         }
 
+        //places the points of the placementPoints of the edited element again, from the first one
+        public void StartPointPlacement() {
+            placeIndex = 0;
+            placementMode = PlacementLeaf(0) != null ? PlacementMode.PlacePoints : PlacementMode.None;
+        }
+
+        //the point of the edited element at the index of the placementPoints of its type, null past the last one
+        public CustomElements.PointLeaf PlacementLeaf(int index) {
+            var paths = GetElement()?.Settings?.placementPoints;
+            if (paths == null || index < 0 || index >= paths.Length) return null;
+            return CustomElements.PointTree.Find(curElement.points, paths[index]) as CustomElements.PointLeaf;
+        }
+
+        //the point at the path goes where clicked: on the clicked point (shared with its elements from now on), anchor
+        //(e.g. a road end) or segment, or free on the ground. A point shared with other elements leaves them first (they
+        //keep their point); the other points of the element can't be clicked. False if nothing was placed
+        bool PlacePoint(string path, Node3D obj, Vector3 position) {
+            var leaf = CustomElements.PointTree.Find(curElement.points, path) as CustomElements.PointLeaf;
+            if (leaf?.point == null || leaf.point.IsDeleted()) return false;
+            var clicked = GS.FindComponent<TerrainPoint>(obj);
+            if (clicked != null && clicked != leaf.point && curElement.HasPoint(clicked)) return false;
+            var point = leaf.point;
+            if (point.GetLinks().Count > 1 && clicked != point) point = Operations.CustomElements.DetachPoint(manager, curElement, point);
+            if (leaf.def.anchorable && obj != null && Operations.CustomElements.AttachPoint(manager, curElement, point, obj, position) != null) return true;
+            if (point.anchor != null) Operations.TerrainPoints.Detach(point); //free, not sliding along a segment it was on
+            Operations.TerrainPoints.Move(point, position);
+            return true;
+        }
+
         public void UpdatePlacementPoint() {
             var element = GetElement();
+            if ((element?.Settings?.placementPoints?.Length ?? 0) > 0) {
+                //the last point placed, while the next one is placed
+                var placed = placementMode == PlacementMode.PlacePoints && element.IsActive() ? PlacementLeaf(placeIndex - 1)?.point : null;
+                element.SetPlacementPoint(placed);
+                return;
+            }
             if (element?.Settings?.spline == null && element?.Settings?.propPlacer == null) return;
             var list = element.points.Get(element.Settings.propPlacer?.type == "polygon" ? "perimeter" : "spline") as CustomElements.PointList;
             TerrainPoint point = null;
@@ -227,6 +295,10 @@ namespace ElementPlacer {
             get {
                 var settings = GetSettings();
                 if (settings?.point != null) return settings.point.anchorable;
+                if (placementMode == PlacementMode.PlacePoints) return PlacementLeaf(placeIndex)?.def.anchorable == true;
+                if (placementMode == PlacementMode.Create && (settings?.placementPoints?.Length ?? 0) > 0) {
+                    return CityElements.Types.CustomElementType.FindPointNode(settings.controlPoints, settings.placementPoints[0])?.anchorable == true;
+                }
                 if (placementMode != PlacementMode.Create && GetElement() is CustomElement element && arrayPath != null) {
                     return CustomElements.PointTree.Find(element.points, arrayPath)?.def.anchorable == true;
                 }
@@ -240,7 +312,7 @@ namespace ElementPlacer {
                 && placementMode != PlacementMode.None && AnchorablePlacement;
             if (!force && show == anchorsVisible) return;
             anchorsVisible = show;
-            manager.ShowAnchors(show, true, true);
+            manager.ShowAnchors(show, true, true, GetSettings()?.roadEndAnchors == true);
             if (manager.builder.customElementEditorPanel.ActiveSelf()) manager.builder.customElementEditorPanel.ShowElement(GetElement());
         }
 

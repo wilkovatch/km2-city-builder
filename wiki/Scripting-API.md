@@ -333,7 +333,7 @@ Custom element types opt in with `settings.json` `presets: true`. Their category
 
 | Method | Parameters | Result | Description |
 |---|---|---|---|
-| `anchors.list` | `unusedBy: string = null`<br>`customElement: bool = false` | list | Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it, customElementsOnly; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on; customElement: also the anchors only for the custom elements (customElementsOnly: across the road ends, not for terrain patches and building lines) |
+| `anchors.list` | `unusedBy: string = null`<br>`customElements: bool = false` | list | Every anchor of the city (in the order of the city-wide generators): owner, index, position, previous and next anchor, the points attached to it, customElementsOnly, roadEnd; unusedBy (terrainPatch or buildingLine): only the anchors no point of that kind is on; customElements: also the anchors only for the custom elements (customElementsOnly: across the road ends, not for terrain patches and building lines; roadEnd: the two ends of a road, only for the types with roadEndAnchors) |
 | `anchors.loop` | `anchor: anchor`<br>`to: anchor = null`<br>`invert: bool = false` | list | The anchors from an anchor to another one (to: none for the loop around the block, ending with the anchor itself), along the shorter way (invert: the longer one), as followed when adding points between two anchors |
 | `anchors.segment` | `anchor: anchor` | object | The segment from an anchor to the next one along the same edge (where a point can be placed with anchorLink), null at the end of the edge |
 

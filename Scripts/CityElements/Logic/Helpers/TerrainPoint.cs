@@ -97,7 +97,11 @@ public partial class TerrainPoint : PhysicsScriptable {
                 isMoveable = false;
             }
         }
-        if (placementHighlighted) GS.Cast<Handle>(GetObject()).SetColor(GameEngine.Color.yellow);
+        if (placementHighlighted) {
+            GS.Cast<Handle>(GetObject()).SetColor(GameEngine.Color.yellow);
+            //over the handle of the anchor it is on (e.g. a road end), which is larger
+            if (anchor is TerrainAnchor onAnchor && !GO.IsNull(onAnchor) && !onAnchor.IsDeleted()) curScale = Mathf.Max(curScale, 2.5f);
+        }
         if (dividing) curScale *= 2.0f;
         GS.Cast<Handle>(GetObject()).SetScale(GameEngine.Vector3.one * curScale);
     }

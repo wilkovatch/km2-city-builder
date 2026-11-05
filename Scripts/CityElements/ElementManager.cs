@@ -363,11 +363,11 @@ public partial class ElementManager : Scriptable {
         return true;
     }
 
-    //forCustomElements: also the anchors only for the custom elements
-    public void ShowAnchors(bool active, bool forCustomElements = false, bool keepEditedElements = false) {
+    //forCustomElements: also the anchors only for the custom elements; roadEnds: also the free ends of the roads (for the types with roadEndAnchors)
+    public void ShowAnchors(bool active, bool forCustomElements = false, bool keepEditedElements = false, bool roadEnds = false) {
         foreach (var road in roads) {
             if (active) road.SetActive(false, false);
-            road.anchorManager.ShowTerrainAnchors(active, forCustomElements);
+            road.anchorManager.ShowTerrainAnchors(active, forCustomElements, roadEnds);
         }
         foreach (var intersection in intersections) {
             if (active) intersection.SetActive(false, false);

@@ -231,6 +231,17 @@ namespace CustomElements {
                     if (line.startBound.Count >= 2) res.propLines.Add(line);
                 }
             }
+            //the models placed by the script itself, without a prop rule
+            var props = Table(t["props"]);
+            if (props != null) {
+                for (int i = 1; i <= props.ArrayLength; i++) {
+                    var placement = PropPlacement.ReadPlacement(props[i], "geometry");
+                    var item = Table(props[i]);
+                    placement.meshTransform = item["meshTransform"].TryRead<bool>(out var meshTransform) && meshTransform;
+                    placement.autoYOffset = item["autoYOffset"].TryRead<bool>(out var autoYOffset) && autoYOffset;
+                    res.props.Add(placement);
+                }
+            }
             if (t["uvs"].Type != LuaValueType.Nil) res.uvs = Vector2s(t["uvs"], "uvs");
             return res;
         }

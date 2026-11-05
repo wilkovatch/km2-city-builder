@@ -65,6 +65,14 @@ public class MeshManager {
         return GetInstance().GetBounds_instance(mesh);
     }
 
+    //the size of a mesh, loading it if needed (main thread only); null if there's no such mesh or it has no bounds
+    public static Vector3? GetSize(string mesh) {
+        if (string.IsNullOrEmpty(mesh)) return null;
+        var manager = GetInstance();
+        if (!manager.meshes.ContainsKey(mesh)) GO.Destroy(manager.GetMesh_instance(mesh, manager.parent));
+        return manager.bounds.TryGetValue(mesh, out var res) ? GameEngine.Bounds.GetSize(res) : null;
+    }
+
     //The template is loaded by GetMesh before an instance asks for its collider. Shapes (including null)
     //are cached in asset coordinates, without any instance's placement transform, and never modified.
     public static Shape3D GetSelectionShape(string mesh) {

@@ -48,6 +48,25 @@ public class PlacementHeightLine {
         node.Visible = true;
     }
 
+    //a line between any two points (program coordinates), facing the camera, as thin at any distance, without ticks
+    public void ShowSegment(Vector3 from, Vector3 to, Camera3D cam) {
+        var a = GameEngine.Vector3.DecodePosition(from);
+        var b = GameEngine.Vector3.DecodePosition(to);
+        var side = (b - a).Cross(-cam.GlobalBasis.Z);
+        side = side.LengthSquared() > 1e-8f ? side.Normalized() : cam.GlobalBasis.X;
+        Vector3 HalfWidth(Vector3 p) {
+            var across = cam.IsPositionBehind(p) ? 0 : cam.UnprojectPosition(p).DistanceTo(cam.UnprojectPosition(p + side));
+            return side * lineWidth * 0.5f / Mathf.Max(across, 1e-3f);
+        }
+        var ha = HalfWidth(a);
+        var hb = HalfWidth(b);
+        mesh.ClearSurfaces();
+        mesh.SurfaceBegin(Mesh.PrimitiveType.Triangles);
+        AddQuad(a - ha, a + ha, b + hb, b - hb);
+        mesh.SurfaceEnd();
+        node.Visible = true;
+    }
+
     public void Hide() {
         node.Visible = false;
     }

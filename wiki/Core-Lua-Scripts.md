@@ -121,6 +121,8 @@ Angles are in degrees. `rnd(min, max, seed)` is the deterministic random functio
 
 The basic functions (without `dofile`, `loadfile` and `collectgarbage`), `math` (without `math.random` and `math.randomseed`: a definition must give the same result every time it is evaluated, use `rnd` instead), `string`, `table`, `bit32` and `require`. There is no `io`, `os`, `debug` or `coroutine`. `print` writes to the log of the program, prefixed by `[lua]`.
 
+As in Lua 5.2, `math.atan` takes one argument, and the interpreter silently ignores a second one: use `math.atan2(y, x)` for a direction.
+
 ## Errors
 
 * A missing module or function, or a syntax error, is reported when the types are read (when the city is loaded), like an invalid expression.

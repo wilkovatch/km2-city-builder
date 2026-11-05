@@ -16,27 +16,60 @@ public class TerrainAnchorLineManager {
     public List<object> startConnections = new List<object>();
     public List<object> endConnections = new List<object>();
     public object parentObj;
+    const float RoadEndAnchorScale = 2.0f;
+    //the anchors of the two ends of a road, after the others so that the indices of those don't change. They aren't recreated
+    //with the others (when the number of the sections or the connections change), so a point stays on an end while the road changes
+    TerrainAnchor startRoadEnd, endRoadEnd;
 
     public TerrainAnchorLineManager(object parent) {
         parentObj = parent;
     }
 
-    //the custom element only anchors are shown only with forCustomElements
-    public void ShowTerrainAnchors(bool active, bool forCustomElements = false) {
+    //the custom element only anchors are shown only with forCustomElements, the ends of a road only with roadEnds, while they're free
+    public void ShowTerrainAnchors(bool active, bool forCustomElements = false, bool roadEnds = false) {
         foreach (var anchor in terrainAnchors) {
             anchor.SetActive(active && (forCustomElements || !anchor.customElementsOnly));
         }
+        if (parentObj is not Road road) return;
+        var showEnds = active && forCustomElements && roadEnds && !road.ghost;
+        if (!GO.IsNull(startRoadEnd)) startRoadEnd.SetActive(showEnds && road.startIntersection == null);
+        if (!GO.IsNull(endRoadEnd)) endRoadEnd.SetActive(showEnds && road.endIntersection == null);
     }
 
     //the next update recreates the anchors instead of moving the existing ones (and the terrain points anchored to them)
     public void Invalidate() {
         oldAnchors = new List<List<Vector3>>();
+        if (!GO.IsNull(startRoadEnd)) startRoadEnd.Delete();
+        if (!GO.IsNull(endRoadEnd)) endRoadEnd.Delete();
+        startRoadEnd = endRoadEnd = null;
     }
 
     public List<TerrainAnchor> GetTerrainAnchors() {
         var res = new List<TerrainAnchor>();
         res.AddRange(terrainAnchors);
+        if (!GO.IsNull(startRoadEnd)) res.Add(startRoadEnd);
+        if (!GO.IsNull(endRoadEnd)) res.Add(endRoadEnd);
         return res;
+    }
+
+    //inside: a point along the road from that end
+    public void UpdateRoadEnds(GameObject geo, Vector3 start, Vector3 startInside, Vector3 end, Vector3 endInside) {
+        startRoadEnd = UpdateRoadEnd(startRoadEnd, geo, start, startInside);
+        endRoadEnd = UpdateRoadEnd(endRoadEnd, geo, end, endInside);
+    }
+
+    static TerrainAnchor UpdateRoadEnd(TerrainAnchor anchor, GameObject geo, Vector3 position, Vector3 inside) {
+        if (GO.IsNull(anchor)) {
+            anchor = TerrainAnchor.Create(geo, position, RoadEndAnchorScale);
+            anchor.Initialize(null, null, false);
+            anchor.customElementsOnly = true;
+            anchor.roadEnd = true;
+            GS.Cast<Handle>(anchor.GetObject()).SetColor(GameEngine.Color.cyan);
+        } else {
+            GO.SetPosition(anchor.GetObject(), position);
+        }
+        anchor.insideDirection = GameEngine.Vector3.Normalize(inside - position);
+        return anchor;
     }
 
     public void Update(GameObject geo, List<List<Vector3>> generatedAnchorLines, List<object> startConns, List<object> endConns, List<List<Vector3>> centerLines,
@@ -75,7 +108,7 @@ public class TerrainAnchorLineManager {
     TerrainAnchor FindMatching(TerrainAnchor thisAnchor, List<TerrainAnchor> list) {
         for (int j = 0; j < list.Count; j++) {
             var otherAnchor = list[j];
-            if (thisAnchor.IsTheSameAs(otherAnchor)) {
+            if (!otherAnchor.customElementsOnly && thisAnchor.IsTheSameAs(otherAnchor)) {
                 return otherAnchor;
             }
         }

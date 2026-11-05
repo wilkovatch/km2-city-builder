@@ -151,10 +151,12 @@ public partial class CustomElementGenerator : PhysicsScriptable {
                 propsContainer = GO.Create("PropsContainer");
                 GO.SetParent(propsContainer, this);
             }
-            var settings = placer.Settings.propPlacer;
+            var settings = placer.Settings.propPlacer; //null: the props of a geometry script, with their own settings
             foreach (var prop in geometry.props) {
-                prop.meshTransform = settings.meshTransform;
-                prop.autoYOffset = settings.autoYOffset;
+                if (settings != null) {
+                    prop.meshTransform = settings.meshTransform;
+                    prop.autoYOffset = settings.autoYOffset;
+                }
                 PropPlacement.Add(prop, propsContainer, props, placements);
             }
         }

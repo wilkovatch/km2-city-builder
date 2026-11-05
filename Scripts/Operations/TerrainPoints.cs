@@ -18,6 +18,7 @@ namespace Operations {
             }
             var anchor = GS.FindComponent<TerrainAnchor>(obj);
             if (anchor == null && generatedOnly) anchor = clicked?.anchor as TerrainAnchor;
+            if (anchor?.roadEnd == true && !AcceptsRoadEnds(point)) return null;
             if (anchor != null && !anchor.IsDeleted() && (!generatedOnly || !anchor.customElementsOnly)) return anchor;
             var link = GS.Cast<PointLink>(obj);
             if (link == null || GO.IsNull(link.next)) return null;
@@ -35,6 +36,11 @@ namespace Operations {
                 } else if (a.IsDeleted() || b.IsDeleted() || a.customElementsOnly || b.customElementsOnly) return null;
             }
             return new LineAnchor(start, link.next, position);
+        }
+
+        //the ends of the roads are only for the points of the custom elements whose type asks for them
+        public static bool AcceptsRoadEnds(TerrainPoint point) {
+            return point != null && point.GetLinks().Exists(e => e is CustomElement element && element.Settings?.roadEndAnchors == true);
         }
 
         //the point itself is kept: every element sharing it (including border meshes) follows the attachment.

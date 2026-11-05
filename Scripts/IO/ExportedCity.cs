@@ -136,8 +136,8 @@ namespace IO.ExportedCity {
 
     //a custom element: data.fields.state has its type and parameters (the references as ElementReference objects),
     //data.mesh the geometry built by its script; the control points have the structure defined by its type, each point
-    //being {"id": <terrain point id>, "position": [x, y, z]} (plus "rotation" for the rotatable ones and "scale" for the scalable ones), the same id for a
-    //point shared with other elements
+    //being {"id": <terrain point id>, "position": [x, y, z]} (plus "rotation" for the rotatable ones, "scale" for the scalable ones, and "anchor" for the ones
+    //attached to a road or intersection: kind, id, index, roadEnd, insideDirection), the same id for a point shared with other elements
     [System.Serializable]
     public class CustomElement {
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]

@@ -376,6 +376,21 @@ namespace CityEncoder {
                 var scale = p.GetScale();
                 res["scale"] = new Newtonsoft.Json.Linq.JArray(scale.X, scale.Y, scale.Z);
             }
+            //the road or intersection the point is attached to
+            if (p.anchor is TerrainAnchor anchor) {
+                var (owner, index) = Operations.Anchors.GetOwner(anchor);
+                var reference = owner != null ? GetReference(owner) : null;
+                if (reference != null) {
+                    var inside = anchor.insideDirection;
+                    res["anchor"] = new Newtonsoft.Json.Linq.JObject {
+                        ["kind"] = reference.kind,
+                        ["id"] = reference.id,
+                        ["index"] = index,
+                        ["roadEnd"] = anchor.roadEnd,
+                        ["insideDirection"] = new Newtonsoft.Json.Linq.JArray(inside.X, inside.Y, inside.Z)
+                    };
+                }
+            }
             return res;
         }
 

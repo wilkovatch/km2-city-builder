@@ -662,6 +662,8 @@
 	"CE_PM_APPEND": "Add points to $ARRAY",
 	"CE_PM_APPEND_END": "Add $ARRAY at the end",
 	"CE_PM_APPEND_START": "Add $ARRAY at the start",
+	"CE_PM_PLACE_POINTS": "Place the points one by one",
+	"CE_PLACING_POINT": "Click to place: $POINT (on an anchor or a point to attach it)",
 	"CE_ON_POINT": "on a point",
 	"CE_ON_LINE": "on a line",
 	"CE_ON_COLUMN": "on the vertical line of a point",

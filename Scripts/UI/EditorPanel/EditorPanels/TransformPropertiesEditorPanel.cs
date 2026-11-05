@@ -309,7 +309,7 @@ namespace EditorPanels {
             if (customElement) {
                 //the anchors (also the ones only for the custom elements) and the points of the other elements are shown,
                 //and the points of the element can be clicked (they can't be moved meanwhile), as in the click modes
-                builder.helper.elementManager.ShowAnchors(true, true);
+                builder.helper.elementManager.ShowAnchors(true, true, false, owner?.Settings?.roadEndAnchors == true);
                 owner?.SetActive(true, false);
                 owner?.Select(true);
             }

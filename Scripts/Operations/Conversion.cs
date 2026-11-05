@@ -36,8 +36,8 @@ namespace Operations {
         // Input
 
         //the elements to convert and the ones the converter may need: the intersections of the roads and the roads of the
-        //intersections (one level more), the containers and contents of the custom elements, and the custom
-        //elements replacing any of them
+        //intersections (one level more), the containers and contents of the custom elements, the roads and intersections
+        //the points of the converted custom elements are attached to, and the custom elements replacing any of them
         static List<object> GetContext(ElementManager manager, List<object> elements) {
             var res = new List<object>();
             void Add(object e) {
@@ -61,6 +61,9 @@ namespace Operations {
                             break;
                     }
                 }
+            }
+            foreach (var e in elements) {
+                if (e is CustomElement custom) foreach (var owner in custom.GetAttachedOwners()) Add(owner);
             }
             foreach (var e in new List<object>(res)) {
                 foreach (var replacement in CustomElements.GetReplacements(manager, e)) Add(replacement);
