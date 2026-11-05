@@ -61,6 +61,7 @@ public partial class CityBuilderMenuBar : Control {
     int scriptsMenuIndex = -1;
     int viewMenuIndex = -1;
     int createMenuIndex = -1;
+    int helpMenuIndex = -1;
     public EditorPanels.ContainerPlacementPanel containerPlacementPanel = new();
     List<ScriptCatalog.ScriptInfo> menuScripts = new List<ScriptCatalog.ScriptInfo>();
 
@@ -211,18 +212,10 @@ public partial class CityBuilderMenuBar : Control {
         };
         menuBar.AddElement(SM.Get("SETTINGS_MENU"), entries, actions, GameEngine.Color.black);
 
-        //Help
-        entries = new List<string> {
-            SM.Get("HELP_CONTROLS"),
-            SM.Get("HELP_QUICKSTART"),
-            SM.Get("HELP_ABOUT")
-        };
-        actions = new List<System.Action> {
-            ShowControls,
-            ShowQuickstart,
-            ShowAbout
-        };
-        menuBar.AddElement(SM.Get("HELP"), entries, actions, GameEngine.Color.black);
+        //Help (the guides are listed when it opens, a core can be installed at any time)
+        menuBar.AddElement(SM.Get("HELP"), new List<string>(), new List<System.Action>(), GameEngine.Color.black);
+        helpMenuIndex = menuBar.GetElementCount() - 1;
+        menuBar.SetOnOpen(helpMenuIndex, ReloadHelpMenu);
 
         //Currently selected instances
         entries = new List<string> { };
@@ -1098,6 +1091,30 @@ public partial class CityBuilderMenuBar : Control {
 
     void ShowControls() {
         ControlsHelpDialog.Show(this, gizmo);
+    }
+
+    void ReloadHelpMenu() {
+        var entries = new List<string> { SM.Get("HELP_CONTROLS"), SM.Get("HELP_GUIDES"), SM.Get("HELP_QUICKSTART"), SM.Get("HELP_ABOUT") };
+        var actions = new List<System.Action> { ShowControls, null, ShowQuickstart, ShowAbout };
+        var submenus = new Dictionary<int, MenuSubmenu> { [1] = GuidesMenu() };
+        GetMenuBar().SetEntries(helpMenuIndex, entries, actions, submenus);
+    }
+
+    //the guides of the program, then a divider and the guides of each core in its own submenu
+    public MenuSubmenu GuidesMenu() {
+        var menu = new MenuSubmenu();
+        var divided = false;
+        foreach (var group in GuideLibrary.Load()) {
+            var target = menu;
+            if (group.folder != null) {
+                if (!divided && menu.entries.Count > 0) menu.Add(MenuBar.Divider, null);
+                divided = true;
+                target = new MenuSubmenu();
+                menu.AddSubmenu(group.name, target);
+            }
+            foreach (var guide in group.guides) target.Add(guide.title, () => GuidePanel.Open(this, guide));
+        }
+        return menu;
     }
 
     void ShowQuickstart() {

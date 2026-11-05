@@ -24,7 +24,8 @@ Guidance for AI coding agents (and humans) working on **km2 City Builder**. Read
 
 | Path | What |
 |---|---|
-| `Scripts/UI` | Menu bar, editor panels (`EditorPanel/EditorPanels`), placers and terrain modifiers, camera, debug console |
+| `Scripts/UI` | Menu bar, editor panels (`EditorPanel/EditorPanels`), placers and terrain modifiers, camera, debug console, guide panel (`Guide`) |
+| `Files/guides` | The guides of the program (Markdown, see `wiki/Core-Guides.md`). Keep them up to date when the workflows they describe change |
 | `Scripts/CityElements/Logic` | Roads, intersections, patches, building lines, mesh instances, custom elements, city properties |
 | `Scripts/CityElements/Geometry` | Mesh generators driven by the core's type definitions |
 | `Scripts/CityElements/Types` | Core JSON type loading (`TypeParser`, `Parsers/TypeInheritance.cs` for `extends`) and runtime types |
@@ -112,6 +113,7 @@ Writes `undo_selftest.log` and restores `LastCity`.
 | `drag` | creates one | numeric field middle-drag, 0 failures, ~15 s. Captures the real mouse, so a moving mouse can fail the Shift check; rerun once |
 | `dropdown` | creates one | dropdown keys/wheel, 0 failures, ~10 s |
 | `height` | creates one | placement height (Shift + mouse movement), hidden terrain placement and snapping toggle, 30 OK, 0 failures, ~20 s. **Must run windowed.** Moves the real mouse, so rerun once before blaming a change |
+| `guide` | creates one | the guides (`UndoSelfTestGuide.cs`): Markdown parser, **all the guides of the installed cores** (chapters, links, images), refused links, panel navigation, move/resize/minimize, input. 142 OK, 0 failures, ~10 s. **Must run windowed.** Moves the real mouse. Saves frames in `guide_fixtures` next to the log: look at them after a change to the renderer, the checks can't see the layout |
 | `ui`, `load`, `props` | **a copy** of an existing city | the old test city is gone; use a copy of the api self-test city (`<scratch>/api/city`) or ask the maintainer for one |
 
 Load/ui modes catch bugs that the scratch city misses. Reproduce user-reported bugs on a copy of a real city.

@@ -31,7 +31,7 @@ Create `Files/cores/<CoreName>/` (the folder name is the core's permanent identi
 └── pythonInfo/imports.txt, requirements.txt, licenses.txt
 ```
 
-See [Core Structure](Core-Structure).
+See [Core Structure](Core-Structure). A core can also include guides for its users, shown in *Help→Guides* (see [Core Guides](Core-Guides)).
 
 ## Step 2: `settings.json` and strings
 

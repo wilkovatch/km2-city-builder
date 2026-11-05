@@ -26,14 +26,15 @@ namespace History {
         //dropdown: the keyboard navigation of the dropdown lists and the camera under them, on a new city;
         //selection: selection and deselection timings and handle cleanup, on a copy of an existing city;
         //placement: control point selection and insertion on the first roads created after startup, on a new city;
-        //height: the placement height (Shift + mouse movement) and the snapping toggle, on a new city
-        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection", "placement", "height", "rotation" };
+        //height: the placement height (Shift + mouse movement) and the snapping toggle, on a new city;
+        //guide: the guides and their panel (windowed, see UndoSelfTestGuide), on a new city
+        public static readonly string[] Modes = { "new", "props", "ui", "split", "load", "drag", "dropdown", "selection", "placement", "height", "rotation", "guide" };
 
         public static void Start(CityBuilderMenuBar builder, string folder, string mode) {
             builder.AddChild(new UndoSelfTest {
                 builder = builder, folder = folder, Name = "UndoSelfTest",
                 propsSelection = mode == "props", uiRestore = mode == "ui", splitOnly = mode == "split", placementOnly = mode == "placement", loadExisting = mode == "load",
-                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown", selectionOnly = mode == "selection", heightOnly = mode == "height", rotationOnly = mode == "rotation"
+                dragOnly = mode == "drag", dropdownOnly = mode == "dropdown", selectionOnly = mode == "selection", heightOnly = mode == "height", rotationOnly = mode == "rotation", guideOnly = mode == "guide"
             });
         }
 
@@ -45,6 +46,7 @@ namespace History {
         bool selectionOnly = false;
         bool heightOnly = false;
         bool rotationOnly = false;
+        bool guideOnly = false;
 
         //Selection on a copy of a large city, including cities with no procedural roads. Times the synchronous work
         //separately from the next frame, which includes the renderer and physics server processing the handle changes.
@@ -763,6 +765,7 @@ namespace History {
             else if (dragOnly) RunDrag();
             else if (dropdownOnly) RunDropdown();
             else if (heightOnly || rotationOnly) RunHeight();
+            else if (guideOnly) RunGuide();
             else Run();
         }
 

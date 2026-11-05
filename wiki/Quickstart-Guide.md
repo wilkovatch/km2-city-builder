@@ -2,6 +2,8 @@
 
 km2 City Builder is an editor to create custom cities for videogames. Roads, intersections, terrain, buildings and props are placed and edited interactively, then the city is exported in the format of the target game.
 
+*Help→Guides* in the editor has shorter step-by-step guides, including the guides of the installed cores, which you can keep open while you work.
+
 ![The editor with a city loaded](images/editor-overview.jpg)
 
 ## Overview

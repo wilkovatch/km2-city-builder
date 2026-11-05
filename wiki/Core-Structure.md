@@ -41,6 +41,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 ├── lua/                         optional: Lua scripts of the definitions (see Core Lua Scripts)
 ├── converters/<name>/           optional: converters to custom elements (see Core Custom Elements)
 ├── scripts/                     optional: Python scripts of the Scripts menu (see Python Scripts)
+├── guides/<language>/<guide>/   optional: guides shown in Help→Guides (see Core Guides)
 └── pythonInfo/
     ├── imports.txt              modules checked before loading a city
     ├── requirements.txt         pip requirements installed on demand

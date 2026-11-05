@@ -1,0 +1,15 @@
+{
+	"title": "Basic guide",
+	"order": 1,
+	"chapters": [
+		"welcome",
+		"installing-a-core",
+		"creating-a-city",
+		"moving-around",
+		"roads",
+		"intersections",
+		"terrain",
+		"buildings",
+		"next-steps"
+	]
+}

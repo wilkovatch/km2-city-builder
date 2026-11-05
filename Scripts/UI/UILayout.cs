@@ -347,6 +347,20 @@ public static class UILayout {
         return boldFont;
     }
 
+    static Font italicFont, boldItalicFont, monoFont;
+
+    public static Font ItalicFont() {
+        return italicFont ??= new SystemFont { FontNames = FontNames, FontItalic = true };
+    }
+
+    public static Font BoldItalicFont() {
+        return boldItalicFont ??= new SystemFont { FontNames = FontNames, FontWeight = 700, FontItalic = true };
+    }
+
+    public static Font MonoFont() {
+        return monoFont ??= new SystemFont { FontNames = new[] { "Consolas", "Liberation Mono", "DejaVu Sans Mono", "Menlo", "Monospace" } };
+    }
+
     /// <summary>Tooltips cover the whole element; Godot only reads the hovered control's tooltip.</summary>
     public static void SetTooltipRecursive(Control control, string tooltip) {
         control.TooltipText = tooltip ?? "";

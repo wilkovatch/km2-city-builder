@@ -37,3 +37,4 @@
 - [Lua Scripts](Core-Lua-Scripts)
 - [Python Integration](Core-Python-Integration)
 - [Templates and Presets](Core-Templates-and-Presets)
+- [Guides](Core-Guides)

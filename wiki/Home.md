@@ -50,3 +50,4 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 12. [Core Lua Scripts](Core-Lua-Scripts): definitions computed by Lua functions (variables, context, vectors, sandbox).
 13. [Core Python Integration](Core-Python-Integration): custom mesh/texture formats, exporters, export JSON format, migrations.
 14. [Core Templates and Presets](Core-Templates-and-Presets): city templates, presets, preferences.
+15. [Core Guides](Core-Guides): the guides of a core, shown in the program.
