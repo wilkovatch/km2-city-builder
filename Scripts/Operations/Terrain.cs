@@ -58,6 +58,41 @@ namespace Operations {
             return 0.5f + meters / (CityGroundHelper.maxHeight * 2);
         }
 
+        //Float32 normalized samples between 0.5 and 1 are 2^-24 apart. Below zero the spacing is finer.
+        public static float GetHeightStep(float maxHeight) {
+            return maxHeight / 8388608f;
+        }
+
+        //Changes the vertical range. Keeping the normalized samples scales elevations around zero; otherwise
+        //re-encode them in the new range, rejecting a range that would clip the terrain before changing anything.
+        public static void RescaleHeightmap(CityGroundHelper helper, float maxHeight, bool rescaleHeights) {
+            if (!float.IsFinite(maxHeight * 2) || maxHeight <= 0) throw new System.ArgumentException("maxHeight must be positive and its full range finite");
+            var previousMaxHeight = CityGroundHelper.maxHeight;
+            if (maxHeight == previousMaxHeight) return;
+            var size = GetGridSize(helper);
+            var heights = GameEngine.Terrain.GetHeights(helper.terrainObj, 0, 0, size, size);
+            for (int z = 0; z < size; z++) {
+                for (int x = 0; x < size; x++) {
+                    var value = heights[z, x];
+                    if (!float.IsFinite(value)) throw new System.ArgumentException("the heightmap contains non-finite samples");
+                    //Imported maps can contain values outside 0-1; use the same clamping as the terrain renderer.
+                    value = Mathf.Clamp(value, 0, 1);
+                    if (!rescaleHeights) {
+                        var meters = (value - 0.5) * 2 * previousMaxHeight;
+                        if (System.Math.Abs(meters) > maxHeight) {
+                            throw new System.ArgumentException("the new range would clip existing terrain; choose a larger maximum height or rescale the heights");
+                        }
+                        value = (float)(0.5 + meters / (2.0 * maxHeight));
+                    }
+                    heights[z, x] = value;
+                }
+            }
+            History.UndoManager.TouchWholeHeightmap();
+            CityGroundHelper.maxHeight = maxHeight;
+            GameEngine.Terrain.SetHeightmap(helper.terrainObj, maxHeight, heights);
+            helper.elementManager.worldChanged = true;
+        }
+
         //the heights (in meters) of an area of the grid, indexed [z, x]
         public static float[,] GetHeights(CityGroundHelper helper, int x, int z, int width, int depth) {
             var res = GameEngine.Terrain.GetHeights(helper.terrainObj, x, z, width, depth);

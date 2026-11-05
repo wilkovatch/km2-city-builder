@@ -369,6 +369,7 @@ namespace Api {
                 size = CityGroundHelper.terrainSize,
                 heightmapResolution = CityGroundHelper.heightmapResolution,
                 maxHeight = CityGroundHelper.maxHeight,
+                heightStep = Operations.Terrain.GetHeightStep(CityGroundHelper.maxHeight),
                 gridSize = Operations.Terrain.GetGridSize(builder.helper),
                 pixelSize = Operations.Terrain.GetPixelSize(builder.helper),
                 origin = -CityGroundHelper.terrainSize * 0.5f

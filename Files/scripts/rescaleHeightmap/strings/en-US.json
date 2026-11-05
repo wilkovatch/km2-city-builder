@@ -1,0 +1,16 @@
+{
+    "SCRIPT_HEIGHTMAP": "Rescale heightmap",
+    "SCRIPT_HEIGHTMAP_DESC": "Change the vertical range, preserving elevations or scaling them around zero. The change is one undo step.",
+    "SCRIPT_HEIGHTMAP_MODE": "Operation",
+    "SCRIPT_HEIGHTMAP_RANGE": "Range only (custom maximum)",
+    "SCRIPT_HEIGHTMAP_SCALE": "Rescale heights (custom maximum)",
+    "SCRIPT_HEIGHTMAP_STEP_01": "Range only: 0.1 cm steps",
+    "SCRIPT_HEIGHTMAP_STEP_1": "Range only: 1 cm steps",
+    "SCRIPT_HEIGHTMAP_STEP_10": "Range only: 10 cm steps",
+    "SCRIPT_HEIGHTMAP_MODE_TOOLTIP": "Range only keeps elevations within the new precision and refuses a range that would clip terrain. Rescale heights multiplies elevations by new maximum / old maximum. Step shortcuts only change the range.",
+    "SCRIPT_HEIGHTMAP_MAX": "Maximum height (m)",
+    "SCRIPT_HEIGHTMAP_MAX_PH": "1000",
+    "SCRIPT_HEIGHTMAP_MAX_TOOLTIP": "The range is -maximum to +maximum. Used by the two custom maximum operations; ignored by the step shortcuts. Only the heightmap is scaled; placed objects keep their authored positions.",
+    "SCRIPT_HEIGHTMAP_PRECISION": "Step shortcuts set float precision above zero; negative heights have finer steps. Range changes can round elevations. Decimal steps have normal floating-point approximation.",
+    "SCRIPT_HEIGHTMAP_INVALID_MODE": "Select a valid heightmap rescaling operation."
+}

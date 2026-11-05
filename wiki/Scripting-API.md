@@ -134,6 +134,10 @@ The anchors are the points along the edges of the roads and intersections where 
 
 The heightmap is a grid of `gridSize` × `gridSize` samples (`terrain.info`), `pixelSize` meters apart: the sample `(x, z)` is at `(x * pixelSize + origin, z * pixelSize + origin)` in the city. `terrain.heights.get` and `terrain.heights.set` read and write the heights (in meters) of an area of the grid, row by row along z, as a list of rows (`encoding: "array"`) or as base64 little endian 32 bit floats (`"base64"`, the default, much smaller). The heights are limited to the range of the terrain (`-maxHeight` to `maxHeight`); `set` returns how many were clamped. A change is one undo step, and the elements on the ground follow the new heights.
 
+`terrain.rescale(maxHeight, rescaleHeights=false)` changes the range to `-maxHeight` through `+maxHeight`. By default it re-encodes samples to preserve elevations within the new float precision and rejects changes that would clip existing terrain. With `rescaleHeights=true` it keeps the normalized samples and multiplies elevations by `new maxHeight / previous maxHeight`, around zero. Horizontal size, grid resolution and authored element positions stay unchanged; ground-projected elements follow the terrain. The change, including the range, supports undo, redo and script transactions. The result contains `previousMaxHeight`, `maxHeight`, `heightScale` and `heightStep`.
+
+`terrain.info.heightStep` is the nominal spacing in meters between normalized float32 samples on the positive side of zero (`maxHeight / 2^23`). Negative heights have finer spacing. The built-in [Rescale heightmap script](Python-Scripts#rescale-heightmap) offers convenient decimal-step ranges.
+
 ### Geometry
 
 `elements.geometry` gives what is generated for an element (road, intersection, terrain patch, building line with its buildings, mesh instance or parametric object) in the format of the export JSON read by the exporters of the cores: meshes as base64 arrays (`b64v3a_vertices`, `b64ia_indices`...), with the material of each submesh, the lanes and props of the roads, the splines and sides of the buildings. `materials` and `meshes` have the entries of the material and mesh dictionaries it references. The roads and intersections are referenced by their ids (in the export file, by their index). The encoding is described in [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export); `Files/python/DecodeExportedJson.py` decodes it.
@@ -522,6 +526,7 @@ Every mesh instance has a mesh instance type (see [Core Custom Elements](Core-Cu
 | `terrain.heights.set` | `x: int`<br>`z: int`<br>`width: int`<br>`depth: int`<br>`heights: any`<br>`encoding: string = 'base64'` | object | Sets the heights (in meters) of an area of the heightmap grid, as terrain.heights.get gives them; returns how many were out of the range of the terrain and clamped |
 | `terrain.importHeightmap` | `file: string`<br>`scale: number = 1` | object | Sets the terrain heights from a grayscale image (in the city or extra folders), scale: the height of white |
 | `terrain.info` | - | object | The terrain settings, and the heightmap grid (gridSize samples per side, pixelSize apart; the sample x, z is at x * pixelSize + origin, z * pixelSize + origin) |
+| `terrain.rescale` | `maxHeight: number`<br>`rescaleHeights: bool = false` | object | Changes the vertical range, preserving elevations or scaling them around zero; rejects range-only changes that would clip terrain |
 
 ### `project.*`
 

@@ -234,6 +234,20 @@ namespace Api {
             return new { clamped };
         }
 
+        [ApiMethod("terrain.rescale", "Changes the heightmap range to -maxHeight..+maxHeight, preserving elevations (within float precision) or scaling them around zero with rescaleHeights; rejects range-only changes that would clip terrain")]
+        public object RescaleTerrain(float maxHeight, bool rescaleHeights = false) {
+            RequireCity();
+            var previousMaxHeight = CityGroundHelper.maxHeight;
+            ApplyChange("terrain.rescale", () => {
+                try {
+                    Operations.Terrain.RescaleHeightmap(builder.helper, maxHeight, rescaleHeights);
+                } catch (System.ArgumentException e) {
+                    throw ApiException.InvalidValue(e.Message);
+                }
+            });
+            return new { previousMaxHeight, maxHeight, heightScale = rescaleHeights ? maxHeight / previousMaxHeight : 1, heightStep = Operations.Terrain.GetHeightStep(maxHeight) };
+        }
+
         [ApiMethod("terrain.importHeightmap", "Sets the terrain heights from a grayscale image (in the city or extra folders), scale: the height of white")]
         public Task<object> ImportHeightmap(string file, float scale = 1) {
             RequireCity();

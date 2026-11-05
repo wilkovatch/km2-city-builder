@@ -23,6 +23,8 @@ To fill a loop of roads quickly, place the first point on an anchor of the loop 
 
 ## Details
 
+To change the heightmap's vertical range, open **Scripts → Rescale heightmap**. **Range only** preserves elevations within the new float precision; **Rescale heights** scales hills and valleys around zero. Range-only shortcuts select **0.1 cm**, **1 cm** or **10 cm** positive height steps; negative heights have finer spacing. The custom maximum is ignored for shortcuts. A range that would clip terrain is refused, and the whole run is one undo step.
+
 - The texture you set on a patch is also used for the next patches.
 - A patch with no texture is invisible. This is useful to make room for something else, such as buildings.
 - A patch is optimized for flat ground. To make it follow a hill, choose **Internal** in **Point placement mode** and place points inside it. If it looks rough, raise **Smoothing**.

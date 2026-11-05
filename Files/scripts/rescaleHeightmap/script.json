@@ -1,0 +1,34 @@
+{
+    "label": "SCRIPT_HEIGHTMAP",
+    "description": "SCRIPT_HEIGHTMAP_DESC",
+    "entry": "main.py",
+    "parameters": [
+        {
+            "name": "mode",
+            "type": "enum",
+            "label": "SCRIPT_HEIGHTMAP_MODE",
+            "enumLabels": ["SCRIPT_HEIGHTMAP_RANGE", "SCRIPT_HEIGHTMAP_SCALE", "SCRIPT_HEIGHTMAP_STEP_01", "SCRIPT_HEIGHTMAP_STEP_1", "SCRIPT_HEIGHTMAP_STEP_10"],
+            "tooltip": "SCRIPT_HEIGHTMAP_MODE_TOOLTIP",
+            "defaultValue": 0
+        },
+        {
+            "name": "maxHeight",
+            "type": "float",
+            "label": "SCRIPT_HEIGHTMAP_MAX",
+            "placeholder": "SCRIPT_HEIGHTMAP_MAX_PH",
+            "tooltip": "SCRIPT_HEIGHTMAP_MAX_TOOLTIP",
+            "defaultValue": 1000.0
+        }
+    ],
+    "ui": {
+        "menuWidth": 2.5,
+        "tabs": [{
+            "label": "",
+            "elements": [
+                { "name": "mode", "width": 2.5 },
+                { "name": "maxHeight", "width": 2.5 },
+                { "name": "label:SCRIPT_HEIGHTMAP_PRECISION", "width": 2.5, "height": 1.6 }
+            ]
+        }]
+    }
+}

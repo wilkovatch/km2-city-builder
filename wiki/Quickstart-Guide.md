@@ -183,6 +183,8 @@ The ground grid is a placement aid only, and is not exported: the actual terrain
 
 ### Editing the ground by hand
 
+To change an existing heightmap's vertical range, use *Scripts > Rescale heightmap*. **Range only** keeps elevations within the new float precision and refuses ranges that would clip terrain. **Rescale heights** multiplies elevations around zero by the ratio of the new maximum to the old one. The range-only shortcuts select **0.1 cm**, **1 cm** or **10 cm** positive height steps (negative heights have finer float spacing). The script is one undo step. See [Python Scripts](Python-Scripts#rescale-heightmap) for precision and range details.
+
 Select *Edit→Toggle terrain edit menu*, choose a *Terrain modifier* (*Raise terrain*, *Lower terrain* or *Level terrain*), set its *Intensity* and *Range*, then click (or click and drag) on the ground. When leveling, *Level to height* levels the ground to the given *Height* instead of the height of the point clicked first. If *Continuous* is unchecked, the modifier is applied once per click instead of continuously while holding the mouse button.
 
 ![The terrain edit menu](images/terrain-edit-panel.png)

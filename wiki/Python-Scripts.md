@@ -15,11 +15,23 @@ The menu lists, in this order and separated by dividers:
 
 | Folder | Scripts |
 |---|---|
-| `Files/scripts` | The scripts of the program (none yet; Scripts > Open the scripts folder opens it). |
+| `Files/scripts` | The scripts of the program (including Rescale heightmap; Scripts > Open the scripts folder opens it). |
 | `Files/cores/<core>/scripts` | The scripts of the core of the city (see [Core Structure](Core-Structure)). |
 | The folders of Settings > Python > Script folders | The user's scripts (the `scriptFolders` setting). |
 
 In each folder, every `.py` file is a script without inputs, and every subfolder containing a `script.json` is a script with inputs (or without, if it declares no parameters). Files and folders whose names start with `_` or `.` are skipped, so helper modules can sit next to the scripts. The working directory of a script is its folder.
+
+## Rescale heightmap
+
+**Scripts > Rescale heightmap** is included in the base program and works with any core. Choose an operation and click **Run**:
+
+- **Range only (custom maximum)** changes the range to `-maximum` through `+maximum` meters, preserving terrain elevations within the new floating-point precision. It refuses a range that would clip existing terrain.
+- **Rescale heights (custom maximum)** multiplies all terrain elevations by `new maximum / old maximum`, around height zero. For example, changing the maximum from 1000 to 500 halves hills and valleys. It keeps the horizontal size and resolution.
+- **Range only: 0.1 cm / 1 cm / 10 cm steps** chooses the maximum automatically. The custom maximum field is ignored for these shortcuts.
+
+The heightmap stores normalized 32-bit floats, with `0.5` at elevation zero. Above zero, neighboring normalized samples are `2^-24` apart, so their nominal spacing in meters is `maximum / 2^23`. The shortcuts set maximum to 8388.608, 83886.08 and 838860.8 meters respectively. This makes round positive elevations reachable at millimeter, centimeter or decimeter increments, subject to normal floating-point approximation. Negative elevations have finer, varying spacing; this is not a fixed-step integer heightmap. Increasing the range can round existing elevations to coarser precision.
+
+The script changes only the heightmap. Placed elements keep their authored coordinates; elements that normally project onto the terrain follow its new surface. Each run is one undo step, including the maximum height, and both the range and samples are saved with the city.
 
 ## A script without inputs
 

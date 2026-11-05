@@ -194,7 +194,10 @@ namespace Api {
                 await Frames(10);
                 var selectionMode = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_MESH_SELECTION");
                 var focus = System.Environment.GetEnvironmentVariable("KM2_SELFTEST_FOCUS");
-                if (focus == "independentPoints") {
+                if (focus == "heightmapScale") {
+                    await NewCity();
+                    await HeightmapRescaling();
+                } else if (focus == "independentPoints") {
                     await NewCity();
                     await IndependentPoints();
                 } else if (focus == "unicode") {
@@ -2111,6 +2114,68 @@ namespace Api {
             internalId = (await Derived(patchId))["internalPoints"][0]["id"].Value<int>();
             Check("save/load keeps fixed patch-point attachments", Point(cornerId).anchor is PointAnchor loadedCorner && loadedCorner.master == Point(internalId));
             Check("save/load keeps patch-edge attachments", Point(edgeId).anchor is LineAnchor loadedEdge && loadedEdge.StartPoint != null && loadedEdge.EndPoint != null);
+        }
+
+        async Task HeightmapRescaling() {
+            var script = ScriptCatalog.List().FirstOrDefault(s => s.id == "program:rescaleHeightmap");
+            Check("the base heightmap script is listed with translated inputs", script != null && script.HasInputs && script.label == "Rescale heightmap");
+            if (script == null) return;
+            var defaults = ScriptCatalog.ToInputs(ScriptCatalog.DefaultValues(script));
+            Check("heightmap script defaults preserve elevations", defaults["mode"].Value<int>() == 0 && defaults["maxHeight"].Value<float>() == 1000);
+            if (DisplayServer.GetName() != "headless") {
+                CallBuilder<object>("StartScript", script);
+                await Frames(3);
+                Screenshot("script_panel_heightmap.png");
+                builder.CloseAllPanels();
+            }
+            await Call("terrain.heights.set", new { x = 256, z = 256, width = 5, depth = 1, encoding = "array", heights = new[] { new[] { -25f, -1.25f, 0f, 1.25f, 25f } } });
+            var beforeBytes = GameEngine.Terrain.GetHeightBytes(builder.helper.terrainObj);
+            var before = Operations.Terrain.GetHeights(builder.helper, 256, 256, 5, 1);
+            var version = GameEngine.Terrain.HeightmapVersion;
+            var gridInfo = await Call("terrain.info");
+            for (int mode = 0; mode < 5; mode++) {
+                var target = mode < 2 ? 500f : new[] { 0.001f, 0.01f, 0.1f }[mode - 2] * 8388608f;
+                var inputs = new JObject { ["mode"] = mode, ["maxHeight"] = 500 };
+                var res = await ScriptRunner.Run(builder, script, inputs, null, false);
+                Check("heightmap script mode " + mode + " succeeds" + (res.success ? "" : ": " + res.error), res.success);
+                var info = await Call("terrain.info");
+                Check("heightmap mode " + mode + " sets the range and keeps the horizontal grid", CityGroundHelper.maxHeight == target
+                    && info["gridSize"].Value<int>() == gridInfo["gridSize"].Value<int>() && info["pixelSize"].Value<float>() == gridInfo["pixelSize"].Value<float>());
+                var step = info["heightStep"].Value<float>();
+                if (mode >= 2) Check("shortcut " + mode + " selects the requested float32 step", System.Math.Abs(step - new[] { 0.001f, 0.01f, 0.1f }[mode - 2]) < 1e-8);
+                var after = Operations.Terrain.GetHeights(builder.helper, 256, 256, 5, 1);
+                var scale = mode == 1 ? 0.5f : 1f;
+                Check("heightmap mode " + mode + " preserves or scales positive, negative and zero heights", Enumerable.Range(0, 5).All(x => System.Math.Abs(after[0, x] - before[0, x] * scale) <= step * 0.51f + 0.00001f));
+                var ground = (await Call("terrain.height", new { x = 16, z = 0 })).Value<float>();
+                Check("heightmap mode " + mode + " updates terrain collision", System.Math.Abs(ground - after[0, 4]) < 0.001f);
+                var afterBytes = GameEngine.Terrain.GetHeightBytes(builder.helper.terrainObj);
+                await Call("history.undo");
+                Check("heightmap mode " + mode + " undoes bytes and range in one step", CityGroundHelper.maxHeight == 1000 && beforeBytes.SequenceEqual(GameEngine.Terrain.GetHeightBytes(builder.helper.terrainObj)));
+                await Call("history.redo");
+                Check("heightmap mode " + mode + " redoes bytes and range", CityGroundHelper.maxHeight == target && afterBytes.SequenceEqual(GameEngine.Terrain.GetHeightBytes(builder.helper.terrainObj)));
+                await Call("history.undo");
+            }
+            Check("rescaling invalidates terrain projections", GameEngine.Terrain.HeightmapVersion > version);
+            foreach (var maximum in new[] { 0f, -1f, float.NaN, float.PositiveInfinity, float.MaxValue, 10f }) {
+                await Expect("invalid or clipping heightmap range " + maximum, "invalid_value", "terrain.rescale", new { maxHeight = maximum });
+                Check("rejected range leaves heights and maximum intact", CityGroundHelper.maxHeight == 1000 && beforeBytes.SequenceEqual(GameEngine.Terrain.GetHeightBytes(builder.helper.terrainObj)));
+            }
+            var failed = await ScriptRunner.Run(builder, script, new JObject { ["mode"] = 0, ["maxHeight"] = 10 }, null, false);
+            Check("a clipping script fails without changing terrain", !failed.success && CityGroundHelper.maxHeight == 1000 && beforeBytes.SequenceEqual(GameEngine.Terrain.GetHeightBytes(builder.helper.terrainObj)));
+
+            //The shortcuts make ordinary positive round heights reachable; neighboring stored samples differ by the chosen step.
+            await Call("terrain.rescale", new { maxHeight = 0.001f * 8388608 });
+            var stepMeters = Operations.Terrain.GetHeightStep(CityGroundHelper.maxHeight);
+            await Call("terrain.heights.set", new { x = 0, z = 0, width = 3, depth = 1, encoding = "array", heights = new[] { new[] { 1f, 1f + stepMeters, 1f + 2 * stepMeters } } });
+            var rounded = Operations.Terrain.GetHeights(builder.helper, 0, 0, 3, 1);
+            Check("round meter values and adjacent millimeter steps are representable", System.Math.Abs(rounded[0, 0] - 1) < 1e-6f
+                && System.Math.Abs(rounded[0, 1] - rounded[0, 0] - stepMeters) < 1e-6f && System.Math.Abs(rounded[0, 2] - rounded[0, 1] - stepMeters) < 1e-6f);
+            var savedMax = CityGroundHelper.maxHeight;
+            var savedBytes = GameEngine.Terrain.GetHeightBytes(builder.helper.terrainObj);
+            await Call("city.save");
+            await Call("city.close");
+            await Call("city.load", new { folder });
+            Check("save/load preserves rescaled range and float32 heightmap exactly", CityGroundHelper.maxHeight == savedMax && savedBytes.SequenceEqual(GameEngine.Terrain.GetHeightBytes(builder.helper.terrainObj)));
         }
 
         async Task Heights() {
