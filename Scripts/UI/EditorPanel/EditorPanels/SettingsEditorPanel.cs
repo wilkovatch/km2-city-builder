@@ -348,16 +348,7 @@ namespace EditorPanels {
         void ShowCoreInfo() {
             if (curCoreI == -1) return;
             var c = curList[curCoreI];
-            var repoInfo = c.repo != null ? (SM.Get("PREF_CORES_INFO_REPO") + c.repo) : "";
-            builder.CreateAlert(
-                c.name,
-                SM.Get("PREF_CORES_INFO_FOLDER") + c.folder + "\n" +
-                SM.Get("PREF_CORES_INFO_VERSION") + c.version + "\n" +
-                repoInfo,
-                SM.Get("OK"),
-                null,
-                280
-            );
+            CoreInfoDialog.Show(builder, c, CM.GetChangelog(c));
         }
 
         protected void InputCoreRepo() {

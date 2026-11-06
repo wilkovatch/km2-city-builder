@@ -67,12 +67,13 @@ The program reads every type folder with `Directory.GetDirectories`/`GetFiles`, 
 
 | Key | Meaning |
 |---|---|
-| `version` | Human-readable version, shown in the core manager (with the git commit). |
+| `version` | Human-readable version, also used in the names of the release tags (see [Distributing and installing a core](#distributing-and-installing-a-core)). The core manager shows the release tag, or this version with the git commit for a core without release tags. |
 | `coreVersion` | Increase it when a change in the core breaks existing cities; provide a migration script for each increase. |
 | `coreFeatureVersion` | Increase it when the core gains features without breaking existing cities. |
 | `programVersion`, `featureVersion` | The program version the core was made for (see below). |
 | `customTextureFormats`, `customMeshFormats` | File extensions (without the dot) read by the core's Python server. Leave both empty (or omit them) if the core only uses the built-in formats; the server is then not started. |
 | `surfaceProjectionTerrainFallbackOnly` | Optional boolean, default `false`. Only for the automatic projection of derived geometry (the projected sections of the custom element splines, `projectSections`) onto mixed surfaces: `true` searches the supported city geometry first and uses the heightmap (layer 3) only if that search misses. A city surface can be any distance below the heightmap. With `false`, the highest supported surface wins, including the heightmap. Heightmap-only queries are unchanged, and a mask excluding the heightmap never falls back to it. Mesh types can opt into surface projection with `meshInstance.projectionSurface` (see [Core Custom Elements](Core-Custom-Elements#mesh-instance-elements)). The points of these elements are placed with the same rule (the clicks and `projectPoints`), so they go where their sections go. It doesn't change the rest of what the user places: the clicks hit the visible surface, and the snaps of placed or moved points and objects use the placement rule (see `snapToSurface` in [Core Props and Objects](Core-Props-and-Objects#placement-rules)). |
+| `developerPaths` | Optional list of paths, relative to the core folder, left out of the installs made by the core manager (files or folders only needed to develop the core, such as its tests and agent notes). Default `["tests"]`. Paths with `..` or `.git` are ignored. |
 | `viewToggles` | Optional visibility switches added at the end of the View menu (after a separator): a list of `{"name", "label", "default", "submenu"}` (`label` is a string key, `default` whether it starts on, true if omitted, `submenu` an optional string key: the toggles with the same one are listed in a View submenu with that name instead of directly). Each city saves their values in its `preferences.json` (`viewToggle.<name>`). The lines of the custom elements with that `toggle` are hidden while it's off (see [Core Custom Elements](Core-Custom-Elements)). |
 
 ### Versions
@@ -128,10 +129,17 @@ The Python side of the core. See [Core Python Integration](Core-Python-Integrati
 ## Distributing and installing a core
 
 * **Manually**: copy or clone the core into `Files/cores/<CoreName>/` (clone with `--recurse-submodules` if it uses submodules).
-* **From the core manager** (Settings → Cores): the cores listed in `coreRepos.json` (`core` = folder name, `name`, `repository` = git URL) can be installed, updated and uninstalled from the program. Updates are fetched and merged from the tracked branch; a core with local changes is not updated.
+* **From the core manager** (Settings → Cores): the cores listed in `coreRepos.json` (`core` = folder name, `name`, `repository` = git URL), or any git URL given to *Add from repository*, can be installed, updated and uninstalled from the program.
+
+The core manager works with any git host, it only uses git itself:
+
+* **Releases** are tags on the default branch named `v<version>-<short commit hash>` (the same scheme as the program's releases, `version` from `settings.json`), for example `v0.3.1-f73f730`. Installs and updates go to the latest release tag of the branch (in commit order, so several releases with the same `version` are fine), never to the commits between two releases, whose migrations may not be complete yet. A commit ahead of the latest release (a developer's clone) is not moved back. A core without release tags is installed and updated to the tip of its branch instead.
+* **The changelog** under *Show info* lists the releases, newest first, marking the installed one and the ones fetched by *Check updates* but not installed yet. The changes of a release are the message of its tag if it is an annotated tag, or else the subjects of its commits since the previous release. The tags can be made by hand or by a workflow, such as the MM2 core's `.github/workflows/release.yml`, which tags each push to `main` with the changelog as the message.
+* **Installs are sparse**: the `developerPaths` of the installed commit's `settings.json` are not checked out. libgit2 has no sparse checkout, so the program writes git's own settings (`core.sparseCheckout` in `.git/config.worktree`, the patterns in `.git/info/sparse-checkout`) and removes these paths after each checkout. Its local changes check ignores them. The git command line agrees with these settings after `git sparse-checkout reapply`, and `git sparse-checkout disable` turns the install into a full checkout, which the program then keeps. Cores cloned by hand are full checkouts and are never made sparse.
+* A core with local changes or local commits is not updated.
 
 The program only reads the core from `Files/cores`, so during development it is convenient to work directly in that folder, inside a git clone.
 
 ## Developer tests
 
-The optional `tests/` folder contains `SelfTests.csproj`, a `.gdignore` and the core's C# scenarios and fixtures. Normal builder compilation explicitly excludes all core C# sources. The test command builds the selected project under `.godot/selftests/<core>`; generated binaries and intermediate files stay out of the core repository. See [Core Testing](Core-Testing).
+The optional `tests/` folder contains `SelfTests.csproj`, a `.gdignore` and the core's C# scenarios and fixtures. Installs from the core manager leave it out (see `developerPaths`). Normal builder compilation explicitly excludes all core C# sources. The test command builds the selected project under `.godot/selftests/<core>`; generated binaries and intermediate files stay out of the core repository. See [Core Testing](Core-Testing).

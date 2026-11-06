@@ -4,7 +4,7 @@ API and undo tests are developer tools. Each core owns the scenarios, fixture se
 
 ## Running tests
 
-Build the builder and run Godot from its source checkout:
+Build the builder and run Godot from its source checkout. The core must be a full checkout (a plain `git clone`): installs from the core manager leave out `tests/` (see `developerPaths` in [Core Structure](Core-Structure#settingsjson)).
 
 ```text
 <godot console executable> --path . -- selftest api <new scratch folder> --core <core> --focus <focus>

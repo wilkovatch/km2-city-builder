@@ -93,6 +93,8 @@ Report the problems with `ExportReport` (see [Core Python Integration](Core-Pyth
 ## Step 11: publish and maintain
 
 * Push the core to a git repository. Users can install it by cloning it into `Files/cores/<CoreName>/`; to make it installable from the program's core manager, it must be listed in the program's `coreRepos.json`.
+* List the files and folders only needed to develop the core (tests, agent notes) in `developerPaths`, so that the core manager leaves them out.
+* Tag every release as `v<version>-<short commit hash>`, preferably with an annotated tag whose message lists the changes: the core manager installs and updates only to these tags and shows their messages as the changelog (see [Core Structure](Core-Structure#distributing-and-installing-a-core)). The MM2 core's `.github/workflows/release.yml` makes these tags automatically on GitHub; with other hosts, tag by hand or with their own automation.
 * For every release, update `version`, and:
   * for new features that keep existing cities valid: increase `coreFeatureVersion`, and update the templates' `preferences.json`;
   * for breaking changes: increase `coreVersion`, reset `coreFeatureVersion`, write `migrations/<coreVersion>.py`, and update the templates.

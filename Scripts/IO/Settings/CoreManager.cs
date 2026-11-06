@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using SM = StringManager;
 
 public class CoreManager {
@@ -14,6 +15,29 @@ public class CoreManager {
         public bool stock;
         public string version;
     }
+
+    //a release of a core, from its release tags (newest first)
+    public struct ChangelogEntry {
+        public string tag;
+        public bool installed; //the release the core is at (or the last one before its current commit)
+        public bool newer; //fetched but not installed yet
+        public string changes;
+    }
+
+    //the update a core can receive: the latest release tag of its branch, or the branch tip for cores without release tags
+    struct UpdateInfo {
+        public Commit target;
+        public bool available;
+        public bool blocked; //local changes (or local commits) prevent it
+        public bool release;
+    }
+
+    //release tags are named like the program's releases: v<version>-<short commit hash>
+    static readonly Regex releaseTagRegex = new Regex(@"^v\d+(\.\d+)*-[0-9a-f]{7,}$");
+    //paths left out of the installs of cores that don't declare their developerPaths
+    static readonly List<string> defaultDeveloperPaths = new List<string> { "tests" };
+    //limit for the changelog of a lightweight tag without a previous release (the whole history)
+    const int maxChangelogCommits = 100;
 
     static GenericSettingsManager instance = null;
     static string instancePath;
@@ -148,20 +172,34 @@ public class CoreManager {
         var repoPath = Path.Combine(PathHelper.FilesPath(true), "cores", core.folder);
 
         System.Action action = delegate {
-            var options = new CloneOptions();
-            options.RecurseSubmodules = true;
-            Repository.Clone(core.repo, repoPath, options);
+            CloneRelease(core.repo, repoPath, null);
         };
 
         System.Action<string, string> actionAuth = (username, token) => {
-            var options = new CloneOptions();
-            var cred = new UsernamePasswordCredentials { Username = username, Password = token };
-            options.FetchOptions.CredentialsProvider = (_url, _user, _cred) => cred;
-            options.RecurseSubmodules = true;
-            Repository.Clone(core.repo, repoPath, options);
+            CloneRelease(core.repo, repoPath, new UsernamePasswordCredentials { Username = username, Password = token });
         };
 
         DoAuthGitOperation(core, action, actionAuth, post, menuBar);
+    }
+
+    static FetchOptions MakeFetchOptions(Credentials cred) {
+        var options = new FetchOptions { TagFetchMode = TagFetchMode.All };
+        if (cred != null) options.CredentialsProvider = (_url, _user, _cred) => cred;
+        return options;
+    }
+
+    //clones without checking out, then checks out the latest release (or the branch tip without release tags),
+    //leaving out the developer paths declared by that commit's settings
+    static void CloneRelease(string url, string repoPath, Credentials cred) {
+        var options = new CloneOptions(MakeFetchOptions(cred)) { Checkout = false, RecurseSubmodules = false };
+        Repository.Clone(url, repoPath, options);
+        using (var repo = new Repository(repoPath)) {
+            var tip = ReleaseBranchTip(repo);
+            var releases = ReleaseTags(repo, tip);
+            var target = releases.Count > 0 ? releases[0].commit : tip;
+            WriteSparseConfig(repo, ReadDeveloperPaths(target));
+            CheckoutRelease(repo, target, cred);
+        }
     }
 
     static void DoAuthGitOperation(CoreInfo core, System.Action action, System.Action<string, string> actionAuth, System.Action<CoreInfo, bool> post, CityBuilderMenuBar menuBar) {
@@ -199,8 +237,9 @@ public class CoreManager {
 
     static string GetGitRepo(string path) {
         try {
-            var repo = new Repository(path);
-            return repo.Network.Remotes["origin"].Url;
+            using (var repo = new Repository(path)) {
+                return repo.Network.Remotes["origin"].Url;
+            }
         } catch (System.Exception) {
             return null;
         }
@@ -209,15 +248,233 @@ public class CoreManager {
     static string GetCoreRevision(GenericSettingsManager settings, string path) {
         var version = settings.Get("version", "");
         try {
-            var repo = new Repository(path);
-            var commit = repo.Head.Tip.Id.Sha.Substring(0, 8);
-            if (version == "") {
-                return "rev " + commit;
-            } else {
-                return version + " (rev " + commit + ")";
+            using (var repo = new Repository(path)) {
+                var head = repo.Head.Tip;
+                var commit = head.Sha.Substring(0, 8);
+                //the release tag of the current commit, or of the last release before it (e.g. in a developer's clone)
+                var releases = ReleaseTags(repo, head);
+                if (releases.Count > 0) {
+                    var release = releases[0];
+                    if (release.commit.Id == head.Id) return release.tag.FriendlyName;
+                    var ahead = repo.Commits.QueryBy(new CommitFilter { IncludeReachableFrom = head, ExcludeReachableFrom = release.commit }).Count();
+                    return release.tag.FriendlyName + " +" + ahead + " (rev " + commit + ")";
+                }
+                if (version == "") {
+                    return "rev " + commit;
+                } else {
+                    return version + " (rev " + commit + ")";
+                }
             }
         } catch (System.Exception) {
             return version == "" ? "unavailable" : version;
+        }
+    }
+
+    //the branch releases are taken from: the tracked branch, or the remote's default branch
+    static Commit ReleaseBranchTip(Repository repo) {
+        var tracked = repo.Head.TrackedBranch;
+        if (tracked != null && tracked.Tip != null) return tracked.Tip;
+        var originHead = repo.Refs["refs/remotes/origin/HEAD"];
+        if (originHead?.ResolveToDirectReference()?.Target is Commit commit) return commit;
+        return repo.Head.Tip;
+    }
+
+    //the release tags reachable from the given commit, newest first (in topological order, so several
+    //releases with the same version are ordered too, and tags outside the branch are ignored)
+    static List<(Tag tag, Commit commit)> ReleaseTags(Repository repo, Commit tip) {
+        var res = new List<(Tag tag, Commit commit)>();
+        if (tip == null) return res;
+        var byCommit = new Dictionary<ObjectId, List<Tag>>();
+        foreach (var tag in repo.Tags) {
+            if (!releaseTagRegex.IsMatch(tag.FriendlyName)) continue;
+            if (tag.PeeledTarget is not Commit commit) continue;
+            if (!byCommit.TryGetValue(commit.Id, out var list)) byCommit[commit.Id] = list = new List<Tag>();
+            list.Add(tag);
+        }
+        if (byCommit.Count == 0) return res;
+        var filter = new CommitFilter { IncludeReachableFrom = tip, SortBy = CommitSortStrategies.Topological | CommitSortStrategies.Time };
+        foreach (var commit in repo.Commits.QueryBy(filter)) {
+            if (!byCommit.TryGetValue(commit.Id, out var tags)) continue;
+            foreach (var tag in tags.OrderByDescending(x => x.FriendlyName, System.StringComparer.Ordinal)) res.Add((tag, commit));
+            byCommit.Remove(commit.Id);
+            if (byCommit.Count == 0) break;
+        }
+        return res;
+    }
+
+    static bool IsAncestor(Repository repo, Commit ancestor, Commit commit) {
+        if (ancestor.Id == commit.Id) return true;
+        var mergeBase = repo.ObjectDatabase.FindMergeBase(ancestor, commit);
+        return mergeBase != null && mergeBase.Id == ancestor.Id;
+    }
+
+    //the changes of a release: the message of its annotated tag, or the commit subjects since the previous release
+    static string ReleaseChanges(Repository repo, Tag tag, Commit commit, Commit previous) {
+        if (tag.IsAnnotated && !string.IsNullOrWhiteSpace(tag.Annotation.Message)) return tag.Annotation.Message.Trim();
+        var filter = new CommitFilter { IncludeReachableFrom = commit, SortBy = CommitSortStrategies.Topological | CommitSortStrategies.Time };
+        if (previous != null) filter.ExcludeReachableFrom = previous;
+        var lines = new List<string>();
+        foreach (var c in repo.Commits.QueryBy(filter)) {
+            if (c.Parents.Count() > 1) continue;
+            if (lines.Count == maxChangelogCommits) {
+                lines.Add("- ...");
+                break;
+            }
+            lines.Add("- " + c.MessageShort + " (" + c.Sha.Substring(0, 7) + ")");
+        }
+        return string.Join("\n", lines);
+    }
+
+    //the releases of an installed core, including the ones fetched by the last update check but not installed yet
+    public static List<ChangelogEntry> GetChangelog(CoreInfo core) {
+        var res = new List<ChangelogEntry>();
+        try {
+            using (var repo = new Repository(GetCorePath(core))) {
+                var head = repo.Head.Tip;
+                var releases = ReleaseTags(repo, ReleaseBranchTip(repo));
+                var installed = head != null ? ReleaseTags(repo, head).Select(x => x.commit).FirstOrDefault() : null;
+                for (int i = 0; i < releases.Count; i++) {
+                    var (tag, commit) = releases[i];
+                    Commit previous = null;
+                    for (int j = i + 1; j < releases.Count && previous == null; j++) {
+                        if (releases[j].commit.Id != commit.Id) previous = releases[j].commit;
+                    }
+                    res.Add(new ChangelogEntry {
+                        tag = tag.FriendlyName,
+                        installed = installed != null && installed.Id == commit.Id,
+                        newer = head != null && !IsAncestor(repo, commit, head),
+                        changes = ReleaseChanges(repo, tag, commit, previous)
+                    });
+                }
+            }
+        } catch (System.Exception) {
+            //not a git repository
+        }
+        return res;
+    }
+
+    //the developer paths (left out of the installs) declared by the settings of the given commit
+    static List<string> ReadDeveloperPaths(Commit commit) {
+        try {
+            if (commit?["settings.json"]?.Target is Blob blob) {
+                var json = Newtonsoft.Json.Linq.JObject.Parse(blob.GetContentText());
+                var paths = json["developerPaths"];
+                if (paths != null) return paths.ToObject<List<string>>().Select(NormalizeRelativePath).Where(x => x != null).ToList();
+            }
+        } catch (System.Exception ex) {
+            GameEngine.Print("Invalid developerPaths in the core settings: " + ex.Message);
+        }
+        return new List<string>(defaultDeveloperPaths);
+    }
+
+    //a path relative to the repository root with '/' separators, or null if it could leave the repository
+    static string NormalizeRelativePath(string path) {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var parts = path.Replace('\\', '/').Trim('/').Split('/');
+        foreach (var part in parts) {
+            if (part == "" || part == "." || part == ".." || part.Equals(".git", System.StringComparison.OrdinalIgnoreCase) || part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
+        }
+        return string.Join("/", parts);
+    }
+
+    //sparse installs are emulated (libgit2 has no sparse checkout) but use git's own settings,
+    //so the git command line agrees with them and `git sparse-checkout disable` gives a full checkout back
+    static string SparseFile(Repository repo) {
+        return Path.Combine(repo.Info.Path, "info", "sparse-checkout");
+    }
+
+    //`git sparse-checkout` keeps its settings in config.worktree (with extensions.worktreeConfig), which libgit2 doesn't read
+    static string WorktreeConfigFile(Repository repo) {
+        return Path.Combine(repo.Info.Path, "config.worktree");
+    }
+
+    static bool IsSparse(Repository repo) {
+        var worktreeConfig = WorktreeConfigFile(repo);
+        if (repo.Config.GetValueOrDefault("extensions.worktreeConfig", false) && File.Exists(worktreeConfig)) {
+            using (var config = Configuration.BuildFrom(worktreeConfig)) {
+                var entry = config.Get<bool>("core.sparseCheckout", ConfigurationLevel.Local);
+                if (entry != null) return entry.Value;
+            }
+        }
+        return repo.Config.GetValueOrDefault("core.sparseCheckout", false);
+    }
+
+    //written where `git sparse-checkout init` writes them, so that `git sparse-checkout disable` removes them
+    static void WriteSparseConfig(Repository repo, List<string> paths) {
+        repo.Config.Set("core.repositoryformatversion", 1);
+        repo.Config.Set("extensions.worktreeConfig", true);
+        var worktreeConfig = WorktreeConfigFile(repo);
+        if (!File.Exists(worktreeConfig)) File.WriteAllText(worktreeConfig, "");
+        using (var config = Configuration.BuildFrom(worktreeConfig)) {
+            config.Set("core.sparseCheckout", true, ConfigurationLevel.Local);
+            config.Set("core.sparseCheckoutCone", false, ConfigurationLevel.Local);
+        }
+        Directory.CreateDirectory(Path.GetDirectoryName(SparseFile(repo)));
+        var lines = new List<string> { "/*" };
+        foreach (var path in paths) lines.Add("!/" + path);
+        File.WriteAllText(SparseFile(repo), string.Join("\n", lines) + "\n");
+    }
+
+    //the paths left out of a sparse install (none for a full checkout)
+    static List<string> GetSparseExclusions(Repository repo) {
+        var res = new List<string>();
+        if (!IsSparse(repo) || !File.Exists(SparseFile(repo))) return res;
+        foreach (var line in File.ReadAllLines(SparseFile(repo))) {
+            var trimmed = line.Trim();
+            if (!trimmed.StartsWith("!/")) continue;
+            var path = NormalizeRelativePath(trimmed.Substring(2));
+            if (path != null) res.Add(path);
+        }
+        return res;
+    }
+
+    static bool IsExcluded(string path, List<string> excluded) {
+        path = path.Replace('\\', '/');
+        foreach (var e in excluded) {
+            if (path == e || path.StartsWith(e + "/")) return true;
+        }
+        return false;
+    }
+
+    static void ApplySparse(Repository repo) {
+        var root = Path.GetFullPath(repo.Info.WorkingDirectory);
+        if (!root.EndsWith(Path.DirectorySeparatorChar.ToString())) root += Path.DirectorySeparatorChar;
+        foreach (var path in GetSparseExclusions(repo)) {
+            var full = Path.GetFullPath(Path.Combine(root, path));
+            if (!full.StartsWith(root, System.StringComparison.OrdinalIgnoreCase)) continue;
+            if (Directory.Exists(full)) {
+                ClearReadOnly(full);
+                Directory.Delete(full, true);
+            } else if (File.Exists(full)) {
+                File.SetAttributes(full, FileAttributes.Normal);
+                File.Delete(full);
+            }
+        }
+    }
+
+    //changes to the working tree or the index, ignoring the paths left out of a sparse install
+    static bool HasLocalChanges(Repository repo) {
+        var excluded = GetSparseExclusions(repo);
+        var status = repo.RetrieveStatus(new StatusOptions());
+        return status.Any(x => x.State != FileStatus.Unaltered && x.State != FileStatus.Ignored && !IsExcluded(x.FilePath, excluded));
+    }
+
+    //moves the current branch to the given commit (keeping it attached), then updates the submodules and leaves out the developer paths
+    static void CheckoutRelease(Repository repo, Commit commit, Credentials cred) {
+        repo.Reset(ResetMode.Hard, commit);
+        UpdateSubmodules(repo, cred);
+        ApplySparse(repo);
+    }
+
+    static void UpdateSubmodules(Repository repo, Credentials cred) {
+        var excluded = GetSparseExclusions(repo);
+        foreach (Submodule submodule in repo.Submodules) {
+            if (IsExcluded(submodule.Path, excluded)) continue;
+            var options = new SubmoduleUpdateOptions { Init = true };
+            options.FetchOptions.TagFetchMode = TagFetchMode.All;
+            if (cred != null) options.FetchOptions.CredentialsProvider = (_url, _user, _cred) => cred;
+            repo.Submodules.Update(submodule.Name, options);
+            UpdateSubModule(repo, submodule);
         }
     }
 
@@ -255,24 +512,45 @@ public class CoreManager {
         var repoPath = Path.Combine(PathHelper.FilesPath(true), "cores", core.folder);
 
         System.Action action = delegate {
-            var repo = new Repository(repoPath);
-            var options = new FetchOptions();
-            var remote = repo.Network.Remotes["origin"];
-            var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
-            repo.Network.Fetch(remote.Name, refSpecs, options);
+            Fetch(repoPath, null);
         };
 
         System.Action<string, string> actionAuth = (username, token) => {
-            var repo = new Repository(repoPath);
-            var options = new FetchOptions();
-            var cred = new UsernamePasswordCredentials { Username = username, Password = token };
-            options.CredentialsProvider = (_url, _user, _cred) => cred;
-            var remote = repo.Network.Remotes["origin"];
-            var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
-            repo.Network.Fetch(remote.Name, refSpecs, options);
+            Fetch(repoPath, new UsernamePasswordCredentials { Username = username, Password = token });
         };
 
         DoAuthGitOperation(core, action, actionAuth, (x, y) => { CheckLatestCommit(core, post, y); }, menuBar);
+    }
+
+    //fetches the branches and all the tags (the releases)
+    static void Fetch(string repoPath, Credentials cred) {
+        using (var repo = new Repository(repoPath)) {
+            var remote = repo.Network.Remotes["origin"];
+            var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
+            repo.Network.Fetch(remote.Name, refSpecs, MakeFetchOptions(cred));
+        }
+    }
+
+    static UpdateInfo FindUpdate(Repository repo) {
+        var res = new UpdateInfo();
+        res.blocked = HasLocalChanges(repo);
+        var head = repo.Head.Tip;
+        var releases = ReleaseTags(repo, ReleaseBranchTip(repo));
+        if (releases.Count > 0) {
+            res.release = true;
+            var target = releases[0].commit;
+            //a commit after the latest release (e.g. in a developer's clone) is not downgraded
+            if (head != null && IsAncestor(repo, target, head)) return res;
+            res.target = target;
+            res.available = true;
+            //local commits can't be kept by moving to a release
+            if (head != null && !IsAncestor(repo, head, target)) res.blocked = true;
+        } else {
+            var behindBy = repo.Head.TrackingDetails.BehindBy;
+            res.available = behindBy.HasValue && behindBy.Value > 0;
+            if (res.available) res.target = repo.Head.TrackedBranch.Tip;
+        }
+        return res;
     }
 
     public static bool CheckLatestCommit(CoreInfo core, System.Action<CoreInfo, bool, bool> post, bool fetchOk) {
@@ -282,14 +560,11 @@ public class CoreManager {
         } else {
             var repoPath = Path.Combine(PathHelper.FilesPath(true), "cores", core.folder);
             try {
-                var repo = new Repository(repoPath);
-                var status = repo.RetrieveStatus();
-                var dirty = repo.Diff.Compare<TreeChanges>().Count > 0 || status.Untracked.Count() > 0;
-                var behindBy = repo.Head.TrackingDetails.BehindBy;
-                var newCount = behindBy.HasValue ? behindBy.Value : 0;
-                var updateAvailable = newCount > 0;
-                if (post != null) post.Invoke(core, updateAvailable, dirty);
-                return updateAvailable && !dirty;
+                using (var repo = new Repository(repoPath)) {
+                    var update = FindUpdate(repo);
+                    if (post != null) post.Invoke(core, update.available, update.blocked);
+                    return update.available && !update.blocked;
+                }
             } catch (System.Exception) {
                 if (post != null) post.Invoke(core, false, false);
                 return false;
@@ -298,22 +573,32 @@ public class CoreManager {
     }
 
     public static void UpdateCore(CoreInfo core, System.Action<CoreInfo, bool> post, CityBuilderMenuBar menuBar) {
-        var updateAvailable = CheckLatestCommit(core, null, true);
         var repoPath = Path.Combine(PathHelper.FilesPath(true), "cores", core.folder);
-        if (updateAvailable) {
-            try {
-                var repo = new Repository(repoPath);
-                var signature = new Signature("km2cb", "kmc2b", System.DateTimeOffset.UtcNow);
-                repo.Merge(repo.Head.TrackedBranch.Tip, signature);
-                foreach (Submodule submodule in repo.Submodules) {
-                    UpdateSubModule(repo, submodule);
+        try {
+            using (var repo = new Repository(repoPath)) {
+                var update = FindUpdate(repo);
+                if (!update.available || update.blocked) {
+                    if (post != null) post.Invoke(core, false);
+                    return;
                 }
-                if (post != null) post.Invoke(core, true);
-            } catch (System.Exception ex) {
-                GameEngine.Print(ex.Message);
-                if (post != null) post.Invoke(core, false);
+                var sparse = IsSparse(repo);
+                if (update.release) {
+                    if (sparse) WriteSparseConfig(repo, ReadDeveloperPaths(update.target));
+                    CheckoutRelease(repo, update.target, null);
+                } else {
+                    //without release tags: merge the tracked branch, with the left out paths restored for the merge
+                    var excluded = GetSparseExclusions(repo);
+                    if (excluded.Count > 0) repo.CheckoutPaths("HEAD", excluded, new CheckoutOptions { CheckoutModifiers = CheckoutModifiers.Force });
+                    var signature = new Signature("km2cb", "kmc2b", System.DateTimeOffset.UtcNow);
+                    repo.Merge(update.target, signature);
+                    if (sparse) WriteSparseConfig(repo, ReadDeveloperPaths(repo.Head.Tip));
+                    UpdateSubmodules(repo, null);
+                    ApplySparse(repo);
+                }
             }
-        } else {
+            if (post != null) post.Invoke(core, true);
+        } catch (System.Exception ex) {
+            GameEngine.Print(ex.Message);
             if (post != null) post.Invoke(core, false);
         }
     }
@@ -323,7 +608,7 @@ public class CoreManager {
         using (Repository subRepo = new Repository(subrepoPath)) {
             string commitHash = submodule.IndexCommitId.ToString();
             Commit commit = subRepo.Lookup<Commit>(commitHash);
-            subRepo.Reset(ResetMode.Hard, commit);
+            if (commit != null) subRepo.Reset(ResetMode.Hard, commit);
         }
     }
 }
