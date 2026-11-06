@@ -70,7 +70,7 @@ Remember that the original files of a game must not be committed: this includes 
 
 ## Checking the guides
 
-`selftest undo <new folder> --mode guide` checks all the guides of the installed cores: every chapter has a title and a body, every internal link and image exists, and no Markdown is left unparsed. See the `AGENTS.md` of the program.
+`selftest undo <new folder> --mode guide` checks all the guides of the installed cores: every chapter has a title and a body, every internal link and image exists, and no Markdown is left unparsed. See the [agent testing notes](https://github.com/wilkovatch/km2-city-builder/blob/main/docs/agents/testing.md#self-tests-the-test-suite) of the program.
 
 ## Internals
 
