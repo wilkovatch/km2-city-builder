@@ -114,3 +114,7 @@ See [Core Structure](Core-Structure#versions) and [Core Python Integration](Core
 | New elements cannot be created | The template's `presets.json` has no default preset (with a `type`) for that category. |
 | Opening a new city asks for a migration | The template's `preferences.json` lacks `core`, or has outdated versions. |
 | Labels appear as `SOME_KEY` | The string key is missing from `strings/en-US.json`. |
+
+## Developer tests
+
+A core can own its API and undo scenarios in `tests/SelfTests.csproj`. The builder compiles and loads them only when a developer invokes `selftest`; no test binaries need to be committed or distributed. See [Core Testing](Core-Testing) for the project and provider contract.

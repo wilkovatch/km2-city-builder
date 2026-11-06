@@ -193,6 +193,13 @@ namespace History {
             } catch (System.Exception) {
                 GameEngine.LogWarning("Skipping invalid anchor");
             }
+            //An endpoint can disappear before its follower updates. Keep detached snapshots independent of that frame.
+            if (newElem.linkType == IO.SavedCity.LinkType.None) {
+                newElem.percent = 0;
+                newElem.anchorIndex = -1;
+                newElem.elementId = -1;
+                newElem.elementType = IO.SavedCity.LinkElementType.None;
+            }
             return newElem;
         }
 

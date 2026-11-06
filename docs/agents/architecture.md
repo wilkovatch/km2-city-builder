@@ -15,8 +15,9 @@ For execution and exporter workflows, also read [Development](development.md); f
 | `Scripts/CityElements/Types` | Core JSON type loading (`TypeParser`, `Parsers/TypeInheritance.cs` for `extends`) and runtime types |
 | `Scripts/RuntimeCalculator` | Expression parser/evaluator, Lua scripting |
 | `Scripts/IO` | Save/load, export, import, settings |
-| `Scripts/History` | Undo/redo (`UndoManager`), `UndoSelfTest.cs` |
-| `Scripts/Api`, `Scripts/Operations` | Scripting API (JSON commands, `CommandDispatcher`, `CityApi.*`) and the operations shared by the API and the editor; `ApiSelfTest.cs` |
+| `Scripts/History` | Undo/redo (`UndoManager`); core-owned scenarios use the developer test runner |
+| `Scripts/Api`, `Scripts/Operations` | Scripting API (JSON commands, `CommandDispatcher`, `CityApi.*`) and the operations shared by the API and the editor; core-owned API scenarios use the developer test runner |
+| `Scripts/Testing`, `Tests` | Generic core-test loader and contract; developer-only shared test support and runner regressions |
 | `Scripts/Cli` | Command line (`-- <command>`), see `wiki/Command-Line.md` |
 | `Scripts/Mcp` | MCP server (stdio and in-editor HTTP), see `wiki/MCP-Server.md` |
 | `Scripts/Rendering` | Offscreen `CityRenderer`, view toggles, selection outlines |

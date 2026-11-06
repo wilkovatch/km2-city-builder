@@ -9,6 +9,7 @@ Before running tests or checking rendered output, also read [Testing](testing.md
 - Godot binary: Godot 4.7.1 .NET (`Godot_v4.7.1-stable_mono_win64_console.exe` on Windows; use the `_console` exe for command-line work). The install path is in `CLAUDE.local.md`.
 - Build: `dotnet build "km2 City Builder.csproj"`. The build output is localized in Italian ("Compilazione completata"), so grep for `error CS` instead of "Build succeeded".
 - **New `.cs` files need their `.cs.uid`** (tracked in git). Generate it with `<godot> --headless --path . --import`.
+  Developer test sources under a `.gdignore` are ordinary C# library sources, not Godot scripts; only the engine-visible runner files need script UIDs. Core test projects are built by `selftest`, separately from the builder (see [Testing](testing.md)).
 - Command line: `<godot> [--headless] --path . --quiet -- <command> ...` (see `wiki/Command-Line.md`).
   - Any command after `--` skips the Python check and the LastCity auto-load (`Cli.CommandLine.IsCliSession`).
   - `--path` makes Godot chdir into the project, so relative paths resolve against the project folder. Clean up leftovers.
@@ -17,6 +18,7 @@ Before running tests or checking rendered output, also read [Testing](testing.md
   - `render`, `mcp`, `screenshots` and windowed self-tests **need a window** (no renderer with `--headless`: `view.render` fails with `no_renderer`). Keep `--quiet`. `CliRunner.HideWindow` moves the window off-screen.
   - Git Bash quirk: piping the Godot console exe into a native Windows program (`| python ...`) gives it an empty stdin. Use `| cat`, a file, or `cmd /c "... | python ..."`.
   - PowerShell 5.1 strips inner double quotes of native args: escape as `\"` or use `@file`.
+  - If the Windows console wrapper stays alive after a completed test, use the main Godot `.exe` with redirected output and `--log-file`. Verify its exit code separately from the test log.
 - Headless startup logs a pre-existing `ArgumentException` from `DebugLogPopup.UpdatePosition` (zero-size viewport). It is not a failure.
 - The bundled Python needs the core requirements (e.g. Pillow for the hudmap). CLI sessions skip the Python check, so install them by hand: `python/python.exe -m pip install -r Files/cores/<Core>/pythonInfo/requirements.txt`.
 - Back up `settings.json` before tests that may touch `LastCity` or other settings.

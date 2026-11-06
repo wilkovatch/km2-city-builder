@@ -1,0 +1,9 @@
+<Project>
+  <ItemGroup>
+    <Reference Include="$(BuilderAssemblyDirectory)/*.dll" Private="false" />
+    <Compile Include="$(MSBuildThisFileDirectory)Support/*.cs" />
+  </ItemGroup>
+  <Target Name="CheckBuilderTestReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(BuilderAssemblyDirectory)' == '' Or '$(BuilderTestSupport)' == ''" Text="Run this project through the builder's selftest command." />
+  </Target>
+</Project>

@@ -102,7 +102,9 @@ namespace Cli {
             ["keep-going"] = "run the remaining commands after an error",
             ["json"] = "print JSON instead of text",
             ["inputs"] = "a JSON file with input values of the script (the others keep their default)",
-            ["mode"] = "new (default): a new city in the folder; split: only the roads connected to the middle of other roads, on a new city; props, ui, load: on a copy of an existing city",
+            ["mode"] = "a mode provided by the selected core (default: new)",
+            ["core"] = "the installed core folder name (inferred from an existing city, or the only installed core)",
+            ["focus"] = "a focused API test group provided by the selected core",
             ["flag"] = "an exporter flag, as id=true or id=false (repeatable, see the exporters of the info command)",
             ["out"] = "the output path",
         };
@@ -317,24 +319,14 @@ namespace Cli {
                     run = Script
                 },
                 new Command {
-                    name = "selftest api", usage = "<new folder>", summary = "Self-test of the scripting API (development)",
-                    positionals = new[] { "folder" }, quitsItself = true,
-                    run = ctx => {
-                        Api.ApiSelfTest.Start(ctx.builder, ctx.inv.positionals[0]);
-                        return Task.FromResult(0);
-                    }
+                    name = "selftest api", usage = "<new folder> [--core <core>] [--focus <focus>]", summary = "Self-test of the selected core's scripting API (development)",
+                    positionals = new[] { "folder" }, values = new[] { "core", "focus" },
+                    run = ctx => CoreSelfTests.CoreTestRunner.Run(ctx.builder, "api", ctx.inv.positionals[0], ctx.inv.Get("core"), focus: ctx.inv.Get("focus"))
                 },
                 new Command {
-                    name = "selftest undo", usage = "<folder>", summary = "Self-test of undo and redo (development)",
-                    positionals = new[] { "folder" }, values = new[] { "mode" }, quitsItself = true,
-                    validate = inv => {
-                        var mode = inv.Get("mode", "new");
-                        if (System.Array.IndexOf(History.UndoSelfTest.Modes, mode) < 0) throw new UsageException("--mode is one of: " + string.Join(", ", History.UndoSelfTest.Modes));
-                    },
-                    run = ctx => {
-                        History.UndoSelfTest.Start(ctx.builder, ctx.inv.positionals[0], ctx.inv.Get("mode", "new"));
-                        return Task.FromResult(0);
-                    }
+                    name = "selftest undo", usage = "<folder> [--core <core>] [--mode <mode>]", summary = "Self-test of the selected core's undo and redo (development)",
+                    positionals = new[] { "folder" }, values = new[] { "core", "mode" },
+                    run = ctx => CoreSelfTests.CoreTestRunner.Run(ctx.builder, "undo", ctx.inv.positionals[0], ctx.inv.Get("core"), ctx.inv.Get("mode", "new"))
                 },
                 new Command {
                     name = "screenshots", usage = "<city folder>", summary = "Takes the screenshots of the guide on a copy of a city (development, needs the window)",

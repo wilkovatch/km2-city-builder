@@ -20,6 +20,7 @@
     </ItemGroup>
   </Target>
   <ItemGroup>
+    <Compile Remove="Files/cores/**/*.cs;Tests/**/*.cs" />
     <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
     <PackageReference Include="Delaunator" Version="1.0.11" />
     <PackageReference Include="LibGit2Sharp" Version="0.32.0" />

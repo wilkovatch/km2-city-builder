@@ -36,16 +36,12 @@ AI agents use the API through the [MCP Server](MCP-Server) (`Scripts/Mcp`), over
 ### Self-test
 
 ```
-Godot_v4.7.1-stable_mono_win64_console.exe --path . [--headless] -- selftest api <new folder>
+<godot console executable> --path . [--headless] -- selftest api <new folder> [--core <core>] [--focus <focus>]
 ```
 
-Creates a city in the folder (from the SF template of the Midtown Madness 2 core) and drives it only with JSON commands: every kind of element, anchors, terrain points and heights, parameters, arrays, presets, props, undo and redo of each change, batches, transactions, errors, a script changing an element open in the editor, parity with the elements made with the editor tools, whole city generation, save and load, export JSON, geometry, the core exporter, the validation, the renders (with a window; headless, only the `no_renderer` error), the MCP server (its messages, and over HTTP on a test port) and the custom elements (control points, constraints, containers, the conversions of the core, ghosts, save and load, their editor). It also contains the whole city terrain and building generation written with the commands only (`ScriptTerrain`, `ScriptBuildings`), checked against `city.generateTerrain` and `city.generateBuildings`: they are the reference for scripts generating cities. The same generators written in Python (the `cityTerrain` and `cityBuildings` examples of `wiki/examples/scripts`, see [Python Scripts](Python-Scripts#examples)) are run through `ScriptRunner` and checked in the same way, along with the runner itself (inputs, selection, single undo step, failures, cancelling, settings restored) and the input panel of the scripts. It writes `api_selftest.log` next to the folder and exits with code 1 if anything failed.
+The selected core owns its scenarios and fixtures. The command compiles that core's developer test project and runs it in Godot, using the same JSON dispatcher as scripts. It requires the builder sources and the .NET SDK; normal builds and startup do not compile tests. With several installed cores, pass `--core`; an existing city selects its saved core.
 
-The suite also checks mesh-instance selection with generated fixtures: clicks through gaps, double-sided triangles, multiple surfaces, nested LODs, placement offsets, transformed instances, shared shapes, replacement, undo/redo, fallbacks and save/reload. Set the environment variable `KM2_SELFTEST_MESH_SELECTION=test` to run just these checks in a new test city. Unset it to run the full suite.
-
-Set `KM2_SELFTEST_FOCUS=arrows` for the short direction-arrow checks: lane and spline geometry, typed city-property injection, traffic-side changes, undo/redo, reload, opponent paths, visibility, picking and unchanged export data. Run windowed to also check the rendered arrow surfaces and save `direction_arrows.png` next to the test city.
-
-`KM2_SELFTEST_MESH_SELECTION=benchmark` runs a separate bounded comparison instead: ten available local mesh assets chosen with seed 42, 100 copies each, comparing the old boxes against shared triangle shapes. Mesh loading is warmed before timing. The log reports cold shape construction, warm instance creation, median/p95 ray query times and Godot's static allocator memory delta (not total process memory). Both cases use identical rays across overlapping objects and empty space; lower triangle hit counts can be expected where rays pass through geometric gaps. Camera LOD changes and copies must retain the cached shapes. Back up the program's `settings.json` before either test mode and restore it afterward, as for the full suite.
+The runner writes `api_selftest.log` next to the scratch folder, restores program settings and exits with code 1 on test or build failures (2 for invalid selectors). A window is required for rendered and input checks. See [Core Testing](Core-Testing) for the provider contract and [the MM2 test documentation](https://github.com/wilkovatch/km2cb-mm2-core/blob/main/tests/README.md) for its groups, fixtures and benchmarks.
 
 ## Protocol
 
@@ -70,8 +66,8 @@ The parameters are matched by name (see the method reference below); missing opt
 
 ```json
 {"id": 2, "method": "batch", "params": {"commands": [
-    {"method": "state.setBuiltin", "params": {"ref": 12, "name": "segments", "value": 8}},
-    {"method": "roads.extend", "params": {"road": 12, "point": {"position": [150, 0, 30], "onGround": true}}}
+	{"method": "state.setBuiltin", "params": {"ref": 12, "name": "segments", "value": 8}},
+	{"method": "roads.extend", "params": {"road": 12, "point": {"position": [150, 0, 30], "onGround": true}}}
 ], "atomic": true}}
 ```
 
@@ -184,11 +180,11 @@ A script making thousands of changes (e.g. generating a whole city) runs faster 
 ```python
 api.api.configure(autoFlush=False)
 try:
-    for points in road_paths:
-        api.roads.create(points=points)
+	for points in road_paths:
+		api.roads.create(points=points)
 finally:
-    api.city.flush()
-    api.api.configure(autoFlush=True)
+	api.city.flush()
+	api.api.configure(autoFlush=True)
 ```
 
 An element left with less points than it needs (a road with one point, a terrain patch with two perimeter points, a building line with one point) is deleted, as when its editor is closed: the commands removing points return `{"id", "deleted"}`.

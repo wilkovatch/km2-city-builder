@@ -51,3 +51,4 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 13. [Core Python Integration](Core-Python-Integration): custom mesh/texture formats, exporters, export JSON format, migrations.
 14. [Core Templates and Presets](Core-Templates-and-Presets): city templates, presets, preferences.
 15. [Core Guides](Core-Guides): the guides of a core, shown in the program.
+16. [Core Testing](Core-Testing): developer-only API and undo suites compiled from the selected core on demand.

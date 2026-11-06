@@ -131,3 +131,7 @@ The Python side of the core. See [Core Python Integration](Core-Python-Integrati
 * **From the core manager** (Settings → Cores): the cores listed in `coreRepos.json` (`core` = folder name, `name`, `repository` = git URL) can be installed, updated and uninstalled from the program. Updates are fetched and merged from the tracked branch; a core with local changes is not updated.
 
 The program only reads the core from `Files/cores`, so during development it is convenient to work directly in that folder, inside a git clone.
+
+## Developer tests
+
+The optional `tests/` folder contains `SelfTests.csproj`, a `.gdignore` and the core's C# scenarios and fixtures. Normal builder compilation explicitly excludes all core C# sources. The test command builds the selected project under `.godot/selftests/<core>`; generated binaries and intermediate files stay out of the core repository. See [Core Testing](Core-Testing).

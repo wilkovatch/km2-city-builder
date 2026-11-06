@@ -35,21 +35,15 @@ When a command is given, the last city is not loaded at startup and nothing is a
 | `generate terrain <city>` | Creates terrain patches between the roads (`city.generateTerrain`) |
 | `generate buildings <city> --line-preset <preset> --building-presets <a,b,...>` | Creates building lines around the blocks (`city.generateBuildings`) |
 | `script <.py file or script folder>` | Runs a Python script (see [Python Scripts](Python-Scripts#command-line)) and exits with its exit code |
-| `selftest api <new folder>` | Self-test of the scripting API (development, see [Scripting API](Scripting-API#self-test)) |
-| `selftest undo <folder> [--mode <mode>]` | Self-test of undo and redo (development). Modes: `new` (default), `split`, `drag`, `dropdown`, `placement`, `height` and `rotation` create a city in the folder; `props`, `ui`, `load` and `selection` work on a copy of an existing city. `placement` checks control point selection and insertion on the first roads created after startup, including selection locking in the transform panel (needs a window). `height` checks the placement height (Shift + mouse movement, Shift tap, the projection turned off and on, the placement sessions, the zero height plane and the projection turned off with the terrain hidden) and the snapping toggle (needs a window). `rotation` checks held-click heading changes for meshes, raised placements, checkpoints, opponent start cars and point elements, yaw locks, 15° heading snapping and toggling it during a drag, release behavior and undo/redo (needs a window). `selection` measures selecting and closing mesh and custom element editors, checks that closing hides the handles and records no undo steps, and works on cities without procedural roads. Use a window to include renderer and physics costs in its timings |
+| `selftest api <new folder> [--core <core>] [--focus <focus>]` | Runs the selected core's API tests (development, see [Core Testing](Core-Testing)) |
+| `selftest undo <folder> [--core <core>] [--mode <mode>]` | Runs the selected core's undo tests; modes and existing-city fixtures are defined by the core |
 | `screenshots <city folder>` | Takes the screenshots of the quickstart guide on a copy of a city (development, needs the window) |
 
 `<city>` is the folder of a city (the one containing `city.json.gz`).
 
 `render` and `mcp` render images, and with `--headless` the program has no renderer (`view.render` then fails with `no_renderer`). Run them without `--headless` (keep `--quiet`): the window is made small, borderless and without focus, and moved outside of the screens (`CliRunner.HideWindow`). The images are rendered offscreen, at the size asked, whatever the size of the window.
 
-For short spline/decal integration checks, set `KM2_SELFTEST_FOCUS=splines` before `selftest api <new folder>` (a window also checks rendering). This covers spline placement, curve modes, core components, rail generation, history and save/reload. `KM2_SELFTEST_FOCUS=splineState` runs the checks of the spline values kept out of the presets (defaults, presets, reuse of the last road selected, split and merge, reload). `KM2_SELFTEST_FOCUS=propPlacers` runs the focused spline/polygon prop placement, core callback, projection, history and migration checks in a fresh city. Unset the variable for the full API suite.
-
-`KM2_SELFTEST_FOCUS=customElementPresets` checks creation drafts, grouped type switching, property controls before placement, per-type preset management and session memory, sync/history, shared points and attachments, compatibility defaults, and city reload. A window also captures the draft panel, preset management and a manually placed Bézier decal.
-
-`KM2_SELFTEST_FOCUS=meshPreviews` runs the mesh picker checks in a window: rotating previews, full-turn framing, pooled thumbnails, cache eviction, selection and placement, missing assets and cleanup. It also checks thumbnails in prop lists and core-defined arrays, current-mesh preselection from fields and prop editors, scrolling to the selected row and unchanged city/history state. It samples ten assets with a fixed seed and saves preview images next to the scratch city folder. Unset the variable afterward.
-
-`KM2_SELFTEST_FOCUS=instMesh` checks the options of the INST meshes in their panels (default values, editing and undo). A window also saves the frames of the two panels next to the scratch city folder.
+Self-tests require a source checkout and the .NET SDK. The command builds the core's `tests/SelfTests.csproj` incrementally into ignored local outputs, then loads it into Godot. Existing cities select their saved core; otherwise pass `--core` when more than one is installed. `--focus` overrides the existing `KM2_SELFTEST_*` selectors. The core's own developer documentation lists its modes, focused groups and benchmarks. See [Core Testing](Core-Testing).
 
 ### Parameters as options
 
