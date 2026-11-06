@@ -46,7 +46,7 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 9. [Core Props and Objects](Core-Props-and-Objects): props types and their placement callbacks, mesh instances, parametric objects.
    - [Core Prop Placers](Core-Prop-Placers): spline strips and seeded polygon distributions, projection, props in the panel of the element and custom placement callbacks.
 10. [Core City Properties](Core-City-Properties): city-wide parameters and custom city properties types.
-11. [Core Custom Elements](Core-Custom-Elements): elements mapping to the primitives of the game (the PSDL attributes for MM2), their Lua geometry and constraints, the converters from the procedural elements, ghosts.
+11. [Core Custom Elements](Core-Custom-Elements): element types of the core (e.g. the decals, trains and bridges of MM2), their Lua geometry and constraints, the converters from the procedural elements, ghosts.
 12. [Core Lua Scripts](Core-Lua-Scripts): definitions computed by Lua functions (variables, context, vectors, sandbox).
 13. [Core Python Integration](Core-Python-Integration): custom mesh/texture formats, exporters, export JSON format, migrations.
 14. [Core Templates and Presets](Core-Templates-and-Presets): city templates, presets, preferences.

@@ -42,10 +42,7 @@ The exporter reports the problems with `Files/python/ExportReport.py` (see [Core
 
 ### The Midtown Madness 2 core
 
-- Every `Warning:` of the exporter is a warning of the report, with the element when its name is known (`original_name` of the parts, without the `[shoulder]`-like suffix: `common/report.element_name`).
-- `json_processor` exports each road, intersection, terrain patch, building line and mesh instance on its own (`guarded_element`): one that fails is reported and left out, with what it had added.
-- The PSDL writer writes a block that fails (e.g. a perimeter error) empty, so that the other blocks keep their index, and goes on; each file (PSDL, INST, BAI, PATHSET, decals, PKGs, prop rules, CINFO and AIMAP, hudmap) is written even if one before it failed (`common/report.guarded`).
-- The shared writers (`common`, also used by the Blender plugin) report through `common/report.py`, which prints the messages and raises the errors as before when `ExportReport` isn't available.
+The MM2 exporter reports every element and file on its own, as described in [docs/exporter.md](https://github.com/wilkovatch/km2cb-mm2-core/blob/main/docs/exporter.md#errors) of its repository.
 
 ## Internals
 

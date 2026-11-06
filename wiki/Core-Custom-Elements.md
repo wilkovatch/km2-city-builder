@@ -183,7 +183,7 @@ end
 
 ### Derived points
 
-The `derivedPoints` function computes all the control points of an element from its siblings (e.g. a BAI road from the PSDL attributes of the road it was converted with), and returns `{points = <the whole structure of controlPoints>}` (the arrays can have a different number of elements, within their `min` and `max`, and the uniform ones the same number everywhere), or `nil` to leave the points as they are (e.g. no sibling to compute from). It runs:
+The `derivedPoints` function computes all the control points of an element from its siblings (e.g. a traffic path from the parts of the road it was converted with), and returns `{points = <the whole structure of controlPoints>}` (the arrays can have a different number of elements, within their `min` and `max`, and the uniform ones the same number everywhere), or `nil` to leave the points as they are (e.g. no sibling to compute from). It runs:
 
 - when the flag is turned on;
 - when a point of the element or of a sibling moves, or a sibling gets or loses points, after the constraints (which run again if the derived points changed);

@@ -158,9 +158,9 @@ exporters/<name>/
     "label": "EXPORTER_PSDL",
     "format": "psdl",
     "flags": [
-        { "id": "bin", "label": "EXPORT_BIN", "defaultValue": false, "disables": ["psdl", "inst"] },
         { "id": "psdl", "label": "EXPORT_PSDL", "defaultValue": true, "enables": ["psdl_split"] },
-        { "id": "psdl_split", "label": "EXPORT_PSDL_SPLIT", "tooltip": "EXPORT_PSDL_SPLIT_TOOLTIP", "defaultValue": false }
+        { "id": "psdl_split", "label": "EXPORT_PSDL_SPLIT", "tooltip": "EXPORT_PSDL_SPLIT_TOOLTIP", "defaultValue": false },
+        { "id": "preview", "label": "EXPORT_PREVIEW_ONLY", "defaultValue": false, "disables": ["psdl"] }
     ]
 }
 ```
@@ -175,7 +175,7 @@ exporters/<name>/
 A flag can also have a `format` (a file extension) and a `formatLabel` (string key, the exporter's `label` if missing). The format is listed in the save dialog as another file type of the exporter, after its own format. The flag is set when the chosen file has that extension and unset otherwise: its checkbox shows the value but can't be changed, and `city.export` rejects it in `flags` (pass the format as `exporter` instead). Its `enables` and `disables` apply as usual. MM2 uses it to pack the export in an archive:
 
 ```json
-{ "id": "packAr", "label": "EXPORT_PACK_AR", "format": "ar", "formatLabel": "EXPORTER_AR", "disables": ["bin"], "defaultValue": false }
+{ "id": "packAr", "label": "EXPORT_PACK_AR", "format": "ar", "formatLabel": "EXPORTER_AR", "defaultValue": false }
 ```
 
 When the user exports, the program:
@@ -213,7 +213,7 @@ for road in data['roads']:
 
 `DecodeExportedJson` decodes the Base64 fields and removes their prefixes (`b64v3a_vertices` becomes `vertices`, ...). The structure is described in [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export). Everything is in the program's coordinate system (left-handed, Y up); convert it as the game requires.
 
-The core's own exporter code can be organized freely in the exporter folder (MM2 uses a git submodule for code shared with its Blender plugin).
+The core's own exporter code can be organized freely in the exporter folder (the MM2 exporter is described in [docs/exporter.md](https://github.com/wilkovatch/km2cb-mm2-core/blob/main/docs/exporter.md) of its repository).
 
 ### Warnings and errors
 
