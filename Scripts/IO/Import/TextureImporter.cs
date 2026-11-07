@@ -98,14 +98,24 @@ public static class TextureImporter {
         var result = Find(path);
         if (result != null) return result;
         var folders = new List<string>(PathHelper.GetSearchFolders());
+        var insideRoot = false;
         foreach (var root in folders) {
             var relative = Path.GetRelativePath(Path.GetFullPath(root), path);
             if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar)) continue;
+            insideRoot = true;
             foreach (var searchFolder in folders) {
                 result = Find(Path.Combine(searchFolder, relative));
                 if (result != null) return result;
             }
             break;
+        }
+        //a mesh outside the roots (e.g. made by a generator in its cache folder): the folder of the same name in the roots
+        var folderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)));
+        if (!insideRoot && !string.IsNullOrEmpty(folderName) && !Path.IsPathRooted(filename)) {
+            foreach (var searchFolder in folders) {
+                result = Find(Path.Combine(searchFolder, folderName, filename));
+                if (result != null) return result;
+            }
         }
         if (!Path.IsPathRooted(filename)) {
             foreach (var searchFolder in folders) {

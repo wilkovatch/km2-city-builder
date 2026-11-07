@@ -275,7 +275,7 @@ namespace Api {
             }
         }
 
-        [ApiMethod("elements.get", "An element as stored in the saved city (ids as references); derived: also the data computed from it (curve, anchors, buildings...)")]
+        [ApiMethod("elements.get", "An element as stored in the saved city (ids as references); derived: also the data computed from it (curve, anchors, buildings..., and the values of the generators of the core with whether new ones are pending)")]
         public object GetElement(ElementRef @ref, bool derived = false) {
             var e = Resolve(@ref);
             var kind = History.ElementSnapshot.GetKind(e);
@@ -293,6 +293,9 @@ namespace Api {
             if (derived) {
                 var d = Derived(e);
                 if (d != null) res["derived"] = Json.ToToken(d);
+                //the values of the generators of the core, not saved (see Operations.Generation)
+                var generated = Operations.Generation.Describe(e);
+                if (generated != null) res["generated"] = generated;
             }
             return res;
         }

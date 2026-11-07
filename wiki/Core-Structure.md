@@ -40,6 +40,7 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 ├── migrations/<N>.py            city migration scripts
 ├── lua/                         optional: Lua scripts of the definitions (see Core Lua Scripts)
 ├── converters/<name>/           optional: converters to custom elements (see Core Custom Elements)
+├── generators/<name>/           optional: files made from the elements while they're edited (see Core Generators)
 ├── scripts/                     optional: Python scripts of the Scripts menu (see Python Scripts)
 ├── guides/<language>/<guide>/   optional: guides shown in Help→Guides (see Core Guides)
 └── pythonInfo/
@@ -87,7 +88,7 @@ Each city stores the `coreVersion` and `coreFeatureVersion` it was last saved wi
 * city `coreVersion` lower than the core's: the user is asked to run the migrations (see [Core Python Integration](Core-Python-Integration#migrations));
 * city `coreVersion` higher than the core's: error, the city needs a newer core.
 
-Cores using [type inheritance](Core-Type-Inheritance) need `featureVersion` 2 or higher. Cores with [custom elements](Core-Custom-Elements) or converters need `programVersion` 3 and `featureVersion` 2 or higher.
+Cores using [type inheritance](Core-Type-Inheritance) need `featureVersion` 2 or higher. Cores with [custom elements](Core-Custom-Elements) or converters need `programVersion` 3 and `featureVersion` 2 or higher. Cores with [generators](Core-Generators) need `programVersion` 5 and `featureVersion` 3 or higher.
 
 Cities with no `core` in their preferences predate cores; they are treated as Midtown Madness 2 cities and migrated.
 

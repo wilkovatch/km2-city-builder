@@ -6,7 +6,7 @@ The procedural elements (roads, intersections, terrain patches, building lines) 
 
 A type is one of five kinds, given by its settings: **control point-based** (a tree of control points, `controlPoints`), **mesh-based** (an editable mesh, `mesh`), **spline-based** (`spline`, see [Spline-driven elements](#spline-driven-elements)), **point-based** (a single point, `point`, see [Point elements](#point-elements)) and **mesh instance-based** (a single mesh placed with a transform, `meshInstance`, see [Mesh instance elements](#mesh-instance-elements)).
 
-A procedural element can be turned into custom elements by a **converter**: a Python script of the core that receives the element as it would be exported and returns the custom elements that replace it. The roads and intersections converted stay in the city as hidden **ghosts**, so that the elements connected to them keep their geometry.
+A procedural element can be turned into custom elements by a **converter**: a Python script of the core that receives the element as it would be exported and returns the custom elements that replace it. The roads and intersections converted stay in the city as hidden **ghosts**, so that the elements connected to them keep their geometry. Files that follow an element as it is edited (e.g. a model fitted to the roads it joins) are made by a [generator](Core-Generators) instead.
 
 ```
 <CoreName>/
@@ -144,6 +144,7 @@ The functions are called as the [script definitions](Core-Lua-Scripts), with `v`
 | `vertices`, `triangles`, `uvs` | The mesh: a list of `vec3`, a flat list of indices (from 0) of the vertices, three per triangle, and the editable texture coordinates (`vec2`). |
 | `parameters` | A detached snapshot of the element's parameter state, including strings, nested states and arrays, plus runtime `_GLOBAL_` injections. Useful for geometry based on names or other nonnumeric parameters. Changing this table does not change the city. Use `points` and the vector variables in `v` for geometry coordinates. |
 | `meshSizes` | The sizes (`vec3`) of the meshes chosen by the parameters of type `mesh`, by parameter name; missing when the parameter is empty or the mesh has no bounds. A mesh file that isn't there gives the size of the fallback model. |
+| `generated` | The values of the [generators](Core-Generators) of the core enabled for the element (e.g. the path of a model made for it), with `error` when one failed; empty until they have run. The element is rebuilt when they change. |
 | `references` | The custom elements referenced by the parameters, by parameter name: `typeName`, `name`, `points`, `vertices`, `triangles`. The element is rebuilt when their points move. |
 | `moved` | Constraints only: what moved since they last ran, `points` (a table with the structure of `controlPoints`, `true` for the points that moved) and `vertices` (`[index] = true`). |
 | `siblings` | Derived points only: the other custom elements converted from the same procedural element (the same `source`), in the order of their ids: `typeName`, `name`, `points`, `vertices`, `triangles`. |

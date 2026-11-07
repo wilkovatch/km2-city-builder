@@ -63,6 +63,8 @@ public static class PathHelper {
     }
 
     public static string FindInFolders(string name) {
+        //an absolute path (e.g. a file of a generator, in its cache folder) is not in the folders
+        if (Path.IsPathRooted(name)) return ResolveFile(name);
         var localName = ResolveFile(LocalFilesPath() + name);
         if (File.Exists(localName)) {
             return localName;

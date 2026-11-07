@@ -189,6 +189,7 @@ namespace IO.ExportedCity {
         public ObjectState cityProperties;
         public TypeAncestry[] typeAncestry;
         public string cityFolder; //the folder of the city project (with its own geometry and texture folders)
+        public string[] searchFolders; //where the files of the city are looked for: the city folder, then the extra folders
         public ExportReportInfo report; //null when the JSON isn't written for an exporter
     }
 }

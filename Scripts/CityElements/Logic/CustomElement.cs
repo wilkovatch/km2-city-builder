@@ -856,6 +856,11 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         return !deleted && (source != updatedSource || container != updatedContainer || DidChange(GetUpdatePoints()));
     }
 
+    //the values of a generator changed: the geometry script sees them at the next update
+    internal void InvalidateGenerated() {
+        structureVersion++;
+    }
+
     internal void InvalidateSplineSurface() {
         if (!ProjectsSurface) return;
         propProjectionInvalid = true;
@@ -1014,6 +1019,8 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
             }
         }
         ctx["meshSizes"] = meshSizes;
+        //the values of the generators of the core (see Operations.Generation), read here for the same reason
+        ctx["generated"] = CoreElementTool.JsonValue(Operations.Generation.Values(this) ?? new Newtonsoft.Json.Linq.JObject());
         ctx["points"] = CustomElementScripting.PointsTable(points, leaf => RC.Scripting.LuaVectors.ToLua(leaf.point.GetPoint()));
         ctx["rotations"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.rotatable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetRotation()) : LuaValue.Nil);
         ctx["scales"] = CustomElementScripting.PointsTable(points, leaf => leaf.def.scalable ? RC.Scripting.LuaVectors.ToLua(leaf.point.GetScale()) : LuaValue.Nil);

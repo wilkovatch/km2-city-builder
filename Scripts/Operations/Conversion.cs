@@ -72,13 +72,13 @@ namespace Operations {
         }
 
         //the input of the converter: the export JSON of the elements (ids: the ids of the scripting API) and "convert", the
-        //references of the elements to convert
-        public static JObject BuildInput(ElementManager manager, ConverterCatalog.ConverterInfo converter, List<object> elements) {
+        //references of the elements to convert (the generators get them as "generate", see Generation)
+        public static JObject BuildInput(ElementManager manager, CoreElementTool converter, List<object> elements, string targetsKey = "convert") {
             var res = new JObject();
-            res["converter"] = converter.name;
+            res[targetsKey == "convert" ? "converter" : "generator"] = converter.name;
             var convert = new JArray();
             foreach (var e in elements) convert.Add(new JObject { ["kind"] = ElementKind(e), ["id"] = Id(e) });
-            res["convert"] = convert;
+            res[targetsKey] = convert;
             var roads = new JArray();
             var intersections = new JArray();
             var patches = new JArray();

@@ -474,6 +474,7 @@ public partial class ElementManager : Scriptable {
 
     public override void _Process(double delta) {
         LateUpdate();
+        Operations.Generation.Tick(this, delta);
     }
 
     public override void _PhysicsProcess(double delta) {
@@ -943,6 +944,7 @@ public partial class ElementManager : Scriptable {
 
         MaterialManager.GetInstance().UnloadAll();
         MeshManager.GetInstance().UnloadAll();
+        Operations.Generation.Reset(); //after the unloading: the cached files are no longer in use
         PythonManager.StopServer();
         History.UndoManager.Clear();
         History.ElementRegistry.Reset();

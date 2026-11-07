@@ -6,5 +6,5 @@
     //Increase the featureVersion if there are new features and no breaking changes
     //If the programVersion gets increased, reset featureVersion to 1
     //If missing in the settings of a core, it's considered as 0
-    public static int featureVersion = 2;
+    public static int featureVersion = 3;
 }

@@ -320,7 +320,7 @@ Custom element types opt in with `settings.json` `presets: true`. Their category
 |---|---|---|---|
 | `elements.convert` | `elements: ref[]`<br>`converter: string` | object | Converts elements to custom elements with a converter of the core (converters.list): the converter replaces them (roads and intersections become ghosts: hidden, not exported, kept for the elements connected to them; the other elements are deleted; some converters change existing elements instead). Returns the ids of the custom elements created, then of the elements changed |
 | `elements.geometry` | `ref: ref` | object | The generated geometry of a road, intersection, terrain patch, building line (with its buildings), mesh instance or parametric object, as in the export JSON (base64 arrays), with the materials and meshes it references |
-| `elements.get` | `ref: ref`<br>`derived: bool = false` | object | An element as stored in the saved city (ids as references); derived: also the data computed from it (curve, anchors, buildings...) |
+| `elements.get` | `ref: ref`<br>`derived: bool = false` | object | An element as stored in the saved city (ids as references); derived: also the data computed from it (curve, anchors, buildings..., and the values of the generators of the core with whether new ones are pending) |
 | `elements.list` | `kind: string = null`<br>`name: string = null`<br>`type: string = null` | list | The elements of the city (optionally of a kind, with a name or of a type): id, kind, name, type |
 | `elements.rename` | `ref: ref`<br>`name: string` | object | Renames an element |
 | `elements.runtimeValue` | `ref: ref`<br>`variable: string`<br>`valueType: string = 'float'` | object | The value of a definition of the type of a road (as computed for its last update) |

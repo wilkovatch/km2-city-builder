@@ -88,6 +88,7 @@ Top-level structure (`ExportedCity`):
 | `cityProperties` | State of the city properties. |
 | `typeAncestry` | For every type of the core: `category` (its folder in `elements`), `name` and `ancestry` (the type, then the types it extends, nearest first; see [Core Type Inheritance](Core-Type-Inheritance#exporters)). |
 | `cityFolder` | The folder of the city project, with its own `geometry` and `texture` folders (MM2 packs them in the `.ar` archive). |
+| `searchFolders` | The folders the relative asset paths are looked for in, as the editor does: the city folder, then the extra folders (e.g. the common folder of the core). For the files an exporter makes from the textures of the city, e.g. the ones of the [generators](Core-Generators). |
 
 `BaseData` (the `data` field of most elements):
 

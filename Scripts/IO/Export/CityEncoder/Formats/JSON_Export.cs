@@ -177,6 +177,7 @@ namespace CityEncoder {
                 savedCity.typeAncestry = ancestries.ToArray();
 
                 savedCity.cityFolder = PreferencesManager.workingDirectory;
+                savedCity.searchFolders = System.Linq.Enumerable.ToArray(PathHelper.GetSearchFolders());
                 savedCity.report = report;
 
                 geometry.Dispose();
