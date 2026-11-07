@@ -8,6 +8,8 @@ namespace CityElements.Types.Runtime {
     public class RoadType: RoadLikeType<Types.RoadType> {
         public List<string> widths;
         public Vector3Array endAnchorsCalculators;
+        public readonly Lua.LuaFunction postProcessFunction; //the post-process pass of the sections (null if the type has none)
+        public readonly RC.Scripting.LuaScriptHost postProcessHost; //the host of that function
 
         internal static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists(Types.RoadType type) {
             var floatVars = new List<string>() {
@@ -56,7 +58,8 @@ namespace CityElements.Types.Runtime {
             return res;
         }
 
-        public RoadType(Types.RoadType type, string name, bool customElement = false) : base(type, type.parameters, GetComponents(type.components, type.settings.components), GetVarLists(type), name, customElement ? "customElements" : "roads") {
+        //scriptHost: the host of the post-process script (by default the one of the core; the tests use their own)
+        public RoadType(Types.RoadType type, string name, bool customElement = false, RC.Scripting.LuaScriptHost scriptHost = null) : base(type, type.parameters, GetComponents(type.components, type.settings.components), GetVarLists(type), name, customElement ? "customElements" : "roads") {
             SplineCurves.ValidateSettings(type.settings);
             type.settings.sectionVertices ??= new object[0];
             AddBuiltInBools("throughIntersection", "hasStartIntersection", "hasEndIntersection");
@@ -73,6 +76,10 @@ namespace CityElements.Types.Runtime {
             }
             segmentVerticesCalculators = new NumberArray(type.settings.sectionVertices);
             if (type.settings.widths != null) widths = new List<string>(type.settings.widths);
+            if (type.settings.postProcess != null) {
+                postProcessHost = scriptHost ?? RC.Scripting.LuaScriptHost.Get();
+                postProcessFunction = postProcessHost.Resolve(type.settings.postProcess);
+            }
             SetIndices();
         }
 

@@ -79,14 +79,15 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
 
     //the values of the spline of a new road, as set by the core in the settings of its type (the first one if it has none yet)
     public void ResetSplineState() {
-        var settings = GetTypeSettings();
-        if (settings == null) {
-            foreach (var type in CityElements.Types.Parsers.TypeParser.GetRoadTypes().Values) {
-                settings = type.typeData.settings;
+        var types = CityElements.Types.Parsers.TypeParser.GetRoadTypes();
+        var roadType = types.TryGetValue(state.Str("type", ""), out var t) ? t : null;
+        if (roadType == null) {
+            foreach (var type in types.Values) {
+                roadType = type;
                 break;
             }
         }
-        settings ??= new CityElements.Types.RoadSettings();
+        var settings = roadType?.typeData.settings ?? new CityElements.Types.RoadSettings();
         instanceState.SetInt("curveType", settings.defaultCurveType);
         instanceState.SetInt("segments", settings.segments);
         instanceState.SetBool("segmentsPer100m", settings.segmentsPer100m);
@@ -96,7 +97,16 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         instanceState.SetBool("projectAll", settings.projectAll);
         instanceState.SetInt("lpf", settings.lpf);
         instanceState.SetBool("adjustLowPolyWidth", settings.adjustLowPolyWidth);
-        instanceState.SetBool("makeCoplanar", settings.makeCoplanar);
+        //the instance specific parameters of the core start at their default value, if they have one
+        foreach (var parameter in roadType?.parameterContainer.parameters ?? new CityElements.Types.Parameter[0]) {
+            if (!parameter.instanceSpecific || parameter.defaultValue == null) continue;
+            var value = parameter.defaultValue switch {
+                long l => parameter.type == "float" ? (object)(float)l : (int)l,
+                double d => parameter.type == "int" || parameter.type == "enum" ? (object)(int)d : (float)d,
+                _ => parameter.defaultValue
+            };
+            instanceState.SetProperty(parameter.fullName(), value);
+        }
     }
 
     //a new road takes the values of the spline from another road (the last one selected), as far as its type allows
@@ -108,9 +118,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         void Copy(string name) {
             if (source.properties.TryGetValue(name, out var value)) instanceState.SetProperty(name, value);
         }
-        foreach (var name in Operations.Builtins.RoadSplineProperties) {
-            if (name != "makeCoplanar" || type == null || type.InternalParameterVisible(name)) Copy(name);
-        }
+        foreach (var name in Operations.Builtins.RoadSplineProperties) Copy(name);
         foreach (var parameter in type?.parameterContainer.parameters ?? new CityElements.Types.Parameter[0]) {
             if (parameter.reuseInNewRoads) Copy(parameter.fullName());
         }

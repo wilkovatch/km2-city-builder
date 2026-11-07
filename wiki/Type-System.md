@@ -49,8 +49,7 @@ A type can extend another type of its category (see [Core Type Inheritance](Core
 | `CustomCityPropertiesType`, `CustomCityPropertiesExclusiveEditing` | A reusable group of parameters (`customCityPropertiesTypes/*.json`), optionally shown one at a time per category. |
 | `ObjectInstanceSettings`, `ObjectInstanceDefaultModel`, `ObjectInstaceRoadChoice` | Settings of an `objectInstance` parameter: object type, default model, which definitions give its condition, position, rotation and scale, and which transform axes the user may change. |
 | `Definition`, `LateDefinition` | A named, typed expression (`name`, `type`, `value`), and a named group of them. |
-| `InternalParameterSettings` | Shows or hides a built-in parameter of the program (`name`, `enabled`). |
-| `ParameterContainer` | The content of a `parameters.json`: `parameters`, `internalParametersSettings`, `loopVariables`, `staticDefinitions`, `dynamicDefinitions`, `lateDefinitions`. |
+| `ParameterContainer` | The content of a `parameters.json`: `parameters`, `loopVariables`, `staticDefinitions`, `dynamicDefinitions`, `lateDefinitions`. |
 | `ComponentInfo` | A component reference with its `condition`. |
 | `SubObjectWithLocalDefinitions` | Base class of components: `localDefinitions`. |
 | `TabElement`, `Tab`, `Panel` | The content of a `ui.json`. |
@@ -88,8 +87,6 @@ Subclasses fill the variables in this order, through the protected helpers:
 | `FillBaseIterationVariables(vc)` | The dynamic definitions (once per section, segment or loop iteration). |
 | `FillBaseLateVariables(vc, category)` | The late definitions of one category. |
 | `FillBaseSubVariables(vc, c)` | The local definitions of component `c`, if its condition is true. |
-
-`InternalParameterVisible(name)` tells the UI whether a built-in parameter is enabled in `internalParametersSettings`.
 
 ### Subclasses
 

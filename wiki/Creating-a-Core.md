@@ -46,7 +46,7 @@ Create `elements/roads/<type>/` with `settings.json`, `parameters.json`, `ui.jso
 Checklist for road types:
 
 * `settings.json` contains `sectionVertices`, `anchors`, `components`, `textures`, `texturesMapping`, `propsContainers` (can be empty) and `getters` with at least `totalWidth`, `roadWidth`, `height`, `hasSidewalks` and `canBeSimplified`.
-* `parameters.json` can contain `internalParametersSettings`, to hide built-in parameters such as `makeCoplanar`.
+* `settings.json` can name a `postProcess` Lua function, to apply the rules of the game to the sections of the road (see [Core Roads](Core-Roads#post-processing)).
 * `ui.json` contains `mainGroup` (and `intersectionGroup`, `propsGroup` if relevant).
 * The type folder name has no underscores.
 * The anchors run along the outer edges of the road; they are what terrain patches and building lines snap to.

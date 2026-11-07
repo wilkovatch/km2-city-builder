@@ -79,7 +79,6 @@ namespace CityElements.Types.Runtime {
             var pp = parentType.parameters;
             var jp = type.importedParameters;
             //shallow copy arrays (the array elements do not have to be modified so that's enough)
-            if (pp.internalParametersSettings != null) res.internalParametersSettings = (InternalParameterSettings[])pp.internalParametersSettings.Clone();
             if (pp.loopVariables != null) res.loopVariables = (string[])pp.loopVariables.Clone();
 
             //merge parameters

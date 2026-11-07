@@ -206,7 +206,13 @@ public class RoadLikeGenerator<T> {
     }
 
     public (Vector3[], Vector3) GetRawSectionVertices(int i, Vector3? forcedRight = null) {
+        return GetRawSectionVertices(i, out _, forcedRight);
+    }
+
+    //offsets: the values of the section vertices of the type (vertex = point + right * offset)
+    public (Vector3[], Vector3) GetRawSectionVertices(int i, out float[] offsets, Vector3? forcedRight = null) {
         var values = curType.segmentVerticesCalculators.GetValues(variableContainer);
+        offsets = values;
         var res = new Vector3[values.Length];
         var pos = curvePoints[i];
         //a forced right vector gives only the direction, the length (the width multiplier) is the one of the curve

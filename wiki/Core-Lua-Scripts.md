@@ -177,3 +177,7 @@ end
 ## Props
 
 The [props types](Core-Props-and-Objects#the-placement-callback) and the polygon [prop placers](Core-Prop-Placers#custom-polygon-logic) can give their placements with a function of a script. `single(x)` gives `x` in the single precision of the expressions and of the positions (the numbers of the scripts are doubles).
+
+## Post-processing of the sections
+
+A road type, or the spline of a custom element type, can edit its sections with a function of a script once they are computed (`postProcess` in its settings): it gets all the sections (centers, frames, offsets and vertices) and the sources of the element, and returns the sections to change. See [Core Roads](Core-Roads#post-processing). The MM2 core makes the sections of its roads coplanar this way (`lua/coplanar.lua`).

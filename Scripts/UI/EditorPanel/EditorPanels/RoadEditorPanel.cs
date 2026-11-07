@@ -77,9 +77,7 @@ namespace EditorPanels {
                     segmentsField.SetActive(!lowPoly); segmentsPer100mField.SetActive(!lowPoly);
                 };
 
-                var withCoplanar = type.InternalParameterVisible("makeCoplanar");
-                if (withCoplanar) splineFields.Add(p.AddFieldCheckbox(SM.Get("RD_MAKE_COPLANAR"), GetCurRoad, "instanceState.properties.makeCoplanar", null, w / 2, SM.Get("RD_COPLANAR_TOOLTIP")));
-                splineFields.Add(p.AddFieldCheckbox(SM.Get("RD_ADJUST_LOWPOLY_WIDTH"), GetCurRoad, "instanceState.properties.adjustLowPolyWidth", null, w / (1 + (withCoplanar ? 1.0f : 0.0f))));
+                splineFields.Add(p.AddFieldCheckbox(SM.Get("RD_ADJUST_LOWPOLY_WIDTH"), GetCurRoad, "instanceState.properties.adjustLowPolyWidth", null, w));
                 p.IncreaseRow();
 
                 var allowed = allowedCurves = SplineCurves.Allowed(type.typeData.settings);

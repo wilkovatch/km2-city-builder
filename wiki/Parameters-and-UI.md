@@ -15,7 +15,6 @@ Building types use `line_*`, `building_*` and `side_*` prefixes for the three pa
 ```json
 {
     "parameters": [ ... ],
-    "internalParametersSettings": [ { "name": "makeCoplanar", "enabled": true } ],
     "loopVariables": [ "i" ],
     "staticDefinitions": [ ... ],
     "dynamicDefinitions": [ ... ],
@@ -23,7 +22,7 @@ Building types use `line_*`, `building_*` and `side_*` prefixes for the three pa
 }
 ```
 
-Definitions and loop variables are described in [Expression Language](Expression-Language#definitions). `internalParametersSettings` enables or hides built-in parameters of the program; currently only `makeCoplanar` (roads) is configurable. When the key is missing, every built-in parameter is enabled.
+Definitions and loop variables are described in [Expression Language](Expression-Language#definitions).
 
 ### Parameter fields
 
@@ -36,14 +35,14 @@ Definitions and loop variables are described in [Expression Language](Expression
 | `tooltip` | String key of the tooltip (optional). |
 | `container` | Optional group name. The parameter's full name becomes `<container>_<name>`, which is the name to use in expressions and in `ui.json`. All parameters of a container can be saved and loaded as one preset with a `PRESET_<container>` UI element (MM2 uses it for railings: `rail_type`, `rail_height`, ...). Do not use underscores in container names or in the names of parameters inside a container. |
 | `instanceSpecific` | If true, the value belongs to this element only and presets never overwrite it (for example a block number or a per-road traffic rule). Roads, intersections and building lines store it in a separate *instance state*. Custom elements keep it in their single state and exclude it from presets; reference parameters of custom element types are always instance-specific. |
-| `reuseInNewRoads` | For an `instanceSpecific` parameter of a road type: a road created in the editor takes its value from the last road selected, with the values of its spline (see [Core Roads](Core-Roads#built-in-parameters)). The other instance-specific parameters start empty. |
+| `reuseInNewRoads` | For an `instanceSpecific` parameter of a road type: a road created in the editor takes its value from the last road selected, with the values of its spline (see [Core Roads](Core-Roads#built-in-parameters)). The other instance-specific parameters start at their `defaultValue`, or empty. |
 | `enumLabels` | For `enum`: string keys of the options. |
 | `arrayProperties` | For `array`, see below. |
 | `customCityPropertiesType` | For `customCityProperties`: name of a file in `customCityPropertiesTypes/`. |
 | `objectInstanceSettings` | For `objectInstance`, see [Core Props and Objects](Core-Props-and-Objects#parametric-objects). |
 | `range` | For `float` and `int` in a props type: the inclusive `[minimum, maximum]` and optionally the step, checked by the [prop placers](Core-Prop-Placers). |
 | `defaultValueInArray` | Default value of the parameter when it is part of an array element or custom city properties and a new element is added. For `float`, `int` and `enum` write it with a decimal point (`5.0`), otherwise it is rejected with a warning. |
-| `defaultValue` | For a parameter of a [mesh instance type](Core-Custom-Elements#mesh-instance-elements) (and for the inputs of the Python scripts): the value of a new instance. |
+| `defaultValue` | For a parameter of a [mesh instance type](Core-Custom-Elements#mesh-instance-elements) (and for the inputs of the Python scripts): the value of a new instance. For an `instanceSpecific` parameter of a road type: its value in a new road (unless `reuseInNewRoads` takes it from the last road selected), e.g. `makeCoplanar` in the MM2 core. |
 
 ### Parameter types
 
@@ -184,7 +183,7 @@ Built-in groups insert the program's own controls (type and preset selectors, pl
 
 | Element type | Groups |
 |---|---|
-| Road | `mainGroup` (type, preset, point placement, projection, segments, smoothing, coplanarity, curve type), `intersectionGroup` (crosswalk sizes, intersection size increase and textures, road through intersection flags), `propsGroup` (props rule preset and one enable checkbox + edit button per props container) |
+| Road | `mainGroup` (type, preset, point placement, projection, segments, smoothing, low-poly width, curve type), `intersectionGroup` (crosswalk sizes, intersection size increase and textures, road through intersection flags), `propsGroup` (props rule preset and one enable checkbox + edit button per props container) |
 | Intersection | `mainGroup` (type, preset, sidewalk segments, size increase) |
 | Terrain patch | `mainGroup` (type, point placement, smoothing, projection, auto-close, texture) |
 | Building line | `mainGroup` (type, preset, building list), `propertiesGroup` (height, front only, loop, inverted direction, projection, roof texture), `loopGroup` (automatic closing with presets) |

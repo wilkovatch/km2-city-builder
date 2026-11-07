@@ -20,9 +20,10 @@ The spline custom element types use the same component format (see [Core Custom 
 
 1. The road curve is sampled into *sections* (one per segment boundary). For each section the program knows its center point, its direction and its `localRight` vector, rotated by the yaw and roll of the control points if the road has any (see [Rotated sections](#rotated-sections)).
 2. The `sectionVertices` expressions give lateral offsets; section vertex `v<n>` is placed at `center + localRight * offset<n>`. These are the reference points of the cross section (edges of sidewalks, road, divider...).
-3. Each **component** whose condition is true contributes a **cross-section** (a list of vertices, usually built from `v<n>`, heights and offsets) to every section, and faces that join each section to the previous one. Components can also have caps at the start and end of the road.
-4. Faces are assigned to textures through `facesTextures` and `texturesMapping`; each texture becomes one submesh.
-5. Anchors (for terrain patches and building lines), traffic lanes and props lines are computed from expressions at every section.
+3. If the type has a `postProcess` script, it can edit the sections (their centers, frames and section vertices), see [Post-processing](#post-processing).
+4. Each **component** whose condition is true contributes a **cross-section** (a list of vertices, usually built from `v<n>`, heights and offsets) to every section, and faces that join each section to the previous one. Components can also have caps at the start and end of the road.
+5. Faces are assigned to textures through `facesTextures` and `texturesMapping`; each texture becomes one submesh.
+6. Anchors (for terrain patches and building lines), traffic lanes and props lines are computed from expressions at every section.
 
 ### Coordinate conventions
 
@@ -39,7 +40,7 @@ The control points of a road can rotate its sections: a **yaw** around the verti
 * `localUp` rotated by the roll, so the parts built with it (heights, curbs, walls) lean with the road. The sections at an end connected to an intersection, and the roads through intersections, keep `localUp` vertical, as the intersections move their vertices only vertically.
 * `localForward` rotated by the yaw (`cross(localUp, localRight)`).
 
-A core that builds every vertex from `v<n>`, `localRight` and `localUp` needs nothing else. A road type can disable either rotation with `allowYaw` and `allowRoll` (for example, when the target game can't handle banked roads). A rolled road can't be made coplanar section by section, so `makeCoplanar` has no effect on it.
+A core that builds every vertex from `v<n>`, `localRight` and `localUp` needs nothing else. A road type can disable either rotation with `allowYaw` and `allowRoll` (for example, when the target game can't handle banked roads). The [post-processing](#post-processing) script of a type is told whether the road is rolled (`ctx.rolled`), e.g. to leave it as it is (the MM2 core doesn't make the sections of a rolled road coplanar).
 
 ## `settings.json`
 
@@ -80,6 +81,7 @@ A core that builds every vertex from `v<n>`, `localRight` and `localUp` needs no
 | `propsLines` | no | Props lines defined at road level (components can define more). |
 | `trafficTypes` | if lanes are used | List of lane types with a `name` and an RGB `color` (0-255) used to draw them. |
 | `trafficLanes` | no | Traffic lanes defined at road level (components can define more). |
+| `postProcess` | no | `<module>.<function>` of the [Lua scripts](Core-Lua-Scripts) of the core: edits the sections once they are computed, see [Post-processing](#post-processing). |
 | `widths` | no | Names of the float parameters that are widths. With low-poly curves (or *adjust low-poly width*), they are multiplied at each section by `1 / cos(half the turning angle)` so that the road keeps its width at the corners. |
 | `getters` | yes | Standard getters, see below. |
 
@@ -103,11 +105,11 @@ A getter that is missing, or points to a missing definition, logs a warning once
 
 ### Built-in parameters
 
-Besides the core's parameters, every road has these built-in state properties (edited in `mainGroup` and `intersectionGroup`): `type`, `pointPlaneTreshold`, `startCrosswalkSize`, `endCrosswalkSize`, `startIntersectionAdd`, `endIntersectionAdd`, `startIntersectionTexture`, `endIntersectionTexture`, `propRule`. Preset values for them should be provided by the templates.
+Besides the core's parameters, every road has these built-in state properties (edited in `mainGroup` and `intersectionGroup`): `type`, `startCrosswalkSize`, `endCrosswalkSize`, `startIntersectionAdd`, `endIntersectionAdd`, `startIntersectionTexture`, `endIntersectionTexture`, `propRule`. Preset values for them should be provided by the templates.
 
-These are in the instance state, so presets never store or change them: the values of the spline, `segments`, `segmentsPer100m`, `project`, `projectAll`, `lpf` (smoothing), `makeCoplanar`, `adjustLowPolyWidth`, `curveType` (0 Bézier, 1 Hermite, 2 low-poly), `subdivideEqually`, `hermiteTension`; and `startIntersectionStart`, `startIntersectionEnd`, `endIntersectionStart`, `endIntersectionEnd`, `intersectionMove`, `startConnectionHeight`, `endConnectionHeight`, `startConnectionHeightAuto`, `endConnectionHeightAuto`.
+These are in the instance state, so presets never store or change them: the values of the spline, `segments`, `segmentsPer100m`, `project`, `projectAll`, `lpf` (smoothing), `adjustLowPolyWidth`, `curveType` (0 Bézier, 1 Hermite, 2 low-poly), `subdivideEqually`, `hermiteTension`; and `startIntersectionStart`, `startIntersectionEnd`, `endIntersectionStart`, `endIntersectionEnd`, `intersectionMove`, `startConnectionHeight`, `endConnectionHeight`, `startConnectionHeightAuto`, `endConnectionHeightAuto`.
 
-A road created in the editor takes the values of the spline from the last road selected (for the session, a loaded city starts over), keeping the curve type only if its type allows it and `makeCoplanar` only if its type shows it. It also takes the instance-specific parameters of the core marked `reuseInNewRoads` (see [Parameters and UI](Parameters-and-UI)). Otherwise, and always for a road created with the API, they are the initial values in the `settings.json` of its road type:
+A road created in the editor takes the values of the spline from the last road selected (for the session, a loaded city starts over), keeping the curve type only if its type allows it. It also takes the instance-specific parameters of the core marked `reuseInNewRoads` (see [Parameters and UI](Parameters-and-UI)). Otherwise, and always for a road created with the API, they are the initial values in the `settings.json` of its road type, and the instance-specific parameters of the core start at their `defaultValue` (if they have one):
 
 | Setting | Default | Sets |
 |---|---|---|
@@ -117,11 +119,52 @@ A road created in the editor takes the values of the spline from the last road s
 | `project`, `projectAll` | `true`, `false` | The same properties |
 | `lpf` | `0` | The smoothing iterations |
 | `adjustLowPolyWidth` | `false` | The same property |
-| `makeCoplanar` | `false` | The same property. It applies even if the type hides it, so set it only on the types using it |
 
 ### Per-end parameters
 
 When two roads are merged into one (removing the intersection between them), the merged road keeps the parameters of one of them, except those of its end on the old intersection: these come from the far end of the other road. A parameter belongs to an end if the first word of its name that is `start` or `end` (in any case; words are separated by underscores or capital letters) says so, and the same name with that word swapped is the parameter of the other end. For example `endCrosswalkSize`, `startTrafficLight`, `rail_continueLeftOnEndIntersection` and `offL_end` are per-end parameters, `startIntersectionEnd` belongs to the start. Name the parameters of the ends this way so that they follow the merge. Nested states (the prop rule) are never per-end. If the other road is reversed by the merge, its `start` parameters go to the `end` of the merged road and vice versa, but left and right are not swapped.
+
+## Post-processing
+
+`postProcess` in `settings.json` names a function of the [Lua scripts](Core-Lua-Scripts) of the core (`<module>.<function>`) that can edit the sections of the road once they are computed, so that a core can apply its own geometric rules to the whole road (the MM2 core makes the sections coplanar with it, see below). The function is called once per rebuild, after the section vertices of every section and before the `common` late definitions, the meshes of the components, the anchors, the traffic lanes and the props lines, which are all made from its result. It gets the usual two arguments:
+
+* `v`: the variables of the road (parameters, static definitions and built-in variables such as `hasStartIntersection`, `hasEndIntersection`, `throughIntersection`, `totalLength`, `segments`), as for the [script definitions](Core-Lua-Scripts#variables-v).
+* `ctx`: a table with the sections and their sources:
+
+| Field | Content |
+|---|---|
+| `sections` | One table per section, from the start of the road: `point` (the center), `direction`, `right` (the `localRight` of the section, with its width factor: the length of the unit of the offsets), `up`, `z` (the distance from the start), `t` (the curve parameter), `offsets` (the values of `sectionVertices`) and `vertices` (`v0`, `v1`, ... as `vec3`: `vertices[j]` is `point + right * offsets[j]`). |
+| `controls` | `points`: the control points, from the start to the end; `rotations`: their yaw and roll (`vec2`, only if the road has rotations). |
+| `rolled` | Whether some section is rolled. |
+| `startTangent`, `endTangent`, `startIntersectionCenter`, `endIntersectionCenter` | The tangents imposed to the ends and the centers of the intersections, `nil` when there are none. |
+| `road` | The road, as the `ctx` of the [script definitions](Core-Lua-Scripts#context-ctx) (`ctx.road:intersection("end")`, ...). `nil` for the pieces through the intersections. |
+| `state`, `instanceState` | The values of the state and of the instance state of the road (built only if the script reads them). |
+
+The function returns `nil` to leave the road as it is, or `{ sections = { [i] = { ... } } }` with the sections to change (by index, starting from 1), each with any of `point`, `right`, `up` (`vec3`) and `vertices` (one `vec3` per section vertex). The fields not given keep their value; `z`, `t` and `totalLength` are not computed again when a point moves. The result is checked before any of it is applied: an index out of range, an unknown field, a vector that is not finite, a zero `right` or a wrong number of vertices is reported once in the log (as an error of a script definition) and the road keeps all its sections. The same happens if the script fails.
+
+The sections at an end on an intersection should be left as they are, or the intersection won't match the road (the program doesn't prevent it).
+
+The same pass is available to the [spline custom elements](Core-Custom-Elements#spline-driven-elements).
+
+### Example: make coplanar (MM2)
+
+The colliders of the MM2 roads are quads, so the four corners of each section quad must be on one plane. The `psdl` road type has the parameter `makeCoplanar` (instance-specific, on by default with `defaultValue`, reused by new roads) and `"postProcess": "coplanar.postProcess"`. The script (`lua/coplanar.lua` of the core) rotates each section around its center so that its quad with the previous section is flat, where possible:
+
+```lua
+function M.postProcess(v, ctx)
+    if not v.makeCoplanar or ctx.rolled then return nil end
+    local result = {}
+    for i = 2, #ctx.sections do
+        -- ... dir: a direction across the section on the planes of the quads before and after it ...
+        local cur = ctx.sections[i]
+        local right = dir * cur.right:magnitude()
+        local vertices = {}
+        for j = 1, #cur.offsets do vertices[j] = cur.point + right * cur.offsets[j] end
+        result[i] = { right = right, vertices = vertices }
+    end
+    return { sections = result }
+end
+```
 
 ## Built-in variables
 
@@ -259,7 +302,6 @@ Users enable containers and fill them in the road's props tab (`propsGroup`). Ea
         { "name": "width", "label": "WIDTH", "placeholder": "WIDTH_PH", "type": "float" },
         { "name": "texture", "label": "TEXTURE", "placeholder": "TEXTURE_PH", "type": "texture" }
     ],
-    "internalParametersSettings": [],
     "staticDefinitions": [
         { "name": "widthD", "type": "float", "value": "width" },
         { "name": "zeroHeight", "type": "float", "value": "0" },

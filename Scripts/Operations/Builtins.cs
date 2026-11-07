@@ -24,7 +24,7 @@ namespace Operations {
 
         //the instance specific properties of a road a new road takes from the last road selected (not those about its intersections)
         public static readonly string[] RoadSplineProperties = {
-            "projectAll", "project", "segmentsPer100m", "segments", "lpf", "makeCoplanar", "adjustLowPolyWidth", "curveType", "subdivideEqually", "hermiteTension"
+            "projectAll", "project", "segmentsPer100m", "segments", "lpf", "adjustLowPolyWidth", "curveType", "subdivideEqually", "hermiteTension"
         };
 
         static readonly Dictionary<string, Property[]> properties = new Dictionary<string, Property[]> {
@@ -34,7 +34,6 @@ namespace Operations {
                 new Property("segmentsPer100m", "bool", true),
                 new Property("segments", "int", true),
                 new Property("lpf", "int", true),
-                new Property("makeCoplanar", "bool", true), //only if the road type shows it, see GetProperties
                 new Property("adjustLowPolyWidth", "bool", true),
                 new Property("curveType", "enum", true, CurveTypes),
                 new Property("subdivideEqually", "bool", true),
@@ -108,12 +107,11 @@ namespace Operations {
 
         public static IEnumerable<string> Kinds => properties.Keys;
 
-        //the properties of an element kind; road: makeCoplanar only for the types that show it
+        //the properties of an element kind; road: the curve choices allowed by its type
         public static List<Property> GetProperties(string kind, CityElements.Types.Runtime.RoadType roadType = null) {
             var res = new List<Property>();
             if (!properties.TryGetValue(kind, out var list)) return res;
             foreach (var p in list) {
-                if (kind == "road" && p.name == "makeCoplanar" && (roadType == null || !roadType.InternalParameterVisible("makeCoplanar"))) continue;
                 if (kind == "road" && roadType != null && p.name == "curveType") {
                     res.Add(new Property("curveType", "enum", true, SplineCurves.Allowed(roadType.typeData.settings).Select(SplineCurves.Name).ToArray()) { enumIds = SplineCurves.Allowed(roadType.typeData.settings) });
                     continue;

@@ -140,14 +140,8 @@ namespace CityElements.Types {
         public Definition[] definitions;
     }
 
-    public class InternalParameterSettings {
-        public string name;
-        public bool enabled;
-    }
-
     public class ParameterContainer {
         public Parameter[] parameters;
-        public InternalParameterSettings[] internalParametersSettings = new InternalParameterSettings[0];
         public string[] loopVariables;
         public Definition[] staticDefinitions;
         public Definition[] dynamicDefinitions;

@@ -36,7 +36,7 @@ namespace CityElements.Types.Runtime {
                 spline.texturesMapping ??= new Dictionary<string, int[]>();
                 spline.widths ??= new string[0];
                 splineType = new SplineType(new Types.RoadType { settings = spline, parameters = type.parameters,
-                    components = type.splineComponents ?? new RoadComponent[0], ui = type.ui }, name);
+                    components = type.splineComponents ?? new RoadComponent[0], ui = type.ui }, name, scriptHost);
                 canBatchGeometryPreparation = false; //projection and road component evaluation stay on the main thread
             }
             if (settings.geometry != null || settings.constraints != null || settings.derivedPoints != null || settings.propPlacer?.placement != null
@@ -61,7 +61,7 @@ namespace CityElements.Types.Runtime {
         }
 
         sealed class SplineType : RoadType {
-            public SplineType(Types.RoadType type, string name) : base(type, name, true) { }
+            public SplineType(Types.RoadType type, string name, RC.Scripting.LuaScriptHost scriptHost) : base(type, name, true, scriptHost) { }
             //The sampler has already applied its bounded miter to the section frame.
             public override bool NeedsLowPolyFix(ObjectState instanceState, int segments) => false;
         }

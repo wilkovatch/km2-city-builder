@@ -289,12 +289,5 @@ namespace CityElements.Types.Runtime {
                 }
             }
         }
-
-        public bool InternalParameterVisible(string name) {
-            foreach (var p in parameterContainer.internalParametersSettings) {
-                if (p.name == name) return p.enabled;
-            }
-            return true;
-        }
     }
 }

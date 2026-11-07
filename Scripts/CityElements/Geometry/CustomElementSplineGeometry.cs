@@ -200,6 +200,7 @@ public static class CustomElementSplineGeometry {
         }
         if (samples.Count < 2) return result;
         var sections = new List<Section>();
+        var postProcess = type.postProcessFunction != null ? new List<SectionPostProcess.Section>() : null; //with their offsets
         float distance = 0;
         for (int i = 0; i < samples.Count; i++) {
             var prev = i > 0 ? samples[i] - samples[i - 1] : closed ? samples[0] - samples[^2] : samples[1] - samples[0];
@@ -217,6 +218,24 @@ public static class CustomElementSplineGeometry {
             var vertices = offsets.Select(x => samples[i] + right * x).ToArray();
             sections.Add(new Section { center = Pack(samples[i]), right = Pack(right), up = Pack(Vector3.Up),
                 vertices = vertices.Select(Pack).ToArray(), distance = distance, parameter = evaluated?.parameters[i] ?? i / (float)Math.Max(1, samples.Count-1) });
+            postProcess?.Add(new SectionPostProcess.Section { point = samples[i], direction = dir, right = right, up = Vector3.Up,
+                z = distance, t = sections[^1].parameter, offsets = offsets, vertices = vertices });
+        }
+        if (postProcess != null) {
+            //the post-process pass of the type (see SectionPostProcess), before the pieces are made from the sections
+            var ctx = new Lua.LuaTable();
+            var controlsTable = new Lua.LuaTable();
+            controlsTable["points"] = SectionPostProcess.VectorList(controls);
+            ctx["controls"] = controlsTable;
+            ctx["closed"] = closed;
+            SectionPostProcess.AddStates(ctx, state, null);
+            var changed = SectionPostProcess.Apply(type.postProcessHost, type.postProcessFunction, element.TypeName + ".postProcess",
+                gen.variableContainer, postProcess, ctx);
+            foreach (var i in changed) {
+                var s = postProcess[i];
+                sections[i].center = Pack(s.point); sections[i].right = Pack(s.right); sections[i].up = Pack(s.up);
+                sections[i].vertices = s.vertices.Select(Pack).ToArray();
+            }
         }
         data.sections = sections.ToArray();
         if (sections.Count < 2) return result;

@@ -35,8 +35,9 @@ namespace CityElements.Types {
         public bool projectAll;
         public int lpf;
         public bool adjustLowPolyWidth;
-        public bool makeCoplanar; //also applied if the type hides it, so a core has to enable it
         public bool variableSections;
+        //"<module>.<function>" of the lua folder of the core: edits the sections once they are computed (see SectionPostProcess)
+        public string postProcess;
         public bool allowYaw = true; //whether the control points can rotate the sections around the vertical axis
         public bool allowRoll = true; //whether the control points can bank the sections
         public string yawRequires; //bool city property injected on roads, needed to edit the yaw in the editor

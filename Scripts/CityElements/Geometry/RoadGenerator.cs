@@ -71,7 +71,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     public bool valid = false;
 
     float totalLength;
-    bool rolled; //some sections are rolled: they can't be made coplanar (a twisted road has no planar faces)
+    bool rolled; //some sections are rolled (told to the post-process pass: e.g. a twisted road has no planar faces)
     float curLineSize = 0.1f;
     public int vertsPerSection;
 
@@ -326,15 +326,18 @@ public partial class RoadGenerator : PhysicsScriptable {
         subGen.sectionUps.Clear();
         subGen.sectionVertices.Clear();
         subGen.InitBaseSectionsInfo();
+        var offsets = curType.postProcessFunction != null ? new List<float[]>() : null;
         for (int i = 0; i < segments; i++) {
             if (curType.typeData.settings.variableSections || curType.NeedsLowPolyFix(instanceState, segments))
                 curType.FillSegmentVariables(subGen.variableContainer, state, instanceState, curvePoints[i], GameEngine.Vector3.zero, subGen.curveUpVectors[i],
                     subGen.sectionMarkers[i], 0, i + 1, new Vector3[0], curvePoints, segments);
-            var v = GetRealSectionVertices(i);
+            var v = subGen.GetRawSectionVertices(i, out var sectionOffsets);
             subGen.sectionVertices.Add(v.Item1);
             subGen.sectionRights.Add(v.Item2);
             subGen.sectionUps.Add(subGen.curveUpVectors[i]);
+            offsets?.Add(sectionOffsets);
         }
+        if (offsets != null) PostProcessSections(offsets);
         curType.FillCommonLateVariables(subGen.variableContainer, curvePoints[0], curvePoints[segments - 1], subGen.sectionVertices[0], subGen.sectionVertices[segments - 1]);
         GenerateLanesPre();
     }
@@ -508,12 +511,41 @@ public partial class RoadGenerator : PhysicsScriptable {
         subGen.AddSection(i, sidePoints);
     }
 
-    (Vector3[], Vector3) GetRealSectionVertices(int i) {
-        var v = subGen.GetRawSectionVertices(i);
-        if (i > 0 && instanceState.Bool("makeCoplanar") && !rolled && !(i == segments - 1 && hasEndIntersection)) {
-            v = GetCoplanarRawSectionVertices(v, i);
+    //the post-process pass of the type (see SectionPostProcess): a script of the core can edit the sections just computed
+    void PostProcessSections(List<float[]> offsets) {
+        var curvePoints = subGen.curvePoints;
+        var sections = new List<SectionPostProcess.Section>();
+        for (int i = 0; i < segments; i++) {
+            sections.Add(new SectionPostProcess.Section {
+                point = curvePoints[i], direction = subGen.curveDirections[i], right = subGen.sectionRights[i], up = subGen.sectionUps[i],
+                z = subGen.sectionMarkers[i], t = i < curveParameters.Count ? curveParameters[i] : i / Mathf.Max(1.0f, segments - 1.0f),
+                offsets = offsets[i], vertices = subGen.sectionVertices[i]
+            });
         }
-        return v;
+        var ctx = new Lua.LuaTable();
+        var controls = new Lua.LuaTable();
+        var controlPoints = new List<Vector3> { start }; controlPoints.AddRange(cps); controlPoints.Add(end);
+        controls["points"] = SectionPostProcess.VectorList(controlPoints);
+        if (cpRotations != null) controls["rotations"] = SectionPostProcess.VectorList(cpRotations);
+        ctx["controls"] = controls;
+        ctx["rolled"] = rolled;
+        if (startTangent.HasValue) ctx["startTangent"] = RC.Scripting.LuaVectors.ToLua(startTangent.Value);
+        if (endTangent.HasValue) ctx["endTangent"] = RC.Scripting.LuaVectors.ToLua(endTangent.Value);
+        if (startIntersectionCenter.HasValue) ctx["startIntersectionCenter"] = RC.Scripting.LuaVectors.ToLua(startIntersectionCenter.Value);
+        if (endIntersectionCenter.HasValue) ctx["endIntersectionCenter"] = RC.Scripting.LuaVectors.ToLua(endIntersectionCenter.Value);
+        //the road (not for the pieces through the intersections), as the context of the scripts of the definitions
+        if (subGen.owner is RC.Scripting.IScriptContextProvider provider) ctx["road"] = provider.GetScriptContext();
+        SectionPostProcess.AddStates(ctx, state, instanceState);
+        var changed = SectionPostProcess.Apply(curType.postProcessHost, curType.postProcessFunction, curType.name + ".postProcess",
+            subGen.variableContainer, sections, ctx);
+        foreach (var i in changed) {
+            var s = sections[i];
+            if (curvePoints[i] != s.point) lr.SetPosition(i, s.point);
+            curvePoints[i] = s.point;
+            subGen.sectionRights[i] = s.right;
+            subGen.sectionUps[i] = s.up;
+            subGen.sectionVertices[i] = s.vertices;
+        }
     }
 
     private void Update() {
@@ -528,45 +560,5 @@ public partial class RoadGenerator : PhysicsScriptable {
                 lr.endWidth = curLineSize;
             }
         }
-    }
-
-    Vector3 GetCoplanarDir(Vector3[] v, int i) {
-        var vL = v[0];
-        var vM = v[v.Length / 2];
-        var vR = v[v.Length - 1];
-        var vPrev = subGen.GetRawSectionVertices(i - 1).Item1;
-        var vPrevL = vPrev[0];
-        var vPrevR = vPrev[vPrev.Length - 1];
-        var p1A = vPrevL;
-        var p1C = vPrevR;
-        var p2A = vL;
-        var p2B = vM;
-        var p2C = vR;
-        var p1 = GameEngine.Plane.Create(p1A, p2B, p1C);
-        Plane p2;
-        if (i < segments - 1) {
-            var vNext = subGen.GetRawSectionVertices(i + 1).Item1;
-            var vNextM = vNext[vNext.Length / 2];
-            var p3B = vNextM;
-            p2 = GameEngine.Plane.Create(p2A, p3B, p2C);
-        } else {
-            p2 = GameEngine.Plane.Create(p2B + GameEngine.Vector3.right, p2B, p2B + GameEngine.Vector3.back);
-        }
-        var origDir = GameEngine.Vector3.Normalize(vR - vL);
-        var lineDirection = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(GameEngine.Plane.Normal(p1), GameEngine.Plane.Normal(p2)));
-        if (GameEngine.Vector3.Dot(lineDirection, vR - vL) < 0) lineDirection = -lineDirection;
-        if (GameEngine.Vector3.Magnitude(lineDirection) < 0.0) {
-            lineDirection = origDir;
-        } else {
-            var angle = GameEngine.Vector3.Angle(lineDirection, vR - vL);
-            lineDirection /= Mathf.Cos(angle * GameEngine.Math.deg2rad);
-            var dist = Mathf.Abs(GameEngine.Plane.DistanceToPoint(p1, p2A));
-            if (dist < state.Float("pointPlaneTreshold", 0.02f)) lineDirection = origDir;
-        }
-        return lineDirection;
-    }
-
-    (Vector3[], Vector3) GetCoplanarRawSectionVertices((Vector3[], Vector3) v, int i) {
-        return subGen.GetRawSectionVertices(i, GetCoplanarDir(v.Item1, i));
     }
 }
