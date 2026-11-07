@@ -17,7 +17,6 @@ namespace CityElements.Types.Parsers {
         public const string Roads = "roads";
         public const string Intersections = "intersections";
         public const string TerrainPatches = "terrainPatches/terrainPatches";
-        public const string BorderMeshes = "terrainPatches/borderMeshes";
         public const string Buildings = "buildings";
         public const string BuildingBlocks = "buildingBlocks";
         public const string PropsTypes = "props/types";

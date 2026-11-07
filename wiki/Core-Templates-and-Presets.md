@@ -69,12 +69,11 @@ A preset contains the values of the core's parameters and of the program's built
 | `building` | Buildings | `type`, enabled sides, `height`, `depth`, and the side states (`frontState`, `leftState`, `rightState`, `backState`). |
 | `buildingSide` | Building sides | `type`, floors and block dictionary (see [Core Buildings](Core-Buildings#side)). |
 | `buildingBlock` | Blocks of the block dictionary | `type` (a block type) and its parameters. |
-| `terrainPatchBorderMesh` | Terrain patch border meshes | `type` must be a border mesh type. |
 | `customElement/<type>` | A custom element type with `settings.json` `presets: true` | One category per enabled type, with matching `type`. Stores reusable properties and prop rules, excluding references and parameters marked `instanceSpecific`; point geometry and container/source relationships are kept on each element. Supports preset management, reset, unlink and sync. |
 
 Terrain patches, mesh instances and city properties have no presets (the template can give the initial city properties, see below).
 
-If a category is missing, the program creates it with an empty default state, which has no `type`: creating an element of that kind then fails. **Every template must provide at least a default preset with a valid `type` for each category the core uses** (`road`, `intersection`, `buildingLine`, `building`, `buildingSide`, `buildingBlock`, `terrainPatchBorderMesh` and the container categories of its road types).
+If a category is missing, the program creates it with an empty default state, which has no `type`: creating an element of that kind then fails. **Every template must provide at least a default preset with a valid `type` for each category the core uses** (`road`, `intersection`, `buildingLine`, `building`, `buildingSide`, `buildingBlock` and the container categories of its road types).
 
 The easiest way to make the presets of a new core is to create a city with a minimal `presets.json`, create and save presets from the editor, and copy the city's `presets.json` back into the template.
 

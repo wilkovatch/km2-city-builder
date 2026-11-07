@@ -11,11 +11,6 @@ namespace Operations {
         Closed = 1
     }
 
-    public enum AddBorderMeshResult {
-        Added,
-        LimitReached
-    }
-
     public static class TerrainPatches {
         public static TerrainPatch Create(ElementManager manager) {
             var name = "Terrain " + Actions.Helpers.GetLatestObjectNumber(manager.GetTerrainContainer(), "Terrain ");
@@ -38,10 +33,6 @@ namespace Operations {
 
         public static void AddInternalPoint(TerrainPatch patch, Node3D obj, Vector3 point) {
             patch.AddInternalPoint(obj, point);
-        }
-
-        public static void AddPointToBorderMesh(TerrainPatch patch, int borderMesh, TerrainPoint point) {
-            patch.AddPointToBorderMesh(borderMesh, point);
         }
 
         public static void RemoveLastPerimeterPoint(TerrainPatch patch) {
@@ -71,23 +62,6 @@ namespace Operations {
             History.UndoManager.Touch(patch);
             patch.AutoGenerateInternalPoints(distance);
             return patch.GetInternalPointsComponents();
-        }
-
-        public static bool CanAddBorderMesh(TerrainPatch patch) {
-            var limit = patch.GetTerrainPatchType().typeData.settings.maxBorderMeshes;
-            return limit <= 0 || patch.GetBorderMeshCount() < limit;
-        }
-
-        //the new border mesh gets the default preset
-        public static AddBorderMeshResult AddBorderMesh(TerrainPatch patch) {
-            if (!CanAddBorderMesh(patch)) return AddBorderMeshResult.LimitReached;
-            var state = PresetManager.GetPreset("terrainPatchBorderMesh", 0);
-            patch.AddBorderMesh(state, new ObjectState());
-            return AddBorderMeshResult.Added;
-        }
-
-        public static void RemoveBorderMesh(TerrainPatch patch, int index) {
-            patch.RemoveBorderMesh(index);
         }
 
         public static void Delete(TerrainPatch patch) {

@@ -264,6 +264,15 @@ namespace EditorPanels {
                     p.IncreaseRow();
                 }
                 updateCurveFields();
+                //the direction of the spline (e.g. the side of its strip), and whether it's a loop for the closable types
+                var closable = settings.spline.closable;
+                if (closable) {
+                    var closedField = p.AddFieldCheckbox(SM.Get("CE_SPLINE_CLOSED"), GetElementState, "state.properties.closed", null, w / 2, null);
+                    if (editingPreset) closedField.SetInteractable(false);
+                }
+                p.AddButton(SM.Get("CE_SPLINE_REVERSE"), ReverseSpline, closable ? w / 2 : w, SM.Get("CE_SPLINE_REVERSE_TOOLTIP"))
+                    .SetInteractable(GetElement() != null && !editingPreset);
+                p.IncreaseRow();
                 return true;
             }
             if (elem.name == "pointsGroup" && settings.spline != null) {
@@ -618,6 +627,12 @@ namespace EditorPanels {
             builder.NotifyChange();
         }
 
+        void ReverseSpline() {
+            var element = GetElement();
+            if (element == null || !element.ReverseSpline()) return;
+            builder.NotifyChange();
+        }
+
         //removes the element of the innermost array containing the selected point (e.g. its lane, in every section)
         void RemoveInnerArrayElement() {
             var element = GetElement();
@@ -637,6 +652,7 @@ namespace EditorPanels {
             var point = GetSelectedPoint();
             if (element == null || point == null) return;
             var res = Operations.CustomElements.DetachPoint(builder.helper.elementManager, element, point);
+            if (res == null) return;
             builder.gizmo.ClearTargets();
             builder.gizmo.AddTarget(res.GetObject());
             shownAnything = false;

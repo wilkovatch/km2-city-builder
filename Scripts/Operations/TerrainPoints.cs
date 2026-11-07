@@ -10,6 +10,7 @@ namespace Operations {
         //Without generatedOnly (the points of the custom elements) any anchor, segment or terrain point.
         public static IAnchorable AttachmentFromClick(Node3D obj, Vector3 position, bool generatedOnly = true, TerrainPoint point = null) {
             if (obj == null || point?.anchorable == false) return null;
+            if (!generatedOnly && !PointTargets.AllowedByUsers(point, obj)) return null; //the custom elements accepting only some targets
             var buildingPoint = generatedOnly && point != null && point.GetLinks().Exists(e => e is BuildingLine);
             var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked?.anchorable == false) return null;

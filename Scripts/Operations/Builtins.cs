@@ -102,7 +102,6 @@ namespace Operations {
                 new Property("listName", "string"),
             },
             ["meshInstance"] = new Property[0],
-            ["borderMesh"] = new Property[0],
             ["cityProperties"] = new Property[0],
             ["props"] = new Property[0],
         };

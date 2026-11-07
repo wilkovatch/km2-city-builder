@@ -73,20 +73,15 @@ namespace IO.SavedCity {
     }
 
     [System.Serializable]
-    public struct TerrainBorderMesh {
-        public ObjectState state;
-        public ObjectState instanceState;
-        public int[] segmentPointsIds; //references to terrain points
-    }
-
-    [System.Serializable]
     public struct TerrainPatch {
         public int id;
         public string name;
         public ObjectState state;
         public int[] perimeterPointsIds; //references to terrain points
         public int[] internalPointsIds; //references to terrain points
-        public TerrainBorderMesh[] borderMeshes;
+        //only read: the border meshes of the cities saved before they were removed (the core migrations convert them)
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public Newtonsoft.Json.Linq.JArray borderMeshes;
     }
 
     [System.Serializable]

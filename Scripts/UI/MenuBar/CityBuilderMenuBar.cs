@@ -31,7 +31,6 @@ public partial class CityBuilderMenuBar : Control {
     SettingsEditorPanel settingsEditorPanel = new SettingsEditorPanel();
     public CityPropertiesEditorPanel cityPropertiesEditorPanel = new CityPropertiesEditorPanel();
     public EditorPanels.Props.PropsEditorPanel propsEditorPanel = new EditorPanels.Props.PropsEditorPanel();
-    public TerrainPatchBorderMeshEditorPanel tpBorderMeshEditorPanel = new TerrainPatchBorderMeshEditorPanel();
     BatchUpdateEditorPanel batchUpdateEditorPanel = new BatchUpdateEditorPanel();
     WholeCityRotationEditorPanel rotateCityPanel = new WholeCityRotationEditorPanel();
     CustomExporterEditorPanel customExporterPanel = new CustomExporterEditorPanel();
@@ -246,7 +245,6 @@ public partial class CityBuilderMenuBar : Control {
             buildingLineEditorPanel,
             settingsEditorPanel,
             propsEditorPanel,
-            tpBorderMeshEditorPanel,
             batchUpdateEditorPanel,
             rotateCityPanel,
             customExporterPanel,
@@ -450,8 +448,7 @@ public partial class CityBuilderMenuBar : Control {
         }
         if (root == terrainPatchEditorPanel) {
             var mode = (int)terrainPlacer.placementMode;
-            var borderMesh = terrainPatchEditorPanel.GetCurBorderMeshIndex();
-            return CaptureElementReopen((modifier as ElementPlacer.TerrainPlacer)?.GetPatch(false), terrainPatchEditorPanel, () => terrainPatchEditorPanel.SetPointPlacementMode(mode, borderMesh));
+            return CaptureElementReopen((modifier as ElementPlacer.TerrainPlacer)?.GetPatch(false), terrainPatchEditorPanel, () => terrainPatchEditorPanel.SetPointPlacementMode(mode));
         }
         if (root == buildingLineEditorPanel) {
             if (editingPresets) return _ => { EditBuildingLinePresets(); return buildingLineEditorPanel; };

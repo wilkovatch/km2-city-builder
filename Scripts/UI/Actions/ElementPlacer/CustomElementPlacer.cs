@@ -32,6 +32,11 @@ namespace ElementPlacer {
         public System.Action onModeEnded; //the placement mode ended by itself (e.g. a closed array was closed)
         readonly ElementManager manager;
         bool anchorsVisible;
+        //the owner of the controls (see CustomElementSplineSettings.ownerReference) chosen in the menu, for the click applied again
+        object chosenOwner;
+        PopupMenu ownerMenu;
+        System.Action<object> ownerMenuChosen;
+        public List<object> ownerChoices; //the elements offered by the open menu (null if closed)
 
         public CustomElementPlacer(ElementManager manager) {
             this.manager = manager;
@@ -62,14 +67,35 @@ namespace ElementPlacer {
             ShowOnMap(hits);
             if (placementMode == PlacementMode.PlacePoints && PlacementLeaf(placeIndex - 1)?.point is TerrainPoint last && !last.IsDeleted()) {
                 var hit = GetHit(hits);
-                ActionHandlerManager.ShowGuideLine(last.GetPoint(), Actions.Helpers.GetAnchorInfo((Node3D)hit.collider, hit.point).pos);
+                if (!Refused(hit)) ActionHandlerManager.ShowGuideLine(last.GetPoint(), Actions.Helpers.GetAnchorInfo((Node3D)hit.collider, hit.point).pos);
             }
             if (!Input.GetInputStart(KeyCommand.Select)) return false;
             return true;
         }
 
+        //the first hit (points, segments, then the ground) on a target the type accepts (see PointTargets), the first one if none is
         RaycastHit GetHit(List<RaycastHit?> hits) {
+            if (FiltersTargets()) {
+                var type = GetRuntimeType();
+                var element = placementMode == PlacementMode.Create ? null : GetElement();
+                foreach (var h in hits) {
+                    if (h.HasValue && Operations.PointTargets.Allows(type, (Node3D)h.Value.collider, element)) return h.Value;
+                }
+            }
             return hits[0].HasValue ? hits[0].Value : hits[1].HasValue ? hits[1].Value : hits[2].Value;
+        }
+
+        //the clicks place control points of a type choosing its targets (acceptTarget or ownerReference)
+        bool FiltersTargets() {
+            if (placementMode != PlacementMode.Create && placementMode != PlacementMode.AppendPoint && placementMode != PlacementMode.PrependPoint
+                && placementMode != PlacementMode.InsertPoint && placementMode != PlacementMode.PlacePoints) return false;
+            var type = GetRuntimeType();
+            return type != null && (type.acceptTargetFunction != null || Operations.PointTargets.OwnerParameter(type) != null);
+        }
+
+        //the type doesn't accept the target under the mouse (nothing is shown there)
+        bool Refused(RaycastHit hit) {
+            return FiltersTargets() && !Operations.PointTargets.Allows(GetRuntimeType(), (Node3D)hit.collider, placementMode == PlacementMode.Create ? null : GetElement());
         }
 
         public override void Apply(List<RaycastHit?> hits) {
@@ -84,11 +110,22 @@ namespace ElementPlacer {
             }
             manager.worldChanged = true;
             var obj = (Node3D)hit.collider;
+            if (chosenOwner == null && AsksOwner(obj, hit)) return;
+            var ownerBefore = Operations.PointTargets.OwnerOf(GetElement());
+            if (chosenOwner != null && placementMode != PlacementMode.Create) Operations.PointTargets.SetOwner(GetElement(), chosenOwner);
+            PlaceAtTarget(hit, obj);
+            //the targets of the owner only, from now on
+            if (Operations.PointTargets.OwnerOf(GetElement()) != ownerBefore) UpdateAnchorVisibility(true);
+        }
+
+        void PlaceAtTarget(RaycastHit hit, Node3D obj) {
             switch (placementMode) {
                 case PlacementMode.Create:
                     if (createType == null) return;
+                    if (!Operations.PointTargets.Allows(GetRuntimeType(), obj)) return; //the first point where the type accepts it
                     curElement = Operations.CustomElements.Create(manager, createType, hit.point);
                     if (creationState != null) Operations.CustomElementPresets.Apply(curElement, creationState);
+                    if (chosenOwner != null) Operations.PointTargets.SetOwner(curElement, chosenOwner);
                     if (creationState != null) foreach (var parameter in curElement.GetCustomElementType().parameterContainer.parameters ?? System.Array.Empty<CityElements.Types.Parameter>()) {
                         if (parameter.type == "objectInstance" && creationState.State(parameter.fullName()) is ObjectState value) {
                             curElement.state.SetState(parameter.fullName(), (ObjectState)value.Clone());
@@ -146,6 +183,7 @@ namespace ElementPlacer {
                 case PlacementMode.AppendPoint:
                     if (GetElement() == null) return;
                     if (ClosesArray(obj)) {
+                        if (curElement.Settings?.spline?.closable == true) curElement.state.SetBool("closed", true);
                         placementMode = PlacementMode.None;
                         onModeEnded?.Invoke();
                         return;
@@ -209,6 +247,7 @@ namespace ElementPlacer {
             if (clicked != null && clicked != leaf.point && curElement.HasPoint(clicked)) return false;
             var point = leaf.point;
             if (point.GetLinks().Count > 1 && clicked != point) point = Operations.CustomElements.DetachPoint(manager, curElement, point);
+            if (point == null) return false;
             if (leaf.def.anchorable && obj != null && Operations.CustomElements.AttachPoint(manager, curElement, point, obj, position) != null) return true;
             if (point.anchor != null) Operations.TerrainPoints.Detach(point); //free, not sliding along a segment it was on
             Operations.TerrainPoints.Move(point, position);
@@ -243,7 +282,10 @@ namespace ElementPlacer {
         //the click is on the first point of the closed array points are added to
         bool ClosesArray(Node3D obj) {
             var list = CustomElements.PointTree.Find(curElement.points, arrayPath) as CustomElements.PointList;
-            if (list == null || !list.def.array.closed || list.items.Count < 2) return false;
+            var closable = arrayPath == "spline" && curElement.Settings?.spline?.closable == true;
+            if (list == null || !(list.def.array.closed || closable) || list.items.Count < 2) return false;
+            //a loop of two points only follows the connections (the second span goes back the other way)
+            if (closable && list.items.Count < 3 && !curElement.Settings.spline.FollowsConnectionsDynamically) return false;
             if (curElement.Settings?.propPlacer?.type == "polygon" && list.items.Count < 3) return false;
             var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (list.items[0] is not CustomElements.PointLeaf first) return false;
@@ -265,6 +307,7 @@ namespace ElementPlacer {
 
         public override void ShowOnMap(List<RaycastHit?> hits) {
             var hit = GetHit(hits);
+            if (Refused(hit)) return;
             (Vector3 pos, float size, Color color) = Actions.Helpers.GetAnchorInfo((Node3D)hit.collider, hit.point);
             ActionHandlerManager.ShowHandle(pos, size, color);
         }
@@ -283,6 +326,68 @@ namespace ElementPlacer {
             }
             var exclude = placementMode == PlacementMode.Create ? null : GetElement()?.generator;
             return GeometryHelper.AutoRaycastSurface(parent, origin, direction, out hit, distance, mask, exclude);
+        }
+
+        // Owner of the controls (see CustomElementSplineSettings.ownerReference)
+
+        //the first control of an element without owner, on a target of several elements which could own it: the user chooses
+        //one in a menu, then the click is applied again with it (in its own undo step)
+        bool AsksOwner(Node3D obj, RaycastHit hit) {
+            if (placementMode != PlacementMode.Create && placementMode != PlacementMode.AppendPoint && placementMode != PlacementMode.PrependPoint
+                && placementMode != PlacementMode.InsertPoint) return false;
+            var type = GetRuntimeType();
+            if (Operations.PointTargets.OwnerParameter(type) == null) return false;
+            var element = placementMode == PlacementMode.Create ? null : GetElement();
+            if (element != null && Operations.PointTargets.OwnerOf(element) != null) return false;
+            var candidates = Operations.PointTargets.Candidates(type, obj, element);
+            if (candidates.Count < 2) return false;
+            var mode = placementMode;
+            ShowOwnerMenu(candidates, owner => {
+                if (placementMode != mode || (element != null && GetElement() != element)) return;
+                History.UndoManager.Record("choose owner", () => {
+                    chosenOwner = owner;
+                    try { PlaceAt(hit); } finally { chosenOwner = null; }
+                });
+            });
+            return true;
+        }
+
+        void ShowOwnerMenu(List<object> candidates, System.Action<object> chosen) {
+            CloseOwnerMenu();
+            ownerChoices = candidates;
+            ownerMenuChosen = chosen;
+            ownerMenu = new PopupMenu();
+            UILayout.StylePopup(ownerMenu);
+            ownerMenu.AddSeparator(StringManager.Get("CE_OWNER_CHOICE"));
+            for (int i = 0; i < candidates.Count; i++) ownerMenu.AddItem(Api.CityApi.GetName(candidates[i]) ?? "?", i);
+            ownerMenu.IdPressed += id => ChooseOwner((int)id);
+            var menu = ownerMenu;
+            //closed without a choice (after the choice, which closes it too)
+            ownerMenu.PopupHide += () => manager.builder.DoDelayed(() => { if (ownerMenu == menu) CloseOwnerMenu(); });
+            manager.builder.AddChild(ownerMenu);
+            ownerMenu.Popup(new Rect2I((Vector2I)manager.GetViewport().GetMousePosition(), Vector2I.Zero));
+        }
+
+        //the element at the index of ownerChoices owns the controls (from the menu, or the tests)
+        public void ChooseOwner(int index) {
+            var choices = ownerChoices;
+            var chosen = ownerMenuChosen;
+            CloseOwnerMenu();
+            if (choices == null || index < 0 || index >= choices.Count) return;
+            chosen?.Invoke(choices[index]);
+        }
+
+        public void CloseOwnerMenu() {
+            ownerChoices = null;
+            ownerMenuChosen = null;
+            if (ownerMenu != null && GodotObject.IsInstanceValid(ownerMenu)) ownerMenu.QueueFree();
+            ownerMenu = null;
+        }
+
+        //the type of the edited element (or of the one to create)
+        CityElements.Types.Runtime.CustomElementType GetRuntimeType() {
+            return GetElement()?.GetCustomElementType() ?? (createType != null && CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()
+                .TryGetValue(createType, out var type) ? type : null);
         }
 
         //the settings of the type of the edited element (or of the one to create)
@@ -313,6 +418,7 @@ namespace ElementPlacer {
             if (!force && show == anchorsVisible) return;
             anchorsVisible = show;
             manager.ShowAnchors(show, true, true, GetSettings()?.roadEndAnchors == true);
+            if (show) Operations.PointTargets.HideRefused(manager, GetRuntimeType(), GetElement());
             if (manager.builder.customElementEditorPanel.ActiveSelf()) manager.builder.customElementEditorPanel.ShowElement(GetElement());
         }
 

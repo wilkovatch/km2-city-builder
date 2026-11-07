@@ -13,7 +13,6 @@ namespace CityElements.Types.Parsers {
             SplineCurves.Reset();
             roadTypes = null;
             propsTypes = null;
-            terrainPatchBorderMeshTypes = null;
             terrainPatchTypes = null;
             intersectionTypes = null;
             buildingTypes = null;
@@ -121,16 +120,6 @@ namespace CityElements.Types.Parsers {
 
 
         //Terrain patchces
-        static Dictionary<string, Runtime.RoadType> terrainPatchBorderMeshTypes;
-        public static Dictionary<string, Runtime.RoadType> GetTerrainPatchBorderMeshTypes(bool reload = false) {
-            return GetTypes(ref terrainPatchBorderMeshTypes, TI.BorderMeshes, LoadTerrainPatchBorderMeshTypes, reload);
-        }
-
-        public static Dictionary<string, Runtime.RoadType> LoadTerrainPatchBorderMeshTypes(string elementsDir, Dictionary<string, string[]> ancestries = null) {
-            var commonDir = Path.Combine(elementsDir, "sharedComponents");
-            return LoadFolderTypes(elementsDir, TI.BorderMeshes, ancestries, (dir, key) => new Runtime.RoadType(new RoadType(dir, commonDir), key));
-        }
-
         static Dictionary<string, Runtime.TerrainPatchType> terrainPatchTypes;
         public static Dictionary<string, Runtime.TerrainPatchType> GetTerrainPatchTypes(bool reload = false) {
             return GetTypes(ref terrainPatchTypes, TI.TerrainPatches, LoadTerrainPatchTypes, reload);
@@ -294,7 +283,6 @@ namespace CityElements.Types.Parsers {
             GetRoadTypes();
             GetIntersectionTypes();
             GetTerrainPatchTypes();
-            GetTerrainPatchBorderMeshTypes();
             GetBuildingTypes();
             GetBuildingBlockTypes();
             GetPropsTypes();

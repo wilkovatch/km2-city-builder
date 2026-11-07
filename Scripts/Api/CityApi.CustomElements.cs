@@ -24,10 +24,25 @@ namespace Api {
 
         // Points
 
-        //the point of a custom element from a point target (a new one, or an existing terrain point to share)
-        TerrainPoint CustomElementPoint(PointTarget t) {
+        //the point of a custom element from a point target (a new one, or an existing terrain point to share); with the
+        //element, a target its type doesn't accept is refused (see Operations.PointTargets)
+        TerrainPoint CustomElementPoint(PointTarget t, CustomElement element = null) {
             var (obj, pos) = ResolvePoint(t);
+            if (element != null && !Operations.PointTargets.Allows(element, obj)) throw RefusedTarget(element);
+            if (element != null && !Operations.PointTargets.ClaimOwner(element, obj)) throw AmbiguousOwner(element, obj);
             return Operations.CustomElements.PointFromClick(M, obj, pos);
+        }
+
+        static ApiException RefusedTarget(CustomElement element) {
+            return ApiException.InvalidOperation("the points of a " + element.TypeName + " can't go on that target (see the acceptTarget and ownerReference of its type)");
+        }
+
+        //the first point of an element without owner (see CustomElementSplineSettings.ownerReference) is on several elements which could own it
+        static ApiException AmbiguousOwner(CustomElement element, Node3D obj) {
+            var candidates = Operations.PointTargets.Candidates(element.GetCustomElementType(), obj, element).ConvertAll(IdOf);
+            var param = Operations.PointTargets.OwnerParameter(element.GetCustomElementType()).fullName();
+            return ApiException.InvalidParam("the target is on several elements which could own the points of the " + element.TypeName + " (" +
+                string.Join(", ", candidates) + "): choose one with its parameter '" + param + "'");
         }
 
         //the points of a new element from {"name": point target, "array": [point targets or groups], ...}; the missing ones
@@ -38,7 +53,7 @@ namespace Api {
             var scales = new Dictionary<TerrainPoint, Vector3>();
             var res = History.ElementSnapshot.CustomElementPoints(points, element.state, element, token => {
                 var target = token.ToObject<PointTarget>(Newtonsoft.Json.JsonSerializer.Create(Json.Settings));
-                var p = CustomElementPoint(target);
+                var p = CustomElementPoint(target, element);
                 created.Add(p);
                 if (target.rotation.HasValue) rotations[p] = target.rotation.Value;
                 if (target.scale.HasValue) scales[p] = target.scale.Value;
@@ -261,15 +276,25 @@ namespace Api {
             });
         }
 
-        [ApiMethod("customElement.insert", "Adds an element to an array of the control points (path: e.g. \"sections\" or \"sections.2.lanes\") at the index (the end by default), as with the Insert buttons: its points between the ones around it (or continuing the array); in a uniform array, every instance gets one. With position (only at the start or end of the array), the element is centered there and turned as the direction of the array changes, as with the Add at the start/end click modes. Returns the paths of the new points")]
-        public object InsertCustomElement(ElementRef element, string array, int? index = null, Vector3? position = null) {
+        [ApiMethod("customElement.insert", "Adds an element to an array of the control points (path: e.g. \"sections\" or \"sections.2.lanes\") at the index (the end by default), as with the Insert buttons: its points between the ones around it (or continuing the array); in a uniform array, every instance gets one. With position (only at the start or end of the array), the element is centered there and turned as the direction of the array changes, as with the Add at the start/end click modes. With to (a point target, in an array of points), the new point goes on it as with the click modes; the types accepting only some targets (acceptTarget) need it. Returns the paths of the new points")]
+        public object InsertCustomElement(ElementRef element, string array, int? index = null, Vector3? position = null, PointTarget to = null) {
             return ApplyChange<object>("insert", () => {
                 var e = ResolveCustomElement(element);
                 var list = CustomElements.PointTree.Find(e.points, array) as CustomElements.PointList;
                 if (list == null) throw ApiException.NotFound("array '" + array + "'");
                 var i = index ?? list.items.Count;
                 if (i < 0 || i > list.items.Count) throw ApiException.InvalidValue("index out of range (0-" + list.items.Count + ")");
-                if (position.HasValue) {
+                if (to != null) {
+                    if (list.def.children != null || position.HasValue) throw ApiException.InvalidParam("to is only for an array of points, without position");
+                    var (obj, pos) = ResolvePoint(to);
+                    if (!Operations.PointTargets.Allows(e, obj)) throw RefusedTarget(e);
+                    if (!Operations.PointTargets.ClaimOwner(e, obj)) throw AmbiguousOwner(e, obj);
+                    if (Operations.CustomElements.InsertPointAt(M, e, array, i, obj, pos) == null) {
+                        throw ApiException.InvalidOperation("the array '" + array + "' can't have more elements");
+                    }
+                } else if (!Operations.PointTargets.Allows(e, null)) {
+                    throw ApiException.InvalidParam("the points of a " + e.TypeName + " can't be free: give their target (to)");
+                } else if (position.HasValue) {
                     if (i != 0 && i != list.items.Count) throw ApiException.InvalidParam("position is only allowed at the start or end of the array");
                     if (!Operations.CustomElements.AppendArrayElementAt(e, array, i == 0 && list.items.Count > 0, position.Value, false)) {
                         throw ApiException.InvalidOperation("the array '" + array + "' can't have more elements");
@@ -319,7 +344,9 @@ namespace Api {
             ApplyChange("move point", () => {
                 var e = ResolveCustomElement(element);
                 var p = CustomElementPointAt(e, path, vertex);
-                Operations.TerrainPoints.Move(p, position, true);
+                if (Operations.TerrainPoints.Move(p, position, Operations.PointTargets.AllowsGround(p)) == Operations.TerrainPoints.MoveResult.OnAnchor) {
+                    throw ApiException.InvalidOperation("the point follows an anchor and the points of a " + e.TypeName + " can't be free");
+                }
                 if (rotation.HasValue) {
                     var leaf = path != null ? CustomElements.PointTree.Find(e.points, path) as CustomElements.PointLeaf : null;
                     if (leaf == null || !leaf.def.rotatable) throw ApiException.InvalidOperation("the point can't be rotated");
@@ -374,13 +401,23 @@ namespace Api {
             });
         }
 
+        [ApiMethod("customElement.reverse", "Puts the points of a spline custom element in the opposite order: the spline goes the other way (e.g. its strip is on the other side), as the Reverse button")]
+        public void ReverseCustomElement(ElementRef element) {
+            ApplyChange("reverse", () => {
+                var e = ResolveCustomElement(element);
+                if (e.Settings?.spline == null) throw ApiException.InvalidOperation("a " + e.TypeName + " is not a spline");
+                if (!e.ReverseSpline()) throw ApiException.InvalidOperation("the spline has less than two points");
+            });
+        }
+
         [ApiMethod("customElement.detachPoint", "A control point (path) or vertex (vertex) of a custom element stops being shared with the other elements (it gets a copy of the point), or, if only the element uses it, stops following its anchor. Returns the id of the point")]
         public int DetachCustomElementPoint(ElementRef element, string path = null, int? vertex = null) {
             return ApplyChange("detach point", () => {
                 var e = ResolveCustomElement(element);
                 var p = CustomElementPointAt(e, path, vertex);
                 if (!p.anchorable) throw ApiException.InvalidOperation("the point is not anchorable");
-                return History.ElementRegistry.GetId(Operations.CustomElements.DetachPoint(M, e, p));
+                var res = Operations.CustomElements.DetachPoint(M, e, p) ?? throw ApiException.InvalidOperation("the points of a " + e.TypeName + " can't be free");
+                return History.ElementRegistry.GetId(res);
             });
         }
 

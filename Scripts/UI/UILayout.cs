@@ -146,7 +146,9 @@ public static class UILayout {
         popup.AddThemeColorOverride("font_color", TextColor);
         popup.AddThemeColorOverride("font_hover_color", TextColor);
         popup.AddThemeColorOverride("font_disabled_color", new Color(TextColor, 0.5f));
+        popup.AddThemeColorOverride("font_separator_color", TextColor); //the titles of the labeled separators (the default is light gray)
         popup.AddThemeFontSizeOverride("font_size", 14);
+        popup.AddThemeFontSizeOverride("font_separator_size", 14);
         var panel = Box(ListBackgroundColor, 0, 0, 0, 0);
         panel.SetCornerRadiusAll(0);
         popup.AddThemeStyleboxOverride("panel", panel);

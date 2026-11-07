@@ -238,6 +238,10 @@ Geometry uses the [road component format](Core-Roads), including local definitio
 | `segments`, `segmentsPer100m` | Initial smooth-curve resolution, fixed or per 100 m. Low-poly uses the control points directly. |
 | `hermiteTension`, `subdivideEqually` | Initial values for the Hermite curve, default `0.5` and `false`. |
 | `closed` | A loop (default `false`): the last control point connects back to the first. It needs at least three points (with fewer the spline stays an open line), and allows Hermite, low-poly and [custom curves](Core-Splines) (not Bézier). The built-in Hermite loop is a cardinal spline with the same tension, in equal spans per control (`subdivideEqually` does not apply); a custom curve receives `ctx.closed`. The displayed line and the derived sections end at the first point again, the last piece closes the loop, and the generated strip has no end caps. `line.trimStart`/`line.trimEnd` do not apply. Clicking the first point while adding points ends the placement. |
+| `closable` | Each element chooses whether it is a loop: an instance-specific `closed` value, the **Loop** checkbox of `splineGroup` (default `false`; not with `closed`, nor with the Bézier curve). Clicking the first point while adding points closes the loop too. |
+| `acceptTarget` | Optional `<module>.<function>` deciding where the control points can go (see [Accepted targets](#accepted-targets)). |
+| `ownerReference` | Optional name of a `reference` parameter of the type: the control points go only on the points and anchors of one element, their owner, kept in that parameter (see [The owner of the points](#the-owner-of-the-points)). |
+| `followConnections` | `"place"` or `"dynamic"`: the spline follows the anchor chains and perimeters between its points (see [Following the connections](#following-the-connections)). Only with `curveTypes: [2]`. |
 | `line`, `controlLine` | Optional line styles with `color` (default `"yellow"`) and `always` (default `false`, shown only while editing). `line` styles the evaluated spline; omitting it keeps the default editing line. `controlLine` adds a straight control polygon only when configured. |
 | `line.heightOffset`, `controlLine.heightOffset` | Vertical offset in world units along +Y, default `0`, applied to the displayed line and its picking collider. Use a small positive value to lift the line above uneven ground. Control points, derived sections, meshes and export data keep their original heights. |
 | `line.arrowDirection`, `controlLine.arrowDirection` | Optional float expression over the element's variables: positive draws repeated arrows in spline/control-point order, negative reverses them, zero or omitted draws none. Works even without mesh components. The arrows follow line visibility, color, height offset and width; they do not change picking or export geometry. |
@@ -253,6 +257,43 @@ Geometry uses the [road component format](Core-Roads), including local definitio
 Control points use the existing point tree as `points.spline`; curve parameters (`curveType`, `segments`, `segmentsPer100m`, `hermiteTension`, `subdivideEqually`) use element state and are instance-specific, so presets don't store or change them (a `defaultPreset` can't set them either: use the settings above). The API kind remains `customElement`, so existing creation, point-editing, attachment, import and history commands apply. Empty, one-point and coincident-point splines are editable and produce no invalid mesh.
 
 Exported spline elements additionally have `spline.sections` and `spline.pieces` (and `spline.closed`, when the spline is a loop: the last section is at the position of the first one). Sections contain `center`, `right`, `up`, `vertices` (all in builder coordinates) and cumulative `distance`. Pieces are pairs of evaluated sections, including subdivision, so exporters can use the same edges as the editor. This derived geometry is rebuilt on load rather than saved in the city. Projected splines rebuild after generated surfaces; API replies and export snapshots wait for the physics synchronization needed by newly replaced colliders.
+
+`splineGroup` also has **Reverse** (`customElement.reverse` in the API): the points in the opposite order, so that the spline goes the other way. The side of the strip of the components (`localRight`) changes with it.
+
+### Accepted targets
+
+With `acceptTarget`, a Lua function of the core decides where the control points can go. It is called as `function(v, ctx)` (`v`: the parameters of the element, nil while it is created) with `ctx.target`, what was clicked or given to the API:
+
+| Field | Content |
+|---|---|
+| `kind` | `"point"` (an existing terrain point), `"anchor"` (of a road or intersection), `"segment"` (between two points or anchors, a new point on it) or `"ground"` (a free point). |
+| `owners` | The elements using the point or anchor: `{kind, id, type, role}`, the role being `"perimeter"` or `"internal"` (terrain patches), `"control"` (building lines and custom elements), `"edge"` (the anchors along roads and intersections), `"end"` (the anchors across the road ends, only for the custom elements) or `"roadEnd"` (the free ends of the roads). |
+| `anchor` | For a point on an anchor of a road or intersection: the owner of the anchor, as in `owners`. |
+| `ends` | For a segment: the descriptions of its two ends. |
+
+A target refused is ignored by the click modes, which also hide the anchors and points the function refuses and show no handle under the mouse on it (e.g. on a segment between two points). The attach tools (M) and the API refuse it as well (`invalid_operation`; `customElement.insert` needs its `to` target). If the function refuses `"ground"` (asked once per type), the points can't be detached or moved off their target with the gizmo.
+
+### The owner of the points
+
+With `ownerReference`, all the control points of an element go on the targets of one element, their owner (e.g. along the perimeter of a single terrain patch or road), kept in the reference parameter it names (its `referenceTypes` limit the kinds of owners). The function of `acceptTarget` is then called for an owner: `ctx.owner` is that element, as in `owners`, with the role the target has in it.
+
+- The first point sets the owner: the element of the target the reference and the function accept. When the target has several (e.g. a point of a terrain patch on an anchor of a road, on the perimeter of both), the click opens a menu to choose it, and the API needs the reference in the `state` of `customElement.create` (`invalid_param` otherwise).
+- The next points go only on the targets of the owner: the click modes show only those, and the API refuses the others.
+- `followConnections` follows only the edges of the owner (its anchor chains, or its perimeter).
+- The reference field can be changed only to an element all the points are on.
+
+The points never go on the ground with an owner.
+
+### Following the connections
+
+The anchors of the roads and intersections are chained along their edges (the chains that close around the blocks), and the points of the terrain patches along their perimeters. With `followConnections`, the spline follows these connections between its points, on the shortest way (by length):
+
+- `"place"`: a click fills in the points connected between the last point and the clicked one, as Ctrl+click does for the [prop placers](Core-Prop-Placers): they become control points.
+- `"dynamic"`: only the clicked points are kept. Each span between two consecutive points goes through the connected anchors and points at every update, so the spline follows a perimeter point added, moved or removed between them. A span goes around the other way if a third point is put on that side. The spans don't go through the other points of the spline, so a closed spline of two points goes back the other way around. A span with no connection is straight. The sections (and the export) have a point for each anchor or point followed.
+
+The controls of a `"dynamic"` spline are not connections for the others (they are far apart). With `followConnections`, the curve type must be the low-poly one only.
+
+For example, the Midtown Madness 2 core makes its rails (the railings and walls along the perimeters of the rooms) a `"dynamic"`, `closable` spline type whose owner is its room (`ownerReference`), and whose `acceptTarget` takes only the perimeter points of the terrain patches and the edge anchors of the roads and intersections.
 
 ## Point elements
 

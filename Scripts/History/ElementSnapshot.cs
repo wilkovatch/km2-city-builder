@@ -222,20 +222,6 @@ namespace History {
                 elemInternalPoints[j] = pointId(patchInternalPoints[j]);
             }
             elem.internalPointsIds = elemInternalPoints;
-
-            var patchBorderMeshes = patch.GetTerrainBorderMeshes();
-            var elemRails = new IO.SavedCity.TerrainBorderMesh[patchBorderMeshes.Count];
-            for (int j = 0; j < patchBorderMeshes.Count; j++) {
-                var borderMesh = new IO.SavedCity.TerrainBorderMesh();
-                borderMesh.state = patchBorderMeshes[j].state;
-                borderMesh.instanceState = patchBorderMeshes[j].instanceState;
-                borderMesh.segmentPointsIds = new int[patchBorderMeshes[j].segment.Count];
-                for (int k = 0; k < patchBorderMeshes[j].segment.Count; k++) {
-                    borderMesh.segmentPointsIds[k] = pointId(patchBorderMeshes[j].segment[k]);
-                }
-                elemRails[j] = borderMesh;
-            }
-            elem.borderMeshes = elemRails;
             return elem;
         }
 
@@ -564,13 +550,7 @@ namespace History {
                     var t = Deserialize<IO.SavedCity.TerrainPatch>(json);
                     var patch = (TerrainPatch)element;
                     if (!string.IsNullOrEmpty(t.name)) GO.SetName(patch, t.name);
-                    var borderMeshes = new List<(ObjectState, ObjectState, List<TerrainPoint>)>();
-                    if (t.borderMeshes != null) {
-                        foreach (var bm in t.borderMeshes) {
-                            borderMeshes.Add((Changed(bm.state), bm.instanceState ?? new ObjectState(), GetPoints(bm.segmentPointsIds)));
-                        }
-                    }
-                    patch.RestoreFromSnapshot(GetPoints(t.perimeterPointsIds), GetPoints(t.internalPointsIds), borderMeshes, Changed(t.state));
+                    patch.RestoreFromSnapshot(GetPoints(t.perimeterPointsIds), GetPoints(t.internalPointsIds), Changed(t.state));
                     return patch;
                 }
                 case ElementKind.BuildingLine: {

@@ -7,12 +7,6 @@ using TP = CityElements.Types.Parsers.TypeParser;
 
 namespace Api {
     //The parts of the elements that are not elements themselves
-    public class BorderMeshPart {
-        public TerrainPatch patch;
-        public int index;
-        public TerrainBorderMesh mesh;
-    }
-
     public class BlockPart {
         public BuildingLine line;
         public BuildingSideGenerator side;
@@ -77,7 +71,6 @@ namespace Api {
                 case Building: return "building";
                 case BuildingSideGenerator: return "buildingSide";
                 case BlockPart: return "buildingBlock";
-                case BorderMeshPart: return "borderMesh";
                 case PropsPart: return "props";
                 case ParameterElementPart p: return p.index.HasValue ? "arrayElement" : "customCityProperties";
                 default: return element?.GetType().Name ?? "null";
@@ -143,13 +136,6 @@ namespace Api {
                 if (!r.block.HasValue) return side;
                 if (Operations.BuildingLines.GetBlock(side, r.block.Value) == null) throw ApiException.NotFound("block " + r.block.Value);
                 return new BlockPart { line = line, side = side, index = r.block.Value };
-            }
-            if (r.patch != null) {
-                var patch = Resolve<TerrainPatch>(r.patch, "terrainPatch");
-                if (!r.borderMesh.HasValue) throw ApiException.InvalidParam("missing border mesh index");
-                var bm = patch.GetBorderMesh(r.borderMesh.Value);
-                if (bm == null) throw ApiException.NotFound("border mesh " + r.borderMesh.Value);
-                return new BorderMeshPart { patch = patch, index = r.borderMesh.Value, mesh = bm };
             }
             if (r.road != null) {
                 var road = Resolve<IObjectWithState>(r.road, null);
@@ -307,15 +293,6 @@ namespace Api {
                     t.state = patch.state;
                     t.parameters = Params(TypeOf(TP.GetTerrainPatchTypes(), patch.state.Str("type", null))?.parameterContainer);
                     t.types = () => TP.GetTerrainPatchTypes().Keys;
-                    break;
-                case BorderMeshPart bm:
-                    t.owner = bm.patch;
-                    t.state = bm.mesh.state;
-                    t.instanceState = bm.mesh.instanceState;
-                    t.parameters = Params(TypeOf(TP.GetTerrainPatchBorderMeshTypes(), bm.mesh.state.Str("type", null))?.parameterContainer);
-                    t.presetCategory = "terrainPatchBorderMesh";
-                    t.applyPreset = x => bm.mesh.state = x;
-                    t.types = () => TP.GetTerrainPatchBorderMeshTypes().Keys;
                     break;
                 case BuildingLine line:
                     t.state = line.state;

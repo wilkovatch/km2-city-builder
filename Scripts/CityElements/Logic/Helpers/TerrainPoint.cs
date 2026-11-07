@@ -128,12 +128,13 @@ public partial class TerrainPoint : PhysicsScriptable {
     }
 
     //hidden: the point of an element edited with the gizmo on the element itself (no handle shown or clicked)
-    internal void ApplyCustomElementState(bool active, bool selected, bool moveable, bool hidden = false) {
+    //detachable: moved with the gizmo it can leave its anchor (not for the elements accepting only some targets, see PointTargets)
+    internal void ApplyCustomElementState(bool active, bool selected, bool moveable, bool hidden = false, bool detachable = true) {
         applyingCustomElementState = true;
         try {
             SetActive(active);
             Select(selected);
-            SetMoveable(moveable, true);
+            SetMoveable(moveable, detachable);
             if (hidden != handleHidden) {
                 handleHidden = hidden;
                 GS.Cast<Handle>(GetObject()).SetHandleActive(!hidden);

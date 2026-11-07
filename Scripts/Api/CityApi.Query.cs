@@ -221,16 +221,9 @@ namespace Api {
                     };
                 }
                 case TerrainPatch patch: {
-                    var borderMeshes = new List<object>();
-                    foreach (var bm in patch.GetTerrainBorderMeshes()) {
-                        var seg = new List<int>();
-                        foreach (var p in bm.segment) seg.Add(History.ElementRegistry.GetId(p));
-                        borderMeshes.Add(new { type = bm.state?.Str("type", null), points = seg });
-                    }
                     return new {
                         perimeter = PointsInfo(patch.GetPerimeterPointsComponents()),
-                        internalPoints = PointsInfo(patch.GetInternalPointsComponents()),
-                        borderMeshes
+                        internalPoints = PointsInfo(patch.GetInternalPointsComponents())
                     };
                 }
                 case BuildingLine line: {

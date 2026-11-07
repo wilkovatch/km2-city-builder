@@ -9,7 +9,6 @@ namespace Api {
     //  {"line": <ref>, "building": 0}                                         a building of a building line
     //  {"line": <ref>, "building": 0, "side": "front"}                        a side of a building
     //  {"line": <ref>, "building": 0, "side": "front", "block": 1}            a block of the dictionary of a side
-    //  {"patch": <ref>, "borderMesh": 0}                                      a border mesh of a terrain patch
     //  {"road": <ref>, "container": "right"}                                  a props container of the prop rule of a road
     //  {"road": <ref>, "container": "right", "list": "props", "index": 0}     an element of a props container (no index:
     //                                                                         the single element of the list)
@@ -26,8 +25,6 @@ namespace Api {
         public int? building;
         public string side;
         public int? block;
-        public ElementRef patch;
-        public int? borderMesh;
         public ElementRef road;
         public string container;
         public string list;
@@ -76,8 +73,6 @@ namespace Api {
                             case "building": res.building = v.Value<int?>(); break;
                             case "side": res.side = v.Value<string>(); break;
                             case "block": res.block = v.Value<int?>(); break;
-                            case "patch": res.patch = Read(v); break;
-                            case "borderMesh": res.borderMesh = v.Value<int?>(); break;
                             case "road": res.road = Read(v); break;
                             case "container": res.container = v.Value<string>(); break;
                             case "list": res.list = v.Value<string>(); break;
@@ -114,8 +109,6 @@ namespace Api {
             Add("building", value.building);
             Add("side", value.side);
             Add("block", value.block);
-            Add("patch", value.patch);
-            Add("borderMesh", value.borderMesh);
             Add("road", value.road);
             Add("container", value.container);
             Add("list", value.list);

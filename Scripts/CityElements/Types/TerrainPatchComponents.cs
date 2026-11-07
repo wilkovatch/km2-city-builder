@@ -4,9 +4,6 @@ using System.IO;
 
 namespace CityElements.Types {
     public class TerrainPatchSettings {
-        public string[] borderMeshTypes;
-        public string borderMeshName;
-        public int maxBorderMeshes;
     }
 
     public class TerrainPatchType: ITypeWithUI {

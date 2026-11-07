@@ -6,7 +6,7 @@ Typical uses: two road types that differ only in some components or parameters, 
 
 ## Declaring the parent
 
-**Folder types** (roads, intersections, terrain patches, border meshes, buildings, building blocks) name their parent in a `type.json` file in the type folder:
+**Folder types** (roads, intersections, terrain patches, buildings, building blocks) name their parent in a `type.json` file in the type folder:
 
 ```
 roads/psdlTunnel/
@@ -44,7 +44,7 @@ Each file of a type (`ui.json`, `parameters.json`, `settings.json`, the `line_`,
 
 So a child folder with only a `type.json` is an exact copy of its parent.
 
-**Components** are looked up in the `components` folder of the type, then in those of its ancestors, then in `sharedComponents` (for roads, intersections and border meshes). The component files found along the ancestry are merged like the other files. A shared component is used only when no type of the ancestry has its own file with that name, and it is never merged with an own file: as for a type without a parent, an own component replaces the shared one.
+**Components** are looked up in the `components` folder of the type, then in those of its ancestors, then in `sharedComponents` (for roads, intersections and spline custom elements). The component files found along the ancestry are merged like the other files. A shared component is used only when no type of the ancestry has its own file with that name, and it is never merged with an own file: as for a type without a parent, an own component replaces the shared one.
 
 **Junctions** of an intersection type are all the junction files of the type and of its ancestors (a junction file of the child is merged over the parent's file with the same name).
 
@@ -139,7 +139,7 @@ The elements of the exported city have the name of their own type. The export JS
 ]
 ```
 
-`category` is the folder of the type inside `elements` (`roads`, `intersections`, `terrainPatches/terrainPatches`, `terrainPatches/borderMeshes`, `buildings`, `buildingBlocks`, `props/types`, `props/parametric`, `customCityPropertiesTypes`, `customElements`). In Python:
+`category` is the folder of the type inside `elements` (`roads`, `intersections`, `terrainPatches/terrainPatches`, `buildings`, `buildingBlocks`, `props/types`, `props/parametric`, `customCityPropertiesTypes`, `customElements`). In Python:
 
 ```python
 ancestries = {(t['category'], t['name']): t['ancestry'] for t in data.get('typeAncestry', [])}

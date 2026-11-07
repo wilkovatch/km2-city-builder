@@ -330,7 +330,7 @@ namespace EditorPanels {
 
         void DetachPoint() {
             var point = GetProceduralPoint();
-            if (point == null) return;
+            if (point == null || !Operations.PointTargets.AllowsGround(point)) return;
             Operations.TerrainPoints.Detach(point);
             point.Select(true);
             point.SetMoveable(true, CustomElementPoint(point));

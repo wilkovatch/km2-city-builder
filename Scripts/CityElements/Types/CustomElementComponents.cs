@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 
@@ -134,6 +134,15 @@ namespace CityElements.Types {
         public float previewTolerance;
         public int previewMaxDepth = 8;
         public bool closed; //a loop: the last control point connects back to the first (curve types: hermite, low poly or core curves)
+        public bool closable; //each element chooses whether it's a loop (its instance specific "closed" value)
+        public string acceptTarget; //<module>.<function>: the points, anchors and segments the control points can go on (see PointTargets)
+        //a reference parameter: the controls go only on the points and anchors of one element (its owner), which the first
+        //control sets (chosen by the user when its target has several), and the connections followed stay on it (see PointTargets)
+        public string ownerReference;
+        //"place": a click fills in the points connected between the last control and the clicked one (as Ctrl+click for the
+        //prop placers); "dynamic": only the clicked controls are kept, the spans follow the connections between them at every update
+        public string followConnections;
+        public bool FollowsConnectionsDynamically => followConnections == "dynamic";
         public bool projectPoints;
         public bool projectSections;
         public int projectionMask = (1 << 3) | (1 << 7);
@@ -188,12 +197,22 @@ namespace CityElements.Types {
                     if ((builtin.name == "hermiteTension" || builtin.name == "subdivideEqually") && !System.Array.Exists(settings.spline.curveTypes, i => i == 1)) continue;
                     if (!parametersList.Exists(p => p.fullName() == builtin.name)) parametersList.Add(builtin);
                 }
+                if (settings.spline.closable && !parametersList.Exists(p => p.fullName() == "closed")) {
+                    parametersList.Add(new Parameter { name = "closed", type = "bool", instanceSpecific = true });
+                }
                 parameters.parameters = parametersList.ToArray();
                 if (settings.mesh != null || (settings.controlPoints?.Length ?? 0) > 0 || settings.geometry != null) {
                     throw new System.Exception("Spline custom element types cannot also define mesh, controlPoints or geometry");
                 }
-                if (settings.spline.closed && System.Array.Exists(settings.spline.curveTypes, i => i == 0)) {
+                if ((settings.spline.closed || settings.spline.closable) && System.Array.Exists(settings.spline.curveTypes, i => i == 0)) {
                     throw new System.Exception("Closed spline custom element types cannot allow the Bézier curve type");
+                }
+                if (settings.spline.closed && settings.spline.closable) throw new System.Exception("A spline custom element type can't be both closed and closable");
+                var follow = settings.spline.followConnections;
+                if (follow != null && follow != "place" && follow != "dynamic") throw new System.Exception("followConnections must be \"place\" or \"dynamic\"");
+                //the connections are followed point by point: only the low poly curve goes through them
+                if (follow != null && (settings.spline.curveTypes.Length != 1 || settings.spline.curveTypes[0] != (int)GeometryHelper.CurveType.LowPoly)) {
+                    throw new System.Exception("Spline custom element types following the connections must only allow the low poly curve type");
                 }
                 settings.controlPoints = SplinePoints(settings.spline.closed);
                 var components = settings.spline.components ?? new ComponentInfo[0];

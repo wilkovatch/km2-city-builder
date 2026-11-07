@@ -254,27 +254,44 @@ namespace Operations {
         //A uniform array gets the point in every instance: the clicked point in the instance whose holder (e.g. the section
         //of an array of lanes) is the nearest to the click, a new point at the same offset from the center of the others
         //(turned as their direction across, from their first to their last point, is)
+        //followConnections: the points connected between the last point and the clicked one are added first (Ctrl+click for
+        //the prop placers, always for the spline types following the connections at placement); the types with acceptTarget
+        //refuse the targets their script doesn't accept (null is returned), the ones with ownerReference the targets of other
+        //elements than the owner (the first point sets it, null is returned if its target has several possible owners)
         public static TerrainPoint AppendPoint(ElementManager manager, CustomElement element, string arrayPath, Node3D obj, Vector3 position, bool followConnections = false) {
             if (element.points == null || !(global::CustomElements.PointTree.Find(element.points, arrayPath) is global::CustomElements.PointList list)) return null;
-            if (followConnections && element.Settings?.propPlacer != null && list.items.Count > 0 && list.def.children == null) {
-                var previous = ((global::CustomElements.PointLeaf)list.items[^1]).point;
-                var target = GS.FindComponent<TerrainAnchor>(obj) ?? (GS.FindComponent<TerrainPoint>(obj)?.anchor as TerrainAnchor);
-                if (previous.anchor is TerrainAnchor from && !GO.IsNull(from) && !GO.IsNull(target)) {
+            if (!PointTargets.Allows(element, obj) || !PointTargets.ClaimOwner(element, obj)) return null;
+            followConnections = (followConnections && element.Settings?.propPlacer != null) || element.Settings?.spline?.followConnections == "place";
+            if (followConnections && list.items.Count > 0 && list.def.children == null) {
+                var nodes = ConnectedNodes(manager, element, list, obj, position);
+                //only through what the type accepts, otherwise the clicked point alone
+                if (nodes != null && nodes.TrueForAll(node => PointTargets.Allows(element, node))) {
                     TerrainPoint last = null;
-                    var sequence = list.items.Cast<global::CustomElements.PointLeaf>().Select(x => x.point).ToList();
-                    foreach (var anchor in AddTerrainPointToSequence.ConnectedAnchors(sequence, from, target)) {
-                        if (GO.IsNull(anchor) || sequence.Any(x => AddTerrainPointToSequence.AnchorEquals(x.anchor, anchor))) continue;
-                        last = AppendPoint(manager, element, arrayPath, anchor.GetObject(), anchor.GetPoint());
-                    }
-                    return last;
-                }
-                var path = PointSequenceConnections.Path(element, list, obj, position);
-                if (path != null) {
-                    TerrainPoint last = null;
-                    foreach (var node in path) last = AppendPoint(manager, element, arrayPath, node, GO.GetPosition(node));
-                    return AppendPoint(manager, element, arrayPath, obj, position) ?? last;
+                    foreach (var node in nodes) last = AppendSinglePoint(manager, element, arrayPath, list, node, GO.GetPosition(node)) ?? last;
+                    return AppendSinglePoint(manager, element, arrayPath, list, obj, position) ?? last;
                 }
             }
+            return AppendSinglePoint(manager, element, arrayPath, list, obj, position);
+        }
+
+        //the nodes (anchors and points) connecting the last point of the list to the clicked one, the clicked one included
+        //when it's an anchor; null if they aren't connected
+        static List<Node3D> ConnectedNodes(ElementManager manager, CustomElement element, global::CustomElements.PointList list, Node3D obj, Vector3 position) {
+            var previous = ((global::CustomElements.PointLeaf)list.items[^1]).point;
+            var target = GS.FindComponent<TerrainAnchor>(obj) ?? (GS.FindComponent<TerrainPoint>(obj)?.anchor as TerrainAnchor);
+            if (previous.anchor is TerrainAnchor from && !GO.IsNull(from) && !GO.IsNull(target)) {
+                var sequence = list.items.Cast<global::CustomElements.PointLeaf>().Select(x => x.point).ToList();
+                var res = new List<Node3D>();
+                foreach (var anchor in AddTerrainPointToSequence.ConnectedAnchors(sequence, from, target)) {
+                    if (GO.IsNull(anchor) || sequence.Any(x => AddTerrainPointToSequence.AnchorEquals(x.anchor, anchor))) continue;
+                    res.Add(anchor.GetObject());
+                }
+                return res;
+            }
+            return PointSequenceConnections.Path(element, list, obj, position, new PointSequenceConnections.Graph(manager), PointTargets.OwnerOf(element));
+        }
+
+        static TerrainPoint AppendSinglePoint(ElementManager manager, CustomElement element, string arrayPath, global::CustomElements.PointList list, Node3D obj, Vector3 position) {
             if (list.def.children != null) {
                 if (!AppendArrayElementAt(element, arrayPath, false, position)) return null;
                 var leaves = global::CustomElements.PointTree.Leaves(list.items[list.items.Count - 1]);
@@ -313,6 +330,7 @@ namespace Operations {
         }
 
         public static TerrainPoint InsertPointAt(ElementManager manager, CustomElement element, string path, int index, Node3D obj, Vector3 position) {
+            if (!PointTargets.Allows(element, obj) || !PointTargets.ClaimOwner(element, obj)) return null;
             if (!element.InsertArrayElement(path, index)) return null;
             var list = (global::CustomElements.PointList)global::CustomElements.PointTree.Find(element.points, path);
             var leaf = (global::CustomElements.PointLeaf)list.items[index];
@@ -349,6 +367,7 @@ namespace Operations {
             if (point == null || !point.anchorable) return null;
             var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked?.anchorable == false) return null;
+            if (!PointTargets.Allows(element, obj) || !PointTargets.ClaimOwner(element, obj)) return null;
             if (clicked != null && !clicked.IsDeleted()) {
                 if (clicked == point) return point;
                 element.ReplacePoint(point, clicked);
@@ -383,8 +402,9 @@ namespace Operations {
         }
 
         //the point of the element stops being shared with the other elements (a copy of it takes its place in the element),
-        //or, if only the element uses it, stops following its anchor
+        //or, if only the element uses it, stops following its anchor; null if the type of the element doesn't accept a free point
         public static TerrainPoint DetachPoint(ElementManager manager, CustomElement element, TerrainPoint point) {
+            if (!PointTargets.Allows(element, null)) return null;
             if (point.GetLinks().Count > 1) {
                 var copy = TerrainPoint.Create(point.GetPoint(), null, manager.GetTerrainPointContainer());
                 copy.SetRotation(point.GetRotation());

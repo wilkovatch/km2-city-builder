@@ -17,7 +17,6 @@ This page lists every file and folder a core can contain. The [Midtown Madness 2
 │   ├── sharedComponents/
 │   ├── terrainPatches/
 │   │   ├── terrainPatches/<type>/
-│   │   └── borderMeshes/<type>/
 │   ├── buildings/<type>/
 │   ├── buildingBlocks/<type>/
 │   ├── props/

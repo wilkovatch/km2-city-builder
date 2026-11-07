@@ -20,12 +20,10 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
     CityElements.Types.Runtime.TerrainPatchType curType;
     RC.VariableContainer variableContainer;
 
-    List<TerrainBorderMesh> borderMeshes = new List<TerrainBorderMesh>();
-
     public ObjectState state;
     List<Vector3> oldPerimeterPoints = new List<Vector3>();
     List<Vector3> oldInternalPoints = new List<Vector3>();
-    int oldPointCount, oldInternalPointCount, oldBorderMeshCount;
+    int oldPointCount, oldInternalPointCount;
 
     GameObject container;
 
@@ -50,104 +48,6 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
 
     public ObjectState GetState() {
         return state;
-    }
-
-    public void AddBorderMesh(ObjectState state, ObjectState instanceState) {
-        History.UndoManager.Touch(this);
-        var borderMesh = new TerrainBorderMesh();
-        borderMesh.state = state;
-        borderMesh.instanceState = instanceState;
-        if (borderMesh.instanceState == null) borderMesh.instanceState = new ObjectState(); //for backwards compatibility
-        borderMeshes.Add(borderMesh);
-    }
-
-    public void SetBorderMeshState(int i, ObjectState newState) {
-        if (i < 0 || i >= borderMeshes.Count) return;
-        History.UndoManager.Touch(this);
-        borderMeshes[i].state = newState;
-    }
-
-    public void RemoveBorderMesh(int i) {
-        if (i < 0 || i >= borderMeshes.Count) return;
-        History.UndoManager.Touch(this);
-        borderMeshes.RemoveAt(i);
-    }
-
-    public int GetBorderMeshCount() {
-        return borderMeshes.Count;
-    }
-
-    public TerrainBorderMesh GetBorderMesh(int i) {
-        if (i < 0 || i >= borderMeshes.Count) return null;
-        return borderMeshes[i];
-    }
-
-    void AddPointToBorderMeshSorted(int i, TerrainPoint point) {
-        var seg = borderMeshes[i].segment;
-        if (seg.Count == 0) {
-            seg.Add(point);
-            return;
-        }
-        var lastPoint = seg[seg.Count - 1];
-        var firstPoint = seg[0];
-        var lastIndex = perimeterPoints.IndexOf(lastPoint);
-        var firstIndex = perimeterPoints.IndexOf(firstPoint);
-        var next = lastIndex + 1;
-        if (next >= perimeterPoints.Count) next = 0;
-        var prev = firstIndex - 1;
-        if (prev < 0) prev = perimeterPoints.Count - 1;
-        var newIndex = perimeterPoints.IndexOf(point);
-        if (newIndex == next) {
-            seg.Add(point);
-        } else if (newIndex == prev) {
-            seg.Insert(0, point);
-        }
-    }
-
-    public void AddPointToBorderMesh(int i, TerrainPoint point) {
-        if (!perimeterPoints.Contains(point)) return;
-        if (i < 0 || i >= borderMeshes.Count || point == null) return;
-        History.UndoManager.Touch(this);
-        var sCount = borderMeshes[i].segment.Count;
-        if (sCount > 0) {
-            var path1 = GetBorderMeshPath(borderMeshes[i].segment[sCount - 1], point, true);
-            var path2 = GetBorderMeshPath(borderMeshes[i].segment[0], point, false);
-            var path = (path1.Count < path2.Count) ? path1 : path2;
-            foreach (var p in path) {
-                AddPointToBorderMeshSorted(i, p);
-            }
-        } else {
-            AddPointToBorderMeshSorted(i, point);
-        }
-    }
-
-    public void HighlightBorderMesh(int i) {
-        foreach (var point in perimeterPoints) {
-            point.Select(i == -1);
-        }
-        if (i < 0 || i >= borderMeshes.Count) return;
-        foreach (var point in borderMeshes[i].segment) {
-            point.Select(true);
-        }
-    }
-
-    List<TerrainPoint> GetBorderMeshPath(TerrainPoint start, TerrainPoint end, bool forward) {
-        var res = new List<TerrainPoint>();
-        var startIndex = perimeterPoints.IndexOf(start);
-        if (!perimeterPoints.Contains(end)) return res;
-        var increment = forward ? 1 : -1;
-        if (startIndex >= 0) {
-            TerrainPoint curPoint = null;
-            var curIndex = startIndex;
-            while (curPoint != end) {
-                curIndex += increment;
-                if (curIndex < 0) curIndex = perimeterPoints.Count - 1;
-                if (curIndex >= perimeterPoints.Count) curIndex = 0;
-                curPoint = perimeterPoints[curIndex];
-                res.Add(curPoint);
-            }
-        }
-        return res;
     }
 
     void HighlightCurPerimeterPoint() {
@@ -205,9 +105,7 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
     public TerrainPoint AddPerimeterPoint(GameObject obj, Vector3 point, bool pointOnly = false) {
         History.UndoManager.Touch(this);
         return AddTerrainPointToSequence.AddPoint(perimeterPoints, ref curAnchor, container, this,
-            delegate {
-                borderMeshes.Clear();
-            },
+            null,
             delegate {
                 generator.lr.enabled = perimeterPoints.Count > 2;
                 HighlightCurPerimeterPoint();
@@ -240,14 +138,12 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
         var lastI = perimeterPoints.Count - 1;
         perimeterPoints[lastI].DeleteManual(this);
         generator.lr.enabled = perimeterPoints.Count > 2;
-        borderMeshes.Clear();
         HighlightCurPerimeterPoint();
     }
 
     public bool RemovePerimeterPoint(TerrainPoint point) {
         History.UndoManager.Touch(this);
         var res = perimeterPoints.Remove(point);
-        if (res) borderMeshes.Clear();
         HighlightCurPerimeterPoint();
         return res;
     }
@@ -266,38 +162,8 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
             var vc = variableContainer;
             var uMult = vc.floats[vc.floatIndex["uMult"]];
             var vMult = vc.floats[vc.floatIndex["vMult"]];
-            generator.RebuildMesh(GetPerimeterPoints(), GetInternalPoints(), GetBorderMeshes(), state.Str("texture"), state.Int("smooth"), uMult, vMult);
+            generator.RebuildMesh(GetPerimeterPoints(), GetInternalPoints(), state.Str("texture"), state.Int("smooth"), uMult, vMult);
         }
-    }
-
-    List<(List<Vector3>, List<Vector3>, ObjectState, ObjectState)> GetBorderMeshes() {
-        var res = new List<(List<Vector3>, List<Vector3>, ObjectState, ObjectState)>();
-        for (int i = 0; i < borderMeshes.Count; i++) {
-            var lefts = new List<Vector3>();
-            var points = new List<Vector3>();
-            foreach (var point in borderMeshes[i].segment) {
-                points.Add(point.GetPoint());
-            }
-            if (!GeometryHelper.IsPolygonClockwise(GetPerimeterPoints())) {
-                points.Reverse();
-            }
-            for (int j = 0; j < points.Count; j++) {
-                var dirPrev = (j == 0) ? GameEngine.Vector3.zero : GameEngine.Vector3.Normalize((points[j] - points[j - 1]));
-                var dirNext = (j == points.Count - 1) ? GameEngine.Vector3.zero : GameEngine.Vector3.Normalize((points[j + 1] - points[j]));
-                var dir = dirPrev + dirNext;
-                if (j > 0 && j < points.Count - 1) dir *= 0.5f;
-                var left = GameEngine.Vector3.Normalize(GameEngine.Vector3.Cross(dir, GameEngine.Vector3.up));
-                lefts.Add(left);
-            }
-            res.Add((points, lefts, borderMeshes[i].state, borderMeshes[i].instanceState));
-        }
-        return res;
-    }
-
-    public List<TerrainBorderMesh> GetTerrainBorderMeshes() {
-        var res = new List<TerrainBorderMesh>();
-        res.AddRange(borderMeshes);
-        return res;
     }
 
     public void SetActive(bool active, bool moveable) {
@@ -351,14 +217,12 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
         foreach (var point in internalPoints) point.RemoveLinkSilently(this);
         perimeterPoints.Clear();
         internalPoints.Clear();
-        borderMeshes.Clear();
         GO.Destroy(this);
         deleted = true;
     }
 
-    //sets the points, border meshes and state (used by undo/redo)
-    public void RestoreFromSnapshot(List<TerrainPoint> perimeter, List<TerrainPoint> internals,
-        List<(ObjectState state, ObjectState instanceState, List<TerrainPoint> segment)> newBorderMeshes, ObjectState newState) {
+    //sets the points and state (used by undo/redo)
+    public void RestoreFromSnapshot(List<TerrainPoint> perimeter, List<TerrainPoint> internals, ObjectState newState) {
 
         var oldPoints = new HashSet<TerrainPoint>(perimeterPoints);
         oldPoints.UnionWith(internalPoints);
@@ -372,14 +236,6 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
         }
         perimeterPoints = new List<TerrainPoint>(perimeter);
         internalPoints = new List<TerrainPoint>(internals);
-        borderMeshes.Clear();
-        foreach (var bm in newBorderMeshes) {
-            var borderMesh = new TerrainBorderMesh();
-            borderMesh.state = bm.state;
-            borderMesh.instanceState = bm.instanceState;
-            borderMesh.segment.AddRange(bm.segment);
-            borderMeshes.Add(borderMesh);
-        }
         state = newState;
         generator.lr.enabled = perimeterPoints.Count > 2;
         HighlightCurPerimeterPoint();
@@ -451,10 +307,6 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
         for (int i = 0; i < internalPoints.Count; i++) {
             if (!GeometryHelper.AreVectorsEqual(internalPoints[i].GetPoint(), oldInternalPoints[i])) return true;
         }
-        if (borderMeshes.Count != oldBorderMeshCount) return true;
-        foreach (var borderMesh in borderMeshes) {
-            if (borderMesh.DidChange()) return true;
-        }
         return false;
     }
 
@@ -494,13 +346,9 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
             point.UpdateOlds();
             oldInternalPoints.Add(point.GetPoint());
         }
-        foreach (var borderMesh in borderMeshes) {
-            borderMesh.UpdateOlds();
-        }
         state.FlagAsUnchanged();
         oldPointCount = perimeterPoints.Count;
         oldInternalPointCount = internalPoints.Count;
-        oldBorderMeshCount = borderMeshes.Count;
     }
 
     public int GetPerimeterPointCount() {

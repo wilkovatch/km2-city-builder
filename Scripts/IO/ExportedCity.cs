@@ -77,18 +77,11 @@ namespace IO.ExportedCity {
     }
 
     [System.Serializable]
-    public class TerrainBorderMesh {
-        public ObjectState fields;
-        public string b64v3a_segment; //Vector3[]
-    }
-
-    [System.Serializable]
     public class TerrainPatch {
         public int id;
         public BaseData data;
         public string b64v3a_perimeterPoints; //Vector3[]
         public string b64v3a_internalPoints; //Vector3[]
-        public TerrainBorderMesh[] borderMeshes;
     }
 
     [System.Serializable]

@@ -323,13 +323,9 @@ namespace CityDecoder {
                     var tp = GetTerrainPoint(loadedTerrainPoints[point], pointDict, loadedTerrainPoints);
                     newPatch.AddInternalPoint(tp.GetObject(), tp.GetPoint(), true);
                 }
-                var ri = 0;
-                foreach (var borderMesh in patch.borderMeshes) {
-                    newPatch.AddBorderMesh(borderMesh.state, borderMesh.instanceState);
-                    foreach (var p in borderMesh.segmentPointsIds) {
-                        newPatch.AddPointToBorderMesh(ri, GetTerrainPoint(loadedTerrainPoints[p], pointDict, loadedTerrainPoints));
-                    }
-                    ri++;
+                //the border meshes were removed: a core migration turns them into custom elements
+                if (patch.borderMeshes != null && patch.borderMeshes.Count > 0) {
+                    GameEngine.LogWarning("The terrain patch " + patch.name + " has border meshes, which are not supported any more: migrate the city with its core");
                 }
                 newPatch.state = patch.state;
                 manager.AddPatch(newPatch);

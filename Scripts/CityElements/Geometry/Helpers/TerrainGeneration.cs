@@ -62,13 +62,7 @@ namespace GeometryHelpers {
             return res;
         }
 
-        static CityElements.Types.Runtime.RoadType GetRoadType(ObjectState state) {
-            var dict = CityElements.Types.Parsers.TypeParser.GetTerrainPatchBorderMeshTypes();
-            return dict[state.Str("type", null)];
-        }
-
-        public static TerrainGenerationResult GetMesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints,
-            List<(List<Vector3> segment, List<Vector3> lefts, ObjectState state, ObjectState instanceState)> borderMeshes, string tex, int smooth, float uMult, float vMult) {
+        public static TerrainGenerationResult GetMesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints, string tex, int smooth, float uMult, float vMult) {
 
             perimeterPoints = CleanPerimeterPoints(perimeterPoints);
             var res = new TerrainGenerationResult();
@@ -130,61 +124,12 @@ namespace GeometryHelpers {
                 uvs[i] = new Vector2(uvs[i][0] * uMult, uvs[i][1] * vMult);
             }
 
-            //border meshes (e.g. walls)
             var extraTris = new List<List<(List<int>, int)>>();
             var materials = new List<Material>();
             var materialNames = new List<string>();
             var invisible = tex == "" || tex == null;
             materials.Add(MaterialManager.GetMaterial(invisible ? "_TRANSPARENT_" : tex, invisible));
             materialNames.Add(invisible ? "_TRANSPARENT_" : tex);
-            if (borderMeshes != null && borderMeshes.Count > 0) {
-                foreach (var borderMesh in borderMeshes) {
-                    if (borderMesh.segment.Count == 0) continue;
-                    var thisExtraTris = new List<(List<int>, int)>();
-                    var curType = GetRoadType(borderMesh.state);
-                    var baseVertex = vertices.Count;
-                    var subGen = new RoadLikeGenerator<CityElements.Types.RoadType>(borderMesh.state, null, borderMesh.segment.Count, curType.typeData.settings.textures.Length);
-                    subGen.Reset(curType, borderMesh.state, null, borderMesh.segment.Count, curType.typeData.settings.textures.Length);
-                    subGen.curvePoints.AddRange(borderMesh.segment);
-                    subGen.curveRightVectors.AddRange(borderMesh.lefts);
-                    subGen.sectionRights.AddRange(borderMesh.lefts);
-                    var curMats = new List<int>();
-                    var texIndexMap = new Dictionary<int, int>();
-                    for (int i = 0; i < curType.typeData.settings.textures.Length; i++) {
-                        var mat = curType.typeData.settings.textures[i];
-                        var realMat = MaterialManager.GetTextureName(borderMesh.state, mat);
-                        if (!materialNames.Contains(realMat)) {
-                            materials.Add(MaterialManager.GetMaterial(realMat));
-                            materialNames.Add(realMat);
-                        }
-                        var index = materialNames.IndexOf(realMat);
-                        curMats.Add(index);
-                        texIndexMap.Add(i, index);
-                    }
-                    var len = GH.GetPathLength(borderMesh.segment.ToArray());
-                    curType.FillInitialVariables(subGen.variableContainer, borderMesh.state, borderMesh.instanceState, null, len, borderMesh.segment.Count);
-                    var z = 0.0f;
-                    for (int i = 0; i < borderMesh.segment.Count; i++) {
-                        if (i > 0) z += GameEngine.Vector3.Distance(borderMesh.segment[i - 1], borderMesh.segment[i]);
-                        subGen.sectionMarkers.Add(z);
-                        subGen.sectionVertices.Add(subGen.GetRawSectionVertices(i).Item1);
-                    }
-                    subGen.InitBaseSectionsInfo();
-                    for (int i = 0; i < borderMesh.segment.Count; i++) {
-                        subGen.InitSection(i);
-                        subGen.AddSection(i, null);
-                    }
-                    for (int i = 0; i < subGen.tempIndices.Count; i++) {
-                        for (int j = 0; j < subGen.tempIndices[i].Count; j++) {
-                            subGen.tempIndices[i][j] += baseVertex;
-                        }
-                        thisExtraTris.Add((subGen.tempIndices[i], texIndexMap[i]));
-                    }
-                    extraTris.Add(thisExtraTris);
-                    vertices.AddRange(subGen.tempVertices);
-                    uvs.AddRange(subGen.tempUVs);
-                }
-            }
             var numMeshes = materialNames.Count;
 
             res.res = 1;
@@ -199,10 +144,9 @@ namespace GeometryHelpers {
             return res;
         }
 
-        public static SubMeshData GetSubmesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints, List<(List<Vector3> segment,
-            List<Vector3> lefts, ObjectState state, ObjectState instanceState)> borderMeshes, string tex, bool invisible, int smooth, float uMult, float vMult) {
+        public static SubMeshData GetSubmesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints, string tex, bool invisible, int smooth, float uMult, float vMult) {
 
-            var terrain = GetMesh(perimeterPoints, internalPoints, borderMeshes, tex, smooth, uMult, vMult);
+            var terrain = GetMesh(perimeterPoints, internalPoints, tex, smooth, uMult, vMult);
             var m = new SubMeshData();
             if (terrain.res == 0) return m;
             m.materials = terrain.materialNames.ToArray();

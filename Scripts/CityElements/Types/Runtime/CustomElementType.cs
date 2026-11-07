@@ -6,6 +6,8 @@ namespace CityElements.Types.Runtime {
     public class CustomElementType: RuntimeType<Types.CustomElementType> {
         //the functions of the Lua scripts of the core (null if the type has none)
         public readonly Lua.LuaFunction geometryFunction, constraintsFunction, derivedFunction;
+        public readonly Lua.LuaFunction acceptTargetFunction; //where the control points can go (see PointTargets), null: anywhere
+        internal bool? acceptsGround; //acceptTargetFunction accepts a free point (asked once, see PointTargets.AcceptsGround)
         public readonly RC.Scripting.LuaScriptHost scriptHost;
         public readonly bool canBatchGeometryPreparation;
         public readonly RoadType splineType;
@@ -37,9 +39,11 @@ namespace CityElements.Types.Runtime {
                     components = type.splineComponents ?? new RoadComponent[0], ui = type.ui }, name);
                 canBatchGeometryPreparation = false; //projection and road component evaluation stay on the main thread
             }
-            if (settings.geometry != null || settings.constraints != null || settings.derivedPoints != null || settings.propPlacer?.placement != null) {
+            if (settings.geometry != null || settings.constraints != null || settings.derivedPoints != null || settings.propPlacer?.placement != null
+                || settings.spline?.acceptTarget != null) {
                 this.scriptHost = scriptHost ?? RC.Scripting.LuaScriptHost.Get();
                 if (settings.geometry != null) geometryFunction = this.scriptHost.Resolve(settings.geometry);
+                if (settings.spline?.acceptTarget != null) acceptTargetFunction = this.scriptHost.Resolve(settings.spline.acceptTarget);
                 if (settings.constraints != null) constraintsFunction = this.scriptHost.Resolve(settings.constraints);
                 if (settings.derivedPoints != null) {
                     if (string.IsNullOrEmpty(settings.derivedPoints.flag)) throw new System.Exception("custom element type '" + name + "': derivedPoints has no flag");
@@ -49,6 +53,10 @@ namespace CityElements.Types.Runtime {
             CheckPointNodes(settings.controlPoints, name, false);
             if (settings.replacesReference != null && !System.Linq.Enumerable.Contains(GetReferenceParameters(), settings.replacesReference)) {
                 throw new System.Exception("custom element type '" + name + "': replacesReference '" + settings.replacesReference + "' is not a reference parameter");
+            }
+            var ownerReference = settings.spline?.ownerReference;
+            if (ownerReference != null && !System.Linq.Enumerable.Contains(GetReferenceParameters(), ownerReference)) {
+                throw new System.Exception("custom element type '" + name + "': ownerReference '" + ownerReference + "' is not a reference parameter");
             }
         }
 

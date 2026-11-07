@@ -35,7 +35,7 @@ Definitions and loop variables are described in [Expression Language](Expression
 | `placeholder` | String key of the placeholder text of input fields. |
 | `tooltip` | String key of the tooltip (optional). |
 | `container` | Optional group name. The parameter's full name becomes `<container>_<name>`, which is the name to use in expressions and in `ui.json`. All parameters of a container can be saved and loaded as one preset with a `PRESET_<container>` UI element (MM2 uses it for railings: `rail_type`, `rail_height`, ...). Do not use underscores in container names or in the names of parameters inside a container. |
-| `instanceSpecific` | If true, the value belongs to this element only and presets never overwrite it (for example a block number or a per-road traffic rule). Roads, intersections, building lines and terrain patch border meshes store it in a separate *instance state*. Custom elements keep it in their single state and exclude it from presets; reference parameters of custom element types are always instance-specific. |
+| `instanceSpecific` | If true, the value belongs to this element only and presets never overwrite it (for example a block number or a per-road traffic rule). Roads, intersections and building lines store it in a separate *instance state*. Custom elements keep it in their single state and exclude it from presets; reference parameters of custom element types are always instance-specific. |
 | `reuseInNewRoads` | For an `instanceSpecific` parameter of a road type: a road created in the editor takes its value from the last road selected, with the values of its spline (see [Core Roads](Core-Roads#built-in-parameters)). The other instance-specific parameters start empty. |
 | `enumLabels` | For `enum`: string keys of the options. |
 | `arrayProperties` | For `array`, see below. |
@@ -186,8 +186,7 @@ Built-in groups insert the program's own controls (type and preset selectors, pl
 |---|---|
 | Road | `mainGroup` (type, preset, point placement, projection, segments, smoothing, coplanarity, curve type), `intersectionGroup` (crosswalk sizes, intersection size increase and textures, road through intersection flags), `propsGroup` (props rule preset and one enable checkbox + edit button per props container) |
 | Intersection | `mainGroup` (type, preset, sidewalk segments, size increase) |
-| Terrain patch | `mainGroup` (type, point placement, smoothing, projection, auto-close, texture), `borderMeshGroup` (border mesh list and placement) |
-| Terrain patch border mesh | `mainGroup` |
+| Terrain patch | `mainGroup` (type, point placement, smoothing, projection, auto-close, texture) |
 | Building line | `mainGroup` (type, preset, building list), `propertiesGroup` (height, front only, loop, inverted direction, projection, roof texture), `loopGroup` (automatic closing with presets) |
 | Building | `mainGroup` (enabled sides, height, depth, roof texture, acute angle fix, side selection) |
 | Building side | `mainGroup` (floors), `blocksGroup` (block dictionary) |

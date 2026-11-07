@@ -26,6 +26,9 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
     public object source; //the procedural element it replaces (a ghost), null if none
     public CustomElementGenerator generator;
     public CustomElementSplineGeometry.Data splineData;
+    //the spline types following the connections dynamically: the nodes (anchors and points) between each control and the next
+    //one, the closing span last (see RefreshConnections)
+    internal List<List<Node3D>> connectionSpans = new List<List<Node3D>>();
     public string propPlacementError;
     public bool ProjectsPlacement => Settings?.propPlacer != null && state.Bool("projectToGround", Settings.propPlacer.projectToGround);
     public bool ProjectsSurface => ProjectsPlacement || Settings?.spline?.projectSections == true || Settings?.point?.project == true
@@ -166,10 +169,11 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
     //one that can't be moved (or isn't edited) doesn't hide or lock the points of the one that is
     static void ApplySharedPointState(TerrainPoint p) {
         if (p == null || p.IsDeleted()) return;
-        bool any = false, active = false, selected = false, moveable = false, highlighted = false, hidden = false;
+        bool any = false, active = false, selected = false, moveable = false, highlighted = false, hidden = false, detachable = true;
         foreach (var link in p.GetLinks()) {
             if (link is not CustomElement e || e.deleted) continue;
             any = true;
+            detachable &= Operations.PointTargets.AcceptsGround(e.GetCustomElementType());
             hidden |= e.Settings?.point != null && (!p.anchorable || e.moveable);
             active |= e.active;
             selected |= e.selected;
@@ -178,7 +182,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         }
         p.SetPlacementHighlighted(highlighted);
         if (!any) return; //only used by other kinds of elements, which set it
-        p.ApplyCustomElementState(active, selected, moveable, hidden);
+        p.ApplyCustomElementState(active, selected, moveable, hidden, detachable);
     }
 
     TerrainPoint CreatePoint(CityElements.Types.CustomElementPointNode def, Vector3 position) {
@@ -286,6 +290,15 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
             instance.items.RemoveAt(index);
             foreach (var (_, leaf) in PointTree.Leaves(removed)) ReleasePoint(leaf.point);
         }
+        structureVersion++;
+        return true;
+    }
+
+    //the points of the spline in the opposite order (its direction: e.g. the side of its strip), false if it has less than two
+    public bool ReverseSpline() {
+        if (Settings?.spline == null || PointTree.Find(points, "spline") is not PointList list || list.items.Count < 2) return false;
+        History.UndoManager.Touch(this);
+        list.items.Reverse();
         structureVersion++;
         return true;
     }
@@ -827,14 +840,55 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         return res;
     }
 
-    //the positions the geometry depends on: the points, then the points of the referenced elements
+    //the positions the geometry depends on: the points, then the points of the referenced elements, then the nodes the spans
+    //of the spline follow
     List<Vector3> GetInputPositions(List<TerrainPoint> all) {
         var res = new List<Vector3>();
         foreach (var p in all) res.Add(p.GetPoint());
         foreach (var (_, element) in GetReferencedElements()) {
             foreach (var p in element.GetUpdatePoints()) res.Add(p.GetPoint());
         }
+        foreach (var span in connectionSpans) {
+            foreach (var node in span) if (!GO.IsNull(node)) res.Add(GO.GetPosition(node));
+        }
         return res;
+    }
+
+    //the spline is a loop: always for the closed types, if chosen for the closable ones; with enough points (two are enough
+    //following the connections: the second span goes back the other way)
+    internal bool IsClosedSpline(int controls) {
+        var spline = Settings?.spline;
+        if (spline == null || !(spline.closed || (spline.closable && state.Bool("closed")))) return false;
+        return controls >= 3 || (controls == 2 && spline.FollowsConnectionsDynamically);
+    }
+
+    //the nodes connecting each control of the spline to the next one (see CustomElementSplineSettings.followConnections), searched
+    //again at every update of the city: changed (e.g. a point added to the perimeter they follow), the element is rebuilt. With
+    //an owner (ownerReference) they follow only its edges
+    internal bool RefreshConnections(Operations.PointSequenceConnections.Graph graph) {
+        var spans = new List<List<Node3D>>();
+        if (!deleted && Settings?.spline?.FollowsConnectionsDynamically == true && points?.Get("spline") is PointList list) {
+            var controls = new List<TerrainPoint>();
+            foreach (var item in list.items) if (item is PointLeaf leaf && leaf.point != null && !leaf.point.IsDeleted()) controls.Add(leaf.point);
+            var used = new HashSet<Node3D>();
+            foreach (var control in controls) used.Add(Operations.PointSequenceConnections.NodeOf(control));
+            var count = IsClosedSpline(controls.Count) ? controls.Count : controls.Count - 1;
+            var owner = Operations.PointTargets.OwnerOf(this);
+            for (int i = 0; i < count; i++) {
+                var a = controls[i];
+                var b = controls[(i + 1) % controls.Count];
+                var nodes = Operations.PointSequenceConnections.Between(a.GetObject(), a.GetPoint(), b.GetObject(), b.GetPoint(), this, used, graph, owner)
+                    ?? new List<Node3D>();
+                foreach (var node in nodes) used.Add(node);
+                spans.Add(nodes);
+            }
+        }
+        var same = spans.Count == connectionSpans.Count;
+        for (int i = 0; same && i < spans.Count; i++) same = System.Linq.Enumerable.SequenceEqual(spans[i], connectionSpans[i]);
+        if (same) return false;
+        connectionSpans = spans;
+        structureVersion++;
+        return true;
     }
 
     bool DidChange(List<TerrainPoint> all) {

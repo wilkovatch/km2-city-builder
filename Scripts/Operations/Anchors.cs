@@ -25,6 +25,16 @@ namespace Operations {
             return (null, -1);
         }
 
+        //the road or intersection the anchor belongs to (null if none), without its index
+        public static object OwnerElement(TerrainAnchor anchor) {
+            if (anchor == null || GO.IsNull(anchor) || anchor.IsDeleted()) return null;
+            var parent = GO.GetParent(anchor.GetObject());
+            if (parent == null) return null;
+            var road = GS.Cast<Road>(parent);
+            if (road != null) return road;
+            return GS.FindRecursive<Intersection.IntersectionComponent>(parent)?.intersection;
+        }
+
         //every anchor of the city, in the order used by the city-wide generators
         public static List<TerrainAnchor> GetAll(ElementManager manager) {
             var res = new List<TerrainAnchor>();

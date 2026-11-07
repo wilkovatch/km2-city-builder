@@ -222,8 +222,16 @@ namespace Operations {
         //References: the value of a reference parameter is another element of the city, {"kind": ..., "id": ...} (the
         //registry id); referenceTypes lists the kinds it accepts (road, intersection, customElement, customElement/<type>...)
 
-        //whether a reference parameter of the owner can reference the element (not itself, a ghost or a deleted element)
+        //whether a reference parameter of the owner can reference the element (not itself, a ghost or a deleted element); the
+        //owner of the controls of a custom element (see PointTargets) only if all the controls are on its targets
         public static bool AcceptsReference(Parameter param, object owner, object element) {
+            if (!AcceptsReferenceKind(param, owner, element)) return false;
+            if (owner is CustomElement custom && PointTargets.OwnerParameter(custom.GetCustomElementType())?.fullName() == param.fullName()) return PointTargets.AcceptsOwner(custom, element);
+            return true;
+        }
+
+        //the element is of a kind the parameter accepts (not the owner itself, a ghost or a deleted element)
+        public static bool AcceptsReferenceKind(Parameter param, object owner, object element) {
             var kind = History.ElementSnapshot.ReferenceKind(element);
             if (kind == null || element == owner || CustomElements.IsGhost(element) || IsDeleted(element)) return false;
             if (param.referenceTypes == null || param.referenceTypes.Length == 0) return true;

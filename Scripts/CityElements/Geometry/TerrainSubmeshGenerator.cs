@@ -39,7 +39,7 @@ public class TerrainSubmeshGenerator {
     }
 
     public int UpdateMesh(List<Vector3> spline, string texture, float uMult, float vMult) {
-        m = GeometryHelpers.TerrainGeneration.GetSubmesh(spline, null, null, texture, false, 0, uMult, vMult);
+        m = GeometryHelpers.TerrainGeneration.GetSubmesh(spline, null, texture, false, 0, uMult, vMult);
         GameEngine.Mesh.Clear(mesh);
         mesh = GeometryHelpers.SubMesh.GetMesh(m).Item1;
         GameEngine.Mesh.RefreshCollider(mesh, mc, true);

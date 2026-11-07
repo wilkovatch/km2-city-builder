@@ -263,7 +263,6 @@ public partial class ElementManager : Scriptable {
             if (patch.IsDeleted()) continue;
             AddPoints(patch.GetPerimeterPointsComponents());
             AddPoints(patch.GetInternalPointsComponents());
-            foreach (var borderMesh in patch.GetTerrainBorderMeshes()) AddPoints(borderMesh.segment);
         }
         foreach (var line in buildings) {
             if (line.IsDeleted()) continue;
@@ -556,7 +555,6 @@ public partial class ElementManager : Scriptable {
         foreach (var patch in patches) {
             Owns(patch, patch.GetPerimeterPointsComponents());
             Owns(patch, patch.GetInternalPointsComponents());
-            foreach (var border in patch.GetTerrainBorderMeshes()) Owns(patch, border.segment);
         }
         foreach (var line in buildings) Owns(line, line.GetPointsComponents());
         foreach (var element in customElements) {
@@ -786,6 +784,7 @@ public partial class ElementManager : Scriptable {
     int UpdateCustomElementGeometry(List<CustomElement> elements, bool full) {
         MoveByHandles(elements);
         foreach (var element in elements) element.RefreshPoints();
+        RefreshConnections(elements);
         //Check actual inputs before starting the constraint/derived/geometry passes. Membership changes
         //and undo also invalidate sibling inputs even when the surviving elements didn't move.
         var changed = full && (customElementAppliedVersion != History.UndoManager.AppliedVersion
@@ -842,6 +841,17 @@ public partial class ElementManager : Scriptable {
             customElementAppliedVersion = History.UndoManager.AppliedVersion;
         }
         return rebuilt;
+    }
+
+    //the spans of the splines following the connections dynamically follow what changed in the city (e.g. a point added to
+    //the perimeter of a terrain patch between two controls), see CustomElement.RefreshConnections
+    void RefreshConnections(List<CustomElement> elements) {
+        Operations.PointSequenceConnections.Graph graph = null;
+        foreach (var element in elements) {
+            if (element.IsDeleted() || element.Settings?.spline?.FollowsConnectionsDynamically != true) continue;
+            graph ??= new Operations.PointSequenceConnections.Graph(this);
+            element.RefreshConnections(graph);
+        }
     }
 
     //the containers whose move handle was moved (with the gizmo or the transform panel) move with their contents, in the

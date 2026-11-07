@@ -6,7 +6,7 @@ The generators in `Scripts/CityElements/Geometry` build the meshes of the city e
 
 ### `RoadLikeGenerator<T>` (`Geometry/Helpers/RoadLikeGenerator.cs`)
 
-The engine shared by roads, junctions and terrain patch border meshes. It works on a list of sections along a curve:
+The engine shared by roads, junctions and the spline custom elements. It works on a list of sections along a curve:
 
 * Inputs filled by the caller: `curvePoints`, `curveRightVectors`/`sectionRights`, `sectionMarkers` (distance along the curve), `sectionVertices` (the cross-section points of each section), and optionally `groundHeights`.
 * `Reset(type, ...)` clones the type's variable container (only when the type changes) and clears the buffers.
@@ -64,13 +64,12 @@ Accumulates the polygons that make up the road surface of an intersection (and t
 
 ### `TerrainGeneration` (`Geometry/Helpers/TerrainGeneration.cs`)
 
-`GetMesh(perimeter, internalPoints, borderMeshes, texture, smooth, uMult, vMult)`:
+`GetMesh(perimeter, internalPoints, texture, smooth, uMult, vMult)`:
 
 1. Removes consecutive duplicate perimeter points and triangulates perimeter + internal points with Delaunay (Delaunator), constrained to the perimeter edges (`ConstrainedDelaunay`), keeping only the triangles inside the polygon.
 2. Optionally smooths the internal vertices (`GeometryHelper.SmoothMeshConstrained`, `smooth` iterations).
 3. Sets the UVs to the world X/Z coordinates times `uMult`/`vMult` (definitions of the terrain patch type).
-4. Generates each border mesh with a `RoadLikeGenerator` along its segment, using its border mesh type (a road-like type) and state.
-5. An empty texture gives an invisible patch (`_TRANSPARENT_` material).
+4. An empty texture gives an invisible patch (`_TRANSPARENT_` material).
 
 `GetSubmesh` returns the same result as a `SubMeshData` (used for building roofs).
 

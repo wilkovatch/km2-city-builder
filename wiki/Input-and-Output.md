@@ -19,7 +19,7 @@ The struct contains:
 | `roads` | `id`, `name`, `state`, `instanceState`, control `points`, `pointRotations` (yaw and roll of each point in degrees, missing when they are all zero), `startIntersectionId`, `endIntersectionId` (-1 if none). |
 | `intersections` | `id`, `name`, `roads` (road ids), `center`, `state`, `instanceState`. |
 | `terrainPoints` | Every terrain point, with what it is anchored to: `linkType` (`None`, `Point`: an anchor of a road or intersection, `Line`: a point on a link between two terrain points), `elementType` + `elementId` + `anchorIndex` to find the anchor, `percent` for line links, and the `dividing` flag. |
-| `terrainPatches` | `id`, `name`, `state`, perimeter and internal point ids, `borderMeshes` (state, instance state, segment point ids). |
+| `terrainPatches` | `id`, `name`, `state`, perimeter and internal point ids. Older cities can also have `borderMeshes`: they are ignored (with a warning) and a core migration converts them. |
 | `buildingLines` | `id`, `name`, `state`, `instanceState`, line point ids, `buildings` (states) and `sides` (states). |
 | `customElements` | `id`, `name`, `state` (type and parameters; reference parameters as `{kind, id}` with the indices of the save), `points` (the structure of the control points of the type, with terrain point ids), `meshVertices` (terrain point ids), `triangles`, `uvs`, `containerId` (-1 if none), `source` (`{kind, id}` of the ghost it replaces). |
 
@@ -81,7 +81,7 @@ Top-level structure (`ExportedCity`):
 | `meshDict` | Every mesh file used by props and mesh instances: `name` (path) and bounds. |
 | `roads` | `data` (see below), `points`, intersection ids. |
 | `intersections` | `data`, `center`, `roads` (ids), `roadsThrough` (road pieces generated across the intersection, same format as roads). |
-| `terrainPatches` | `data`, perimeter and internal points, `borderMeshes` (`fields` + `segment`). |
+| `terrainPatches` | `data`, perimeter and internal points. |
 | `buildingLines` | `data`, `linePoints`, `sides`, `roof`, `buildings` (each with `front`, `left`, `right`, `back` sides, `roof` and splines). Each side has its merged `data.mesh`, plus `meshDict`, `facades` and `paramMeshes` with the block instancing data. |
 | `meshInstances` | `id`, `name`, `type` (the mesh instance type, null for the parametric objects), `settings`, `reference` (`meshId` into `meshDict`, position, scale, rotation). |
 | `customElements` | The custom elements, see [Core Custom Elements](Core-Custom-Elements#export). The roads and intersections have `ghost` (replaced by custom elements: their geometry is not to be exported). |

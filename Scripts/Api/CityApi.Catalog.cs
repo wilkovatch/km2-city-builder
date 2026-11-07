@@ -9,7 +9,7 @@ namespace Api {
     //What scripts can choose from: cores, templates, element types and their parameters, presets, assets, exporters
     public partial class CityApi {
         public static readonly string[] TypeKinds = {
-            "road", "intersection", "terrainPatch", "borderMesh", "buildingLine", "building", "buildingSide", "buildingBlock",
+            "road", "intersection", "terrainPatch", "buildingLine", "building", "buildingSide", "buildingBlock",
             "props", "cityProperties", "meshInstance", "parametricObject", "customElement"
         };
 
@@ -44,7 +44,6 @@ namespace Api {
                 case "road": return TI.Roads;
                 case "intersection": return TI.Intersections;
                 case "terrainPatch": return TI.TerrainPatches;
-                case "borderMesh": return TI.BorderMeshes;
                 case "buildingLine": case "building": case "buildingSide": return TI.Buildings;
                 case "buildingBlock": return TI.BuildingBlocks;
                 case "props": return TI.PropsTypes;
@@ -84,8 +83,6 @@ namespace Api {
                     return TypesOf(kind, TP.GetIntersectionTypes(), t => t.typeData.GetUI().label, t => Params(t.parameterContainer));
                 case "terrainPatch":
                     return TypesOf(kind, TP.GetTerrainPatchTypes(), t => t.typeData.GetUI().label, t => Params(t.parameterContainer));
-                case "borderMesh":
-                    return TypesOf(kind, TP.GetTerrainPatchBorderMeshTypes(), t => t.typeData.GetUI().label, t => Params(t.parameterContainer));
                 case "buildingLine":
                     return TypesOf(kind, TP.GetBuildingLineTypes(), t => t.typeData.GetUI().label, t => Params(t.parameterContainer));
                 case "building":
@@ -148,7 +145,7 @@ namespace Api {
             return res;
         }
 
-        [ApiMethod("presets.list", "The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, terrainPatchBorderMesh, props/<type> for the props types, roadPropRule, customElement/<type> for enabled custom element types, or a container such as rail); the first one is the default")]
+        [ApiMethod("presets.list", "The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, props/<type> for the props types, roadPropRule, customElement/<type> for enabled custom element types, or a container such as rail); the first one is the default")]
         public List<string> ListPresets(string category) {
             RequireCity();
             try { return PresetNames(category); }

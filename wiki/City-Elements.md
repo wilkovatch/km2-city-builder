@@ -22,7 +22,7 @@ Helpers: deep cloning of arrays, `DeJsonify` (converts Newtonsoft `JObject`/`JAr
 
 ### `PresetManager` (`PresetManager.cs`)
 
-Reads and writes `presets.json` in the city folder (deserialized into a `PresetContainer`). Presets are grouped by category (`road`, `intersection`, `rail`, `props/<type>`, `roadPropRule`, `buildingLine`, `building`, `buildingSide`, `buildingBlock`, `terrainPatchBorderMesh`, ...; a category is created on first use). The first preset of each category is the default one and cannot be deleted; the others are kept sorted by name. `GetPreset(type, index)` returns a clone flagged as changed. `lastIntersection` remembers the last intersection state so that new intersections copy it. See [Core Templates and Presets](Core-Templates-and-Presets).
+Reads and writes `presets.json` in the city folder (deserialized into a `PresetContainer`). Presets are grouped by category (`road`, `intersection`, `rail`, `props/<type>`, `roadPropRule`, `buildingLine`, `building`, `buildingSide`, `buildingBlock`, `customElement/<type>`, ...; a category is created on first use). The first preset of each category is the default one and cannot be deleted; the others are kept sorted by name. `GetPreset(type, index)` returns a clone flagged as changed. `lastIntersection` remembers the last intersection state so that new intersections copy it. See [Core Templates and Presets](Core-Templates-and-Presets).
 
 ### `MeshManager` (`MeshManager.cs`)
 
@@ -105,8 +105,8 @@ A polygon of perimeter `TerrainPoint`s, with optional internal points (to add ve
 
 * `state`: terrain patch type parameters plus the built-in `type`, `texture`, `smooth` and `projectToGround`.
 * `AddPerimeterPoint`, `AddInternalPoint`, `RemovePerimeterPoint`, `AutoClose` (closes the loop by following anchors), `AutoGenerateInternalPoints(distance)` (Poisson disc sampling inside the polygon).
-* **Border meshes** (`TerrainBorderMesh`, `Logic/Helpers/TerrainBorderMesh.cs`): road-like meshes generated along a chosen sequence of perimeter points (railings and walls in MM2), each with its own `state`, `instanceState` and border mesh type.
-* `UpdatePatch` rebuilds the mesh when a point, the state or a border mesh changed.
+* `UpdatePatch` rebuilds the mesh when a point or the state changed.
+* Walls and railings along the perimeter are not part of the patch: a core defines them as spline custom elements following the perimeter (see [Core Custom Elements](Core-Custom-Elements#following-the-connections)). Patches used to have *border meshes* for this; a core migration converts them.
 
 ## Buildings
 

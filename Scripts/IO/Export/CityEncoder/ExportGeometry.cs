@@ -346,19 +346,6 @@ namespace CityEncoder {
             }
             elem.b64v3a_internalPoints = GetEncodedVector3s(elemInternalPoints);
 
-            var patchBorderMeshes = patch.GetTerrainBorderMeshes();
-            var elemRails = new IO.ExportedCity.TerrainBorderMesh[patchBorderMeshes.Count];
-            for (int j = 0; j < patchBorderMeshes.Count; j++) {
-                var borderMesh = new IO.ExportedCity.TerrainBorderMesh();
-                borderMesh.fields = States.Utils.GetFieldsAsState(patchBorderMeshes[j]);
-                var tmpSegment = new Vector3[patchBorderMeshes[j].segment.Count];
-                for (int k = 0; k < patchBorderMeshes[j].segment.Count; k++) {
-                    tmpSegment[k] = patchBorderMeshes[j].segment[k].GetPoint();
-                }
-                borderMesh.b64v3a_segment = GetEncodedVector3s(tmpSegment);
-                elemRails[j] = borderMesh;
-            }
-            elem.borderMeshes = elemRails;
             elem.id = id;
             return elem;
         }

@@ -30,13 +30,12 @@ public partial class TerrainPatchGenerator : PhysicsScriptable {
         lr.material = MaterialManager.GetHandleMaterial((GameEngine.Color.red + GameEngine.Color.yellow) * 0.5f);
     }
 
-    public void RebuildMesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints, List<(List<Vector3> segment,
-        List<Vector3> lefts, ObjectState state, ObjectState instanceState)> borderMeshes, string tex, int smooth, float uMult, float vMult) {
+    public void RebuildMesh(List<Vector3> perimeterPoints, List<Vector3> internalPoints, string tex, int smooth, float uMult, float vMult) {
 
         Clear();
 
         try {
-            var terrain = GeometryHelpers.TerrainGeneration.GetMesh(perimeterPoints, internalPoints, borderMeshes, tex, smooth, uMult, vMult);
+            var terrain = GeometryHelpers.TerrainGeneration.GetMesh(perimeterPoints, internalPoints, tex, smooth, uMult, vMult);
             if (terrain.res == 0) return;
             lr.positionCount = terrain.linePoints.Count;
             lr.SetPositions(terrain.linePoints.ToArray());

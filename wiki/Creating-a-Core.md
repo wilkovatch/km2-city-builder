@@ -21,7 +21,7 @@ Create `Files/cores/<CoreName>/` (the folder name is the core's permanent identi
 ├── strings/en-US.json
 ├── elements/
 │   ├── roads/  intersections/  sharedComponents/
-│   ├── terrainPatches/terrainPatches/  terrainPatches/borderMeshes/
+│   ├── terrainPatches/terrainPatches/
 │   ├── buildings/  buildingBlocks/
 │   ├── props/types/  props/parametric/
 │   ├── cityProperties/
@@ -57,7 +57,7 @@ Create `elements/intersections/<type>/` with `parameters.json` (defining `uMult`
 
 ## Step 5: terrain patches
 
-Create a terrain patch type (parameters with `uMult` and `vMult`, settings, `ui.json` with `mainGroup`) and, if the game needs walls or railings along patches, border mesh types (same format as road types). See [Core Terrain Patches](Core-Terrain-Patches).
+Create a terrain patch type (parameters with `uMult` and `vMult`, settings, `ui.json` with `mainGroup`) (see [Core Terrain Patches](Core-Terrain-Patches)). Walls or railings along the perimeters of patches, roads and intersections are spline custom element types following the connections (see [Core Custom Elements](Core-Custom-Elements#following-the-connections)).
 
 ## Step 6: buildings
 

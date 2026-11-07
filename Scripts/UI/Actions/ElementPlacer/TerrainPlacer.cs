@@ -14,12 +14,10 @@ namespace ElementPlacer {
         public enum PlacementMode {
             None,
             Perimeter,
-            Internal,
-            BorderMesh
+            Internal
         }
 
         public PlacementMode placementMode = PlacementMode.Perimeter;
-        public int curBorderMesh = -1;
         ElementManager manager;
 
         public TerrainPlacer(ElementManager manager) {
@@ -67,14 +65,9 @@ namespace ElementPlacer {
                 case PlacementMode.Internal:
                     Operations.TerrainPatches.AddInternalPoint(patch, (Node3D)hit.collider, hit.point);
                     break;
-                case PlacementMode.BorderMesh:
-                    var point = GS.FindRecursive<TerrainPoint>((Node3D)hit.collider);
-                    Operations.TerrainPatches.AddPointToBorderMesh(patch, curBorderMesh, point);
-                    patch.HighlightBorderMesh(curBorderMesh);
-                    break;
             }
             //a raised point (on the ground hit), or a patch started with the terrain hidden, would be put back on the ground
-            if (placementMode != PlacementMode.BorderMesh && PlacementHeight.TurnsOffProjection(firstPoint && patch.GetPerimeterPointCount() > 0,
+            if (PlacementHeight.TurnsOffProjection(firstPoint && patch.GetPerimeterPointCount() > 0,
                 !hits[0].HasValue && !hits[1].HasValue) && patch.IsProjectedToGround()) {
                 History.UndoManager.Touch(patch);
                 patch.state.SetBool("projectToGround", false);

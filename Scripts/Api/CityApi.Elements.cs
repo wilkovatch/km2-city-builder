@@ -407,37 +407,6 @@ namespace Api {
             });
         }
 
-        [ApiMethod("patches.borderMesh.add", "Adds a border mesh (with the default preset) to a terrain patch, returns its index")]
-        public int AddBorderMesh(ElementRef patch) {
-            return ApplyChange("add border mesh", () => {
-                var p = EditPatch(patch);
-                if (Operations.TerrainPatches.AddBorderMesh(p) == Operations.AddBorderMeshResult.LimitReached) {
-                    throw new ApiException("limit_reached", "the terrain patch can't have more border meshes");
-                }
-                return p.GetBorderMeshCount() - 1;
-            });
-        }
-
-        [ApiMethod("patches.borderMesh.remove", "Removes a border mesh from a terrain patch")]
-        public void RemoveBorderMesh(ElementRef patch, int borderMesh) {
-            ApplyChange("remove border mesh", () => {
-                var p = EditPatch(patch);
-                if (p.GetBorderMesh(borderMesh) == null) throw ApiException.NotFound("border mesh " + borderMesh);
-                Operations.TerrainPatches.RemoveBorderMesh(p, borderMesh);
-            });
-        }
-
-        [ApiMethod("patches.borderMesh.addPoint", "Adds a perimeter point to a border mesh (with the perimeter points between it and the segment of the border mesh)")]
-        public void AddBorderMeshPoint(ElementRef patch, int borderMesh, int point) {
-            ApplyChange("border mesh point", () => {
-                var p = EditPatch(patch);
-                if (p.GetBorderMesh(borderMesh) == null) throw ApiException.NotFound("border mesh " + borderMesh);
-                var tp = ResolveTerrainPoint(point);
-                if (!p.GetPerimeterPointsComponents().Contains(tp)) throw ApiException.InvalidOperation("the point is not on the perimeter of the terrain patch");
-                Operations.TerrainPatches.AddPointToBorderMesh(p, borderMesh, tp);
-            });
-        }
-
         [ApiMethod("terrainPoints.move", "Moves a point of terrain patches and building lines, as with the gizmo: a point on a segment slides along it, a point on an anchor can't be moved. Returns the new position")]
         public Vector3 MoveTerrainPoint(int point, Vector3 position, bool onGround = false) {
             ApplyChange("move point", () => {

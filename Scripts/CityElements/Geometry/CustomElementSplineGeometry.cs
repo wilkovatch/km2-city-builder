@@ -92,7 +92,19 @@ public static class CustomElementSplineGeometry {
         if (Array.IndexOf(settings.curveTypes, mode) < 0) throw new ArgumentException("Curve type is not allowed by " + element.TypeName);
         if (element.points.Get("spline") is not PointList list) return result;
         var controls = list.items.Cast<PointLeaf>().Select(p => p.point.GetPoint()).ToList();
-        var closed = settings.closed && controls.Count >= 3;
+        var closed = element.IsClosedSpline(controls.Count);
+        if (settings.FollowsConnectionsDynamically) {
+            //the spans go through the nodes connecting the controls (see CustomElement.RefreshConnections)
+            var expanded = new List<Vector3>();
+            for (int i = 0; i < controls.Count; i++) {
+                expanded.Add(controls[i]);
+                if (i < element.connectionSpans.Count) {
+                    foreach (var node in element.connectionSpans[i]) if (!GameEngine.GameObject.IsNull(node)) expanded.Add(GameEngine.GameObject.GetPosition(node));
+                }
+            }
+            controls = expanded;
+            closed &= controls.Count >= 3;
+        }
         data.closed = closed;
         var segments = Math.Clamp(state.Int("segments", settings.segments), 1, 10000);
         if (state.Bool("segmentsPer100m", settings.segmentsPer100m)) {

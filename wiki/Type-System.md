@@ -18,7 +18,6 @@ Static entry point. Every getter reads its folder of the current core (`Files/co
 | `GetRoadTypes` | `roads/<name>/` (+ `sharedComponents/`) | `Runtime.RoadType` |
 | `GetIntersectionTypes` | `intersections/<name>/` (+ `sharedComponents/`) | `Runtime.IntersectionType` |
 | `GetTerrainPatchTypes` | `terrainPatches/terrainPatches/<name>/` | `Runtime.TerrainPatchType` |
-| `GetTerrainPatchBorderMeshTypes` | `terrainPatches/borderMeshes/<name>/` (+ `sharedComponents/`) | `Runtime.RoadType` (border meshes are road-like) |
 | `GetBuildingTypes` | `buildings/<name>/` | `Runtime.Buildings.BuildingType` (with `GetBuildingLineTypes`, `GetBuildingBuildingTypes`, `GetBuildingSideTypes` returning its parts) |
 | `GetBuildingBlockTypes` | `buildingBlocks/<name>/` | `Runtime.Buildings.BlockType` |
 | `GetPropsTypes` | `props/types/<name>.json` | `Runtime.PropsType` |
@@ -97,7 +96,7 @@ Subclasses fill the variables in this order, through the protected helpers:
 | Class | Built from | Notes |
 |---|---|---|
 | `RoadLikeType.RoadLikeType<T>` | | Abstract base of road and junction types: section vertex calculators (`segmentVerticesCalculators`), anchors, traffic types and lanes, props lines, one `ComponentMeshCalculatorContainer` (main/start/end `MeshCalculator`, anchors, lanes, props lines) per component. |
-| `RoadType` | `Types.RoadType` | Adds the road built-in variables (see [Core Roads](Core-Roads#built-in-variables)), the low-poly width fix for the parameters listed in `widths`, the late definitions for parametric objects, and the *standard getters*: `GetStandardFloat/Bool/Vec3/Vec2/String(name)` evaluate the definition (or read the parameter) that the core maps to a standard name in `getters`. A missing getter logs one warning and returns the default value. Also used for terrain patch border meshes. |
+| `RoadType` | `Types.RoadType` | Adds the road built-in variables (see [Core Roads](Core-Roads#built-in-variables)), the low-poly width fix for the parameters listed in `widths`, the late definitions for parametric objects, and the *standard getters*: `GetStandardFloat/Bool/Vec3/Vec2/String(name)` evaluate the definition (or read the parameter) that the core maps to a standard name in `getters`. A missing getter logs one warning and returns the default value. Also used for the spline custom elements. |
 | `JunctionType` | `Types.JunctionType` + parent `IntersectionType` | Merges the intersection's parameters and definitions with the junction's, imports variables from the two roads (`importedParameters`), evaluates the junction section vertices with their own small variable container, resolves `textureDefinitions` and the `extraTerrainSplines`. |
 | `IntersectionType` | `Types.IntersectionType` | Holds one `JunctionType` per road type pair (junction file `A_B.json` → key `(A, B)`). `GetJunctionType(a, b)` falls back to `(a, a)`, `(b, b)` or any junction, with a warning, when the pair is missing. Compiles the extra terrain pieces. |
 | `TerrainPatchType` | `Types.TerrainPatchType` | Parameters and definitions only. |
