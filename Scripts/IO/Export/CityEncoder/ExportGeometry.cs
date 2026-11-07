@@ -237,6 +237,19 @@ namespace CityEncoder {
             var baseData = new IO.ExportedCity.BaseData();
             baseData.fields = States.Utils.GetFieldsAsState(generator);
             baseData.mesh = GetMeshData(GO.GetObject(generator));
+            //the section vertices of the type, section by section (what a road without geometry has instead of a mesh)
+            var sectionVertices = new List<Vector3>();
+            var sectionVertexCount = -1;
+            foreach (var section in generator.subGen?.sectionVertices ?? new List<Vector3[]>()) {
+                if (sectionVertexCount != -1 && section.Length != sectionVertexCount) {
+                    sectionVertices.Clear(); //not the same number in every section (variable sections): not exported
+                    break;
+                }
+                sectionVertexCount = section.Length;
+                sectionVertices.AddRange(section);
+            }
+            baseData.fields.SetStr("b64v3a_sectionVertices", GetEncodedVector3s(sectionVertices.ToArray()));
+            baseData.fields.SetInt("sectionVertexCount", sectionVertices.Count > 0 ? sectionVertexCount : 0);
             if (road != null) {
                 baseData.name = GO.GetName(road);
                 var pointArray = new Vector3[road.points.Count];
@@ -305,6 +318,7 @@ namespace CityEncoder {
             baseData.fields = States.Utils.GetFieldsAsState(intersection);
             baseData.fields.SetArray("partsInfo", intersection.generator.partsInfo.ToArray());
             baseData.fields.SetArray("sortOrder", intersection.generator.sortOrder.ToArray());
+            baseData.fields.SetArray("geometrySortOrder", intersection.generator.geometrySortOrder.ToArray());
             baseData.mesh = GetMeshData(GO.GetObject(intersection.generator));
             elem.data = baseData;
             elem.b64v3_center = GetEncodedVector3(GO.GetPosition(intersection.point));

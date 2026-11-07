@@ -30,6 +30,8 @@ public partial class Intersection: IObjectWithState {
 
     public TerrainAnchorLineManager anchorManager;
     public bool ghost = false; //replaced by custom elements (see Road.ghost)
+    //all its roads have no geometry (see RoadSettings.geometryless): it has no geometry either, only its road ends
+    public bool geometryless = false;
 
     public partial class IntersectionComponent : PhysicsScriptable {
         public Intersection intersection;
@@ -326,6 +328,14 @@ public partial class Intersection: IObjectWithState {
         oldRoadCount = roads.Count;
         oldSeamless = IsSeamless();
         sizes = new List<float>();
+        //the roads without geometry are sized against all the others, but the ones with geometry only against each
+        //other: the roads without geometry don't change the surface (unless all of them are without geometry)
+        var geometryless = new List<bool>();
+        foreach (var road in roads) geometryless.Add(road.IsGeometryless());
+        this.geometryless = roads.Count > 0 && !geometryless.Contains(false);
+        bool SizedBy(int i, int j) {
+            return i != j && (geometryless[i] || !geometryless[j]);
+        }
         if (IsSeamless()) {
             //the roads end on the point, at its height
             heights = new List<float>();
@@ -352,7 +362,7 @@ public partial class Intersection: IObjectWithState {
             roads[i].forceRemesh = true;
             var d1 = GetDirectionToCenter(roads[i], pointCenter);
             for (int j = 0; j < roads.Count; j++) {
-                if (i == j) continue;
+                if (!SizedBy(i, j)) continue;
                 var d2 = GetDirectionToCenter(roads[j], pointCenter);
                 var thisSize = GetSize(d1, d2, groundWidths[i], groundWidths[j]);
                 //the size is where the facing edges cross: the corner on the side of road j must reach it
@@ -389,7 +399,7 @@ public partial class Intersection: IObjectWithState {
                 }
                 int thisFound = 0;
                 for (int j = 0; j < roads.Count; j++) {
-                    if (i == j) continue;
+                    if (!SizedBy(i, j)) continue;
                     var dir2 = mouths[j].dir;
                     var left2 = mouths[j].leftDir * 0.5f;
                     if (mouths[j].yaw != 0) left2 += dir2 * (0.5f * Mathf.Tan(mouths[j].yaw));
@@ -410,21 +420,23 @@ public partial class Intersection: IObjectWithState {
             }
         }
 
-        //add space for crosswalk
+        //add space for crosswalk (not on the roads without geometry, which have none)
         for (int i = 0; i < roads.Count; i++) {
-            sizes[i] += roads[i].GetCrosswalkSize(this) + roads[i].GetIntersectionAdd(this) + state.Float("sizeIncrease");
+            var crosswalk = geometryless[i] ? 0.0f : roads[i].GetCrosswalkSize(this);
+            sizes[i] += crosswalk + roads[i].GetIntersectionAdd(this) + state.Float("sizeIncrease");
         }
-        RecalculateHeights(pointCenter, mouths);
+        RecalculateHeights(pointCenter, mouths, geometryless);
     }
 
     //the heights of the road ends: their connection height, plus for the automatic ones the height of the plane fitted
-    //through the corners of the mouths of the other roads (the ones not automatic, so that they don't depend on each other)
-    void RecalculateHeights(Vector3 pointCenter, List<RoadMouth> mouths) {
+    //through the corners of the mouths of the other roads (the ones not automatic, so that they don't depend on each other;
+    //not the roads without geometry, unless all of them are, as for the sizes)
+    void RecalculateHeights(Vector3 pointCenter, List<RoadMouth> mouths, List<bool> geometryless) {
         heights = new List<float>();
         var points = new List<Vector3>(); //relative to the point
         var fixedRoads = new List<int>();
         for (int i = 0; i < roads.Count; i++) {
-            if (roads[i].IsConnectionHeightAuto(this)) continue;
+            if (roads[i].IsConnectionHeightAuto(this) || (geometryless[i] && !this.geometryless)) continue;
             fixedRoads.Add(i);
             var center = -mouths[i].dir * sizes[i];
             var corner = mouths[i].left * roads[i].GetStandardFloat("totalWidth");
@@ -478,7 +490,9 @@ public partial class Intersection: IObjectWithState {
         var roadCenters = new List<Vector3>();
         for (var i = 0; i < roads.Count; i++) {
             var dir = GameEngine.Vector3.Normalize(GetDirectionToCenter(roads[i], GO.GetPosition(point)));
-            var roadCenter = GO.GetPosition(point) - dir * sizes[i];
+            //a road ending on the point (size 0) is sorted by its direction
+            var size = i < sizes.Count ? sizes[i] : 0.0f;
+            var roadCenter = GO.GetPosition(point) - dir * (Mathf.Abs(size) > GeometryHelper.epsilon ? size : 1.0f);
             roadCenters.Add(roadCenter);
         }
         var sortOrder = GeometryHelper.SortClockwise(roadCenters, GO.GetPosition(point));
@@ -514,6 +528,7 @@ public partial class Intersection: IObjectWithState {
         List<int> startRoads = new List<int>();
         for (int i = 0; i < roads.Count; i++) {
             var r = roads[i];
+            if (r.IsGeometryless()) continue; //not through the surface
             if (r.startIntersection == this) {
                 if (r.instanceState.Bool("startIntersectionStart")) {
                     startRoads.Add(i);
@@ -592,9 +607,13 @@ public partial class Intersection: IObjectWithState {
         if (!forceRemesh) return 0;
         forceRemesh = false;
 
+        geometryless = roads.Count > 0 && roads.TrueForAll(r => r.IsGeometryless());
         if (IsSeamless()) {
             UpdateRoadsThroughAndGetDirections(new List<int>(), false);
             generator.RebuildSeamless();
+        } else if (geometryless) {
+            UpdateRoadsThroughAndGetDirections(new List<int>(), false);
+            generator.RebuildEmpty();
         } else {
             int endRoad = -1;
             var startRoads = GetStartAndEndRoads(ref endRoad);

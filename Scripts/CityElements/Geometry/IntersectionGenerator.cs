@@ -20,6 +20,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
     List<Vector3> roadCenters = new List<Vector3>();
     List<Vector3> roadCenters2 = new List<Vector3>();
     List<Vector3> roadCentersPlusDir = new List<Vector3>();
+    List<Vector3> sortCenters = new List<Vector3>(); //the road centers, 1 m away along the road for one ending on the point
     List<Vector3> roadLefts = new List<Vector3>();
     List<Vector3> roadLeftDirections = new List<Vector3>(); //normalized and horizontal
     List<float> roadBankSlopes = new List<float>(); //height per meter to the left, where the end of the road is rolled
@@ -30,7 +31,10 @@ public partial class IntersectionGenerator : PhysicsScriptable {
     List<Vector3> roadPlaneNormals = new List<Vector3>(); //of the planes along the roads
     List<Vector3> upFactors2 = new List<Vector3>();
     List<List<Vector2>> throughRotations = new List<List<Vector2>>(); //of the sections of the roads through, as their directions
-    public List<int> sortOrder;
+    public List<int> sortOrder; //of all the roads, clockwise (indices of Intersection.roads)
+    //of the roads with geometry (see RoadSettings.geometryless), the ones joined by the junctions (junction i is between
+    //the roads i and i + 1 of this list)
+    public List<int> geometrySortOrder = new List<int>();
     int curSubRoad = -1;
     int lastSubRoad = -1;
     int lastI = -1;
@@ -166,6 +170,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         var hasStartTex = startTex != null && startTex != "";
         var hasEndTex = endTex != null && endTex != "";
         foreach (var road in parentIntersection.roads) {
+            if (road.IsGeometryless()) continue; //no crosswalk (as in CalculateVerticesAndCenters)
             var activeStartCrosswalk = parentIntersection == road.startIntersection && road.state.Float("startCrosswalkSize") > 0;
             var activeEndCrosswalk = parentIntersection == road.endIntersection && road.state.Float("endCrosswalkSize") > 0;
             if (activeStartCrosswalk || activeEndCrosswalk) {
@@ -187,12 +192,18 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         foreach (var directions in throughDirections) throughRotations.Add(new List<Vector2>());
         CalculateVerticesAndCenters();
         var pointCenter = GO.GetPosition(parentIntersection.point);
-        sortOrder = GeometryHelper.SortClockwise(roadCenters, pointCenter);
+        sortOrder = GeometryHelper.SortClockwise(sortCenters, pointCenter);
         var roads = parentIntersection.roads;
+        //the roads without geometry are left out of the surface
+        geometrySortOrder = sortOrder.FindAll(i => !roads[i].IsGeometryless());
+        if (geometrySortOrder.Count == 0) {
+            RebuildEmpty();
+            return;
+        }
         genState.state = parentIntersection.state;
         genState.instanceState = parentIntersection.instanceState;
-        for (int i = 0; i < roads.Count; i++) {
-            ProcessRoad(i, roads, sortOrder, isThroughRoad, throughDirections, roadsThrough, startRoads, endRoad);
+        for (int i = 0; i < geometrySortOrder.Count; i++) {
+            ProcessRoad(i, roads, geometrySortOrder, isThroughRoad, throughDirections, roadsThrough, startRoads, endRoad);
         }
         genState.srManager.MergeSubroadsIfNeeded();
         RebuildRoadsThrough(roadsThrough, throughDirections, isThroughRoad, startRoads, endRoad);
@@ -249,6 +260,34 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         GameEngine.Mesh.RefreshCollider(m, mc, false);
     }
 
+    //an intersection without roads with geometry (see RoadSettings.geometryless) has no surface: only its road ends, and an
+    //invisible collider to pick it, through the corners of the ends
+    public void RebuildEmpty() {
+        Clear();
+        curType = GetIntersectionType();
+        CalculateVerticesAndCenters();
+        var pointCenter = GO.GetPosition(parentIntersection.point);
+        var roads = parentIntersection.roads;
+        sortOrder = GeometryHelper.SortClockwise(sortCenters, pointCenter);
+        geometrySortOrder = new List<int>();
+        AddRoadEndLines();
+        GameEngine.Mesh.AssignData(m, new Material[0], new List<int[]>(), new List<Vector3>(), new List<Vector2>(), GO.GetName(parentIntersection.geo));
+        GameEngine.Mesh.AssignMaterials(mr, new Material[0]);
+        var vertices = new List<Vector3> { pointCenter };
+        foreach (var i in sortOrder) {
+            var half = roadLefts[i] * roads[i].GetStandardFloat("totalWidth");
+            vertices.Add(Bank(i, roadCenters[i] + half));
+            vertices.Add(Bank(i, roadCenters[i] - half));
+        }
+        var indices = new List<int>();
+        var corners = vertices.Count - 1;
+        for (int k = 0; corners >= 3 && k < corners; k++) {
+            indices.AddRange(new[] { 0, 1 + k, 1 + (k + 1) % corners });
+        }
+        if (indices.Count == 0) GameEngine.Mesh.RefreshCollider(m, mc, false);
+        else GameEngine.Mesh.RefreshCollider(mc, vertices, indices);
+    }
+
     //the points of the anchor lines of the road at its end on the intersection
     List<Vector3> GetAnchorLineEnds(Road road) {
         var res = new List<Vector3>();
@@ -269,6 +308,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         roadCenters.Clear();
         roadCenters2.Clear();
         roadCentersPlusDir.Clear();
+        sortCenters.Clear();
         roadLefts.Clear();
         roadLeftDirections.Clear();
         roadBankSlopes.Clear();
@@ -292,6 +332,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         roadEndLinesStart = 0;
 
         partsInfo.Clear();
+        geometrySortOrder = new List<int>();
     }
 
     void CalculateVerticesAndCenters() {
@@ -315,15 +356,19 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             roadPlaneNormals.Add(mouth.yaw == 0 ? left : mouth.leftDir);
             var upFactor2 = GameEngine.Vector3.up * roads[i].GetStandardFloat("height");
             var leftFactor = left * roads[i].GetStandardFloat("roadWidth");
+            //a road without geometry has no crosswalk (see Intersection.RecalculateSize)
+            var crosswalkSize = roads[i].IsGeometryless() ? 0.0f : roads[i].GetCrosswalkSize(parentIntersection);
             var roadCenter = pointCenter - dir * sizes[i];
-            var roadCenter2 = pointCenter - dir * (sizes[i] - roads[i].GetCrosswalkSize(parentIntersection));
-            var roadCenterPlusDir = pointCenter - dir * (sizes[i] - roads[i].GetCrosswalkSize(parentIntersection) - 0.1f);
+            var roadCenter2 = pointCenter - dir * (sizes[i] - crosswalkSize);
+            var roadCenterPlusDir = pointCenter - dir * (sizes[i] - crosswalkSize - 0.1f);
             roadCenters.Add(roadCenter);
+            //a road ending on the point (size 0) is sorted by its direction
+            sortCenters.Add(Mathf.Abs(sizes[i]) > GeometryHelper.epsilon ? roadCenter : pointCenter - dir);
             roadCenters2.Add(roadCenter2);
             roadCentersPlusDir.Add(roadCenterPlusDir);
             roadLefts.Add(left);
             upFactors2.Add(upFactor2);
-            if (roads[i].GetCrosswalkSize(parentIntersection) > 0) {
+            if (crosswalkSize > 0) {
                 var thisCrosswalkVertices = new List<Vector3>();
                 thisCrosswalkVertices.Add(Bank(i, roadCenter + leftFactor - upFactor2));
                 thisCrosswalkVertices.Add(Bank(i, roadCenter2 + leftFactor - upFactor2));
@@ -393,6 +438,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         int withSidewalks = 0;
         int withoutSidewalks = 0;
         foreach (var road in parentIntersection.roads) {
+            if (road.IsGeometryless()) continue;
             if (road.generator.GetStandardBool("hasSidewalks")) withSidewalks++;
             else withoutSidewalks++;
         }
@@ -428,7 +474,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         List<GameObject> roadsThrough, List<int> startRoads, int endRoad) {
 
         var j = i + 1;
-        if (i == roads.Count - 1) j = 0;
+        if (i == sortOrder.Count - 1) j = 0;
 
         var trueI = sortOrder[i];
         var trueJ = sortOrder[j];

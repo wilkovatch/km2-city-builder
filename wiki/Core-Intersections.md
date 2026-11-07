@@ -23,6 +23,8 @@ intersections/<type>/
 
 The program computes how far each road stops from the center so that the road edges do not overlap (using the `totalWidth` getter of the roads, the width on the ground for a banked end; the end of a road can also be skewed by its yaw, and raised by its connection height), then adds the road's crosswalk size, its intersection size increase and the intersection's `sizeIncrease`. Roads are sorted clockwise around the center; for each pair (I, J) of consecutive roads, the junction of type `<type of I>_<type of J>` is used.
 
+The [roads without geometry](Core-Roads#roads-without-geometry) are left out of the geometry: the roads with geometry are sized only against each other, and the junctions join consecutive roads with geometry. A road without geometry is sized against all the roads (without crosswalk), so that its end is at the edge of the intersection. An intersection with only roads without geometry has no geometry at all. The export JSON has the clockwise order of all the roads (`fields.sortOrder`, indices of `roads`) and the one of the roads with geometry (`fields.geometrySortOrder`: the junction `i` of `partsInfo` is between its roads `i` and `i + 1`), and whether the intersection has no geometry (`fields.geometryless`).
+
 ## `parameters.json`
 
 Same format as for roads (see [Parameters and UI](Parameters-and-UI)). The parameters and definitions of the intersection type are also visible in all its junctions. Required definitions:

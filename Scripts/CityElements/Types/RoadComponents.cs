@@ -36,6 +36,9 @@ namespace CityElements.Types {
         public int lpf;
         public bool adjustLowPolyWidth;
         public bool variableSections;
+        //the roads define only their traffic lanes (no meshes): left out of the geometry of their intersections, picked by
+        //an invisible strip across their sections, an intersection with only such roads has no geometry
+        public bool geometryless;
         //"<module>.<function>" of the lua folder of the core: edits the sections once they are computed (see SectionPostProcess)
         public string postProcess;
         public bool allowYaw = true; //whether the control points can rotate the sections around the vertical axis

@@ -74,6 +74,8 @@ public partial class RoadGenerator : PhysicsScriptable {
     bool rolled; //some sections are rolled (told to the post-process pass: e.g. a twisted road has no planar faces)
     float curLineSize = 0.1f;
     public int vertsPerSection;
+    public bool geometryless; //of the type: no meshes, only the traffic lanes (see RoadSettings.geometryless)
+    public bool? lanesShown { get; set; } //set by the road (whether it's active), null: with the road line
 
     CityElements.Types.Runtime.RoadType oldType;
 
@@ -116,7 +118,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     Material[] GetMaterialSet() {
         var list = new List<Material>();
         if (curType != null) {
-            foreach (var tex in curType.typeData.settings.textures) {
+            foreach (var tex in curType.typeData.settings.textures ?? new string[0]) {
                 var mat = MaterialManager.GetMaterial(MaterialManager.GetTextureName(state, tex));
                 list.Add(mat);
             }
@@ -405,7 +407,7 @@ public partial class RoadGenerator : PhysicsScriptable {
         for (int i = 0; i < lanes.Count; i++) {
             CreateLineRenderer(lanes[i], lanesInfo[i].color, lanesInfo[i].name).arrowDirection = lanesInfo[i].arrowDirection;
         }
-        GO.SetEnabled(lanesRenderersContainer, lr.enabled);
+        GO.SetEnabled(lanesRenderersContainer, lanesShown ?? lr.enabled);
     }
 
     LineRenderer CreateLineRenderer(List<Vector3> lane, Color color, string name) {
@@ -465,6 +467,7 @@ public partial class RoadGenerator : PhysicsScriptable {
     }
 
     void RebuildMesh() {
+        geometryless = curType.typeData.settings.geometryless;
         ReinitializeAnchorPoints();
         for (int i = 0; i < segments; i++) {
             AddSection(i);
@@ -488,11 +491,34 @@ public partial class RoadGenerator : PhysicsScriptable {
 
         GameEngine.Mesh.AssignMaterials(mr, realMats);
         GameEngine.Mesh.AssignData(m, realMats, indices, subGen.tempVertices, subGen.tempUVs, GO.GetName(this));
-        GameEngine.Mesh.RefreshCollider(m, mc, segments > 1 && valid);
+        if (geometryless) RefreshPickStrip();
+        else GameEngine.Mesh.RefreshCollider(m, mc, segments > 1 && valid);
 
         oldType = curType;
 
         PlaceProps();
+    }
+
+    //the collider of a road without geometry, to pick it: a strip from the first to the last vertex of its sections
+    void RefreshPickStrip() {
+        var sections = subGen.sectionVertices;
+        var vertices = new List<Vector3>();
+        var indices = new List<int>();
+        if (segments > 1 && valid) {
+            foreach (var section in sections) {
+                if (section == null || section.Length < 2) {
+                    vertices.Clear();
+                    break;
+                }
+                vertices.Add(section[0]);
+                vertices.Add(section[section.Length - 1]);
+            }
+        }
+        for (int i = 2; i + 1 < vertices.Count; i += 2) {
+            indices.AddRange(new[] { i - 2, i, i - 1, i - 1, i, i + 1 });
+        }
+        if (indices.Count == 0) GameEngine.Mesh.RefreshCollider(m, mc, false);
+        else GameEngine.Mesh.RefreshCollider(mc, vertices, indices);
     }
 
     void AddSection(int i) {
@@ -550,7 +576,10 @@ public partial class RoadGenerator : PhysicsScriptable {
 
     private void Update() {
         var cam = GameEngine.Camera.Get(this);
-        if (lanesRenderersContainer != null && GO.GetEnabled(lanesRenderersContainer) && cam != null) {
+        var lanesVisible = lanesRenderersContainer != null && GO.GetEnabled(lanesRenderersContainer);
+        //the line of a road without geometry, always shown (see Road.IsLineShown), is as wide as the lanes, to be seen from
+        //afar, and it and the lanes are drawn above the ground under them (they have no road surface to be drawn on)
+        if ((lanesVisible || geometryless) && cam != null) {
             var camPos = GO.GetPosition(cam);
             var pos = GH.ClosestPointToCurve(camPos, subGen.curvePoints, out _);
             var dist = GameEngine.Vector3.Distance(pos, camPos);
@@ -558,7 +587,14 @@ public partial class RoadGenerator : PhysicsScriptable {
             foreach (var lr in lineRenderers) {
                 lr.startWidth = curLineSize;
                 lr.endWidth = curLineSize;
+                lr.heightOffset = geometryless ? curLineSize : 0;
             }
         }
+        var lineSize = geometryless ? curLineSize : 0.1f;
+        if (lr.startWidth != lineSize) {
+            lr.startWidth = lineSize;
+            lr.endWidth = lineSize;
+        }
+        lr.heightOffset = geometryless ? curLineSize : 0;
     }
 }

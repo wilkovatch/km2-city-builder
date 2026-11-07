@@ -82,6 +82,7 @@ A core that builds every vertex from `v<n>`, `localRight` and `localUp` needs no
 | `trafficTypes` | if lanes are used | List of lane types with a `name` and an RGB `color` (0-255) used to draw them. |
 | `trafficLanes` | no | Traffic lanes defined at road level (components can define more). |
 | `postProcess` | no | `<module>.<function>` of the [Lua scripts](Core-Lua-Scripts) of the core: edits the sections once they are computed, see [Post-processing](#post-processing). |
+| `geometryless` | no | Default false. If true, the roads of this type have no geometry, only their traffic, see [Roads without geometry](#roads-without-geometry). |
 | `widths` | no | Names of the float parameters that are widths. With low-poly curves (or *adjust low-poly width*), they are multiplied at each section by `1 / cos(half the turning angle)` so that the road keeps its width at the corners. |
 | `getters` | yes | Standard getters, see below. |
 
@@ -259,6 +260,16 @@ To get hard edges or texture seams, repeat a vertex: in MM2's `sidewalk_right`, 
 | `lanes` | Float expression array: one lane per value, at that position between the two bounds (0 = first bound, 1 = second bound). |
 
 Lane points follow the road's point order. Swapping the bounds changes the placement across the road; traffic types let the exporter distinguish their meaning. Set `arrowDirection` to show their travel direction in the editor, for example `"if(_GLOBAL_driveOnLeft, -1, 1)"` with an [injectable city property](Core-City-Properties#injectable-parameters). The lanes are drawn on the road while editing and exported as polylines named `traffic_<type>_<component>_<group>_<lane>` in the road's `fields.lanes` (see [Input and Output](Input-and-Output#export-format-ioexportedcity-ioexportedcitycs-and-cityencoderjson_export)), where the exporter turns them into the game's AI paths. Arrowheads are visual overlays; they never reverse the exported point order.
+
+## Roads without geometry
+
+A road type with `"geometryless": true` is for traffic laid over surfaces made by other elements (terrain patches, meshes, custom elements): its components have only `trafficLanes` (and props lines), no meshes, and its `textures` list is empty. The program then:
+
+* gives the roads an empty mesh, and an invisible collider across their sections (from the first to the last section vertex), so that they can be clicked as any road. Their line is always shown, not only while they are selected;
+* leaves them out of the geometry of their intersections: the junctions and the road surface are made from the other roads only, which are sized as if these roads weren't there. A road without geometry is still sized against all the others (and gets its intersection size increase, but no crosswalk), so its end stops at the edge of the intersection (see [Core Intersections](Core-Intersections#size-and-placement));
+* gives an intersection whose roads all have no geometry no surface at all (no junctions, crosswalks or extra terrain pieces, and no error), only an invisible collider through the corners of its road ends.
+
+They keep their sections, so they still need `sectionVertices` (the lanes are built from them) and the standard getters used by the intersections (`totalWidth`, `roadWidth`, `height`). Every road exports its section vertices (`fields.sectionVertices`, `sectionVertexCount` per section), which is what the exporter of a road without geometry has instead of a mesh; the export also tells which roads and intersections have no geometry (`fields.geometryless`). In the MM2 core this is the `bai` type (*BAI-only road*): its traffic goes in the BAI, in the rooms of the surfaces under it.
 
 ## Props lines
 

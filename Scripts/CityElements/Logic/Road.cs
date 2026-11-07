@@ -178,7 +178,8 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
     public void SetActive(bool active, bool activeIntersection = false, bool showPoints = true) {
         activeSelf = active;
         pointsShown = active && showPoints;
-        generator.lr.enabled = active && points.Count > 0;
+        generator.lr.enabled = IsLineShown();
+        generator.lanesShown = active;
         GO.SetEnabled(generator.lanesRenderersContainer, active);
         if (points.Count > 0) {
             ResetIntersectionPoint(points[0]);
@@ -253,7 +254,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         GO.SetPosition(newObj, point);
         GO.SetLayer(newObj, 8);
         GetHandle(newObj).curveRotation = ClampRotation(newRotation);
-        generator.lr.enabled = activeSelf && points.Count > 0;
+        generator.lr.enabled = IsLineShown();
         if (!inserted) {
             points.Add(newObj);
         }
@@ -342,6 +343,12 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         var types = CityElements.Types.Parsers.TypeParser.GetRoadTypes();
         var typeName = state.Str("type", null);
         return typeName != null && types.TryGetValue(typeName, out var type) ? type.typeData.settings : null;
+    }
+
+    //whether the type of the road defines only traffic, no geometry (see RoadSettings.geometryless)
+    public bool IsGeometryless() {
+        var settings = GetTypeSettings();
+        return settings != null && settings.geometryless;
     }
 
     public bool IsYawAllowed(int index) {
@@ -528,7 +535,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
             var rotation = rotations != null && i < rotations.Count ? rotations[i] : GameEngine.Vector2.zero;
             GetHandle(points[i]).curveRotation = ClampRotation(rotation);
         }
-        generator.lr.enabled = activeSelf && points.Count > 0;
+        generator.lr.enabled = IsLineShown();
         MarkEditedEnd();
     }
 
@@ -820,9 +827,15 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         ApplyGhost();
     }
 
+    //the line of the road: while it's active, and always for a road without geometry (the line is all that shows it)
+    bool IsLineShown() {
+        return points.Count > 0 && (activeSelf || (!ghost && IsGeometryless()));
+    }
+
     public void ApplyGhost() {
         if (generator == null || GO.IsNull(generator)) return;
         if (generator.mr != null) generator.mr.Visible = !ghost;
+        if (generator.lr != null) generator.lr.enabled = IsLineShown();
         generator.CollisionLayer = ghost ? 0u : 1u << 7;
         if (generator.propsContainer != null) GO.SetEnabled(generator.propsContainer, !ghost);
     }

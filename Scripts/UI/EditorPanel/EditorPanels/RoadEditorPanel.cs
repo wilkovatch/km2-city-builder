@@ -29,6 +29,8 @@ namespace EditorPanels {
         public override void Initialize(GameObject canvas) {
             propControls.Clear();
             curveTypeDropdown = null; updateCurveFields = null;
+            //not every type has the intersection group (the buttons of the previous type are disposed)
+            startIntersectionButton = null; endIntersectionButton = null;
             InitializeWithCustomParameters<CityElements.Types.Runtime.RoadType, CityElements.Types.RoadType>(canvas, GetCurRoad, TS,
                 null, CityElements.Types.Parsers.TypeParser.GetRoadTypes, ProcessCustomParts, true);
         }

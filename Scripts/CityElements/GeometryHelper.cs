@@ -531,7 +531,7 @@ public static class GeometryHelper {
             return Mathf.Atan2(v[2], v[0]);
         }
         todo.Sort((a, b) => GetAngle(b).CompareTo(GetAngle(a)));
-        while (todo[0] != 0) {
+        while (todo.Count > 0 && todo[0] != 0) {
             todo = ScrollSortedClockwise(todo);
         }
         return todo;
