@@ -17,7 +17,11 @@ as "Warning: ..." and "Error: ...".
     sys.exit(1 if report.has_errors() else 0)
 
 element and kind identify the element as the scripting API does ({"name": ..., "kind": ...}: road, intersection,
-terrainPatch, buildingLine, meshInstance); position is [x, y, z] in the program coordinates.
+terrainPatch, buildingLine, meshInstance, customElement); position is [x, y, z] in the program coordinates. overlay is
+drawn over the city while the item is listed: a list of {"type": "polyline", "points": [[x, y, z], ...], "color": "#rrggbb"}
+(e.g. the path of a vehicle), in the program coordinates.
+
+The core checks (the check:<name> buttons, see the Core Checks page of the wiki) report their results the same way.
 """
 
 import io
@@ -49,7 +53,7 @@ def is_validation():
     return _validation
 
 
-def report(level, message, element=None, kind=None, code=None, position=None, details=None):
+def report(level, message, element=None, kind=None, code=None, position=None, details=None, overlay=None):
     if level not in LEVELS:
         raise ValueError("the level is one of " + ", ".join(LEVELS))
     message = str(message)
@@ -73,6 +77,8 @@ def report(level, message, element=None, kind=None, code=None, position=None, de
         entry["position"] = [float(v) for v in position]
     if details is not None:
         entry["details"] = details
+    if overlay is not None:
+        entry["overlay"] = overlay
     with io.open(_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 

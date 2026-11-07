@@ -41,7 +41,8 @@ public abstract partial class EditorPanel {
     private Dictionary<CityElements.Types.Parameter, System.Func<IObjectWithState>> parameterOwners = new Dictionary<CityElements.Types.Parameter, System.Func<IObjectWithState>>();
     bool initializationPending = true;
     bool initializedForActivation = false;
-    readonly List<(EditorPanelElements.Button button, ConverterCatalog.ConverterInfo converter)> conversionButtons = new();
+    //the buttons of the converters and of the checks of the core, enabled while they can run on the element
+    readonly List<(EditorPanelElements.Button button, CoreElementTool tool)> conversionButtons = new();
     internal bool IsInitialized => !initializationPending;
 
     //discard controls for the previous city without constructing the hidden panel for the next one
@@ -127,6 +128,7 @@ public abstract partial class EditorPanel {
                 var w = elem.width;
                 if (processCustomParts != null && processCustomParts.Invoke(elem, p, pS, tS, type)) continue;
                 else if (elem.name.StartsWith("convert:")) AddConversionButton(p, ref curW, totW, elem, elem.name.Substring("convert:".Length));
+                else if (elem.name.StartsWith("check:")) AddCheckButton(p, ref curW, totW, elem, elem.name.Substring("check:".Length));
                 else if (elem.name.Split('_')[0] == "PRESET") {
                     var parts = elem.name.Split('_');
                     System.Func<ObjectState> getter = delegate { return getObject().GetState().GetContainer(parts[1]); };
@@ -155,6 +157,20 @@ public abstract partial class EditorPanel {
         }, elem.width, converter.tooltip != null ? GetString(converter.tooltip) : null);
         conversionButtons.Add((button, converter));
         button.SetInteractable(converter.IsEnabled(element));
+    }
+
+    //a button checking the edited element with a check of the core (not shown if the check doesn't accept it)
+    void AddCheckButton(EditorPanelPage p, ref float curW, float totW, CityElements.Types.TabElement elem, string checkName) {
+        var check = CheckCatalog.Get(checkName);
+        var element = getObject?.Invoke();
+        if (check == null || element == null || !check.Accepts(element)) return;
+        PlaceInRow(p, ref curW, totW, elem.width);
+        var button = p.AddButton(GetString(check.label ?? checkName), delegate {
+            var target = getObject?.Invoke();
+            if (target != null) builder.DoDelayed(() => builder.StartCheck(checkName, new List<object> { target }, GetString(check.label ?? checkName)));
+        }, elem.width, check.tooltip != null ? GetString(check.tooltip) : null);
+        conversionButtons.Add((button, check));
+        button.SetInteractable(check.IsEnabled(element));
     }
 
     //the text of a string key of the parameters (the child panels use the strings of their parent)
@@ -508,7 +524,7 @@ public abstract partial class EditorPanel {
     }
 
     public void UpdateConversionButtons() {
-        foreach (var (button, converter) in conversionButtons) button.SetInteractable(converter.IsEnabled(getObject?.Invoke()));
+        foreach (var (button, tool) in conversionButtons) button.SetInteractable(tool.IsEnabled(getObject?.Invoke()));
     }
 
     //the city element edited from the panel, recorded before each change made from it for undo/redo

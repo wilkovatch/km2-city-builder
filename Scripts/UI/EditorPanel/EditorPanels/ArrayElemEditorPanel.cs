@@ -31,6 +31,16 @@ namespace EditorPanels {
                     if (group < 0 || !placedGroups.Add(group)) continue;
                     PlaceInRow(p0, ref curW, 1.5f, elem.width);
                     AddContentsButton(p0, groups, group, elem.width);
+                } else if (elem.name.StartsWith("check:")) {
+                    //a check of the core on this container (e.g. the opponents of a race)
+                    var checkName = elem.name.Substring("check:".Length);
+                    var check = CheckCatalog.Get(checkName);
+                    if (check == null || !Operations.Checks.Accepts(check, curState)) continue;
+                    PlaceInRow(p0, ref curW, 1.5f, elem.width);
+                    var label = SM.Get(check.label ?? checkName);
+                    var target = curState;
+                    p0.AddButton(label, () => builder.DoDelayed(() => builder.StartCheck(checkName, new List<object> { target }, label)),
+                        elem.width, check.tooltip != null ? SM.Get(check.tooltip) : null);
                 } else {
                     AddParameters(p0, ref curW, 1.5f, elemProperties, elem, GetCurState, false);
                 }

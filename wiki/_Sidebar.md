@@ -33,6 +33,7 @@
 - [Props and Objects](Core-Props-and-Objects)
 - [Custom Elements](Core-Custom-Elements)
 - [Generators](Core-Generators)
+- [Checks](Core-Checks)
 - [Prop Placers](Core-Prop-Placers)
 - [City Properties](Core-City-Properties)
 - [Lua Scripts](Core-Lua-Scripts)

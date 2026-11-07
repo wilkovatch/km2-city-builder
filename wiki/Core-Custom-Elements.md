@@ -129,7 +129,7 @@ The panel has these built-in groups, used by name in `ui.json`:
 
 While a container is edited (in the None click mode) a cyan handle at the center of its points and of the points of its contents (and theirs) moves them all together, with the gizmo or the transform panel, as a single undo step. The points shared with other elements move too (the other elements follow), the points on the anchors of roads and intersections stay there (but not the ones on the anchors of a ghost, e.g. the sides of a room converted from a road: they leave them and move; the anchors across the end of a road that isn't a ghost still count), the points on a line follow its ends, the points on a point follow it and the points on a vertical line keep following it (their height changes with the move). The scripting API does the same with `customElement.move`.
 
-`convert:<converter>` adds a button converting the element with a converter of the core (shown only if the converter accepts it). It can be used in the `ui.json` of any type, procedural or custom.
+`convert:<converter>` adds a button converting the element with a converter of the core (shown only if the converter accepts it). It can be used in the `ui.json` of any type, procedural or custom. `check:<check>` likewise adds the button of a [check](Core-Checks), which only reports problems.
 
 ## Scripts
 

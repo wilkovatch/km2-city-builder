@@ -153,7 +153,7 @@ A button that opens a panel with the parameters of a custom city properties type
 | `label` | String key of the type's name, shown in the type dropdown. |
 | `menuWidth` | Width of the panel, in units of 160 pixels (1.5 is the usual width). |
 | `tabs` | One page per tab, with a button for each tab at the top of the panel (in two rows with four tabs or more). A tab `label` is a string key; an empty label is allowed for single-tab panels. |
-| `elements` | Fields of the tab, in order. `name` is a parameter full name, a built-in group, a `PRESET_<container>` element, a `convert:<converter>` button (converting the element with a converter of the core, see [Core Custom Elements](Core-Custom-Elements#converters)) or a `label:<string key>` text (see below); `width` is in the same units as `menuWidth`. Elements are placed side by side, starting from the right (the first element of a row is the rightmost), and wrap to a new row when the sum of their widths exceeds `menuWidth`. |
+| `elements` | Fields of the tab, in order. `name` is a parameter full name, a built-in group, a `PRESET_<container>` element, a `convert:<converter>` button (converting the element with a converter of the core, see [Core Custom Elements](Core-Custom-Elements#converters)), a `check:<check>` button (checking it with a check of the core, see [Core Checks](Core-Checks)) or a `label:<string key>` text (see below); `width` is in the same units as `menuWidth`. Elements are placed side by side, starting from the right (the first element of a row is the rightmost), and wrap to a new row when the sum of their widths exceeds `menuWidth`. |
 
 Parameters that are not listed in any tab are still variables and still saved, but cannot be edited. `array` parameters always take a full row.
 

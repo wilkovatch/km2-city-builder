@@ -1256,6 +1256,35 @@ public partial class CityBuilderMenuBar : Control {
         validationEditorPanel.Show(res.items, SM.Get("VALIDATION_TITLE"));
     }
 
+    //checks elements (or property containers, e.g. a race) with a check of the core (see Operations.Checks): the editor
+    //is locked while it runs, then its results are listed like a validation, with the lines they draw over the city
+    public async void StartCheck(string check, List<object> targets, string title) {
+        if (noCity || targets == null || targets.Count == 0 || checkRunning) return;
+        checkRunning = true;
+        DeselectAndCloseCurrentPanel();
+        //the panel buttons run in an undo step, which keeps the history busy: the check starts once it is closed
+        await ToSignal(GetTree(), "process_frame");
+        SetScriptRunning(true);
+        Operations.Checks.Result res;
+        try {
+            res = await Operations.Checks.Run(helper.elementManager, check, targets);
+        } catch (System.Exception e) {
+            GameEngine.LogError(e.ToString());
+            res = Operations.Checks.Result.Fail("check_failed", e.Message);
+        } finally {
+            SetScriptRunning(false);
+            checkRunning = false;
+        }
+        if (!res.success) {
+            CreateAlert(SM.Get("ERROR"), SM.Get("CHECK_ERROR_TEXT") + res.message, SM.Get("OK"));
+            return;
+        }
+        DisableAllPanels(validationEditorPanel);
+        validationEditorPanel.Show(res.items, title, () => StartCheck(check, targets, title));
+    }
+
+    bool checkRunning = false;
+
     //the warnings and errors reported by an export
     public void ShowExportReport(List<Newtonsoft.Json.Linq.JObject> items) {
         DisableAllPanels(validationEditorPanel);

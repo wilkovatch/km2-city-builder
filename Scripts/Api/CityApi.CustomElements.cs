@@ -133,11 +133,16 @@ namespace Api {
 
         // Elements
 
-        [ApiMethod("customElement.create", "Creates a custom element of a type of the core: its control points with the default layout around position, or as given in points (the structure of the control points of the type, each point a point target: position, terrainPoint to share an existing point, anchor, anchorLink...), its mesh (vertices: point targets, triangles: indices, uvs: [u, v] per vertex), its parameters (state, with propRule for the types with props containers, see customElement.setPropRule) and its container. Returns its id")]
-        public int CreateCustomElement(string type, Vector3? position = null, JToken points = null, JObject mesh = null, JObject state = null, ElementRef container = null, string name = null) {
+        [ApiMethod("customElement.create", "Creates a custom element of a type of the core: its control points with the default layout around position, or as given in points (the structure of the control points of the type, each point a point target: position, terrainPoint to share an existing point, anchor, anchorLink...), its mesh (vertices: point targets, triangles: indices, uvs: [u, v] per vertex), its parameters (state, with propRule for the types with props containers, see customElement.setPropRule), its container and the property container owning it (propertyContainer: its identity, e.g. the difficulty of a race for an opponent). Returns its id")]
+        public int CreateCustomElement(string type, Vector3? position = null, JToken points = null, JObject mesh = null, JObject state = null, ElementRef container = null, string name = null, string propertyContainer = null) {
             return ApplyChange("create custom element", () => {
                 if (type == null || !TP.GetCustomElementTypes().ContainsKey(type)) throw ApiException.InvalidValue("unknown custom element type '" + type + "'");
                 CustomElement containerElement = container != null ? ResolveCustomElement(container) : null;
+                var owner = propertyContainer != null ? Operations.PropertyContainers.Find(propertyContainer) : null;
+                if (propertyContainer != null && owner == null) throw ApiException.NotFound("property container " + propertyContainer);
+                if (owner != null && !Operations.PropertyContainers.Accepts(owner, type)) {
+                    throw ApiException.InvalidOperation("a " + type + " can't be owned by the property container " + propertyContainer);
+                }
                 var origin = position ?? Vector3.Zero;
                 var element = M.CreateCustomElement(type, name);
                 try {
@@ -162,6 +167,7 @@ namespace Api {
                     if (containerElement != null && !element.SetContainer(containerElement)) {
                         throw ApiException.InvalidOperation("a " + type + " can't be put in a " + containerElement.TypeName);
                     }
+                    if (owner != null) Operations.PropertyContainers.Assign(element.state, propertyContainer);
                 } catch {
                     element.Delete();
                     throw;
@@ -478,6 +484,38 @@ namespace Api {
                 res.Add(new { name = c.name, label = c.label != null ? StringManager.GetOrKey(c.label) : c.name, sources = c.sources, types = c.types, replace = c.replace });
             }
             return res;
+        }
+
+        [ApiMethod("checks.list", "The checks of the core: name, label, the kinds they check (customElement/<type>, propertyContainer/<type>, ...)")]
+        public object ListChecks() {
+            RequireCity();
+            var res = new List<object>();
+            foreach (var c in CheckCatalog.List()) {
+                res.Add(new { name = c.name, label = c.label != null ? StringManager.GetOrKey(c.label) : c.name, sources = c.sources });
+            }
+            return res;
+        }
+
+        [ApiMethod("elements.check", "Checks elements and property containers (their identities, e.g. races) with a check of the core (checks.list), " +
+            "without changing anything: the warnings, errors and infos it reported (level, message, element {name, kind}, code, position, overlay); ok: no errors")]
+        public Task<object> Check(string check, List<ElementRef> elements = null, List<string> containers = null) {
+            RequireCity();
+            var targets = new List<object>();
+            foreach (var r in elements ?? new List<ElementRef>()) targets.Add(Resolve(r));
+            foreach (var id in containers ?? new List<string>()) {
+                var entry = Operations.PropertyContainers.Find(id);
+                if (entry == null) throw ApiException.NotFound("property container " + id);
+                targets.Add(entry.state);
+            }
+            if (targets.Count == 0) throw ApiException.InvalidParam("nothing to check");
+            return RunLong<object>(async () => {
+                Flush();
+                var res = await Operations.Checks.Run(M, check, targets, progress);
+                if (!res.success) throw new ApiException(res.error, res.message);
+                int errors = res.items.FindAll(i => i["level"]?.ToString() == "error").Count;
+                int warnings = res.items.FindAll(i => i["level"]?.ToString() == "warning").Count;
+                return new { ok = errors == 0, errors, warnings, items = res.items, durationMs = res.durationMs };
+            });
         }
 
         [ApiMethod("ghosts.list", "The ghosts: the roads and intersections replaced by custom elements, with the elements replacing them")]

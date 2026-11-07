@@ -4,7 +4,7 @@ A validation checks a city with the exporter of its core, before exporting it fo
 
 ## Using it
 
-- In the editor: *File → Validate city*. The *Validation* panel lists the errors (`[E]`, red) and warnings (`[W]`); selecting one highlights its element (when the message names one) and shows the whole message below the list. *Zoom to element* moves the camera to it, *Edit element* opens its editor, *Validate again* runs it again after a fix. The same panel (*Export report*) opens after an export that reported something.
+- In the editor: *File → Validate city*. The *Validation* panel lists the errors (`[E]`, red) and warnings (`[W]`); selecting one highlights its element (when the message names one) and shows the whole message below the list. *Zoom to it* moves the camera to its position (or to its element), *Edit element* opens its editor, *Run again* validates again after a fix. The lines an item draws over the city (its `overlay`, e.g. the route of an opponent) are shown while the panel is open, the ones of the selected item highlighted. The same panel opens after an export that reported something (*Export report*), and for the results of a [check](Core-Checks) of the core (e.g. the opponents of a race).
 - From a script or an agent: `city.validate` (see [Scripting API](Scripting-API#city)), optionally with `exporter` to use only the exporter of that format. The result:
 
 ```json
@@ -50,4 +50,4 @@ The MM2 exporter reports every element and file on its own, as described in [doc
 |---|---|
 | `CityValidator` (`IO/Export/CityValidator.cs`) | Finds the exporters with a `validation` section (`GetValidators`) and runs each one as a dry export (`ValidateAsync`), deleting its temporary folder. |
 | `CityExporter.ExportWithExporterAsync` | Passes the report file in the export JSON (`report`, `IO.ExportedCity.ExportReportInfo`), reads it back into `ExportResult.items`, and fails the export if it has errors. |
-| `EditorPanels.ValidationEditorPanel` | The panel of *File → Validate city* and of the export report. |
+| `EditorPanels.ValidationEditorPanel` | The panel of *File → Validate city*, of the export report and of the [checks](Core-Checks), with the overlays of the items. |

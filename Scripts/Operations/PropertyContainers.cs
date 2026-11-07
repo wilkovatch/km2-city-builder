@@ -16,6 +16,7 @@ namespace Operations {
             public PropertyContainerSettings settings;
             public List<(string parameter, int? index)> path;
             public string parentId;
+            public string type; //its custom city properties type (null for the city properties)
         }
         static readonly Dictionary<string, Entry> entries = new();
         public static ElementManager manager { get; private set; }
@@ -132,7 +133,7 @@ namespace Operations {
                     var childPath = new List<(string, int?)>(path) { (param.fullName(), param.type == "array" ? i : null) };
                     var childEntry = parent;
                     if (ct?.elementContainer != null) {
-                        childEntry = new Entry { state = child, settings = ct.elementContainer, path = childPath,
+                        childEntry = new Entry { state = child, settings = ct.elementContainer, path = childPath, type = ctName,
                             parentId = ct.elementContainer.parentCategory != null && parent?.settings.category == ct.elementContainer.parentCategory ? EnsureId(parent.state) : null };
                         entries[EnsureId(child)] = childEntry;
                     }

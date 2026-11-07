@@ -186,12 +186,12 @@ public static class CityExporter {
         }
     }
 
-    static JObject Item(string level, string message) {
+    internal static JObject Item(string level, string message) {
         return new JObject { ["level"] = level, ["message"] = message };
     }
 
     //one JSON object per line, the invalid ones as they are (as errors)
-    static List<JObject> ReadReport(string file) {
+    internal static List<JObject> ReadReport(string file) {
         var res = new List<JObject>();
         foreach (var line in File.ReadAllLines(file)) {
             if (line.Trim().Length == 0) continue;

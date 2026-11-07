@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using System.IO;
 
-//A Python script of the core run on elements of the city: the converters (see ConverterCatalog) and the generators (see
-//GeneratorCatalog). Each one is a folder of the core with a JSON file naming the elements it accepts and its script
+//A Python script of the core run on elements of the city: the converters (see ConverterCatalog), the generators (see
+//GeneratorCatalog) and the checks (see CheckCatalog). Each one is a folder of the core with a JSON file naming the
+//elements it accepts and its script
 public abstract class CoreElementTool {
     public string name; //the folder
     public string folder;

@@ -8,6 +8,8 @@ namespace CityEncoder {
     public class JSON_Export : CityEncoder {
         //where the exporter reading the JSON writes its warnings and errors (null: not written for an exporter)
         public IO.ExportedCity.ExportReportInfo report;
+        //the check of the core reading the JSON (null: an export)
+        public Newtonsoft.Json.Linq.JObject check;
 
         public void EncodeCity(ElementManager manager, string filename, System.Action post = null) {
             Run(manager, filename, post);
@@ -179,6 +181,7 @@ namespace CityEncoder {
                 savedCity.cityFolder = PreferencesManager.workingDirectory;
                 savedCity.searchFolders = System.Linq.Enumerable.ToArray(PathHelper.GetSearchFolders());
                 savedCity.report = report;
+                savedCity.check = check;
 
                 geometry.Dispose();
 

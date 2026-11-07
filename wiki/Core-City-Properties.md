@@ -103,7 +103,7 @@ By default the panel of a custom city properties type shows all its parameters, 
 
 Rows are filled from the right, so the element meant for the left comes second. The panel is 1.5 wide and has one page. As in a `ui.json`, parameters that aren't listed can't be edited, and also can't be selected by clicking their objects in the city.
 
-`uiInfo` has one more kind of element, `content:<label>`: the button of the [content group](#owned-elements-and-contextual-creation) with that `label`.
+`uiInfo` has two more kinds of elements: `content:<label>`, the button of the [content group](#owned-elements-and-contextual-creation) with that `label`, and `check:<check>`, the button of a [check](Core-Checks) of the core accepting the container (`propertyContainer/<type>`, e.g. the opponent routes of a race).
 
 ## Owned elements and contextual creation
 

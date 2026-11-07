@@ -236,12 +236,14 @@ sys.exit(1 if report.has_errors() else 0)
 | Function | Description |
 |---|---|
 | `init(data)` | Reads the report file from the export JSON (and empties it). Without it (the script run by hand) the messages are only printed. |
-| `warning`, `error`, `info` `(message, element=None, kind=None, code=None, position=None, details=None)` | A line of the report (also printed, as `Warning: ...` and `Error: ...`). `element` and `kind` name the element as the scripting API does (`road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`), so that the user can select it; `position` is `[x, y, z]` in the program coordinates; `code` an identifier of the problem; `details` any text (e.g. a traceback). |
+| `warning`, `error`, `info` `(message, element=None, kind=None, code=None, position=None, details=None, overlay=None)` | A line of the report (also printed, as `Warning: ...` and `Error: ...`). `element` and `kind` name the element as the scripting API does (`road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`, `customElement`), so that the user can select it; `position` is `[x, y, z]` in the program coordinates (*Zoom to it* goes there); `code` an identifier of the problem; `details` any text (e.g. a traceback); `overlay` lines drawn over the city while the item is listed, `[{"type": "polyline", "points": [[x, y, z], ...], "color": "#rrggbb"}]` (e.g. the path of a vehicle; the lines of the selected item are wider, with arrows along them). |
 | `exception(message=None, **kwargs)` | The exception being handled, as an error with its traceback in `details`. |
 | `is_validation()` | The export only validates the city: its files go to a temporary folder deleted afterwards. |
 | `has_errors()`, `counts()` | What was reported so far. |
 
 An export with errors fails, even with exit code 0: `city.export` fails with `export_failed`, with the items in `details.items`. To report every problem at once, an exporter can go on after an error (skipping the element that failed) and fail at the end. The MM2 exporter does so for each element of the JSON, each block of the PSDL and each file it writes.
+
+The [checks](Core-Checks) of a core report their results the same way.
 
 A core whose exporter doesn't use `ExportReport` still works: the program takes the lines of its output starting with `Warning:` and `Error:`, and its last error message if it fails.
 
