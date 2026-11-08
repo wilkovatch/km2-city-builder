@@ -2,7 +2,7 @@
 
 km2 City Builder is a tool to create custom cities for videogames. Roads, intersections, terrain, buildings and props are placed and edited interactively, and the result is exported in the format of the target game.
 
-The editor knows nothing about any game by itself. Everything game specific (which elements exist, what parameters they have, how their geometry is generated, which file formats can be read and how the city is exported) is provided by a **core**: a plugin containing JSON configuration files and Python scripts. The only available core at the moment is the [Midtown Madness 2 core](https://github.com/wilkovatch/km2cb-mm2-core).
+The editor knows nothing about any game by itself. Everything game specific (which elements exist, what parameters they have, how their geometry is generated, which file formats can be read and how the city is exported) is provided by a **core**: a plugin containing JSON configuration files and Python scripts. The only available core at the moment is the [Midtown Madness 2 core](https://github.com/wilkovatch/km2cb-mm2-core); a Midtown Madness 1 core is in development.
 
 This program is made with Godot 4.7 (.NET), with scripts written in C#.
 

@@ -7,7 +7,7 @@ this entry file contains the essential rules and the reading index for detailed 
 ## What this project is
 
 - A **city-building tool** (not a game) made with **Godot 4.7 .NET (C#, net9.0)**. It creates cities for videogames: there is no real-time simulation of cars or pedestrians, only static but interactive placement of roads, intersections, terrain patches, buildings, props, etc.
-- Game support comes from **cores**: mini-projects with JSON definitions, Python (exporters, format readers, migrations) and Lua (scripted geometry). The only core so far is **Midtown Madness 2** ([km2cb-mm2-core](https://github.com/wilkovatch/km2cb-mm2-core)), installed in `Files/cores/MidtownMadness2`. BeamNG Drive is a planned target, not supported yet.
+- Game support comes from **cores**: mini-projects with JSON definitions, Python (exporters, format readers, migrations) and Lua (scripted geometry). The main core is **Midtown Madness 2** ([km2cb-mm2-core](https://github.com/wilkovatch/km2cb-mm2-core)), installed in `Files/cores/MidtownMadness2`. A **Midtown Madness 1** core is in development in `Files/cores/MidtownMadness1` (its own repository, not published yet). BeamNG Drive is a planned target, not supported yet.
 - **Core-specific guidance lives in each core's own `AGENTS.md`.** For MM2 (file formats, the exporter workflow, exporter tools and gotchas, engine limits and crash signatures), read [Files/cores/MidtownMadness2/AGENTS.md](Files/cores/MidtownMadness2/AGENTS.md) before working on the core or its exporters.
 - Repository: https://github.com/wilkovatch/km2-city-builder
 
@@ -46,6 +46,7 @@ Read every topic relevant to the task before changing code or running its workfl
 | Builds, new C# files, command-line execution, Python setup or exporter integration | [Building, running and exporting](docs/agents/development.md) |
 | Tests, bug reproduction, undo/API checks, input simulation or visual verification | [Testing and visual verification](docs/agents/testing.md) |
 | MM2 core definitions, scripts, migrations, formats or exporters | [MM2 core instructions](Files/cores/MidtownMadness2/AGENTS.md), then its relevant topics |
+| MM1 core definitions, formats or exporters | [MM1 core instructions](Files/cores/MidtownMadness1/AGENTS.md), then its relevant topics |
 
 Paths and command examples in these topics are relative to the builder root unless stated otherwise. Machine-specific locations remain in the gitignored local instruction files.
 

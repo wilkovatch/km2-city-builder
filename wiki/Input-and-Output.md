@@ -116,7 +116,7 @@ Mesh material textures are checked beside the mesh (beside the material file for
 
 ### `TextureImporter` (`IO/Import/TextureImporter.cs`)
 
-`LoadTexture(path)` dispatches by extension: `tga`, `dds` (DXT1, DXT3, DXT5; loaded flipped, top row at v = 0, like the textures of the cores), `bmp` (uncompressed or bitfields) through the C# decoders in `TextureDecoder/Formats` (`TGA`, `DDS`, `BMP`, implementing the `TextureDecoder` interface), `jpg`/`png` through Godot, and the core's `customTextureFormats` through the Python server (`texture|<path>`). `FindTexture(nameWithoutExtension)` tries every supported extension in each search folder, in the order `tga, dds, bmp, jpg, jpeg, png`, then the custom formats. `FindMeshTexture(folder, filename, withoutExtension)` adds the nearby-folder priority and search-path fallback used by mesh materials.
+`LoadTexture(path)` dispatches by extension: `tga`, `dds` (DXT1, DXT3, DXT5, and uncompressed RGB, RGBA or luminance with bit masks such as RGB565 and ARGB4444, base level only with generated mipmaps; loaded flipped, top row at v = 0, like the textures of the cores), `bmp` (uncompressed or bitfields) through the C# decoders in `TextureDecoder/Formats` (`TGA`, `DDS`, `BMP`, implementing the `TextureDecoder` interface), `jpg`/`png` through Godot, and the core's `customTextureFormats` through the Python server (`texture|<path>`). `FindTexture(nameWithoutExtension)` tries every supported extension in each search folder, in the order `tga, dds, bmp, jpg, jpeg, png`, then the custom formats. `FindMeshTexture(folder, filename, withoutExtension)` adds the nearby-folder priority and search-path fallback used by mesh materials.
 
 ### `BufferedBinaryReader` (`IO/BufferedBinaryReader.cs`)
 

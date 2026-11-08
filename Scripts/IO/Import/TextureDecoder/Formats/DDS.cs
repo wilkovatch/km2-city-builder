@@ -2,9 +2,13 @@
 using Godot;
 
 namespace TextureDecoder.Formats {
-    class DDS : TextureDecoder //only supports dxt1, dxt3 and dxt5 (bc1, bc2 and bc3 with the dx10 header)
+    class DDS : TextureDecoder //supports dxt1, dxt3 and dxt5 (bc1, bc2 and bc3 with the dx10 header) and uncompressed rgb(a)/luminance with bit masks
     {
+        const int DDSD_PITCH = 0x8;
+        const int DDPF_ALPHAPIXELS = 0x1;
         const int DDPF_FOURCC = 0x4;
+        const int DDPF_RGB = 0x40;
+        const int DDPF_LUMINANCE = 0x20000;
         const int DDSCAPS2_VOLUME = 0x200000;
         const int D3D10_RESOURCE_DIMENSION_TEXTURE2D = 3;
 
@@ -29,8 +33,10 @@ namespace TextureDecoder.Formats {
             int dwReserved2 = r.ReadInt32();
             int headerLength = 128;
 
-            if ((ddpfFlags & DDPF_FOURCC) == 0) throw new InvalidDataException("Uncompressed DDS files are not supported");
             if ((dwCaps2 & DDSCAPS2_VOLUME) != 0) throw new InvalidDataException("Volume DDS textures are not supported");
+            if ((ddpfFlags & DDPF_FOURCC) == 0) {
+                return DecodeUncompressed(r, dwFlags, dwWidth, dwHeight, dwPitchOrLinearSize, ddpfFlags, ddpfMasks);
+            }
             GameEngine.Texture.Format dxtFormat;
             switch (fourCC) {
                 case "DXT1": dxtFormat = GameEngine.Texture.Format.DXT1; break;
@@ -58,6 +64,39 @@ namespace TextureDecoder.Formats {
             //a count of 0 or 1 means no mipmaps, arrays and cube maps keep their first image (which comes first in the file)
             byte[] dxtBytes = r.ReadBytes(r.GetLength() - headerLength);
             return GameEngine.Texture.CreateFromRawData(dwWidth, dwHeight, dxtFormat, dwMipmapCount, dxtBytes);
+        }
+
+        //only the base level is read (the mipmaps are generated); the rows keep the file order like the dxt data
+        static Texture2D DecodeUncompressed(BufferedBinaryReader r, int flags, int width, int height, int pitch, int pfFlags, byte[] masks) {
+            int bitCount = System.BitConverter.ToInt32(masks, 0);
+            if ((pfFlags & (DDPF_RGB | DDPF_LUMINANCE)) == 0) throw new InvalidDataException("Unsupported uncompressed DDS pixel format: " + pfFlags);
+            if (bitCount != 8 && bitCount != 16 && bitCount != 24 && bitCount != 32) throw new InvalidDataException("Unsupported DDS bit count: " + bitCount);
+            if (width <= 0 || height <= 0) throw new InvalidDataException("Invalid DDS size: " + width + "x" + height);
+            bool luminance = (pfFlags & DDPF_LUMINANCE) != 0;
+            var red = new MaskChannel(System.BitConverter.ToUInt32(masks, 4));
+            var green = new MaskChannel(luminance ? 0 : System.BitConverter.ToUInt32(masks, 8));
+            var blue = new MaskChannel(luminance ? 0 : System.BitConverter.ToUInt32(masks, 12));
+            var alpha = new MaskChannel((pfFlags & DDPF_ALPHAPIXELS) != 0 ? System.BitConverter.ToUInt32(masks, 16) : 0);
+            int bytesPerPixel = bitCount / 8;
+            int stride = (flags & DDSD_PITCH) != 0 && pitch >= width * bytesPerPixel ? pitch : width * bytesPerPixel;
+            if ((long)stride * height > r.GetLength() - 128) throw new InvalidDataException("DDS pixel data is truncated");
+
+            int channels = alpha.Present ? 4 : 3;
+            byte[] pixels = new byte[channels * width * height];
+            for (int y = 0, o = 0; y < height; y++) {
+                byte[] row = r.ReadBytes(stride);
+                for (int x = 0; x < width; x++, o += channels) {
+                    uint pixel = 0;
+                    for (int b = 0; b < bytesPerPixel; b++) pixel |= (uint)row[x * bytesPerPixel + b] << (8 * b);
+                    byte rv = red.Get(pixel);
+                    pixels[o + 0] = rv;
+                    pixels[o + 1] = luminance ? rv : green.Get(pixel);
+                    pixels[o + 2] = luminance ? rv : blue.Get(pixel);
+                    if (channels == 4) pixels[o + 3] = alpha.Get(pixel);
+                }
+            }
+            var format = channels == 4 ? GameEngine.Texture.Format.RGBA8 : GameEngine.Texture.Format.RGB8;
+            return GameEngine.Texture.CreateFromPixelData(width, height, format, true, pixels);
         }
     }
 }

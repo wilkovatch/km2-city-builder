@@ -6,25 +6,6 @@ namespace TextureDecoder.Formats {
     {
         const int BI_RGB = 0, BI_BITFIELDS = 3, BI_ALPHABITFIELDS = 6;
 
-        struct Channel {
-            readonly uint mask, max;
-            readonly int shift;
-
-            public Channel(uint mask) {
-                this.mask = mask;
-                shift = 0;
-                if (mask != 0) while (((mask >> shift) & 1) == 0) shift++;
-                max = mask >> shift;
-            }
-
-            public bool Present => mask != 0;
-
-            public byte Get(uint pixel) {
-                if (mask == 0) return 0;
-                return (byte)(((ulong)((pixel & mask) >> shift) * 255 + max / 2) / max);
-            }
-        }
-
         public Texture2D DecodeTexture(BufferedBinaryReader r) {
             if (r.ReadByte() != 'B' || r.ReadByte() != 'M') throw new InvalidDataException("Not a BMP file");
             r.ReadBytes(8); //file size, reserved
@@ -92,10 +73,10 @@ namespace TextureDecoder.Formats {
             } else {
                 throw new InvalidDataException("Compressed BMP files are not supported (compression " + compression + ")");
             }
-            var red = new Channel(redMask);
-            var green = new Channel(greenMask);
-            var blue = new Channel(blueMask);
-            var alpha = new Channel(alphaMask);
+            var red = new MaskChannel(redMask);
+            var green = new MaskChannel(greenMask);
+            var blue = new MaskChannel(blueMask);
+            var alpha = new MaskChannel(alphaMask);
 
             byte[] palette = null; //rgb triplets
             int paletteLength = 0;
