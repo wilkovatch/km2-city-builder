@@ -26,12 +26,21 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
     Color handleColor = GameEngine.Color.green;
     bool handleActive = true;
 
+    //the mesh and the collider of the handle scene are direct children: a recursive search could return the collider of a
+    //point link under the handle (added before the deferred visuals), which is freed when the link is replaced
+    T FindOwn<T>() where T : Node3D {
+        foreach (var child in GetChildren()) {
+            if (child is T res && IsInstanceValid(res)) return res;
+        }
+        return null;
+    }
+
     internal void EnsureVisuals() {
         if (!deferredVisuals) return;
         GameEngine.Resources.InitializeHandleVisuals(this);
         deferredVisuals = false;
-        meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
-        collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
+        meshInstance = FindOwn<MeshInstance3D>();
+        collisionShape = FindOwn<CollisionShape3D>();
         UpdateColor(handleColor);
         SetHandleActive(handleActive);
         visualScale = null;
@@ -39,8 +48,8 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
     }
 
     public override void _Ready() {
-        meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
-        collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
+        meshInstance = FindOwn<MeshInstance3D>();
+        collisionShape = FindOwn<CollisionShape3D>();
         UpdateColor(handleColor);
     }
 
@@ -91,7 +100,7 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
     void UpdateColor(Color color) {
         handleColor = color;
         if (deferredVisuals) return;
-        if (meshInstance == null) meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
+        if (meshInstance == null) meshInstance = FindOwn<MeshInstance3D>();
         if (meshInstance?.Mesh == null) return;
         meshInstance.MaterialOverride = MaterialManager.GetHandleMaterial(color);
     }
@@ -110,7 +119,7 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
     //shown and clickable (see SetHandleActive)
     public bool IsHandleActive() {
         if (deferredVisuals) return handleActive;
-        if (collisionShape == null) collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
+        if (collisionShape == null) collisionShape = FindOwn<CollisionShape3D>();
         return collisionShape == null || !collisionShape.Disabled;
     }
 
@@ -170,8 +179,8 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
             cachedPosition = GlobalPosition;
             tolerance = 0;
         }
-        if (meshInstance == null) meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
-        if (collisionShape == null) collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
+        if (meshInstance == null) meshInstance = FindOwn<MeshInstance3D>();
+        if (collisionShape == null) collisionShape = FindOwn<CollisionShape3D>();
         if (!visualScale.HasValue) visualScale = meshInstance != null ? meshInstance.Scale : GameEngine.Vector3.one;
         var curScale = visualScale.Value;
         var dist = 1.0f;
@@ -205,8 +214,8 @@ public partial class Handle : PhysicsScriptable, HandleUpdater.IUpdatable {
             else return;
         }
         //it can be called before _Ready (e.g. right after instancing, before entering the tree)
-        if (meshInstance == null) meshInstance = GameEngine.Scriptable.FindRecursive<MeshInstance3D>(this);
-        if (collisionShape == null) collisionShape = GameEngine.Scriptable.FindRecursive<CollisionShape3D>(this);
+        if (meshInstance == null) meshInstance = FindOwn<MeshInstance3D>();
+        if (collisionShape == null) collisionShape = FindOwn<CollisionShape3D>();
         if (meshInstance != null) meshInstance.Visible = active;
         if (collisionShape != null) collisionShape.Disabled = !active;
     }
