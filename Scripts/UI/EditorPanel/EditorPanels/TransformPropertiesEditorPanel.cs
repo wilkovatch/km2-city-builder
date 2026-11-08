@@ -287,7 +287,7 @@ namespace EditorPanels {
                 };
             } else {
                 key = !attached ? "POINT_FREE" : point.anchor is LineAnchor ? "POINT_ON_SEGMENT" : point.anchor is ColumnAnchor ? "POINT_ON_COLUMN"
-                    : point.anchor is PointAnchor ? "POINT_ON_POINT" : "POINT_ANCHORED";
+                    : point.anchor is PointAnchor ? "POINT_ON_POINT" : point.anchor is IntersectionAnchor ? "POINT_ON_INTERSECTION" : "POINT_ANCHORED";
             }
             attachmentStatus.SetValue(SM.Get(key));
             detachPointButton.SetInteractable(attached && !picking);
@@ -309,7 +309,9 @@ namespace EditorPanels {
             if (customElement) {
                 //the anchors (also the ones only for the custom elements) and the points of the other elements are shown,
                 //and the points of the element can be clicked (they can't be moved meanwhile), as in the click modes
-                builder.helper.elementManager.ShowAnchors(true, true, false, owner?.Settings?.roadEndAnchors == true);
+                builder.helper.elementManager.ShowAnchors(true, true, false, owner?.Settings?.roadEndAnchors == true,
+                    Operations.PointTargets.AcceptsIntersections(owner?.GetCustomElementType()));
+                if (owner != null) Operations.PointTargets.HideRefused(builder.helper.elementManager, owner.GetCustomElementType(), owner, Operations.PointTargets.SlotOf(owner, point));
                 owner?.SetActive(true, false);
                 owner?.Select(true);
             }

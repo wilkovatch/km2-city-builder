@@ -40,8 +40,11 @@ namespace Actions {
                     anchor = ta;
                 }
             }
+            var intersection = Operations.PointTargets.IntersectionOf(obj);
             if (anchor != null) {
                 return (anchor.GetPoint(), 1.2f, skipping ? (GameEngine.Color.yellow + GameEngine.Color.red) * 0.5f : GameEngine.Color.yellow);
+            } else if (intersection != null) {
+                return (GO.GetPosition(intersection.point), 1.5f, GameEngine.Color.yellow); //its center (custom elements with intersectionTargets)
             } else {
                 var oldPoint = GS.FindComponent<TerrainPoint>(obj);
                 if (oldPoint == null) {

@@ -49,6 +49,7 @@ public partial class ElementManager : Scriptable {
     internal (int patches, int buildings, int customElements) lastInteractiveDependencyVisits;
     (int roads, int intersections, int patches, int buildings, int customElements) interactiveMembership;
     bool interactiveRoadEdit, deferredRoadSurfacesChanged;
+    bool intersectionCentersShown; //by ShowAnchors, for the custom elements placed on them
 
     public GameObject GetDummyContainer<T>() {
         if (typeof(T) == typeof(CityProperties)) {
@@ -317,6 +318,7 @@ public partial class ElementManager : Scriptable {
     }
 
     public void ShowIntersections(bool active) {
+        intersectionCentersShown = false; //as the intersection mode wants them from now on
         foreach (var road in roads) {
             if (active) road.anchorManager.ShowTerrainAnchors(false);
             road.SetActive(false, active);
@@ -362,16 +364,18 @@ public partial class ElementManager : Scriptable {
         return true;
     }
 
-    //forCustomElements: also the anchors only for the custom elements; roadEnds: also the free ends of the roads (for the types with roadEndAnchors)
-    public void ShowAnchors(bool active, bool forCustomElements = false, bool keepEditedElements = false, bool roadEnds = false) {
+    //forCustomElements: also the anchors only for the custom elements; roadEnds: also the free ends of the roads (for the types with roadEndAnchors);
+    //intersectionCenters: also the handles of the intersections (for the types with intersectionTargets), hidden again by the next call without it
+    public void ShowAnchors(bool active, bool forCustomElements = false, bool keepEditedElements = false, bool roadEnds = false, bool intersectionCenters = false) {
         foreach (var road in roads) {
             if (active) road.SetActive(false, false);
             road.anchorManager.ShowTerrainAnchors(active, forCustomElements, roadEnds);
         }
         foreach (var intersection in intersections) {
-            if (active) intersection.SetActive(false, false);
+            if (active || intersectionCentersShown) intersection.SetActive(active && intersectionCenters, false);
             intersection.anchorManager.ShowTerrainAnchors(active, forCustomElements);
         }
+        intersectionCentersShown = active && intersectionCenters;
         foreach (var patch in patches) {
             patch.SetActive(active, false);
             patch.Select(false);

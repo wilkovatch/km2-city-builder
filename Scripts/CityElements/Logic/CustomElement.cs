@@ -173,7 +173,7 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
         foreach (var link in p.GetLinks()) {
             if (link is not CustomElement e || e.deleted) continue;
             any = true;
-            detachable &= Operations.PointTargets.AcceptsGround(e.GetCustomElementType());
+            detachable &= Operations.PointTargets.AcceptsGroundAt(e, p);
             hidden |= e.Settings?.point != null && (!p.anchorable || e.moveable);
             active |= e.active;
             selected |= e.selected;
@@ -295,8 +295,11 @@ public partial class CustomElement : ParametricObjectContainer<CityElements.Type
     }
 
     //the points of the spline in the opposite order (its direction: e.g. the side of its strip), false if it has less than two
+    //or a point wouldn't be accepted at its new place (see PointTargets.KeepsAccepted)
     public bool ReverseSpline() {
         if (Settings?.spline == null || PointTree.Find(points, "spline") is not PointList list || list.items.Count < 2) return false;
+        var count = list.items.Count;
+        if (!Operations.PointTargets.KeepsAccepted(this, list, i => count - 1 - i, count)) return false;
         History.UndoManager.Touch(this);
         list.items.Reverse();
         structureVersion++;

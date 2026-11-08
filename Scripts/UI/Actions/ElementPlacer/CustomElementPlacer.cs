@@ -32,6 +32,7 @@ namespace ElementPlacer {
         public System.Action onModeEnded; //the placement mode ended by itself (e.g. a closed array was closed)
         readonly ElementManager manager;
         bool anchorsVisible;
+        Operations.PointTargets.Slot? anchorsSlot; //the place of the next point the targets were shown for
         //the owner of the controls (see CustomElementSplineSettings.ownerReference) chosen in the menu, for the click applied again
         object chosenOwner;
         PopupMenu ownerMenu;
@@ -78,24 +79,79 @@ namespace ElementPlacer {
             if (FiltersTargets()) {
                 var type = GetRuntimeType();
                 var element = placementMode == PlacementMode.Create ? null : GetElement();
+                var slot = NextSlot();
                 foreach (var h in hits) {
-                    if (h.HasValue && Operations.PointTargets.Allows(type, (Node3D)h.Value.collider, element)) return h.Value;
+                    if (h.HasValue && Operations.PointTargets.Allows(type, (Node3D)h.Value.collider, element, slot)) return h.Value;
                 }
             }
             return hits[0].HasValue ? hits[0].Value : hits[1].HasValue ? hits[1].Value : hits[2].Value;
         }
 
-        //the clicks place control points of a type choosing its targets (acceptTarget or ownerReference)
+        //the clicks place control points of a type choosing its targets (acceptTarget or ownerReference); not the first click
+        //of a type with a placementObject (it places the object)
         bool FiltersTargets() {
             if (placementMode != PlacementMode.Create && placementMode != PlacementMode.AppendPoint && placementMode != PlacementMode.PrependPoint
                 && placementMode != PlacementMode.InsertPoint && placementMode != PlacementMode.PlacePoints) return false;
+            if (placementMode == PlacementMode.Create && GetSettings()?.placementObject != null) return false;
             var type = GetRuntimeType();
             return type != null && (type.acceptTargetFunction != null || Operations.PointTargets.OwnerParameter(type) != null);
         }
 
         //the type doesn't accept the target under the mouse (nothing is shown there)
         bool Refused(RaycastHit hit) {
-            return FiltersTargets() && !Operations.PointTargets.Allows(GetRuntimeType(), (Node3D)hit.collider, placementMode == PlacementMode.Create ? null : GetElement());
+            return FiltersTargets() && !Operations.PointTargets.Allows(GetRuntimeType(), (Node3D)hit.collider, placementMode == PlacementMode.Create ? null : GetElement(), NextSlot());
+        }
+
+        //the place of the point the next click adds to an array of points (see PointTargets.Slot), null if none
+        Operations.PointTargets.Slot? NextSlot() {
+            if (placementMode == PlacementMode.Create) {
+                var settings = GetSettings();
+                return settings?.spline != null && settings.placementObject == null ? new Operations.PointTargets.Slot(0, 1) : null;
+            }
+            var index = NextIndex(out var list);
+            return index < 0 ? null : Operations.PointTargets.NewSlot(list, index);
+        }
+
+        //the index the next click adds a point at in its array (list), -1 if it doesn't add one
+        int NextIndex(out CustomElements.PointList list) {
+            list = null;
+            var element = GetElement();
+            if (element?.points == null) return -1;
+            switch (placementMode) {
+                case PlacementMode.AppendPoint:
+                    list = arrayPath == null ? null : CustomElements.PointTree.Find(element.points, arrayPath) as CustomElements.PointList;
+                    return list == null ? -1 : list.items.Count;
+                case PlacementMode.PrependPoint:
+                case PlacementMode.InsertPoint:
+                    list = CustomElements.PointTree.Find(element.points, "spline") as CustomElements.PointList;
+                    if (list == null) return -1;
+                    if (placementMode == PlacementMode.PrependPoint) return 0;
+                    var selectedPoint = manager.builder.gizmo.mainTargetRoot == null ? null : GS.FindRecursive<TerrainPoint>(manager.builder.gizmo.mainTargetRoot);
+                    var index = list.items.FindIndex(n => ((CustomElements.PointLeaf)n).point == selectedPoint);
+                    return index < 0 ? -1 : atStart ? index : index + 1;
+            }
+            return -1;
+        }
+
+        //the point added at the index would leave a point already there at a place where it isn't accepted (e.g. a point
+        //that can be free only as the last one, see PointTargets.KeepsAccepted): the user is told, nothing is added
+        bool RefusesNewPlaces(CustomElements.PointList list, int index) {
+            if (list == null || index < 0 || Operations.PointTargets.KeepsAccepted(GetElement(), list, index)) return false;
+            ShowRefusal("CE_POINT_PLACES_ERROR");
+            return true;
+        }
+
+        void ShowRefusal(string genericKey) {
+            manager.builder.CreateAlert(StringManager.Get("ERROR"), Operations.PointTargets.RefusalMessage(GetRuntimeType(), genericKey), StringManager.Get("OK"),
+                null, 260, true, 520); //room for an explanation of the type (targetsHint)
+        }
+
+        //a click adding a point on a target the type refuses: nothing is added, the types explaining where their points go
+        //(targetsHint) tell it (the others ignore the click, as they always did)
+        bool RefusedClick(RaycastHit hit) {
+            if (!Refused(hit)) return false;
+            if (Operations.PointTargets.HasTargetsHint(GetRuntimeType())) ShowRefusal("CE_POINT_TARGET_ERROR");
+            return true;
         }
 
         public override void Apply(List<RaycastHit?> hits) {
@@ -122,7 +178,8 @@ namespace ElementPlacer {
             switch (placementMode) {
                 case PlacementMode.Create:
                     if (createType == null) return;
-                    if (!Operations.PointTargets.Allows(GetRuntimeType(), obj)) return; //the first point where the type accepts it
+                    //the first point where the type accepts it (not the object of a placementObject)
+                    if (FiltersTargets() && !Operations.PointTargets.Allows(GetRuntimeType(), obj, null, NextSlot())) return;
                     curElement = Operations.CustomElements.Create(manager, createType, hit.point);
                     if (creationState != null) Operations.CustomElementPresets.Apply(curElement, creationState);
                     if (chosenOwner != null) Operations.PointTargets.SetOwner(curElement, chosenOwner);
@@ -188,17 +245,16 @@ namespace ElementPlacer {
                         onModeEnded?.Invoke();
                         return;
                     }
+                    var appendAt = NextIndex(out var appendList);
+                    if (RefusedClick(hit) || RefusesNewPlaces(appendList, appendAt)) return;
                     var point = Operations.CustomElements.AppendPoint(manager, curElement, arrayPath, obj, hit.point, Input.GetInputPressed(KeyCommand.Modifier2));
                     point?.Select(true);
                     break;
                 case PlacementMode.PrependPoint:
                 case PlacementMode.InsertPoint:
                     if (GetElement() == null) return;
-                    var list = CustomElements.PointTree.Find(curElement.points, "spline") as CustomElements.PointList;
-                    var selectedPoint = manager.builder.gizmo.mainTargetRoot == null ? null : GS.FindRecursive<TerrainPoint>(manager.builder.gizmo.mainTargetRoot);
-                    var index = placementMode == PlacementMode.PrependPoint ? 0 : list.items.FindIndex(n => ((CustomElements.PointLeaf)n).point == selectedPoint);
-                    if (index < 0) return;
-                    if (placementMode == PlacementMode.InsertPoint && !atStart) index++;
+                    var index = NextIndex(out var list);
+                    if (index < 0 || RefusedClick(hit) || RefusesNewPlaces(list, index)) return;
                     Operations.CustomElements.InsertPointAt(manager, curElement, "spline", index, obj, hit.point);
                     break;
                 case PlacementMode.AppendElement:
@@ -400,6 +456,7 @@ namespace ElementPlacer {
             get {
                 var settings = GetSettings();
                 if (settings?.point != null) return settings.point.anchorable;
+                if (placementMode == PlacementMode.Create && settings?.placementObject != null) return false; //the object goes on the ground
                 if (placementMode == PlacementMode.PlacePoints) return PlacementLeaf(placeIndex)?.def.anchorable == true;
                 if (placementMode == PlacementMode.Create && (settings?.placementPoints?.Length ?? 0) > 0) {
                     return CityElements.Types.CustomElementType.FindPointNode(settings.controlPoints, settings.placementPoints[0])?.anchorable == true;
@@ -415,20 +472,28 @@ namespace ElementPlacer {
         public void UpdateAnchorVisibility(bool force = false) {
             var show = manager.builder.terrainClick.modifier == this && manager.builder.customElementEditorPanel.ActiveSelf()
                 && placementMode != PlacementMode.None && AnchorablePlacement;
-            if (!force && show == anchorsVisible) return;
+            var type = GetRuntimeType();
+            //the targets of a function looking at the place of the point change with it (shown as for a point followed by
+            //another one, see PointTargets.ShownSlot)
+            var slot = show && FiltersTargets() && type?.acceptTargetFunction != null ? Operations.PointTargets.ShownSlot(NextSlot()) : null;
+            if (!force && show == anchorsVisible && slot == anchorsSlot) return;
             anchorsVisible = show;
-            manager.ShowAnchors(show, true, true, GetSettings()?.roadEndAnchors == true);
-            if (show) Operations.PointTargets.HideRefused(manager, GetRuntimeType(), GetElement());
+            anchorsSlot = slot;
+            manager.ShowAnchors(show, true, true, GetSettings()?.roadEndAnchors == true, show && Operations.PointTargets.AcceptsIntersections(type));
+            var placesObject = placementMode == PlacementMode.Create && GetSettings()?.placementObject != null;
+            if (show && !placesObject) Operations.PointTargets.HideRefused(manager, type, placementMode == PlacementMode.Create ? null : GetElement(), slot);
             if (manager.builder.customElementEditorPanel.ActiveSelf()) manager.builder.customElementEditorPanel.ShowElement(GetElement());
         }
 
         bool ProjectsPlacement(CityElements.Types.CustomElementSettings settings) => GetElement()?.ProjectsPlacement
             ?? creationState?.Bool("projectToGround", settings.propPlacer.projectToGround) ?? settings.propPlacer.projectToGround;
 
-        //terrain points and anchors, point links, then the terrain and the generated meshes
+        //terrain points and anchors (and the centers of the intersections, for the types with intersectionTargets), point
+        //links, then the terrain and the generated meshes
         public override List<int> GetLayerMasks() {
             if (!AnchorablePlacement) return new List<int> { 0, 0, (1 << 3) | (1 << 7) };
             var points = GetSettings()?.propPlacer?.type == "polygon" ? (1 << 10) | (1 << 8) : 1 << 10;
+            if (Operations.PointTargets.AcceptsIntersections(GetRuntimeType())) points |= 1 << 9;
             return new List<int> { points, 1 << 12, (1 << 3) | (1 << 7) };
         }
 

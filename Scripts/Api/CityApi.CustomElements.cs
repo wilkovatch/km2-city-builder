@@ -25,16 +25,27 @@ namespace Api {
         // Points
 
         //the point of a custom element from a point target (a new one, or an existing terrain point to share); with the
-        //element, a target its type doesn't accept is refused (see Operations.PointTargets)
-        TerrainPoint CustomElementPoint(PointTarget t, CustomElement element = null) {
-            var (obj, pos) = ResolvePoint(t);
-            if (element != null && !Operations.PointTargets.Allows(element, obj)) throw RefusedTarget(element);
+        //element, a target its type doesn't accept (at the place of the point, if given) is refused (see Operations.PointTargets)
+        TerrainPoint CustomElementPoint(PointTarget t, CustomElement element = null, Operations.PointTargets.Slot? slot = null) {
+            var (obj, pos) = ResolvePoint(t, element != null);
+            if (element != null && !Operations.PointTargets.Allows(element, obj, slot)) throw RefusedTarget(element);
             if (element != null && !Operations.PointTargets.ClaimOwner(element, obj)) throw AmbiguousOwner(element, obj);
             return Operations.CustomElements.PointFromClick(M, obj, pos);
         }
 
         static ApiException RefusedTarget(CustomElement element) {
-            return ApiException.InvalidOperation("the points of a " + element.TypeName + " can't go on that target (see the acceptTarget and ownerReference of its type)");
+            return ApiException.InvalidOperation("the points of a " + element.TypeName + " can't go on that target (see the acceptTarget and ownerReference of its type)" + TargetsHint(element));
+        }
+
+        //a point already there wouldn't be accepted at its new place (see Operations.PointTargets.KeepsAccepted)
+        static ApiException RefusedPlaces(CustomElement element) {
+            return ApiException.InvalidOperation("a point of the " + element.TypeName + " wouldn't be accepted at its new place (see the acceptTarget of its type: e.g. a point that can be free only as the last one)" + TargetsHint(element));
+        }
+
+        //the explanation of the type of where its points go, if it has one (targetsHint)
+        static string TargetsHint(CustomElement element) {
+            var type = element.GetCustomElementType();
+            return Operations.PointTargets.HasTargetsHint(type) ? ": " + Operations.PointTargets.RefusalMessage(type, null) : "";
         }
 
         //the first point of an element without owner (see CustomElementSplineSettings.ownerReference) is on several elements which could own it
@@ -53,7 +64,9 @@ namespace Api {
             var scales = new Dictionary<TerrainPoint, Vector3>();
             var res = History.ElementSnapshot.CustomElementPoints(points, element.state, element, token => {
                 var target = token.ToObject<PointTarget>(Newtonsoft.Json.JsonSerializer.Create(Json.Settings));
-                var p = CustomElementPoint(target, element);
+                //a point in an array of points has its place there
+                var slot = token.Parent is JArray array ? new Operations.PointTargets.Slot(array.IndexOf(token), array.Count) : (Operations.PointTargets.Slot?)null;
+                var p = CustomElementPoint(target, element, slot);
                 created.Add(p);
                 if (target.rotation.HasValue) rotations[p] = target.rotation.Value;
                 if (target.scale.HasValue) scales[p] = target.scale.Value;
@@ -88,7 +101,9 @@ namespace Api {
                 rotation = leaf.def.rotatable ? p.GetRotation() : (Vector3?)null,
                 scale = leaf.def.scalable ? p.GetScale() : (Vector3?)null,
                 shared = p.GetLinks().Count > 1,
-                anchored = !GO.IsNull(p.anchor) && !p.anchor.IsDeleted()
+                anchored = !GO.IsNull(p.anchor) && !p.anchor.IsDeleted(),
+                //the intersection whose center it is on (see CustomElementSplineSettings.intersectionTargets)
+                intersection = p.anchor is IntersectionAnchor centre && !centre.IsDeleted() ? History.ElementRegistry.GetId(centre.intersection) : (int?)null
             };
         }
 
@@ -292,14 +307,17 @@ namespace Api {
                 if (i < 0 || i > list.items.Count) throw ApiException.InvalidValue("index out of range (0-" + list.items.Count + ")");
                 if (to != null) {
                     if (list.def.children != null || position.HasValue) throw ApiException.InvalidParam("to is only for an array of points, without position");
-                    var (obj, pos) = ResolvePoint(to);
-                    if (!Operations.PointTargets.Allows(e, obj)) throw RefusedTarget(e);
+                    var (obj, pos) = ResolvePoint(to, true);
+                    if (!Operations.PointTargets.Allows(e, obj, Operations.PointTargets.NewSlot(list, i))) throw RefusedTarget(e);
+                    if (!Operations.PointTargets.KeepsAccepted(e, list, i)) throw RefusedPlaces(e);
                     if (!Operations.PointTargets.ClaimOwner(e, obj)) throw AmbiguousOwner(e, obj);
                     if (Operations.CustomElements.InsertPointAt(M, e, array, i, obj, pos) == null) {
                         throw ApiException.InvalidOperation("the array '" + array + "' can't have more elements");
                     }
-                } else if (!Operations.PointTargets.Allows(e, null)) {
+                } else if (!Operations.PointTargets.Allows(e, null, Operations.PointTargets.NewSlot(list, i))) {
                     throw ApiException.InvalidParam("the points of a " + e.TypeName + " can't be free: give their target (to)");
+                } else if (!Operations.PointTargets.KeepsAccepted(e, list, i)) {
+                    throw RefusedPlaces(e);
                 } else if (position.HasValue) {
                     if (i != 0 && i != list.items.Count) throw ApiException.InvalidParam("position is only allowed at the start or end of the array");
                     if (!Operations.CustomElements.AppendArrayElementAt(e, array, i == 0 && list.items.Count > 0, position.Value, false)) {
@@ -377,7 +395,7 @@ namespace Api {
             });
         }
 
-        [ApiMethod("customElement.attachPoint", "Replaces a control point (path) or a vertex (vertex) of a custom element with an existing terrain point (to: {terrainPoint}, shared from now on), or attaches it to an anchor or segment (to: {anchor} or {anchorLink}), to the line between two terrain points (line: [id, id], it stays where it is closest to it) or to the vertical line of a terrain point (column: id, it keeps its height and follows the x and z of that point; moved horizontally, that point follows)")]
+        [ApiMethod("customElement.attachPoint", "Replaces a control point (path) or a vertex (vertex) of a custom element with an existing terrain point (to: {terrainPoint}, shared from now on), or attaches it to an anchor or segment (to: {anchor} or {anchorLink}), to the line between two terrain points (line: [id, id], it stays where it is closest to it) to the vertical line of a terrain point (column: id, it keeps its height and follows the x and z of that point; moved horizontally, that point follows), or to the center of an intersection (to: {intersection}, only for the types with intersectionTargets: it follows the intersection)")]
         public int AttachCustomElementPoint(ElementRef element, PointTarget to = null, string path = null, int? vertex = null, int[] line = null, int? column = null) {
             return ApplyChange("attach point", () => {
                 var e = ResolveCustomElement(element);
@@ -397,10 +415,10 @@ namespace Api {
                     }
                     return History.ElementRegistry.GetId(p);
                 }
-                if (to == null || (!to.terrainPoint.HasValue && to.anchor == null && to.anchorLink == null && to.link == null)) {
-                    throw ApiException.InvalidParam("to must be a terrain point, an anchor or a segment (or give line or column)");
+                if (to == null || (!to.terrainPoint.HasValue && to.anchor == null && to.anchorLink == null && to.link == null && to.intersection == null)) {
+                    throw ApiException.InvalidParam("to must be a terrain point, an anchor, a segment or an intersection (or give line or column)");
                 }
-                var (obj, pos) = ResolvePoint(to);
+                var (obj, pos) = ResolvePoint(to, true);
                 var res = Operations.CustomElements.AttachPoint(M, e, p, obj, pos);
                 if (res == null) throw ApiException.InvalidOperation("nothing to attach to");
                 return History.ElementRegistry.GetId(res);
@@ -412,6 +430,8 @@ namespace Api {
             ApplyChange("reverse", () => {
                 var e = ResolveCustomElement(element);
                 if (e.Settings?.spline == null) throw ApiException.InvalidOperation("a " + e.TypeName + " is not a spline");
+                if (e.Settings?.spline != null && CustomElements.PointTree.Find(e.points, "spline") is CustomElements.PointList list && list.items.Count >= 2
+                    && !Operations.PointTargets.KeepsAccepted(e, list, i => list.items.Count - 1 - i, list.items.Count)) throw RefusedPlaces(e);
                 if (!e.ReverseSpline()) throw ApiException.InvalidOperation("the spline has less than two points");
             });
         }

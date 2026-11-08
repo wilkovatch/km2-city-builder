@@ -46,7 +46,8 @@ namespace IO.SavedCity {
     [System.Serializable]
     public enum LinkType {
         None, Point, Line,
-        Column //on the vertical line of a terrain point (elementId), see ColumnAnchor
+        Column, //on the vertical line of a terrain point (elementId), see ColumnAnchor
+        Centre //on the center of an intersection (elementId, element type Intersection), see IntersectionAnchor
     }
 
     [System.Serializable]

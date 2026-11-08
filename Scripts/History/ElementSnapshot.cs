@@ -118,7 +118,14 @@ namespace History {
             if (IsRotatable(p)) newElem.rotation = new SVector3(p.GetRotation());
             if (IsScalable(p)) newElem.scale = new SVector3(p.GetScale());
             try {
-                if (!GO.IsNull(p.anchor) && !p.anchor.IsDeleted()) {
+                if (p.anchor is IntersectionAnchor centre && !centre.IsDeleted()) {
+                    var id = intersectionId(centre.intersection);
+                    if (id >= 0) {
+                        newElem.linkType = IO.SavedCity.LinkType.Centre;
+                        newElem.elementType = IO.SavedCity.LinkElementType.Intersection;
+                        newElem.elementId = id;
+                    }
+                } else if (!GO.IsNull(p.anchor) && !p.anchor.IsDeleted()) {
                     Node3D parent = null;
                     TerrainAnchor realAnchor = null;
                     TerrainPoint realPoint1 = null, realPoint2 = null, masterPoint = null;
@@ -603,7 +610,10 @@ namespace History {
         //same logic as the city decoder, with the registry ids as references
         static IAnchorable ResolveAnchor(IO.SavedCity.TerrainPoint inPoint) {
             IAnchorable anchor = null;
-            if (inPoint.linkType != IO.SavedCity.LinkType.None) {
+            if (inPoint.linkType == IO.SavedCity.LinkType.Centre) {
+                var intersection = GetAlive<Intersection>(inPoint.elementId);
+                if (intersection != null) anchor = new IntersectionAnchor(intersection);
+            } else if (inPoint.linkType != IO.SavedCity.LinkType.None) {
                 if (inPoint.elementType != IO.SavedCity.LinkElementType.TerrainPoint) {
                     List<TerrainAnchor> anchors = null;
                     if (inPoint.elementType == IO.SavedCity.LinkElementType.Road) {

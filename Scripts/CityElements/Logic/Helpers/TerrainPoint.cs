@@ -210,6 +210,8 @@ public partial class TerrainPoint : PhysicsScriptable {
             yield return fixedPoint.master.GetObject();
         } else if (anchor is ColumnAnchor column) {
             yield return column.master.GetObject();
+        } else if (anchor is IntersectionAnchor centre) {
+            yield return centre.intersection.geo; //as the anchors of the intersection (see UndoManager.TouchAnchoredPoints)
         } else if (anchor is TerrainAnchor terrainAnchor) {
             yield return GO.GetParent(terrainAnchor.GetObject());
         } else if (anchor is LineAnchor line) {

@@ -240,6 +240,8 @@ Geometry uses the [road component format](Core-Roads), including local definitio
 | `closed` | A loop (default `false`): the last control point connects back to the first. It needs at least three points (with fewer the spline stays an open line), and allows Hermite, low-poly and [custom curves](Core-Splines) (not Bézier). The built-in Hermite loop is a cardinal spline with the same tension, in equal spans per control (`subdivideEqually` does not apply); a custom curve receives `ctx.closed`. The displayed line and the derived sections end at the first point again, the last piece closes the loop, and the generated strip has no end caps. `line.trimStart`/`line.trimEnd` do not apply. Clicking the first point while adding points ends the placement. |
 | `closable` | Each element chooses whether it is a loop: an instance-specific `closed` value, the **Loop** checkbox of `splineGroup` (default `false`; not with `closed`, nor with the Bézier curve). Clicking the first point while adding points closes the loop too. |
 | `acceptTarget` | Optional `<module>.<function>` deciding where the control points can go (see [Accepted targets](#accepted-targets)). |
+| `intersectionTargets` | Default `false`. The control points can also go on the centers of the intersections, which they then follow (moved with the intersection; left free where they are if it is deleted). The click modes show the intersections and the API takes `{"intersection": <ref>}` as a target. The other types never go on them. |
+| `targetsHint` | Optional string key: where the control points go, in words (e.g. the rule of `acceptTarget`). The click modes and the panel show it instead of their generic errors when a click or a change is refused, and so does the API in its error message. To show it in the panel too, add a `label:` element with the same key to the layout. |
 | `ownerReference` | Optional name of a `reference` parameter of the type: the control points go only on the points and anchors of one element, their owner, kept in that parameter (see [The owner of the points](#the-owner-of-the-points)). |
 | `followConnections` | `"place"` or `"dynamic"`: the spline follows the anchor chains and perimeters between its points (see [Following the connections](#following-the-connections)). Only with `curveTypes: [2]`. |
 | `line`, `controlLine` | Optional line styles with `color` (default `"yellow"`) and `always` (default `false`, shown only while editing). `line` styles the evaluated spline; omitting it keeps the default editing line. `controlLine` adds a straight control polygon only when configured. |
@@ -267,12 +269,15 @@ With `acceptTarget`, a Lua function of the core decides where the control points
 
 | Field | Content |
 |---|---|
-| `kind` | `"point"` (an existing terrain point), `"anchor"` (of a road or intersection), `"segment"` (between two points or anchors, a new point on it) or `"ground"` (a free point). |
+| `kind` | `"point"` (an existing terrain point), `"anchor"` (of a road or intersection), `"segment"` (between two points or anchors, a new point on it), `"intersection"` (its center, only with `intersectionTargets`) or `"ground"` (a free point). |
 | `owners` | The elements using the point or anchor: `{kind, id, type, role}`, the role being `"perimeter"` or `"internal"` (terrain patches), `"control"` (building lines and custom elements), `"edge"` (the anchors along roads and intersections), `"end"` (the anchors across the road ends, only for the custom elements) or `"roadEnd"` (the free ends of the roads). |
 | `anchor` | For a point on an anchor of a road or intersection: the owner of the anchor, as in `owners`. |
+| `intersection` | For an intersection, or a point on its center: the intersection, as in `owners` (role `"center"`), with `roads` (how many) and `seamless` (two roads joined without a surface between them). |
 | `ends` | For a segment: the descriptions of its two ends. |
 
-A target refused is ignored by the click modes, which also hide the anchors and points the function refuses and show no handle under the mouse on it (e.g. on a segment between two points). The attach tools (M) and the API refuse it as well (`invalid_operation`; `customElement.insert` needs its `to` target). If the function refuses `"ground"` (asked once per type), the points can't be detached or moved off their target with the gizmo.
+For a control point in an array of points (e.g. the points of a spline), `ctx.index` (from 1) and `ctx.count` are its place in the array and the number of points: as they are, or as they will be for a point being added. They are nil when the type is asked in general. So a rule can depend on the place of the point, e.g. a last point that can go anywhere. A change moving the other points (adding a point, **Reverse**) is refused when a point accepted where it is wouldn't be at its new place: e.g. a point can't be added after a free last point that only the last point can be. The click modes then show an error, and the API fails with `invalid_operation`.
+
+A target refused is ignored by the click modes, which also show no handle under the mouse on it (e.g. on a segment between two points) and hide the anchors, points and intersections the function refuses for the next point. They are shown as for a point followed by another one, so the targets only a last point can have (e.g. a finish that can go anywhere) aren't offered as targets: such a point goes on the ground. The first click of a type with a `placementObject` places the object and shows no targets. The attach tools (M) and the API refuse it as well (`invalid_operation`; `customElement.insert` needs its `to` target). If the function refuses `"ground"` for a point (at its place), the point can't be detached or moved off its target with the gizmo.
 
 ### The owner of the points
 
@@ -294,7 +299,7 @@ The anchors of the roads and intersections are chained along their edges (the ch
 
 The controls of a `"dynamic"` spline are not connections for the others (they are far apart). With `followConnections`, the curve type must be the low-poly one only.
 
-For example, the Midtown Madness 2 core makes its rails (the railings and walls along the perimeters of the rooms) a `"dynamic"`, `closable` spline type whose owner is its room (`ownerReference`), and whose `acceptTarget` takes only the perimeter points of the terrain patches and the edge anchors of the roads and intersections.
+For example, the Midtown Madness 2 core makes its rails (the railings and walls along the perimeters of the rooms) a `"dynamic"`, `closable` spline type whose owner is its room (`ownerReference`), and whose `acceptTarget` takes only the perimeter points of the terrain patches and the edge anchors of the roads and intersections. Its opponents (`intersectionTargets`) take only the centers of the intersections for their waypoints, except the last one (the finish, `ctx.index == ctx.count`), which can go anywhere.
 
 ## Point elements
 

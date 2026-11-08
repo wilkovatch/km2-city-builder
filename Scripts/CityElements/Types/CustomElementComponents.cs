@@ -136,6 +136,12 @@ namespace CityElements.Types {
         public bool closed; //a loop: the last control point connects back to the first (curve types: hermite, low poly or core curves)
         public bool closable; //each element chooses whether it's a loop (its instance specific "closed" value)
         public string acceptTarget; //<module>.<function>: the points, anchors and segments the control points can go on (see PointTargets)
+        //the control points can also go on the centers of the intersections (shown while they are placed), which they then
+        //follow (see IntersectionAnchor); without it, they can't
+        public bool intersectionTargets;
+        //a string key: where the control points go, in words (e.g. the rule of acceptTarget), shown instead of the generic
+        //errors when a target or a change is refused
+        public string targetsHint;
         //a reference parameter: the controls go only on the points and anchors of one element (its owner), which the first
         //control sets (chosen by the user when its target has several), and the connections followed stay on it (see PointTargets)
         public string ownerReference;

@@ -25,6 +25,7 @@ namespace EditorPanels {
         ElementPlacer.CustomElementPlacer.PlacementMode? suspendedPlacement;
         CustomElement suspendedElement;
         string suspendedType;
+        bool suspendedOwnModifier; //the placer was the click modifier when the panel was hidden
         protected override bool SingleStateParameters => true;
 
         ObjectState CurrentState() => GetElement()?.state ?? draft;
@@ -481,7 +482,7 @@ namespace EditorPanels {
                 if (shared > 0) text += " (" + SM.Get("CE_SHARED").Replace("$NUMBER", shared.ToString()) + ")";
                 if (!GO.IsNull(point.anchor) && !point.anchor.IsDeleted()) {
                     var anchorText = point.anchor is ColumnAnchor ? "CE_ON_COLUMN" : point.anchor is LineAnchor ? "CE_ON_LINE"
-                        : point.anchor is PointAnchor ? "CE_ON_POINT" : "CE_ANCHORED";
+                        : point.anchor is PointAnchor ? "CE_ON_POINT" : point.anchor is IntersectionAnchor ? "CE_ON_INTERSECTION" : "CE_ANCHORED";
                     text += " (" + SM.Get(anchorText) + ")";
                 }
             }
@@ -608,7 +609,20 @@ namespace EditorPanels {
                 return;
             }
             var (arrayPath, index) = arrayElement.Value;
-            if (!Operations.CustomElements.InsertArrayElement(element, arrayPath, after ? index + 1 : index)) {
+            //a new point in an array of points is free: the types choosing their targets may refuse it there
+            var list = CustomElements.PointTree.Find(element.points, arrayPath) as CustomElements.PointList;
+            var at = after ? index + 1 : index;
+            if (list != null && list.def.children == null) {
+                if (!Operations.PointTargets.Allows(element, null, Operations.PointTargets.NewSlot(list, at))) {
+                    builder.CreateAlert(SM.Get("ERROR"), Operations.PointTargets.RefusalMessage(element.GetCustomElementType(), "CE_FREE_POINT_ERROR"), SM.Get("OK"), null, 260, true, 520);
+                    return;
+                }
+                if (!Operations.PointTargets.KeepsAccepted(element, list, at)) {
+                    builder.CreateAlert(SM.Get("ERROR"), Operations.PointTargets.RefusalMessage(element.GetCustomElementType(), "CE_POINT_PLACES_ERROR"), SM.Get("OK"), null, 260, true, 520);
+                    return;
+                }
+            }
+            if (!Operations.CustomElements.InsertArrayElement(element, arrayPath, at)) {
                 builder.CreateAlert(SM.Get("ERROR"), SM.Get("CE_ARRAY_FULL_ERROR"), SM.Get("OK"));
                 return;
             }
@@ -629,7 +643,14 @@ namespace EditorPanels {
 
         void ReverseSpline() {
             var element = GetElement();
-            if (element == null || !element.ReverseSpline()) return;
+            if (element == null) return;
+            if (!element.ReverseSpline()) {
+                //not accepted in the opposite order (see PointTargets.KeepsAccepted)
+                if (element.points?.Get("spline") is CustomElements.PointList list && list.items.Count >= 2) {
+                    builder.CreateAlert(SM.Get("ERROR"), Operations.PointTargets.RefusalMessage(element.GetCustomElementType(), "CE_POINT_PLACES_ERROR"), SM.Get("OK"), null, 260, true, 520);
+                }
+                return;
+            }
             builder.NotifyChange();
         }
 
@@ -804,8 +825,16 @@ namespace EditorPanels {
                 suspendedPlacement = placer.placementMode;
                 suspendedElement = placer.GetElement();
                 suspendedType = placer.createType;
+                suspendedOwnModifier = GetPlacer() != null;
                 placer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.None;
                 placer.UpdatePlacementPoint();
+            }
+            //a child panel that changed the click modifier (the transform panel of a parametric object, e.g. an opponent's
+            //car) gives the placer back before the panel is shown, otherwise it was rebuilt as an empty creation panel
+            //(no element, its points not clickable, no way back to the container)
+            if (!hide && suspendedPlacement.HasValue && suspendedOwnModifier && GetPlacer() == null
+                && placer.GetElement() == suspendedElement && placer.createType == suspendedType) {
+                builder.terrainClick.modifier = placer;
             }
             base.Hide(hide);
             if (!hide && suspendedPlacement.HasValue) {
@@ -965,7 +994,7 @@ namespace EditorPanels {
                 ElementPlacer.TerrainPointAttachmentPicker.Target.Column => "POINT_PICKING_COLUMN",
                 _ => "POINT_PICKING_CUSTOM_ELEMENT"
             } : !attached ? "POINT_FREE" : point.anchor is LineAnchor ? "POINT_ON_SEGMENT" : point.anchor is ColumnAnchor ? "POINT_ON_COLUMN"
-                : point.anchor is PointAnchor ? "POINT_ON_POINT" : "POINT_ANCHORED";
+                : point.anchor is PointAnchor ? "POINT_ON_POINT" : point.anchor is IntersectionAnchor ? "POINT_ON_INTERSECTION" : "POINT_ANCHORED";
             pointAttachmentStatus.SetValue(SM.Get(key));
             pointAttachButton?.SetInteractable(!picking || target == ElementPlacer.TerrainPointAttachmentPicker.Target.Anchor);
             pointLineButton?.SetInteractable(!picking || target == ElementPlacer.TerrainPointAttachmentPicker.Target.Line);
@@ -979,7 +1008,9 @@ namespace EditorPanels {
             var point = element != null ? PointOf(element) : null;
             if (point?.anchorable != true) return;
             pointAttachmentPicker ??= new ElementPlacer.TerrainPointAttachmentPicker(builder);
-            builder.helper.elementManager.ShowAnchors(true, true, false, element.Settings?.roadEndAnchors == true);
+            builder.helper.elementManager.ShowAnchors(true, true, false, element.Settings?.roadEndAnchors == true,
+                Operations.PointTargets.AcceptsIntersections(element.GetCustomElementType()));
+            Operations.PointTargets.HideRefused(builder.helper.elementManager, element.GetCustomElementType(), element, Operations.PointTargets.SlotOf(element, point));
             element.SetActive(true, false);
             pointAttachmentPicker.Start(point, () => {
                 builder.customElementPlacer.UpdateAnchorVisibility(true);

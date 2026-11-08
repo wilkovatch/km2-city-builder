@@ -7,16 +7,22 @@ namespace Operations {
     //The points of the terrain patches and building lines
     public static class TerrainPoints {
         //Procedural points use ordinary generated anchors; building points can also follow patch corners and edges.
-        //Without generatedOnly (the points of the custom elements) any anchor, segment or terrain point.
+        //Without generatedOnly (the points of the custom elements) any anchor, segment or terrain point, and the centers of
+        //the intersections (only for the types accepting them, see PointTargets).
         public static IAnchorable AttachmentFromClick(Node3D obj, Vector3 position, bool generatedOnly = true, TerrainPoint point = null) {
             if (obj == null || point?.anchorable == false) return null;
             if (!generatedOnly && !PointTargets.AllowedByUsers(point, obj)) return null; //the custom elements accepting only some targets
             var buildingPoint = generatedOnly && point != null && point.GetLinks().Exists(e => e is BuildingLine);
             var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked?.anchorable == false) return null;
+            if (clicked?.anchor is IntersectionAnchor onCenter && !onCenter.IsDeleted()) {
+                return generatedOnly ? null : new IntersectionAnchor(onCenter.intersection); //on the same center, not on the point
+            }
             if (clicked != null && !clicked.IsDeleted() && (!generatedOnly || (buildingPoint && clicked.GetLinks().Exists(e => e is TerrainPatch)))) {
                 return DependsOn(clicked, point) ? null : new PointAnchor(clicked);
             }
+            var intersection = PointTargets.IntersectionOf(obj);
+            if (intersection != null) return generatedOnly ? null : new IntersectionAnchor(intersection); //the types with intersectionTargets
             var anchor = GS.FindComponent<TerrainAnchor>(obj);
             if (anchor == null && generatedOnly) anchor = clicked?.anchor as TerrainAnchor;
             if (anchor?.roadEnd == true && !AcceptsRoadEnds(point)) return null;

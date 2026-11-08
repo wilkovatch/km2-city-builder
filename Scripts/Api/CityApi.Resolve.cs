@@ -193,9 +193,14 @@ namespace Api {
         // Point targets
 
         //the node the click of the editor would have hit and the point, for the terrain patches and the building lines
-        (Node3D obj, Vector3 point) ResolvePoint(PointTarget t) {
+        //intersections: the center of an intersection is a target too (for the custom elements, see PointTargets)
+        (Node3D obj, Vector3 point) ResolvePoint(PointTarget t, bool intersections = false) {
             if (t == null) throw ApiException.InvalidParam("missing point");
-            if (t.FormCount() != 1) throw ApiException.InvalidParam("a point needs exactly one of position, terrainPoint, anchor, link, anchorLink");
+            if (t.FormCount() != 1) throw ApiException.InvalidParam("a point needs exactly one of position, terrainPoint, anchor, link, anchorLink" + (intersections ? ", intersection" : ""));
+            if (intersections && t.intersection != null) {
+                var intersection = Resolve<Intersection>(t.intersection, "intersection");
+                return (intersection.point, GO.GetPosition(intersection.point));
+            }
             if (t.anchorLink != null) {
                 var anchor = ResolveAnchor(t.anchorLink);
                 var link = Operations.Anchors.GetLink(anchor);

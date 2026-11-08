@@ -189,9 +189,11 @@ namespace Operations {
         // Points from clicks
 
         //the point for a click on obj (at position): the clicked terrain point itself (shared), a new point on the clicked
-        //anchor or segment between two points, or a new free point
+        //anchor, segment between two points or center of an intersection, or a new free point
         public static TerrainPoint PointFromClick(ElementManager manager, Node3D obj, Vector3 position) {
             var clicked = GS.FindComponent<TerrainPoint>(obj);
+            var intersection = PointTargets.IntersectionAt(obj); //also through a point on its center, which isn't shared
+            if (intersection != null) return TerrainPoint.Create(GO.GetPosition(intersection.point), null, manager.GetTerrainPointContainer(), new IntersectionAnchor(intersection));
             if (clicked != null && !clicked.IsDeleted() && clicked.anchorable) return clicked;
             IAnchorable anchor = GS.FindComponent<TerrainAnchor>(obj);
             if (anchor == null && obj != null) {
@@ -256,16 +258,21 @@ namespace Operations {
         //(turned as their direction across, from their first to their last point, is)
         //followConnections: the points connected between the last point and the clicked one are added first (Ctrl+click for
         //the prop placers, always for the spline types following the connections at placement); the types with acceptTarget
-        //refuse the targets their script doesn't accept (null is returned), the ones with ownerReference the targets of other
-        //elements than the owner (the first point sets it, null is returned if its target has several possible owners)
+        //refuse the targets their script doesn't accept (null is returned), also when a point already there wouldn't be
+        //accepted any more (see PointTargets.KeepsAccepted), the ones with ownerReference the targets of other elements than
+        //the owner (the first point sets it, null is returned if its target has several possible owners)
         public static TerrainPoint AppendPoint(ElementManager manager, CustomElement element, string arrayPath, Node3D obj, Vector3 position, bool followConnections = false) {
             if (element.points == null || !(global::CustomElements.PointTree.Find(element.points, arrayPath) is global::CustomElements.PointList list)) return null;
-            if (!PointTargets.Allows(element, obj) || !PointTargets.ClaimOwner(element, obj)) return null;
+            var count = list.items.Count;
+            if (!PointTargets.Allows(element, obj, PointTargets.NewSlot(list, count)) || !PointTargets.KeepsAccepted(element, list, count)
+                || !PointTargets.ClaimOwner(element, obj)) return null;
             followConnections = (followConnections && element.Settings?.propPlacer != null) || element.Settings?.spline?.followConnections == "place";
             if (followConnections && list.items.Count > 0 && list.def.children == null) {
                 var nodes = ConnectedNodes(manager, element, list, obj, position);
                 //only through what the type accepts, otherwise the clicked point alone
-                if (nodes != null && nodes.TrueForAll(node => PointTargets.Allows(element, node))) {
+                if (nodes != null && nodes.Select((node, i) => PointTargets.Allows(element, node, PointTargets.NewSlot(list, count + i, nodes.Count + 1))).All(x => x)
+                    && PointTargets.Allows(element, obj, PointTargets.NewSlot(list, count + nodes.Count, nodes.Count + 1))
+                    && PointTargets.KeepsAccepted(element, list, count, nodes.Count + 1)) {
                     TerrainPoint last = null;
                     foreach (var node in nodes) last = AppendSinglePoint(manager, element, arrayPath, list, node, GO.GetPosition(node)) ?? last;
                     return AppendSinglePoint(manager, element, arrayPath, list, obj, position) ?? last;
@@ -329,8 +336,11 @@ namespace Operations {
             return point.IsDeleted() ? null : point;
         }
 
+        //null if the target, or the new places of the other points, aren't accepted (see AppendPoint)
         public static TerrainPoint InsertPointAt(ElementManager manager, CustomElement element, string path, int index, Node3D obj, Vector3 position) {
-            if (!PointTargets.Allows(element, obj) || !PointTargets.ClaimOwner(element, obj)) return null;
+            var before = element.points == null ? null : global::CustomElements.PointTree.Find(element.points, path) as global::CustomElements.PointList;
+            if (!PointTargets.Allows(element, obj, PointTargets.NewSlot(before, index)) || !PointTargets.KeepsAccepted(element, before, index)
+                || !PointTargets.ClaimOwner(element, obj)) return null;
             if (!element.InsertArrayElement(path, index)) return null;
             var list = (global::CustomElements.PointList)global::CustomElements.PointTree.Find(element.points, path);
             var leaf = (global::CustomElements.PointLeaf)list.items[index];
@@ -367,7 +377,8 @@ namespace Operations {
             if (point == null || !point.anchorable) return null;
             var clicked = GS.FindComponent<TerrainPoint>(obj);
             if (clicked?.anchorable == false) return null;
-            if (!PointTargets.Allows(element, obj) || !PointTargets.ClaimOwner(element, obj)) return null;
+            if (!PointTargets.Allows(element, obj, PointTargets.SlotOf(element, point)) || !PointTargets.ClaimOwner(element, obj)) return null;
+            if (clicked?.anchor is IntersectionAnchor) clicked = null; //on the center of its intersection, not shared (see TerrainPoints.Attach)
             if (clicked != null && !clicked.IsDeleted()) {
                 if (clicked == point) return point;
                 element.ReplacePoint(point, clicked);
@@ -404,7 +415,7 @@ namespace Operations {
         //the point of the element stops being shared with the other elements (a copy of it takes its place in the element),
         //or, if only the element uses it, stops following its anchor; null if the type of the element doesn't accept a free point
         public static TerrainPoint DetachPoint(ElementManager manager, CustomElement element, TerrainPoint point) {
-            if (!PointTargets.Allows(element, null)) return null;
+            if (!PointTargets.Allows(element, null, PointTargets.SlotOf(element, point))) return null;
             if (point.GetLinks().Count > 1) {
                 var copy = TerrainPoint.Create(point.GetPoint(), null, manager.GetTerrainPointContainer());
                 copy.SetRotation(point.GetRotation());

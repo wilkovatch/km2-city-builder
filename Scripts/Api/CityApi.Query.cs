@@ -154,12 +154,15 @@ namespace Api {
         }
 
         //anchor: the anchor the point is on; segment: the segment it is on (from an anchor to the next one, or between two
-        //terrain points), with its position along it (0-1); column: the terrain point on whose vertical line it is
+        //terrain points), with its position along it (0-1); column: the terrain point on whose vertical line it is;
+        //intersection: the intersection on whose center it is
         static object PointInfo(TerrainPoint p) {
             object anchor = null, segment = null;
-            int? column = null, pointAnchor = null;
+            int? column = null, pointAnchor = null, intersection = null;
             if (!GO.IsNull(p.anchor) && !p.anchor.IsDeleted()) {
-                if (p.anchor is PointAnchor fixedPoint) {
+                if (p.anchor is IntersectionAnchor centre) {
+                    intersection = History.ElementRegistry.GetId(centre.intersection);
+                } else if (p.anchor is PointAnchor fixedPoint) {
                     pointAnchor = History.ElementRegistry.GetId(fixedPoint.master);
                 } else if (p.anchor is ColumnAnchor c) {
                     column = History.ElementRegistry.GetId(c.master);
@@ -176,7 +179,7 @@ namespace Api {
                     }
                 }
             }
-            return new { id = History.ElementRegistry.GetId(p), position = p.GetPoint(), dividing = p.dividing, anchor, segment, column, pointAnchor };
+            return new { id = History.ElementRegistry.GetId(p), position = p.GetPoint(), dividing = p.dividing, anchor, segment, column, pointAnchor, intersection };
         }
 
         static List<object> PointsInfo(List<TerrainPoint> points) {

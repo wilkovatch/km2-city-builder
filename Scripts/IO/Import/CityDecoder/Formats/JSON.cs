@@ -425,7 +425,9 @@ namespace CityDecoder {
 
         void CreateTerrainPoint(IO.SavedCity.TerrainPoint inPoint, Dictionary<int, TerrainPoint> dict, Dictionary<int, IO.SavedCity.TerrainPoint> loadedTerrainPoints) {
             IAnchorable anchor = null;
-            if (inPoint.linkType != IO.SavedCity.LinkType.None) {
+            if (inPoint.linkType == IO.SavedCity.LinkType.Centre) {
+                if (loadedIntersections.TryGetValue(inPoint.elementId, out var centre)) anchor = new IntersectionAnchor(centre.Item1);
+            } else if (inPoint.linkType != IO.SavedCity.LinkType.None) {
                 if (inPoint.elementType != IO.SavedCity.LinkElementType.TerrainPoint) {
                     List<TerrainAnchor> anchors = new List<TerrainAnchor>();
                     if (inPoint.elementType == IO.SavedCity.LinkElementType.Road) {

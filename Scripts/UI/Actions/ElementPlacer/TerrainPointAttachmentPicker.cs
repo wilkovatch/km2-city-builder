@@ -113,8 +113,12 @@ namespace ElementPlacer {
             }
         }
 
+        //the terrain points and anchors (and the centers of the intersections, for the custom elements accepting them), then
+        //the segments
         public override List<int> GetLayerMasks() {
-            return new List<int> { 1 << 10, 1 << 12 };
+            var points = 1 << 10;
+            if (target == Target.Anchor && !generatedOnly && Operations.PointTargets.AcceptsIntersections(point)) points |= 1 << 9;
+            return new List<int> { points, 1 << 12 };
         }
     }
 }
