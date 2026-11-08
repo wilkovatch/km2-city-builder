@@ -65,7 +65,7 @@ public partial class CameraController : Camera3D {
     }
 
     Vector3 GetMousePoint() {
-        Vector2 mousePosition = GetViewport().GetMousePosition();
+        Vector2 mousePosition = GameEngine.Input.MousePosition(GetViewport());
         Vector2 viewSize = GetViewport().GetVisibleRect().Size;
         return new Vector3(mousePosition.X / viewSize.X, mousePosition.Y / viewSize.Y, 0);
     }
@@ -146,7 +146,7 @@ public partial class CameraController : Camera3D {
     async void ZoomIn() {
         bool onUI = UIDetection.OnUI();
         if (onUI) return;
-        if (RaycastScreen(GetViewport().GetMousePosition(), out var hitPoint)) {
+        if (RaycastScreen(GameEngine.Input.MousePosition(GetViewport()), out var hitPoint)) {
             await ZoomInCoroutine(hitPoint);
         }
     }

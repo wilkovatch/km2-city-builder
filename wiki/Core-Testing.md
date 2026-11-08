@@ -15,9 +15,11 @@ An existing city's `preferences.json` selects its core; an explicit conflicting 
 
 Modes and focuses belong to the provider. `--focus` overrides `KM2_SELFTEST_FOCUS`; an explicitly empty focus selects the normal suite even with legacy selectors set. The older incremental and mesh-selection environment switches remain available when neither selector is set. Benchmarks are explicit focused runs, outside the normal suite. Run windowed for renderer, picking and input checks; headless scenarios must report their skipped checks.
 
+The tests drive a simulated mouse: the window ignores the real keyboard and mouse, and the program reads a virtual cursor instead of the OS one. Move it with `GameEngine.Input.WarpMouse`, read it with `GameEngine.Input.MousePosition`, and send clicks, wheel and keys with `Input.ParseInputEvent` (Godot's own `WarpMouse` and `GetMousePosition` use the OS cursor). `Tests/run_in_background.py` launches Godot without giving its window the focus, on the second monitor when there is one.
+
 On each invocation the runner calls `dotnet build`, which recompiles changed test sources incrementally. It references the currently running builder and its existing dependencies, without rebuilding or copying the builder. Output and intermediate files go under `.godot/selftests/<core>`. A build failure reports the compiler diagnostics and never loads an older DLL. The .NET SDK and builder sources are required; normal startup and release builds do not build or load tests.
 
-The runner restores the original `settings.json` bytes even after a provider exception, writes `<suite>_selftest.log` next to the supplied folder, and returns 0 for success, 1 for test/build failures or 2 for invalid selectors. Do not run suites concurrently: they share settings, the editor and real input devices.
+The runner restores the original `settings.json` bytes even after a provider exception, writes `<suite>_selftest.log` next to the supplied folder, and returns 0 for success, 1 for test/build failures or 2 for invalid selectors. Do not run suites concurrently: they share settings and the editor.
 
 ## Adding a provider
 

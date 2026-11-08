@@ -421,7 +421,7 @@ namespace ElementPlacer {
             //closed without a choice (after the choice, which closes it too)
             ownerMenu.PopupHide += () => manager.builder.DoDelayed(() => { if (ownerMenu == menu) CloseOwnerMenu(); });
             manager.builder.AddChild(ownerMenu);
-            ownerMenu.Popup(new Rect2I((Vector2I)manager.GetViewport().GetMousePosition(), Vector2I.Zero));
+            ownerMenu.Popup(new Rect2I((Vector2I)GameEngine.Input.MousePosition(manager.GetViewport()), Vector2I.Zero));
         }
 
         //the element at the index of ownerChoices owns the controls (from the menu, or the tests)

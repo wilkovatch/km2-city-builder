@@ -861,6 +861,66 @@ public static partial class GameEngine {
                 || (!emulatedMiddleDown && emulatedReleaseFrame == Engine.GetProcessFrames());
         }
 
+        //simulated mouse (the self-tests): the program reads a virtual cursor, moved by WarpMouse and by the mouse
+        //events parsed by the tests, instead of the OS cursor, so the tests don't take the user's cursor.
+        //The window ignores the real mouse and keyboard (no focus, mouse passthrough), they can't disturb the tests
+        static bool simulatedMouse = false;
+        static Godot.Vector2 simulatedPosition = new Godot.Vector2(-1, -1); //in the coordinates of the window, outside of it until moved
+        static Godot.Input.MouseModeEnum simulatedMode = Godot.Input.MouseModeEnum.Visible;
+
+        public static bool MouseSimulated => simulatedMouse;
+
+        public static void SimulateMouse(Window root) {
+            if (simulatedMouse) return;
+            simulatedMouse = true;
+            if (DisplayServer.GetName() != "headless") {
+                root.Unfocusable = true;
+                root.MousePassthrough = true;
+            }
+            //the events reach the window before its viewport (hover, GUI, _Input), like the OS cursor moves before them
+            root.WindowInput += e => {
+                if (e is InputEventMouse mouse) simulatedPosition = mouse.Position;
+            };
+        }
+
+        //the mouse position in the viewport (Viewport.GetMousePosition reads the OS cursor for the root viewport)
+        public static Godot.Vector2 MousePosition(Viewport viewport) {
+            if (!simulatedMouse || viewport != viewport.GetTree().Root) return viewport.GetMousePosition(); //the others use the last event
+            return viewport.GetScreenTransform().AffineInverse() * simulatedPosition;
+        }
+
+        //CanvasItem.GetGlobalMousePosition and GetLocalMousePosition
+        public static Godot.Vector2 GlobalMousePosition(CanvasItem item) {
+            return item.GetCanvasTransform().AffineInverse() * MousePosition(item.GetViewport());
+        }
+
+        public static Godot.Vector2 LocalMousePosition(CanvasItem item) {
+            return item.GetGlobalTransform().AffineInverse() * GlobalMousePosition(item);
+        }
+
+        //moves the cursor to a position in the viewport (the OS sends a motion event for it, so does the simulated mouse)
+        public static void WarpMouse(Viewport viewport, Godot.Vector2 position) {
+            if (!simulatedMouse) {
+                viewport.WarpMouse(position);
+                return;
+            }
+            var target = viewport.GetScreenTransform() * position;
+            var motion = new InputEventMouseMotion {
+                Position = target, GlobalPosition = target, Relative = target - simulatedPosition, ButtonMask = Godot.Input.GetMouseButtonMask()
+            };
+            simulatedPosition = target;
+            Godot.Input.ParseInputEvent(motion);
+        }
+
+        //the simulated mouse is never captured or hidden (that would clip and hide the user's cursor)
+        public static Godot.Input.MouseModeEnum MouseMode {
+            get => simulatedMouse ? simulatedMode : Godot.Input.MouseMode;
+            set {
+                if (simulatedMouse) simulatedMode = value;
+                else Godot.Input.MouseMode = value;
+            }
+        }
+
         public static bool GetInputStart(KeyCommand command) {
             if (command == KeyCommand.Select && emulatedMiddleDown) return false;
             if (NumericFieldDrag.BlocksInput) return false;

@@ -84,9 +84,9 @@ public static class NumericFieldDrag {
         current = new Drag {
             field = field, integer = integer, apply = apply, fixedStep = fixedStep,
             startText = field.Text, startValue = value, value = value,
-            startMousePos = field.GetViewport().GetMousePosition()
+            startMousePos = GameEngine.Input.MousePosition(field.GetViewport())
         };
-        Input.MouseMode = Input.MouseModeEnum.Captured; //no limit from the screen edges
+        GameEngine.Input.MouseMode = Input.MouseModeEnum.Captured; //no limit from the screen edges
         Tree.ProcessFrame += Flush;
     }
 
@@ -123,7 +123,7 @@ public static class NumericFieldDrag {
             Flush();
         }
         Stop();
-        Input.WarpMouse(drag.startMousePos);
+        GameEngine.Input.WarpMouse(Tree.Root, drag.startMousePos);
     }
 
     static void Stop() {
@@ -131,7 +131,7 @@ public static class NumericFieldDrag {
         current = null;
         endFrame = Engine.GetProcessFrames();
         Tree.ProcessFrame -= Flush;
-        Input.MouseMode = Input.MouseModeEnum.Visible;
+        GameEngine.Input.MouseMode = Input.MouseModeEnum.Visible;
     }
 
     static string Format(double value, bool integer) {

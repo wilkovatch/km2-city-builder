@@ -57,7 +57,7 @@ public partial class TerrainClick : Control {
             GameEngine.Terrain.SyncHeightmap(helper.terrainObj);
             isModifying = false;
         }
-        var ray = GameEngine.Raycast.GetRayFromScreen(GetViewport().GetCamera3D(), GetViewport().GetMousePosition());
+        var ray = GameEngine.Raycast.GetRayFromScreen(GetViewport().GetCamera3D(), GameEngine.Input.MousePosition(GetViewport()));
         var masks = modifier.GetLayerMasks();
         var groundIndex = modifier.GroundHitIndex;
         var onUI = OnUI();
@@ -83,7 +83,7 @@ public partial class TerrainClick : Control {
         if (Input.GetInputStart(KeyCommand.Select)) strokeId++;
         var action = modifier; //applying it can change the click mode (selecting an intersection clears it)
         History.UndoManager.Record(action.GetType().Name, () => {
-            if (!action.UpdatePlacementRotation(GetViewport().GetMousePosition(), ray.origin, ray.direction, onUI, () => helper.elementManager.FlagAsChanged())) action.Apply(hits);
+            if (!action.UpdatePlacementRotation(GameEngine.Input.MousePosition(GetViewport()), ray.origin, ray.direction, onUI, () => helper.elementManager.FlagAsChanged())) action.Apply(hits);
             rotationAction = action.HasPlacementRotation ? action : null;
         }, (nameof(TerrainClick), strokeId));
     }
@@ -148,9 +148,9 @@ public partial class TerrainClick : Control {
             return;
         }
         if (Input.GetInputStart(KeyCommand.Modifier1)) {
-            if (current.HasValue) PlacementHeight.BeginHold(current.Value, GetViewport().GetMousePosition());
+            if (current.HasValue) PlacementHeight.BeginHold(current.Value, GameEngine.Input.MousePosition(GetViewport()));
         } else if (shift) {
-            PlacementHeight.Update(GetViewport().GetCamera3D(), GetViewport().GetMousePosition());
+            PlacementHeight.Update(GetViewport().GetCamera3D(), GameEngine.Input.MousePosition(GetViewport()));
         } else if (PlacementHeight.Holding) {
             PlacementHeight.EndHold();
         }
@@ -171,7 +171,7 @@ public partial class TerrainClick : Control {
     }
 
     bool OnUI() {
-        var pos = GetViewport().GetMousePosition();
+        var pos = GameEngine.Input.MousePosition(GetViewport());
         var xOut = pos.X < 0 || pos.X > DisplayServer.WindowGetSize().X;
         var yOut = pos.Y < 0 || pos.Y > DisplayServer.WindowGetSize().Y;
         return UIDetection.OnUI() || xOut || yOut;

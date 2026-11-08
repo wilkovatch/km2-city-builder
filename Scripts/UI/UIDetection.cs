@@ -22,7 +22,7 @@ public class UIDetection {
         if (PressConsumedByUI() || NumericFieldDrag.BlocksInput) return true; //the captured mouse of the drag can be anywhere
         var viewport = loop.Root.GetViewport();
         //the item lists of dropdowns are separate embedded windows, the hovered control of the viewport does not include them
-        var mouse = (Vector2I)viewport.GetMousePosition();
+        var mouse = (Vector2I)GameEngine.Input.MousePosition(viewport);
         foreach (var window in viewport.GetEmbeddedSubwindows()) {
             if (window.Visible && new Rect2I(window.GetPositionWithDecorations(), window.GetSizeWithDecorations()).HasPoint(mouse)) return true;
         }

@@ -15,7 +15,7 @@ public partial class Tooltip : Control {
 
     void Update() {
         if (mouseOver && !Input.GetInputPressed(KeyCommand.Select)) {
-            var mouseStil = (lastPos - GetViewport().GetMousePosition()).Length() < 1.0f;
+            var mouseStil = (lastPos - GameEngine.Input.MousePosition(GetViewport())).Length() < 1.0f;
             if (mouseStil && !wasStill) {
                 wasStill = true;
                 startTime = GameEngine.GetTime();
@@ -32,7 +32,7 @@ public partial class Tooltip : Control {
             wasStill = false;
             if (tooltipActive) HideTooltip();
         }
-        lastPos = GetViewport().GetMousePosition();
+        lastPos = GameEngine.Input.MousePosition(GetViewport());
     }
 
     void HideTooltip() {

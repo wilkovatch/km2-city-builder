@@ -48,7 +48,7 @@ namespace ElementPlacer {
             if (!(type?.Settings.randomRotation ?? false)) randomRotation = false;
             if (multiple) {
                 if (!Input.GetInputPressed(KeyCommand.Select)) lastMousePos = Vector2.Zero;
-                var mousePos = manager.GetViewport().GetMousePosition();
+                var mousePos = GameEngine.Input.MousePosition(manager.GetViewport());
                 if (!Input.GetInputPressed(KeyCommand.Select) || GameEngine.Vector2.Distance(mousePos, lastMousePos) < 1.0f) return;
                 if (curPoint.HasValue) {
                     if (deleteMode) {
@@ -57,7 +57,7 @@ namespace ElementPlacer {
                     } else if (GameEngine.GetTime() - lastTimePlaced >= minTime) {
                         Operations.Meshes.Scatter(manager, meshPath, curPoint.Value, multipleRadius, (int)System.Math.Ceiling(multipleIntensity), settings, randomRotation);
                         lastTimePlaced = GameEngine.GetTime();
-                        lastMousePos = manager.GetViewport().GetMousePosition();
+                        lastMousePos = GameEngine.Input.MousePosition(manager.GetViewport());
                     }
                 }
             } else {

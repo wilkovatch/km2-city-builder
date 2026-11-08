@@ -19,6 +19,8 @@ namespace CoreSelfTests {
             var watch = Stopwatch.StartNew();
             int code = 1;
             Directory.CreateDirectory(Path.GetDirectoryName(folder));
+            //the tests move a virtual cursor, the window ignores the user's mouse and keyboard (see GameEngine.Input)
+            GameEngine.Input.SimulateMouse(builder.GetTree().Root);
             try {
                 var cityPreferences = Path.Combine(folder, "preferences.json");
                 var savedCore = File.Exists(cityPreferences) ? JObject.Parse(File.ReadAllText(cityPreferences))["core"]?.Value<string>() : null;

@@ -13,7 +13,7 @@ public abstract class TerrainAction {
     protected void BeginPlacementRotation(Viewport viewport, System.Func<Node3D> target, System.Func<bool> allowed) {
         rotationTarget = target;
         rotationAllowed = allowed;
-        rotationMouseStart = viewport.GetMousePosition();
+        rotationMouseStart = GameEngine.Input.MousePosition(viewport);
         rotatingPlacement = false;
         CityBuilderMenuBar.staticGizmo?.ConsumeClick();
     }

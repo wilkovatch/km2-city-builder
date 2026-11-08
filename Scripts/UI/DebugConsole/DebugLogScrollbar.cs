@@ -109,7 +109,7 @@ namespace IngameDebugConsole {
                 clickRepeating = false;
                 return;
             }
-            var mouse = GetLocalMousePosition();
+            var mouse = GameEngine.Input.LocalMousePosition(this);
             var handle = HandleRect();
             if (handle.HasPoint(mouse)) return;
             SetValueFromUser(mouse.Y < handle.Position.Y ? Value + HandleSize : Value - HandleSize);

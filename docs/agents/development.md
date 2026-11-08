@@ -15,7 +15,7 @@ Before running tests or checking rendered output, also read [Testing](testing.md
   - `--path` makes Godot chdir into the project, so relative paths resolve against the project folder. Clean up leftovers.
   - With `--headless --quiet`, stdout carries only the command output (`GameEngine.Print` goes to stderr in CLI sessions).
   - Bool options are bare flags (`--wireframe`, not `--wireframe true`).
-  - `render`, `mcp`, `screenshots` and windowed self-tests **need a window** (no renderer with `--headless`: `view.render` fails with `no_renderer`). Keep `--quiet`. `CliRunner.HideWindow` moves the window off-screen.
+  - `render`, `mcp`, `screenshots` and windowed self-tests **need a window** (no renderer with `--headless`: `view.render` fails with `no_renderer`). Keep `--quiet`. `CliRunner.HideWindow` moves the window off-screen. Launch them through `Tests/run_in_background.py` so the window doesn't take the focus (see [Testing](testing.md)).
   - Git Bash quirk: piping the Godot console exe into a native Windows program (`| python ...`) gives it an empty stdin. Use `| cat`, a file, or `cmd /c "... | python ..."`.
   - PowerShell 5.1 strips inner double quotes of native args: escape as `\"` or use `@file`.
   - If the Windows console wrapper stays alive after a completed test, use the main Godot `.exe` with redirected output and `--log-file`. Verify its exit code separately from the test log.

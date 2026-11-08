@@ -316,7 +316,7 @@ public partial class GuidePanel : Panel {
                 if (edges == Edge.None && !onTitle) return;
                 resizing = edges;
                 moving = edges == Edge.None;
-                dragStartMouse = GetGlobalMousePosition();
+                dragStartMouse = GameEngine.Input.GlobalMousePosition(this);
                 dragStartPosition = Position;
                 dragStartSize = Size;
             } else {
@@ -326,7 +326,7 @@ public partial class GuidePanel : Panel {
             AcceptEvent();
         } else if (@event is InputEventMouseMotion) {
             if (!moving && resizing == Edge.None) return;
-            Drag(GetGlobalMousePosition() - dragStartMouse);
+            Drag(GameEngine.Input.GlobalMousePosition(this) - dragStartMouse);
             AcceptEvent();
         }
     }
