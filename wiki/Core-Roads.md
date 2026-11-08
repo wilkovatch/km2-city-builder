@@ -99,7 +99,7 @@ Intersections, junctions and other parts of the program need some information ab
 | `height` | float | Height of the road surface below the sidewalks (curb height); used by intersections. |
 | `hasSidewalks` | bool | Whether the road has sidewalks (intersections check whether their roads agree). |
 | `canBeSimplified` | bool | If true, a straight road with only two points is generated with a single segment. |
-| `startCrosswalkTex`, `endCrosswalkTex` | string | Parameters holding the crosswalk textures, referenced by the intersection type settings. |
+| `startCrosswalkTex`, `endCrosswalkTex` | string | Parameters holding the crosswalk textures of the start and end of the road, referenced by the intersection type settings. The crosswalk mesh itself is defined by the intersection type (see [Core Intersections](Core-Intersections#crosswalks)). |
 | any other name | | Can be used in a junction's `standardFloatsBoolsAndInts`, `standardVec3s`, `standardVec2s` (see [Core Intersections](Core-Intersections#junction-files)). |
 
 A getter that is missing, or points to a missing definition, logs a warning once and returns 0/false.

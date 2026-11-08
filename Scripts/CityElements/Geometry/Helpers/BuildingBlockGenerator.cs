@@ -62,44 +62,7 @@ public class BuildingBlockGenerator {
         curType.FillInitialVariables(variableContainer, state, null);
         curType.FillBlockVariables(variableContainer, y0, y1, uMult, vMult, xMult, scale);
         curType.FillVariables(variableContainer, state, null, GameEngine.Vector3.right);
-        var components = curType.GetComponents();
-        for (int c = 0; c < components.Length; c++) {
-            var comp = components[c];
-            var compMesh = curType.componentMeshes[c];
-            var vars = variableContainer;
-            if (curType.subConditions[c] == null || curType.subConditions[c].GetValue(variableContainer)) {
-                curType.FillComponentVariables(variableContainer, c);
-                if (comp.mesh != null) {
-                    AddMesh(compMesh.name, true, compMesh.mesh, vars);
-                }
-            }
-        }
-    }
-
-    void AddMesh(string compName, bool mainMesh, CityElements.Types.Runtime.RoadLikeType.MeshCalculator mesh, RC.VariableContainer vars) {
-        //face indices are relative to the vertices of the component
-        var indexOffset = tempVertices.Count;
-
-        //vertices
-        var calculatedVertices = mesh.verticesCalculators.GetValues(vars);
-        tempVertices.AddRange(calculatedVertices);
-
-        //uvs
-        var calculatedUvs = mesh.uvsCalculators.GetValues(vars);
-        tempUVs.AddRange(calculatedUvs);
-
-        //indices
-        var texturesMapping = curType.GetTexturesMapping();
-        if (mainMesh) {
-            var calculatedIndices = mesh.faces.GetValues(vars);
-            var calculatedTextures = mesh.facesTextures.GetValues(vars);
-            for (int j = 0; j < calculatedTextures.Length; j++) {
-                var realCalculatedTexture = texturesMapping[compName][(int)calculatedTextures[j]];
-                tempIndices[realCalculatedTexture].Add(indexOffset + (int)calculatedIndices[j * 3]);
-                tempIndices[realCalculatedTexture].Add(indexOffset + (int)calculatedIndices[j * 3 + 1]);
-                tempIndices[realCalculatedTexture].Add(indexOffset + (int)calculatedIndices[j * 3 + 2]);
-            }
-        }
+        curType.EvaluateComponents(variableContainer, tempVertices, tempUVs, tempIndices);
     }
 
     public string[] GetMaterialSet() {

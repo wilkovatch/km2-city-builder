@@ -75,9 +75,15 @@ namespace CityElements.Types.Runtime {
         }
 
         static ParameterContainer GetCompoundParameterContainer(Types.IntersectionType parentType, Types.JunctionType type) {
+            return GetCompoundParameterContainer(parentType.parameters, type.importedParameters, type.staticDefinitions, type.dynamicDefinitions);
+        }
+
+        //the parameters of the intersection type and the parameters imported from the roads, with the definitions of both
+        //(also used by the crosswalks)
+        public static ParameterContainer GetCompoundParameterContainer(ParameterContainer pp, ImportedParameter[] jp,
+            Definition[] staticDefinitions, Definition[] dynamicDefinitions) {
+
             var res = new ParameterContainer();
-            var pp = parentType.parameters;
-            var jp = type.importedParameters;
             //shallow copy arrays (the array elements do not have to be modified so that's enough)
             if (pp.loopVariables != null) res.loopVariables = (string[])pp.loopVariables.Clone();
 
@@ -96,10 +102,10 @@ namespace CityElements.Types.Runtime {
             }
 
             //merge static definitions
-            res.staticDefinitions = MergeDefinitions(pp.staticDefinitions, type.staticDefinitions);
+            res.staticDefinitions = MergeDefinitions(pp.staticDefinitions, staticDefinitions);
 
             //merge dynamic definitions
-            res.dynamicDefinitions = MergeDefinitions(pp.dynamicDefinitions, type.dynamicDefinitions);
+            res.dynamicDefinitions = MergeDefinitions(pp.dynamicDefinitions, dynamicDefinitions);
 
             //empty late definitions (only used for parametric objects, unsupported here)
             res.lateDefinitions = new LateDefinition[0];

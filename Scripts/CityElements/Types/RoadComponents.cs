@@ -169,6 +169,15 @@ namespace CityElements.Types {
         public ExtraTerrainSpline[] extraTerrainSplines;
     }
 
+    //the mesh of the crosswalks of an intersection type (crosswalk.json), evaluated once per crosswalk
+    public class CrosswalkType {
+        public ImportedParameter[] importedParameters = new ImportedParameter[0]; //from the road of the crosswalk (fromStart is ignored)
+        public Definition[] staticDefinitions;
+        public string[] textures;
+        public Dictionary<string, int[]> texturesMapping;
+        public ComponentInfo[] components;
+    }
+
     public class IntersectionSettings {
         public string roadTexture;
         public string defaultCrosswalkTexture;
@@ -184,11 +193,23 @@ namespace CityElements.Types {
         public Dictionary<string, RoadComponent> components;
         public Dictionary<string, JunctionType> junctions;
         public IntersectionSettings settings;
+        public CrosswalkType crosswalk; //null if the type has no crosswalk.json (no crosswalk geometry)
+        public Buildings.BlockComponent[] crosswalkComponents;
 
         public IntersectionType(string folder, string commonFolder) {
             ui = TypeInheritance.Load<Panel>(folder, "ui.json");
             parameters = TypeInheritance.Load<ParameterContainer>(folder, "parameters.json");
             settings = TypeInheritance.Load<IntersectionSettings>(folder, "settings.json");
+            if (TypeInheritance.Exists(folder, "crosswalk.json")) {
+                crosswalk = TypeInheritance.Load<CrosswalkType>(folder, "crosswalk.json");
+                crosswalk.components ??= new ComponentInfo[0];
+                crosswalk.textures ??= new string[0];
+                crosswalk.texturesMapping ??= new Dictionary<string, int[]>();
+                crosswalkComponents = new Buildings.BlockComponent[crosswalk.components.Length];
+                for (int i = 0; i < crosswalkComponents.Length; i++) {
+                    crosswalkComponents[i] = TypeInheritance.LoadComponent<Buildings.BlockComponent>(folder, crosswalk.components[i].name, null);
+                }
+            }
             junctions = new Dictionary<string, JunctionType>();
             components = new Dictionary<string, RoadComponent>();
             foreach (var junctionName in TypeInheritance.FileNames(folder, "junctions")) {

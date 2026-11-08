@@ -54,11 +54,22 @@ public partial class IntersectionGenerator : PhysicsScriptable {
 
     GeneratorState genState;
 
+    //a crosswalk at the end of a road: its corners (outer left, inner left, outer right, inner right; outer: at the end
+    //of the road, inner: toward the point) and its texture
+    public class Crosswalk {
+        public Road road;
+        public bool atRoadStart;
+        public List<Vector3> corners;
+        public string texture;
+        public bool usesRoadTexture; //false if it has the default texture of the intersection
+    }
+
     public class GeneratorState {
         public GeometryHelpers.SubroadManager srManager = new GeometryHelpers.SubroadManager();
         public List<List<Vector3>> sidewalkVertices = new List<List<Vector3>>();
         public List<(Road, Road)> sidewalkEnds = new List<(Road, Road)>();
-        public List<List<Vector3>> crosswalkVertices = new List<List<Vector3>>();
+        public List<Crosswalk> crosswalks = new List<Crosswalk>();
+        public List<string> crosswalkTextures = new List<string>(); //of the crosswalk submeshes, in order (see IntersectionGroup)
         public List<List<float>> groundHeights = new List<List<float>>();
         public List<Plane> planes = new List<Plane>();
         public List<bool> selfIntersectingSplines = new List<bool>();
@@ -75,7 +86,8 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             srManager.Clear();
             sidewalkVertices.Clear();
             sidewalkEnds.Clear();
-            crosswalkVertices.Clear();
+            crosswalks.Clear();
+            crosswalkTextures.Clear();
             groundHeights.Clear();
             selfIntersectingSplines.Clear();
             convexes.Clear();
@@ -91,6 +103,44 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             return (ObjectState)instanceState.Clone();
         }
 
+        //sets a value of a road (from the variables of its generator, or its state for a texture) in the state of a
+        //junction or of a crosswalk, under its new name
+        public static void ImportRoadParameter(ObjectState tempState, CityElements.Types.ImportedParameter param, Road originRoad) {
+            var gen = originRoad.generator;
+            switch (param.type) {
+                case "int":
+                    tempState.SetInt(param.newName, gen.HasFloat(param.name) ? (int)gen.GetFloat(param.name) : 0);
+                    break;
+                case "bool":
+                    tempState.SetBool(param.newName, gen.HasBool(param.name) && gen.GetBool(param.name));
+                    break;
+                case "float":
+                    tempState.SetFloat(param.newName, gen.HasFloat(param.name) ? gen.GetFloat(param.name) : 0.0f);
+                    break;
+                case "vec2":
+                    tempState.SetVector2(param.newName, gen.HasVec2(param.name) ? gen.GetVec2(param.name) : GameEngine.Vector2.zero);
+                    break;
+                case "vec3":
+                    tempState.SetVector3(param.newName, gen.HasVec3(param.name) ? gen.GetVec3(param.name) : GameEngine.Vector3.zero);
+                    break;
+                case "texture":
+                    var originState = originRoad.state;
+                    tempState.SetStr(param.newName, originState.properties.ContainsKey(param.name) ? originState.Str(param.name) : originRoad.instanceState.Str(param.name));
+                    break;
+            }
+        }
+
+        //the state of a crosswalk: the state of the intersection, with the values imported from the road and the texture
+        //of the crosswalk as crosswalkTexture
+        public ObjectState GetCrosswalkState(CityElements.Types.Runtime.CrosswalkType crosswalkType, Crosswalk crosswalk) {
+            var tempState = (ObjectState)state.Clone();
+            foreach (var param in crosswalkType.typeData.importedParameters) {
+                ImportRoadParameter(tempState, param, crosswalk.road);
+            }
+            tempState.SetStr("crosswalkTexture", crosswalk.texture);
+            return tempState;
+        }
+
         public ObjectState GetJunctionState(CityElements.Types.Runtime.IntersectionType curType, int i) {
             var junction = GetJunctionType(curType, i);
             var tempState = (ObjectState)state.Clone();
@@ -102,30 +152,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             tempState.SetBool("convex", convexes[i]);
             tempState.SetBool("notDefaultTex", notDefaultTexes[i]);
             foreach (var param in junction.typeData.importedParameters) {
-                var originRoad = param.fromStart ? ends.Item1 : ends.Item2;
-                var originState = param.fromStart ? ends.Item1.state : ends.Item2.state;
-                var originIState = param.fromStart ? ends.Item1.instanceState : ends.Item2.instanceState;
-                var gen = originRoad.generator;
-                switch (param.type) {
-                    case "int":
-                        tempState.SetInt(param.newName, gen.HasFloat(param.name) ? (int)gen.GetFloat(param.name) : 0);
-                        break;
-                    case "bool":
-                        tempState.SetBool(param.newName, gen.HasBool(param.name) && gen.GetBool(param.name));
-                        break;
-                    case "float":
-                        tempState.SetFloat(param.newName, gen.HasFloat(param.name) ? gen.GetFloat(param.name) : 0.0f);
-                        break;
-                    case "vec2":
-                        tempState.SetVector2(param.newName, gen.HasVec2(param.name) ? gen.GetVec2(param.name) : GameEngine.Vector2.zero);
-                        break;
-                    case "vec3":
-                        tempState.SetVector3(param.newName, gen.HasVec3(param.name) ? gen.GetVec3(param.name) : GameEngine.Vector3.zero);
-                        break;
-                    case "texture":
-                        tempState.SetStr(param.newName, originState.properties.ContainsKey(param.name) ? originState.Str(param.name) : originIState.Str(param.name));
-                        break;
-                }
+                ImportRoadParameter(tempState, param, param.fromStart ? ends.Item1 : ends.Item2);
             }
             junction.FillInitialVariables(junction.variableContainer, tempState, tempIState, 0, tempState.Int("sidewalkSegments"), ends.Item1.generator.subGen, ends.Item2.generator.subGen);
             foreach (var d in junction.textureDefinitions) {
@@ -164,24 +191,8 @@ public partial class IntersectionGenerator : PhysicsScriptable {
                 res.Add(MaterialManager.GetMaterial(MaterialManager.GetTextureName(tempState, tex)));
             }
         }
-        var defTex = curType.typeData.settings.defaultCrosswalkTexture;
-        var startTex = curType.typeData.settings.roadStartCrosswalkTexture;
-        var endTex = curType.typeData.settings.roadEndCrosswalkTexture;
-        var hasStartTex = startTex != null && startTex != "";
-        var hasEndTex = endTex != null && endTex != "";
-        foreach (var road in parentIntersection.roads) {
-            if (road.IsGeometryless()) continue; //no crosswalk (as in CalculateVerticesAndCenters)
-            var activeStartCrosswalk = parentIntersection == road.startIntersection && road.state.Float("startCrosswalkSize") > 0;
-            var activeEndCrosswalk = parentIntersection == road.endIntersection && road.state.Float("endCrosswalkSize") > 0;
-            if (activeStartCrosswalk || activeEndCrosswalk) {
-                if (hasStartTex && road.GetStandardString(startTex) != "") {
-                    res.Add(MaterialManager.GetMaterial(road.GetStandardString(startTex)));
-                } else if (hasEndTex && road.GetStandardString(endTex) != "") {
-                    res.Add(MaterialManager.GetMaterial(road.GetStandardString(endTex)));
-                } else {
-                    res.Add(MaterialManager.GetMaterial(parentIntersection.state.Str(defTex)));
-                }
-            }
+        foreach (var tex in genState.crosswalkTextures) {
+            res.Add(MaterialManager.GetMaterial(tex));
         }
         return res.ToArray();
     }
@@ -369,14 +380,29 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             roadLefts.Add(left);
             upFactors2.Add(upFactor2);
             if (crosswalkSize > 0) {
-                var thisCrosswalkVertices = new List<Vector3>();
-                thisCrosswalkVertices.Add(Bank(i, roadCenter + leftFactor - upFactor2));
-                thisCrosswalkVertices.Add(Bank(i, roadCenter2 + leftFactor - upFactor2));
-                thisCrosswalkVertices.Add(Bank(i, roadCenter - leftFactor - upFactor2));
-                thisCrosswalkVertices.Add(Bank(i, roadCenter2 - leftFactor - upFactor2));
-                genState.crosswalkVertices.Add(thisCrosswalkVertices);
+                var crosswalk = new Crosswalk();
+                crosswalk.road = roads[i];
+                crosswalk.atRoadStart = parentIntersection == roads[i].startIntersection; //as in Road.GetCrosswalkSize
+                crosswalk.corners = new List<Vector3>() {
+                    Bank(i, roadCenter + leftFactor - upFactor2),
+                    Bank(i, roadCenter2 + leftFactor - upFactor2),
+                    Bank(i, roadCenter - leftFactor - upFactor2),
+                    Bank(i, roadCenter2 - leftFactor - upFactor2)
+                };
+                crosswalk.texture = GetCrosswalkTexture(roads[i], crosswalk.atRoadStart, out crosswalk.usesRoadTexture);
+                genState.crosswalks.Add(crosswalk);
             }
         }
+    }
+
+    //the texture of a crosswalk: the start or end crosswalk texture of the road (for the end of the road on this
+    //intersection), otherwise the default one of the intersection
+    string GetCrosswalkTexture(Road road, bool atRoadStart, out bool usesRoadTexture) {
+        var settings = curType.typeData.settings;
+        var roadTex = atRoadStart ? settings.roadStartCrosswalkTexture : settings.roadEndCrosswalkTexture;
+        var tex = string.IsNullOrEmpty(roadTex) ? null : road.GetStandardString(roadTex);
+        usesRoadTexture = !string.IsNullOrEmpty(tex);
+        return usesRoadTexture ? tex : parentIntersection.state.Str(settings.defaultCrosswalkTexture);
     }
 
     //the height of a point near the end of a road: its connection height, plus its offset from the center line along

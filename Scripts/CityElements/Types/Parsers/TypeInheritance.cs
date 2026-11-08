@@ -153,6 +153,14 @@ namespace CityElements.Types.Parsers {
             return LoadMerged<T>(files, Path.Combine(folder, relativeFile));
         }
 
+        //whether a file of a folder type exists in the type or in one of its ancestors
+        public static bool Exists(string folder, string relativeFile) {
+            foreach (var dir in AncestorFolders(folder)) {
+                if (File.Exists(Path.Combine(dir, relativeFile))) return true;
+            }
+            return false;
+        }
+
         //a component of a folder type: from the components folder of the type or of its ancestors, otherwise from the
         //common folder (if any)
         public static T LoadComponent<T>(string folder, string name, string commonFolder) {

@@ -205,22 +205,39 @@ namespace RoadParts {
                 }
             }
 
-            //crosswalk
-            i0 = vertices.Count;
-            for (int i = 0; i < g.crosswalkVertices.Count; i++) { //TODO: make parametric?
-                var cw = g.crosswalkVertices[i];
-                var length = GameEngine.Vector3.Magnitude(cw[0] - cw[2]);
-                var width = GameEngine.Vector3.Magnitude(cw[0] - cw[1]);
-
-                var totalLength = length / width;
-                var adjLength = Mathf.Max(1, Mathf.Round(totalLength));
-
-                var cwUvs = new List<Vector2>() { new Vector2(0, adjLength), new Vector2(1, adjLength), new Vector2(0, 0), new Vector2(1, 0) };
-                vertices.AddRange(cw);
-                uvs.AddRange(cwUvs);
-                outTris.Add(new List<int>(GH.GetSectionIndices(i0, 2)));
-                outPartsInfo.Add("crosswalk");
-                i0 += 4;
+            //crosswalks: the mesh of the crosswalk type of the core evaluated for each one, with a submesh for each of its
+            //textures (the materials are taken from crosswalkTextures)
+            var cwType = curType.crosswalkType;
+            if (cwType == null) {
+                if (g.crosswalks.Count > 0 && !curType.missingCrosswalkReported) {
+                    curType.missingCrosswalkReported = true;
+                    GameEngine.LogWarning("Intersection type '" + curType.name + "' has no crosswalk.json: its crosswalks have no geometry");
+                }
+            } else {
+                var cwVc = cwType.variableContainer;
+                var cwTextures = cwType.typeData.textures;
+                var cwVertices = new List<Vector3>();
+                var cwUvs = new List<Vector2>();
+                var cwTris = new List<List<int>>();
+                foreach (var tex in cwTextures) cwTris.Add(new List<int>());
+                foreach (var cw in g.crosswalks) {
+                    var cwState = g.GetCrosswalkState(cwType, cw);
+                    cwType.FillCrosswalkVariables(cwVc, cwState, g.instanceState, cw.corners, cw.atRoadStart, cw.usesRoadTexture);
+                    cwVertices.Clear();
+                    cwUvs.Clear();
+                    foreach (var tris in cwTris) tris.Clear();
+                    cwType.EvaluateComponents(cwVc, cwVertices, cwUvs, cwTris);
+                    i0 = vertices.Count;
+                    vertices.AddRange(cwVertices);
+                    uvs.AddRange(cwUvs);
+                    for (int t = 0; t < cwTextures.Length; t++) {
+                        var tris = new List<int>(cwTris[t].Count);
+                        foreach (var index in cwTris[t]) tris.Add(index + i0);
+                        outTris.Add(tris);
+                        outPartsInfo.Add("crosswalk");
+                        g.crosswalkTextures.Add(MaterialManager.GetTextureName(cwState, cwTextures[t]));
+                    }
+                }
             }
         }
 

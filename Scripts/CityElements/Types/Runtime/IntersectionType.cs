@@ -23,6 +23,8 @@ namespace CityElements.Types.Runtime {
 
         public Dictionary<(string, string), JunctionType> junctionTypes = new Dictionary<(string, string), JunctionType>();
         public Dictionary<string, ExtraPieceCalculators> extraPiecesCalculators = new Dictionary<string, ExtraPieceCalculators>();
+        public CrosswalkType crosswalkType; //null if the type has no crosswalk.json
+        public bool missingCrosswalkReported = false;
         Dictionary<(string, string), JunctionType> fallbackJunctionTypes = new Dictionary<(string, string), JunctionType>();
 
         // Junctions are defined per pair of road types: a pair missing from the core uses the junction of the nearest pair
@@ -85,6 +87,7 @@ namespace CityElements.Types.Runtime {
                 var condition = RC.Parsers.BooleanParser.ParseExpression(piece.condition);
                 extraPiecesCalculators.Add(piece.name, new ExtraPieceCalculators(paramSrcIdx, uMult, vMult, condition));
             }
+            if (type.crosswalk != null) crosswalkType = new CrosswalkType(type, name + "_crosswalk");
             SetIndices();
         }
 
