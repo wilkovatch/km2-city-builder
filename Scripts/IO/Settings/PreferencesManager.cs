@@ -32,6 +32,7 @@ public class PreferencesManager {
         if (full) {
             StringManager.Reload();
             TextureImporter.ReloadTextureFormats();
+            MeshImporter.ReloadMeshFormats(); //otherwise the formats of the previous city's core stay (e.g. bms instead of pkg)
             PythonManager.StartServer();
             PathHelper.CreateCommonFolder();
         }
