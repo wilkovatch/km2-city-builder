@@ -97,6 +97,8 @@ public partial class TerrainPoint : PhysicsScriptable {
                 isMoveable = false;
             }
         }
+        //on the center of an intersection: over its handle (as the road ends on it), which would hide the point
+        if (anchor is IntersectionAnchor && !anchor.IsDeleted()) curScale *= Road.IntersectionHandleScale;
         if (placementHighlighted) {
             GS.Cast<Handle>(GetObject()).SetColor(GameEngine.Color.yellow);
             //over the handle of the anchor it is on (e.g. a road end), which is larger

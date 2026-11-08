@@ -310,6 +310,7 @@ namespace Api {
                     var (obj, pos) = ResolvePoint(to, true);
                     if (!Operations.PointTargets.Allows(e, obj, Operations.PointTargets.NewSlot(list, i))) throw RefusedTarget(e);
                     if (!Operations.PointTargets.KeepsAccepted(e, list, i)) throw RefusedPlaces(e);
+                    if (Operations.CustomElements.NextToSameCentre(list, i, obj)) throw ApiException.InvalidOperation("the point would be next to a point on the center of the same intersection");
                     if (!Operations.PointTargets.ClaimOwner(e, obj)) throw AmbiguousOwner(e, obj);
                     if (Operations.CustomElements.InsertPointAt(M, e, array, i, obj, pos) == null) {
                         throw ApiException.InvalidOperation("the array '" + array + "' can't have more elements");

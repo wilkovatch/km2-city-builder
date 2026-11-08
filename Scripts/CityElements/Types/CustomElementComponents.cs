@@ -149,6 +149,8 @@ namespace CityElements.Types {
         //prop placers); "dynamic": only the clicked controls are kept, the spans follow the connections between them at every update
         public string followConnections;
         public bool FollowsConnectionsDynamically => followConnections == "dynamic";
+        //a list of the control points in the pointsGroup of the panel (see CustomElementPointsList), none without it
+        public CustomElementPointsList pointsList;
         public bool projectPoints;
         public bool projectSections;
         public int projectionMask = (1 << 3) | (1 << 7);
@@ -158,6 +160,13 @@ namespace CityElements.Types {
         //Optional expressions to subdivide pieces (e.g. a texture's quantized tile length).
         public string splitCondition;
         public int maxSplits = 3;
+    }
+
+    //The control points of a spline listed in its panel, with what each one is on: a click on one selects it, and the
+    //selected point is highlighted in the list
+    public class CustomElementPointsList {
+        public string label; //a string key: the title of the list (CE_POINTS_LIST without it)
+        public string firstItemLabel, lastItemLabel; //string keys: added to the first and the last point (e.g. the finish of a route)
     }
 
     public class CustomElementSplineLine {

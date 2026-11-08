@@ -40,11 +40,13 @@ namespace Actions {
                     anchor = ta;
                 }
             }
-            var intersection = Operations.PointTargets.IntersectionOf(obj);
+            //also a point on the center of an intersection (the same target)
+            var intersection = Operations.PointTargets.IntersectionAt(obj);
             if (anchor != null) {
                 return (anchor.GetPoint(), 1.2f, skipping ? (GameEngine.Color.yellow + GameEngine.Color.red) * 0.5f : GameEngine.Color.yellow);
             } else if (intersection != null) {
-                return (GO.GetPosition(intersection.point), 1.5f, GameEngine.Color.yellow); //its center (custom elements with intersectionTargets)
+                //its center (custom elements with intersectionTargets), over its handle and the points on it (see TerrainPoint.SetupAnchorMode)
+                return (GO.GetPosition(intersection.point), Road.IntersectionHandleScale * 1.35f, GameEngine.Color.yellow);
             } else {
                 var oldPoint = GS.FindComponent<TerrainPoint>(obj);
                 if (oldPoint == null) {

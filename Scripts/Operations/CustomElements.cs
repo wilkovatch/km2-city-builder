@@ -310,9 +310,11 @@ namespace Operations {
                 if (holders[i].center.DistanceTo(position) < holders[nearest].center.DistanceTo(position)) nearest = i;
             }
             if (holders.Count > 0) list = holders[nearest].list;
-            //a point is in an array of points once (clicking the first point of a closed array closes it instead)
+            //a point is in an array of points once (clicking the first point of a closed array closes it instead); a click on
+            //one on the center of an intersection is a click on the intersection, which gets a new point
             var clicked = GS.FindComponent<TerrainPoint>(obj);
-            if (clicked != null && list.items.Exists(item => item is global::CustomElements.PointLeaf l && l.point == clicked)) return null;
+            if (clicked != null && clicked.anchor is not IntersectionAnchor && list.items.Exists(item => item is global::CustomElements.PointLeaf l && l.point == clicked)) return null;
+            if (NextToSameCentre(list, list.items.Count, obj)) return null;
             var clickedAnchor = GS.FindComponent<TerrainAnchor>(obj);
             if (clickedAnchor != null && list.items.Exists(item => item is global::CustomElements.PointLeaf l && AddTerrainPointToSequence.AnchorEquals(l.point.anchor, clickedAnchor))) return null;
             if (!element.InsertArrayElement(arrayPath, list.items.Count)) return null;
@@ -340,7 +342,7 @@ namespace Operations {
         public static TerrainPoint InsertPointAt(ElementManager manager, CustomElement element, string path, int index, Node3D obj, Vector3 position) {
             var before = element.points == null ? null : global::CustomElements.PointTree.Find(element.points, path) as global::CustomElements.PointList;
             if (!PointTargets.Allows(element, obj, PointTargets.NewSlot(before, index)) || !PointTargets.KeepsAccepted(element, before, index)
-                || !PointTargets.ClaimOwner(element, obj)) return null;
+                || NextToSameCentre(before, index, obj) || !PointTargets.ClaimOwner(element, obj)) return null;
             if (!element.InsertArrayElement(path, index)) return null;
             var list = (global::CustomElements.PointList)global::CustomElements.PointTree.Find(element.points, path);
             var leaf = (global::CustomElements.PointLeaf)list.items[index];
@@ -351,6 +353,17 @@ namespace Operations {
             var point = PointFromClick(manager, obj, position);
             element.ReplacePoint(((global::CustomElements.PointLeaf)list.items[index]).point, point);
             return point;
+        }
+
+        //a point added at the index of the array of points, on the center of an intersection, would be next to a point on
+        //the same center (a span of length zero, e.g. a double click)
+        public static bool NextToSameCentre(global::CustomElements.PointList list, int index, Node3D obj) {
+            if (list == null || list.def.children != null) return false;
+            var intersection = PointTargets.IntersectionAt(obj);
+            if (intersection == null) return false;
+            bool Same(int i) => i >= 0 && i < list.items.Count && list.items[i] is global::CustomElements.PointLeaf leaf
+                && leaf.point?.anchor is IntersectionAnchor centre && !centre.IsDeleted() && centre.intersection == intersection;
+            return Same(index - 1) || Same(index);
         }
 
         //the instances of a uniform array in the elements of another array (none otherwise), with the center of the node

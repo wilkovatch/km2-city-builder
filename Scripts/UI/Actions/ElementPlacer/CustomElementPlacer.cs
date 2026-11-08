@@ -63,7 +63,7 @@ namespace ElementPlacer {
             if (placementMode == PlacementMode.None) return false;
             if ((GetElement()?.Settings?.spline != null || placementMode == PlacementMode.PlacePoints) && placementMode != PlacementMode.Create &&
                 (GameEngine.Gizmo.IsNearAxis() || (hits[0].HasValue &&
-                GS.FindComponent<TerrainPoint>((Node3D)hits[0].Value.collider) is TerrainPoint p && curElement.HasPoint(p)))) return false;
+                GS.FindComponent<TerrainPoint>((Node3D)hits[0].Value.collider) is TerrainPoint p && curElement.HasPoint(p) && !AddsOnIntersection(p)))) return false;
             if (!hits[0].HasValue && !hits[1].HasValue && !hits[2].HasValue) return false;
             ShowOnMap(hits);
             if (placementMode == PlacementMode.PlacePoints && PlacementLeaf(placeIndex - 1)?.point is TerrainPoint last && !last.IsDeleted()) {
@@ -72,6 +72,14 @@ namespace ElementPlacer {
             }
             if (!Input.GetInputStart(KeyCommand.Select)) return false;
             return true;
+        }
+
+        //a click adding a point on a point of the element on the center of an intersection: a click on the intersection (the
+        //point isn't shared, see PointTargets.IntersectionAt), which gets another point (e.g. a route passing there again),
+        //rather than the selection of the point
+        bool AddsOnIntersection(TerrainPoint point) {
+            if (placementMode != PlacementMode.AppendPoint && placementMode != PlacementMode.PrependPoint && placementMode != PlacementMode.InsertPoint) return false;
+            return point.anchor is IntersectionAnchor centre && !centre.IsDeleted() && Operations.PointTargets.AcceptsIntersections(GetRuntimeType());
         }
 
         //the first hit (points, segments, then the ground) on a target the type accepts (see PointTargets), the first one if none is
@@ -156,6 +164,8 @@ namespace ElementPlacer {
 
         public override void Apply(List<RaycastHit?> hits) {
             if (!Guards(hits)) return;
+            //not also the selection of the point clicked
+            if (hits[0].HasValue && GS.FindComponent<TerrainPoint>((Node3D)hits[0].Value.collider) is TerrainPoint p && GetElement()?.HasPoint(p) == true) GameEngine.Gizmo.ConsumeClick();
             PlaceAt(GetHit(hits));
         }
 

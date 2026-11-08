@@ -72,6 +72,9 @@ namespace EditorPanels {
         System.Action updateCurveFields;
         EditorPanelElements.Label selectedLabel;
         EditorPanelElements.ScrollList contentsList;
+        //the control points of the spline (see CustomElementSplineSettings.pointsList), as listed
+        EditorPanelElements.ScrollList pointsList;
+        List<TerrainPoint> listedPoints = new List<TerrainPoint>();
         EditorPanelElements.Button insertBeforeButton, insertAfterButton, removeButton, detachButton, addInnerButton, removeInnerButton, editContentButton,
             changeContainerButton, mergeButton;
         EditorPanelElements.InputField uField, vField;
@@ -121,6 +124,8 @@ namespace EditorPanels {
             updateCurveFields = null;
             selectedLabel = null;
             contentsList = null;
+            pointsList = null;
+            listedPoints.Clear();
             insertBeforeButton = insertAfterButton = removeButton = detachButton = addInnerButton = removeInnerButton = editContentButton = changeContainerButton = mergeButton = null;
             uField = vField = null;
             spaceLabel = null;
@@ -283,6 +288,11 @@ namespace EditorPanels {
                     SM.Get("RD_PM_INSERT"), SM.Get("RD_PM_INSERT_BEFORE") }, SetSplinePlacementMode, w);
                 p.IncreaseRow();
                 removeButton = p.AddButton(SM.Get("RD_REMOVE_POINT"), RemoveArrayElement, w); p.IncreaseRow();
+                if (settings.spline.pointsList is CityElements.Types.CustomElementPointsList listSettings && GetElement() != null) {
+                    listedPoints = SplinePoints(GetElement());
+                    pointsList = p.AddScrollList(SM.GetOrKey(listSettings.label ?? "CE_POINTS_LIST"), PointLabels(GetElement(), listedPoints), SelectListedPoint, w);
+                    p.IncreaseRow(5.0f);
+                }
                 return true;
             }
             if (elem.name == "transformGroup" && settings.point != null) {
@@ -439,6 +449,75 @@ namespace EditorPanels {
             if (!string.IsNullOrEmpty(label)) return SM.Get(label).ToLowerInvariant();
             var parts = arrayPath.Split('.');
             return parts[parts.Length - 1];
+        }
+
+        // List of the points (CustomElementSplineSettings.pointsList)
+
+        static List<TerrainPoint> SplinePoints(CustomElement element) {
+            var res = new List<TerrainPoint>();
+            if (element?.points?.Get("spline") is not CustomElements.PointList list) return res;
+            foreach (var item in list.items) {
+                if (item is CustomElements.PointLeaf leaf && leaf.point != null && !leaf.point.IsDeleted()) res.Add(leaf.point);
+            }
+            return res;
+        }
+
+        //"<n>. <what it is on>", with the labels of the first and last points of the type
+        static List<string> PointLabels(CustomElement element, List<TerrainPoint> points) {
+            var settings = element?.Settings?.spline?.pointsList;
+            var res = new List<string>();
+            for (int i = 0; i < points.Count; i++) {
+                var text = SM.Get("CE_POINTS_LIST_ITEM").Replace("$INDEX", (i + 1).ToString()).Replace("$TARGET", PointTargetLabel(points[i]));
+                var extra = i == points.Count - 1 ? settings?.lastItemLabel : i == 0 ? settings?.firstItemLabel : null;
+                if (extra != null) text += " (" + SM.GetOrKey(extra) + ")";
+                res.Add(text);
+            }
+            return res;
+        }
+
+        //what the point is on: the name of its intersection or of the element of its anchor, else the kind of its anchor
+        static string PointTargetLabel(TerrainPoint point) {
+            var anchor = point.anchor;
+            if (GO.IsNull(anchor) || anchor.IsDeleted()) {
+                var shared = point.GetLinks().Count - 1;
+                return shared > 0 ? SM.Get("CE_SHARED").Replace("$NUMBER", shared.ToString()) : SM.Get("CE_POINT_FREE");
+            }
+            if (anchor is IntersectionAnchor centre) return Api.CityApi.GetName(centre.intersection) ?? SM.Get("CE_ON_INTERSECTION");
+            if (anchor is TerrainAnchor terrainAnchor && Operations.Anchors.OwnerElement(terrainAnchor) is object owner) {
+                return Api.CityApi.GetName(owner) ?? SM.Get("CE_ANCHORED");
+            }
+            return SM.Get(anchor is ColumnAnchor ? "CE_ON_COLUMN" : anchor is LineAnchor ? "CE_ON_LINE" : anchor is PointAnchor ? "CE_ON_POINT" : "CE_ANCHORED");
+        }
+
+        void SelectListedPoint(int index) {
+            if (index < 0 || index >= listedPoints.Count || listedPoints[index].IsDeleted()) return;
+            builder.gizmo.ClearTargets();
+            builder.gizmo.AddTarget(listedPoints[index].GetObject());
+        }
+
+        //the list follows the points (added, removed, attached) and the selected one, every frame
+        void RefreshPointsList() {
+            if (pointsList == null || pointsList.IsFreed() || GetElement() is not CustomElement element) return;
+            var current = SplinePoints(element);
+            var labels = PointLabels(element, current);
+            if (current.Count != listedPoints.Count || !current.TrueForAll(listedPoints.Contains)) {
+                listedPoints = current;
+                pointsList.Deselect();
+                pointsList.SetItems(labels);
+            } else {
+                listedPoints = current; //the order may have changed (e.g. reversed)
+                pointsList.UpdateLabels(labels);
+            }
+            var selected = listedPoints.IndexOf(GetSelectedPoint());
+            if (selected == pointsList.Selected) return;
+            if (selected < 0) {
+                pointsList.Deselect();
+                return;
+            }
+            pointsList.actionEnabled = false;
+            pointsList.SetValue(selected);
+            pointsList.actionEnabled = true;
+            pointsList.Reveal(selected);
         }
 
         TerrainPoint GetSelectedPoint() {
@@ -1136,6 +1215,7 @@ namespace EditorPanels {
             if (builder.propsEditorPanel.parentPanel == this && builder.propsEditorPanel.ActiveSelf()) builder.propsEditorPanel.ShowError(placementError);
             if ((GetElement() != builtElement || (GetElement()?.TypeName ?? draft?.Str("type", null)) != builtType || propRule.InlineType() != builtPropsType) && lastCanvas != null) Rebuild();
             ShowSelectedPoint();
+            RefreshPointsList();
             RefreshTransform();
             GetPlacer()?.UpdatePlacementPoint();
         }
