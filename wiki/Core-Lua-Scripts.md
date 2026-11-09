@@ -181,3 +181,5 @@ The [props types](Core-Props-and-Objects#the-placement-callback) and the polygon
 ## Post-processing of the sections
 
 A road type, or the spline of a custom element type, can edit its sections with a function of a script once they are computed (`postProcess` in its settings): it gets all the sections (centers, frames, offsets and vertices) and the sources of the element, and returns the sections to change. See [Core Roads](Core-Roads#post-processing). The MM2 core makes the sections of its roads coplanar this way (`lua/coplanar.lua`).
+
+A terrain patch type can add meshes made from the surface of its patches with a function of a script (`geometry` in its settings), e.g. a bottom under an elevated patch. See [Core Terrain Patches](Core-Terrain-Patches#settingsjson).

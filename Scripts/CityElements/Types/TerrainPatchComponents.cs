@@ -4,6 +4,7 @@ using System.IO;
 
 namespace CityElements.Types {
     public class TerrainPatchSettings {
+        public string geometry; //optional <module>.<function> of the lua folder: meshes added to the surface of the patch
     }
 
     public class TerrainPatchType: ITypeWithUI {

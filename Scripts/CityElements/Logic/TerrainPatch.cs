@@ -162,8 +162,49 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
             var vc = variableContainer;
             var uMult = vc.floats[vc.floatIndex["uMult"]];
             var vMult = vc.floats[vc.floatIndex["vMult"]];
-            generator.RebuildMesh(GetPerimeterPoints(), GetInternalPoints(), state.Str("texture"), state.Int("smooth"), uMult, vMult);
+            var perimeter = GetPerimeterPoints();
+            var internalPoints = GetInternalPoints();
+            var type = curType;
+            generator.RebuildMesh(perimeter, internalPoints, state.Str("texture"), state.Int("smooth"), uMult, vMult,
+                type.geometryFunction == null ? null : (v, uv, idx) => ScriptMeshes(type, perimeter, internalPoints, v, uv, idx));
         }
+    }
+
+    //the meshes of the geometry script of the type, made from the surface (see the Core Terrain Patches page of the wiki)
+    List<TerrainPatchGenerator.ExtraMesh> ScriptMeshes(CityElements.Types.Runtime.TerrainPatchType type, List<Vector3> perimeter,
+        List<Vector3> internalPoints, List<Vector3> vertices, List<Vector2> uvs, List<int[]> submeshes) {
+        var name = GO.GetName(this) + " (geometry)";
+        var res = new List<TerrainPatchGenerator.ExtraMesh>();
+        try {
+            var triangles = new List<int>();
+            foreach (var submesh in submeshes) triangles.AddRange(submesh);
+            var surface = new Lua.LuaTable();
+            surface["vertices"] = CustomElements.CustomElementScripting.List(vertices);
+            surface["uvs"] = CustomElements.CustomElementScripting.List(uvs);
+            surface["triangles"] = CustomElements.CustomElementScripting.List(triangles);
+            var ctx = new Lua.LuaTable();
+            ctx["typeName"] = state.Str("type", "");
+            ctx["name"] = GO.GetName(this);
+            ctx["parameters"] = PropPlacerGeometry.StateTable(state).Read<Lua.LuaTable>();
+            ctx["surface"] = surface;
+            ctx["perimeter"] = CustomElements.CustomElementScripting.List(perimeter);
+            ctx["internalPoints"] = CustomElements.CustomElementScripting.List(internalPoints);
+            var result = type.scriptHost.Call(type.geometryFunction, RC.Scripting.LuaVariableView.Get(variableContainer), ctx, name);
+            foreach (var mesh in CustomElements.CustomElementScripting.ReadGeometry(result).meshes) {
+                if (mesh.pickOnly || mesh.placeholder) continue;
+                var texture = mesh.color.HasValue ? "" : mesh.texture == null ? "" : MaterialManager.GetTextureName(state, mesh.texture);
+                res.Add(new TerrainPatchGenerator.ExtraMesh {
+                    vertices = mesh.vertices, uvs = mesh.uvs, triangles = mesh.triangles,
+                    //a mesh without a texture or solid colour is not drawn
+                    material = mesh.color.HasValue ? MaterialManager.GetHandleMaterial(mesh.color.Value)
+                        : MaterialManager.GetMaterial(string.IsNullOrEmpty(texture) ? "_TRANSPARENT_" : texture)
+                });
+            }
+        } catch (System.Exception e) {
+            type.scriptHost.ReportError(name, e.Message);
+            res.Clear();
+        }
+        return res;
     }
 
     public void SetActive(bool active, bool moveable) {

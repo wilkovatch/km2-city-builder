@@ -4,6 +4,10 @@ using RC = RuntimeCalculator;
 
 namespace CityElements.Types.Runtime {
     public class TerrainPatchType: RuntimeType<Types.TerrainPatchType> {
+        //the geometry function of the Lua scripts of the core (null if the type has none) and its host
+        public readonly Lua.LuaFunction geometryFunction;
+        public readonly RC.Scripting.LuaScriptHost scriptHost;
+
         static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists() {
             var floatVars = new List<string>();
             var vec2Vars = new List<string>();
@@ -13,6 +17,10 @@ namespace CityElements.Types.Runtime {
 
         public TerrainPatchType(Types.TerrainPatchType type, string name) : base(type, type.parameters, null, GetVarLists(), name) {
             SetIndices();
+            if (type.settings?.geometry != null) {
+                scriptHost = RC.Scripting.LuaScriptHost.Get();
+                geometryFunction = scriptHost.Resolve(type.settings.geometry);
+            }
         }
 
         protected void SetIndices() {
