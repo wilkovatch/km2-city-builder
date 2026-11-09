@@ -254,9 +254,10 @@ namespace EditorPanels {
                 var editingPreset = EditingPreset();
                 if (editingPreset) { dropdown.SetInteractable(false); segmentsField.SetInteractable(false); segmentsPer100mField.SetInteractable(false); }
                 p.IncreaseRow();
+                //the fields that don't apply to the curve type are disabled, not hidden (that would leave holes in the panel)
                 updateCurveFields = () => {
                     var lowPoly = CurrentState()?.Int("curveType", settings.spline.defaultCurveType) == (int)GeometryHelper.CurveType.LowPoly;
-                    segmentsField.SetActive(!lowPoly); segmentsPer100mField.SetActive(!lowPoly);
+                    segmentsField.SetInteractable(!lowPoly && !editingPreset); segmentsPer100mField.SetInteractable(!lowPoly && !editingPreset);
                 };
                 if (System.Array.IndexOf(allowed, 1) >= 0) {
                     var equallyField = p.AddFieldCheckbox(SM.Get("RD_SUBDIVIDE_EQUALLY"), GetElementState, "state.properties.subdivideEqually", null, w / 2, null);
@@ -265,7 +266,7 @@ namespace EditorPanels {
                     if (editingPreset) { equallyField.SetInteractable(false); tensionField.SetInteractable(false); }
                     updateCurveFields += () => {
                         var builtin = CurrentState()?.Int("curveType", settings.spline.defaultCurveType) == 1;
-                        equallyField.SetActive(builtin); tensionField.SetActive(builtin);
+                        equallyField.SetInteractable(builtin && !editingPreset); tensionField.SetInteractable(builtin && !editingPreset);
                     };
                     p.IncreaseRow();
                 }

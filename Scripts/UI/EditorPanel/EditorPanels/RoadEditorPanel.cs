@@ -74,9 +74,11 @@ namespace EditorPanels {
                 splineFields.Add(segmentsField);
                 splineFields.Add(p.AddFieldInputField(SM.Get("RD_SMOOTHING"), SM.Get("RD_SMOOTHING_PH"), GameEngine.InputContentType.Integer, GetCurRoad, "instanceState.properties.lpf", null, w / 2, null));
                 p.IncreaseRow();
+                //the fields that don't apply to the curve type are disabled, not hidden (that would leave holes in the panel)
+                var editingPreset = pS.EditingPreset();
                 updateCurveFields = () => {
                     var lowPoly = GetCurRoad(false)?.GetCurveType() == GeometryHelper.CurveType.LowPoly;
-                    segmentsField.SetActive(!lowPoly); segmentsPer100mField.SetActive(!lowPoly);
+                    segmentsField.SetInteractable(!lowPoly && !editingPreset); segmentsPer100mField.SetInteractable(!lowPoly && !editingPreset);
                 };
 
                 splineFields.Add(p.AddFieldCheckbox(SM.Get("RD_ADJUST_LOWPOLY_WIDTH"), GetCurRoad, "instanceState.properties.adjustLowPolyWidth", null, w));
@@ -102,13 +104,13 @@ namespace EditorPanels {
                     splineFields.Add(equallyField); splineFields.Add(tensionField);
                     updateCurveFields += () => {
                         var builtin = GetCurRoad(false)?.instanceState.Int("curveType") == 1;
-                        equallyField.SetActive(builtin); tensionField.SetActive(builtin);
+                        equallyField.SetInteractable(builtin && !editingPreset); tensionField.SetInteractable(builtin && !editingPreset);
                     };
                 }
                 p.IncreaseRow();
 
                 //presets never store instance specific values
-                if (pS.EditingPreset()) {
+                if (editingPreset) {
                     foreach (var field in splineFields) field.SetInteractable(false);
                     curveDropdown.SetInteractable(false);
                 }
