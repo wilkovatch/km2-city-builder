@@ -28,6 +28,10 @@ public partial class TerrainPoint : PhysicsScriptable {
     bool placementHighlighted;
     int updatedCount;
     bool updating = false; //in UpdatePosition (the points it depends on are updated first, see UpdateDependencies)
+    PhysicsGameObject handle; //the parent, looked up once: the positions are read at every update of the city
+    //the last projection on the ground: it is the same until the point or the terrain changes
+    Vector3 projectedPoint;
+    ulong projectedTerrainVersion = ulong.MaxValue;
 
     public static TerrainPoint Create(Vector3 point, IGroundable patch, GameObject parent, IAnchorable anchor = null, int registryId = -1, bool active = true, bool anchorable = true) {
         var obj = GameEngine.Resources.CreatePointHandle(GO.GetObject(parent), active);
@@ -256,6 +260,8 @@ public partial class TerrainPoint : PhysicsScriptable {
         }
     }
 
+    //Every point of the city gets here at every update, and most of them didn't move: the position is read once, and
+    //what only matters for a moved point (the keys, the gizmo) or a changed terrain (the projection) is left for then.
     bool UpdatePositionOnAnchor() {
         if (anchor is ColumnAnchor column && !column.IsDeleted()) {
             //the height is the one of the point (also when changed by the constraints of an element), only x and z follow
@@ -270,29 +276,42 @@ public partial class TerrainPoint : PhysicsScriptable {
             return true;
         }
         if (!IsAnchorNull()) {
-            var ctrl = Input.GetInputPressed(KeyCommand.Modifier2);
-            var moveable = ctrl || GameEngine.Gizmo.GetMainTargetRoot() == GetObject();
-            if (anchor.IsDeleted()) {
-                return true;
-            } else if (detachable && moveable && !anchor.IsMoveable() && !GeometryHelper.AreVectorsEqual(GetPoint(), oldPoint)
-                && GeometryHelper.AreVectorsEqual(anchor.GetPoint(), oldPoint)) {
+            if (anchor.IsDeleted()) return true;
+            var point = GetPoint();
+            var anchorPoint = anchor.GetPoint();
+            var moved = !GeometryHelper.AreVectorsEqual(point, oldPoint);
+            var onAnchor = GeometryHelper.AreVectorsEqual(point, anchorPoint);
+            if (moved && detachable && !anchor.IsMoveable() && GeometryHelper.AreVectorsEqual(anchorPoint, oldPoint) && IsMovedByUser()) {
                 //moved with the gizmo: the point leaves the anchor
                 History.UndoManager.Touch(this);
                 anchor = null;
                 SetupAnchorMode();
                 return true;
-            } else {
-                //Only an actual move of the point slides it along a segment. Moving the source anchors keeps the
-                //percentage, also while the point is selected. Fixed anchors always restore the point's position.
-                if (anchor is LineAnchor lineAnchor && moveable && !GeometryHelper.AreVectorsEqual(GetPoint(), oldPoint)
-                    && !GeometryHelper.AreVectorsEqual(GetPoint(), anchor.GetPoint())) lineAnchor.UpdatePercent(GetPoint());
-                if (!GeometryHelper.AreVectorsEqual(GetPoint(), anchor.GetPoint())) GO.SetPosition(GetObject(), anchor.GetPoint());
-                return !GeometryHelper.AreVectorsEqual(GetPoint(), oldPoint);
             }
-        } else {
-            if (IsProjectedToGround()) GO.SetPosition(GetObject(), GeometryHelper.ProjectPoint(GetPoint()));
+            //Only an actual move of the point slides it along a segment. Moving the source anchors keeps the
+            //percentage, also while the point is selected. Fixed anchors always restore the point's position.
+            if (moved && !onAnchor && anchor is LineAnchor lineAnchor && IsMovedByUser()) {
+                lineAnchor.UpdatePercent(point);
+                anchorPoint = anchor.GetPoint();
+                onAnchor = GeometryHelper.AreVectorsEqual(point, anchorPoint);
+            }
+            if (onAnchor) return moved;
+            GO.SetPosition(GetObject(), anchorPoint);
             return !GeometryHelper.AreVectorsEqual(GetPoint(), oldPoint);
+        } else {
+            var point = GetPoint();
+            if (IsProjectedToGround() && (projectedTerrainVersion != GameEngine.Terrain.HeightmapVersion || point != projectedPoint)) {
+                GO.SetPosition(GetObject(), GeometryHelper.ProjectPoint(point));
+                point = projectedPoint = GetPoint(); //as read back, to compare it at the next update
+                projectedTerrainVersion = GameEngine.Terrain.HeightmapVersion;
+            }
+            return !GeometryHelper.AreVectorsEqual(point, oldPoint);
         }
+    }
+
+    //the point is the one moved with the gizmo, or the modifier key is held
+    bool IsMovedByUser() {
+        return GameEngine.Gizmo.GetMainTargetRoot() == GetObject() || Input.GetInputPressed(KeyCommand.Modifier2);
     }
 
     //detachable: a point on a fixed anchor can be moved too, leaving the anchor
@@ -339,6 +358,6 @@ public partial class TerrainPoint : PhysicsScriptable {
     }
 
     public PhysicsGameObject GetObject() {
-        return (PhysicsGameObject)GO.GetParent(this);
+        return handle ??= (PhysicsGameObject)GO.GetParent(this);
     }
 }

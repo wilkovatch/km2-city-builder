@@ -317,27 +317,25 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
     }
 
     bool DidChange() {
-        var perimPointsToDelete = new List<TerrainPoint>();
-        var internalPointsToDelete = new List<TerrainPoint>();
+        //every patch gets here at every update of the city: nothing is allocated when nothing changed
+        var anyDeleted = false;
         foreach (var point in perimeterPoints) {
             if (point.IsDeleted()) {
-                perimPointsToDelete.Add(point);
+                anyDeleted = true;
             } else {
                 point.UpdatePosition();
             }
         }
         foreach (var point in internalPoints) {
             if (point.IsDeleted()) {
-                internalPointsToDelete.Add(point);
+                anyDeleted = true;
             } else {
                 point.UpdatePosition();
             }
         }
-        foreach (var point in perimPointsToDelete) {
-            perimeterPoints.Remove(point);
-        }
-        foreach (var point in internalPointsToDelete) {
-            internalPoints.Remove(point);
+        if (anyDeleted) {
+            perimeterPoints.RemoveAll(point => point.IsDeleted());
+            internalPoints.RemoveAll(point => point.IsDeleted());
         }
         if (state.HasChanged()) return true;
         if (oldInternalPointCount != internalPoints.Count) return true;

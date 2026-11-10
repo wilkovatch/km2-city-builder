@@ -510,16 +510,23 @@ public partial class ElementManager : Scriptable {
     }
 
     //The road network and its attached elements stay live during a drag. Build the attachment graph once, rather
-    //than rediscovering it across the city on every mouse movement.
+    //than rediscovering it across the city on every mouse movement. The same goes for the points of the terrain
+    //patches and building lines: only what follows the dragged points is updated.
     internal void BeginInteractiveRoadEdit(IReadOnlyList<Node3D> targets) {
         EndInteractiveRoadEdit();
         Cleanup();
         var selectedRoads = new HashSet<Road>();
         var junctions = new HashSet<Intersection>();
+        var draggedPoints = new HashSet<TerrainPoint>();
         foreach (var target in targets) {
             switch (History.UndoManager.ResolveOwner(target)) {
                 case Road road: selectedRoads.Add(road); break;
                 case Intersection intersection: junctions.Add(intersection); break;
+                //The points of the custom elements keep the normal path: their own constraints, connections and
+                //containers are only complete in a full update.
+                case TerrainPoint point when !point.IsDeleted() && !point.GetLinks().Exists(link => link is CustomElement):
+                    draggedPoints.Add(point);
+                    break;
                 default: return; //mixed selections keep the normal update path
             }
         }
@@ -530,15 +537,15 @@ public partial class ElementManager : Scriptable {
         foreach (var junction in junctions) foreach (var road in junction.roads) selectedRoads.Add(road);
         interactiveRoads.AddRange(selectedRoads);
         interactiveIntersections.AddRange(junctions);
-        CollectInteractiveDependents();
+        CollectInteractiveDependents(draggedPoints);
         //A pending full-city projection pass may have started before this drag. Its other targets still need the
         //synchronized release update even if the drag itself ends without moving a road.
         deferredRoadSurfacesChanged |= splineProjectionPending;
         interactiveMembership = (roads.Count, intersections.Count, patches.Count, buildings.Count, customElements.Count);
-        interactiveRoadEdit = interactiveRoads.Count + interactiveIntersections.Count > 0;
+        interactiveRoadEdit = interactiveRoads.Count + interactiveIntersections.Count + draggedPoints.Count > 0;
     }
 
-    void CollectInteractiveDependents() {
+    void CollectInteractiveDependents(HashSet<TerrainPoint> draggedPoints) {
         var dependencies = new Dictionary<object, HashSet<object>>();
         void DependsOn(object owner, object follower) {
             if (owner == null || follower == null || owner == follower) return;
@@ -584,6 +591,7 @@ public partial class ElementManager : Scriptable {
             pending.Enqueue(intersection);
             pending.Enqueue(intersection.geo);
         }
+        foreach (var point in draggedPoints) pending.Enqueue(point);
         var seen = new HashSet<object>();
         while (pending.TryDequeue(out var current)) {
             if (!seen.Add(current)) continue;

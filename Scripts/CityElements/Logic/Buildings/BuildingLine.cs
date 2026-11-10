@@ -178,29 +178,27 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
     }
 
     bool DidChange() {
-        var pointsToDelete = new List<TerrainPoint>();
+        //every line gets here at every update of the city: nothing is allocated when nothing changed
+        var anyDeleted = false;
         foreach (var point in linePoints) {
             if (point.IsDeleted()) {
-                pointsToDelete.Add(point);
+                anyDeleted = true;
             } else {
                 point.UpdatePosition();
             }
         }
-        foreach (var point in pointsToDelete) {
-            linePoints.Remove(point);
-        }
+        if (anyDeleted) linePoints.RemoveAll(point => point.IsDeleted());
         if (oldLinePoints.Count != linePoints.Count) return true;
         for (int i = 0; i < linePoints.Count; i++) {
             if (!GeometryHelper.AreVectorsEqual(linePoints[i].GetPoint(), oldLinePoints[i])) return true;
         }
-        var dividingPoints = new List<TerrainPoint>();
+        var dividing = 0;
         foreach (var point in linePoints) {
-            if (point.dividing) dividingPoints.Add(point);
+            if (!point.dividing) continue;
+            if (dividing >= oldDividingPoints.Count || oldDividingPoints[dividing] != point) return true;
+            dividing++;
         }
-        if (oldDividingPoints.Count != dividingPoints.Count) return true;
-        for (int i = 0; i < dividingPoints.Count; i++) {
-            if (dividingPoints[i] != oldDividingPoints[i]) return true;
-        }
+        if (dividing != oldDividingPoints.Count) return true;
         if (oldBuildingsCount != buildings.Count) return true;
         for (int i = 0; i < buildings.Count; i++) {
             if (buildings[i].DidChange()) return true;
@@ -305,6 +303,8 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
 
     int UpdateBuildings(bool force) {
         if (linePoints.Count == 0) return 0;
+        //nothing changed (most lines at every update of the city): the splines are not needed
+        if (!force && forcedBuildingStates == null && forcedSideStates == null && !buildings.Exists(b => b.NeedsUpdate())) return 0;
         var count = 0;
         var splineParts = GetFullSpline();
         var fullSpline = splineParts.Item1;

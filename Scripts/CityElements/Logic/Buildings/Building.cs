@@ -155,17 +155,22 @@ public class Building: IObjectWithState {
         topSpline.Clear();
     }
 
+    //whether the building or one of its sides changed since its last update (what PreUpdateMesh checks without force)
+    public bool NeedsUpdate() {
+        if (deleted) return false;
+        return DidChange() || (front != null && front.state.HasChanged()) ||
+            (left != null && left.state.HasChanged()) ||
+            (right != null && right.state.HasChanged()) ||
+            (back != null && back.state.HasChanged());
+    }
+
     public void PreUpdateMesh(bool hasExternalHeight, float externalHeight, float externalMaxHeight, bool force) {
         updateRes = -1;
         if (deleted) {
             updateRes = 0;
             return;
         }
-        var anySideChanged = (front != null && front.state.HasChanged()) ||
-            (left != null && left.state.HasChanged()) ||
-            (right != null && right.state.HasChanged()) ||
-            (back != null && back.state.HasChanged());
-        if (!force && !DidChange() && !anySideChanged) {
+        if (!force && !NeedsUpdate()) {
             updateRes = 0;
             return;
         }
