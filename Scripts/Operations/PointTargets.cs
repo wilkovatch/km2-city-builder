@@ -82,9 +82,19 @@ namespace Operations {
             return true;
         }
 
-        //the elements using the point accept it leaving its target (e.g. moved freely with the gizmo, or detached)
+        //the elements using the point accept it leaving its target (e.g. moved freely with the gizmo, or detached). A point
+        //of other elements (a terrain patch, a building line) stays their point: the custom elements using it are asked
+        //about it as it would be without its anchor (e.g. a rail on the perimeter of a patch keeps a detached corner of
+        //it), the ground only for a point of custom elements alone
         public static bool AllowsGround(TerrainPoint point) {
-            return AllowedByUsers(point, null);
+            if (point == null || !point.GetLinks().Exists(link => link is not CustomElement)) return AllowedByUsers(point, null);
+            var anchor = point.anchor;
+            try {
+                point.anchor = null;
+                return AllowedByUsers(point, point.GetObject());
+            } finally {
+                point.anchor = anchor;
+            }
         }
 
         //the type accepts free points (whatever the parameters of the element and the place of the point: asked once; never
