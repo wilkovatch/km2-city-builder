@@ -24,6 +24,7 @@ namespace CityElements.Types.Runtime {
         public Dictionary<(string, string), JunctionType> junctionTypes = new Dictionary<(string, string), JunctionType>();
         public Dictionary<string, ExtraPieceCalculators> extraPiecesCalculators = new Dictionary<string, ExtraPieceCalculators>();
         public CrosswalkType crosswalkType; //null if the type has no crosswalk.json
+        public readonly ExtrasType extras; //null if the type has none
         public bool missingCrosswalkReported = false;
         Dictionary<(string, string), JunctionType> fallbackJunctionTypes = new Dictionary<(string, string), JunctionType>();
 
@@ -89,6 +90,7 @@ namespace CityElements.Types.Runtime {
             }
             if (type.crosswalk != null) crosswalkType = new CrosswalkType(type, name + "_crosswalk");
             SetIndices();
+            extras = ExtrasType.Create(type.settings.extras, variableContainer);
         }
 
         public void SetIndices() {

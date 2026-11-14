@@ -87,6 +87,7 @@ public partial class Intersection: IObjectWithState {
     public void ApplyGhost() {
         if (deleted || GO.IsNull(geo)) return;
         if (generator.mr != null) generator.mr.Visible = !ghost;
+        generator.extras?.SetVisible(!ghost);
         generator.CollisionLayer = ghost ? 0u : 1u << 7;
         foreach (var roadThrough in roadsThrough) {
             var gen = GS.FindRecursive<RoadGenerator>(roadThrough);
@@ -603,6 +604,45 @@ public partial class Intersection: IObjectWithState {
         return throughDirections;
     }
 
+    //the extras of the type (see ElementExtras), made after its roads (ElementManager rebuilds the roads first): their
+    //functions get the roads clockwise, with their lanes and sections as last built
+    void RebuildExtras() {
+        var type = generator.curType;
+        if (type == null) {
+            generator.extras.Clear();
+            return;
+        }
+        type.FillInitialVariables(type.variableContainer, state, instanceState);
+        generator.extras.Rebuild(type.extras, type.variableContainer, state, () => {
+            var ctx = new Lua.LuaTable();
+            ctx["typeName"] = state.Str("type", "");
+            ctx["name"] = GO.GetName(geo);
+            ctx["parameters"] = PropPlacerGeometry.StateTable(state);
+            ctx["instanceParameters"] = PropPlacerGeometry.StateTable(instanceState);
+            ctx["center"] = new RuntimeCalculator.Scripting.LuaVec3(GO.GetPosition(point));
+            var roadsTable = new Lua.LuaTable();
+            var seen = new HashSet<Road>();
+            int i = 0;
+            foreach (var road in GetRoadsSortedClockwise()) {
+                if (road == null || road.deleted || road.generator == null) continue;
+                //a road with both ends here: its start first, then its end
+                var atStart = road.startIntersection == this && (road.endIntersection != this || seen.Add(road));
+                var entry = new Lua.LuaTable();
+                entry["name"] = GO.GetName(road);
+                entry["typeName"] = road.state.Str("type", "");
+                entry["atStart"] = atStart;
+                entry["parameters"] = PropPlacerGeometry.StateTable(road.state);
+                entry["vars"] = RoadScriptContext.GetVariables(road);
+                entry["center"] = CustomElements.CustomElementScripting.List(road.generator.GetCurvePoints());
+                entry["sections"] = road.generator.SectionsTable();
+                entry["lanes"] = road.generator.LanesTable();
+                roadsTable[++i] = entry;
+            }
+            ctx["roads"] = roadsTable;
+            return ctx;
+        }, GO.GetName(geo));
+    }
+
     public int RebuildMesh() {
         if (!forceRemesh) return 0;
         forceRemesh = false;
@@ -623,6 +663,7 @@ public partial class Intersection: IObjectWithState {
 
             generator.RebuildMesh(roadsThrough, throughDirections, isThroughRoad, startRoads, endRoad);
         }
+        RebuildExtras();
 
         var centers = new List<List<Vector3>>();
         if (generator.sidePoints.Count > 0) {

@@ -733,6 +733,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         }
 
         generator.Rebuild();
+        RebuildExtras();
 
         //for terrain
         var startConns = new List<object>();
@@ -752,6 +753,23 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         EnlargeEndsOnIntersections();
 
         UpdateOlds();
+    }
+
+    //the extras of the type (see ElementExtras), made after the mesh: their functions can read the lanes and the sections,
+    //and the intersections with their roads (as they were last built: a change of an intersection rebuilds its roads)
+    void RebuildExtras() {
+        generator.extras.Rebuild(generator.curType?.extras, generator.subGen.variableContainer, state, () => {
+            var ctx = new Lua.LuaTable();
+            ctx["typeName"] = state.Str("type", "");
+            ctx["name"] = GO.GetName(this);
+            ctx["parameters"] = PropPlacerGeometry.StateTable(state);
+            ctx["instanceParameters"] = PropPlacerGeometry.StateTable(instanceState);
+            ctx["road"] = GetScriptContext();
+            ctx["center"] = CustomElements.CustomElementScripting.List(generator.GetCurvePoints());
+            ctx["sections"] = generator.SectionsTable();
+            ctx["lanes"] = generator.LanesTable();
+            return ctx;
+        }, GO.GetName(this));
     }
 
     void RebuildIntersections() {
@@ -838,6 +856,7 @@ public partial class Road : ParametricObjectContainer<CityElements.Types.RoadTyp
         if (generator.lr != null) generator.lr.enabled = IsLineShown();
         generator.CollisionLayer = ghost ? 0u : 1u << 7;
         if (generator.propsContainer != null) GO.SetEnabled(generator.propsContainer, !ghost);
+        generator.extras?.SetVisible(!ghost);
     }
 
     public int UpdateMesh() {

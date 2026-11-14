@@ -45,6 +45,8 @@ public partial class IntersectionScriptView {
     }
 
     [LuaMember("position")] public LuaVec3 Position => new LuaVec3(GO.GetPosition(intersection.point));
+    [LuaMember("parameters")] public LuaValue Parameters => PropPlacerGeometry.StateTable(intersection.state);
+    [LuaMember("typeName")] public string TypeName => intersection.state?.Str("type", "") ?? "";
     [LuaMember("roadCount")] public int RoadCount => roads.Count;
     //1-based position of the road itself in the clockwise order
     [LuaMember("selfIndex")] public int SelfIndex => roads.IndexOf(self) + 1;
@@ -72,6 +74,7 @@ public partial class RoadScriptView {
     }
 
     [LuaMember("vars")] public LuaValue Vars => RoadScriptContext.GetVariables(road);
+    [LuaMember("parameters")] public LuaValue Parameters => PropPlacerGeometry.StateTable(road.state);
     [LuaMember("atStart")] public bool AtStart => atStart;
     [LuaMember("isSelf")] public bool IsSelf => isSelf;
     [LuaMember("typeName")] public string TypeName => road.state?.Str("type", "") ?? "";

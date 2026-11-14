@@ -17,6 +17,13 @@ public abstract class CoreElementTool {
     public bool IsEnabled(object element) {
         if (element == null || !History.ElementSnapshot.IsAlive(element) || !Accepts(element)) return false;
         if (enabledWhen == null) return true;
+        return Evaluate(enabledWhen, element, name + " (availability)");
+    }
+
+    //a Lua predicate ("<module>.<function>") of an element of the city, given detached snapshots ({kind, id, state}) of it
+    //(ctx.element) and of its neighbors (ctx.neighbors: the roads of an intersection, the intersections of a road, the
+    //owners of a custom element); also used by the enabledWhen of the fields of the panels
+    public static bool Evaluate(string predicate, object element, string definitionName) {
         Lua.LuaValue Snapshot(object value) {
             var result = new Lua.LuaTable();
             result["kind"] = History.ElementSnapshot.ReferenceKind(value) ?? "";
@@ -40,10 +47,10 @@ public abstract class CoreElementTool {
         ctx["neighbors"] = neighbors;
         var host = RuntimeCalculator.Scripting.LuaScriptHost.Get();
         try {
-            var value = host.Call(host.Resolve(enabledWhen), Lua.LuaValue.Nil, ctx, name + " (availability)");
+            var value = host.Call(host.Resolve(predicate), Lua.LuaValue.Nil, ctx, definitionName);
             return value.TryRead<bool>(out var enabled) && enabled;
         } catch (System.Exception e) {
-            host.ReportError(name + " (availability)", e.Message);
+            host.ReportError(definitionName, e.Message);
             return false;
         }
     }

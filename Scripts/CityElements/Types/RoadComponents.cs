@@ -57,6 +57,7 @@ namespace CityElements.Types {
         public string[] widths;
         public Dictionary<string, string> getters;
         public ComponentInfo[] components;
+        public ExtraInfo[] extras; //optional geometries made by Lua functions (see ExtraInfo)
     }
 
     public class RoadComponentMesh {
@@ -185,6 +186,7 @@ namespace CityElements.Types {
         public string roadEndCrosswalkTexture;
         public bool minimizeSubmeshes;
         public ExtraTerrainPiece[] extraTerrainPieces = new ExtraTerrainPiece[0];
+        public ExtraInfo[] extras; //optional geometries made by Lua functions (see ExtraInfo)
     }
 
     public class IntersectionType: ITypeWithUI {

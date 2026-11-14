@@ -10,6 +10,7 @@ namespace CityElements.Types.Runtime {
         public Vector3Array endAnchorsCalculators;
         public readonly Lua.LuaFunction postProcessFunction; //the post-process pass of the sections (null if the type has none)
         public readonly RC.Scripting.LuaScriptHost postProcessHost; //the host of that function
+        public readonly ExtrasType extras; //null if the type has none
 
         internal static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists(Types.RoadType type) {
             var floatVars = new List<string>() {
@@ -81,6 +82,7 @@ namespace CityElements.Types.Runtime {
                 postProcessFunction = postProcessHost.Resolve(type.settings.postProcess);
             }
             SetIndices();
+            extras = ExtrasType.Create(type.settings.extras, variableContainer, scriptHost);
         }
 
         float GetLowpolyCurveMult(int i, List<Vector3> curvePoints) {

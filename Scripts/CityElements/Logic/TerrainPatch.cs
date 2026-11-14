@@ -192,12 +192,8 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
             var result = type.scriptHost.Call(type.geometryFunction, RC.Scripting.LuaVariableView.Get(variableContainer), ctx, name);
             foreach (var mesh in CustomElements.CustomElementScripting.ReadGeometry(result).meshes) {
                 if (mesh.pickOnly || mesh.placeholder) continue;
-                var texture = mesh.color.HasValue ? "" : mesh.texture == null ? "" : MaterialManager.GetTextureName(state, mesh.texture);
                 res.Add(new TerrainPatchGenerator.ExtraMesh {
-                    vertices = mesh.vertices, uvs = mesh.uvs, triangles = mesh.triangles,
-                    //a mesh without a texture or solid colour is not drawn
-                    material = mesh.color.HasValue ? MaterialManager.GetHandleMaterial(mesh.color.Value)
-                        : MaterialManager.GetMaterial(string.IsNullOrEmpty(texture) ? "_TRANSPARENT_" : texture)
+                    vertices = mesh.vertices, uvs = mesh.uvs, triangles = mesh.triangles, material = ElementExtras.MeshMaterial(mesh, state)
                 });
             }
         } catch (System.Exception e) {

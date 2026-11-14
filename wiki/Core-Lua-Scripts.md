@@ -76,6 +76,8 @@ A script definition is evaluated at the same moments and in the same order as an
 | Member | Description |
 |---|---|
 | `position` | The center (`vec3`). |
+| `typeName` | Its intersection type. |
+| `parameters` | A detached snapshot of its state (also the strings). |
 | `roadCount` | Number of roads. |
 | `selfIndex` | Position of the road itself among the roads sorted clockwise (1-based). |
 | `road(i)` | The road at position `i` in the clockwise order. The index wraps around: `road(selfIndex + 1)` is the next road clockwise, `road(selfIndex - 1)` the previous one. |
@@ -85,6 +87,7 @@ A script definition is evaluated at the same moments and in the same order as an
 | Member | Description |
 |---|---|
 | `vars` | Its variables, like `v`. |
+| `parameters` | A detached snapshot of its state (also the strings). |
 | `atStart` | `true` if its start is at the intersection, `false` if its end is. |
 | `isSelf` | `true` for the road that called the script. |
 | `typeName` | Its road type. |
@@ -183,3 +186,7 @@ The [props types](Core-Props-and-Objects#the-placement-callback) and the polygon
 A road type, or the spline of a custom element type, can edit its sections with a function of a script once they are computed (`postProcess` in its settings): it gets all the sections (centers, frames, offsets and vertices) and the sources of the element, and returns the sections to change. See [Core Roads](Core-Roads#post-processing). The MM2 core makes the sections of its roads coplanar this way (`lua/coplanar.lua`).
 
 A terrain patch type can add meshes made from the surface of its patches with a function of a script (`geometry` in its settings), e.g. a bottom under an elevated patch. See [Core Terrain Patches](Core-Terrain-Patches#settingsjson).
+
+## Extras
+
+A road or intersection type can draw optional geometry with functions of scripts, while their conditions are true (`extras` in its settings), with data for the exporters, e.g. the decals of the MM2 cable car rails. See [Core Extras](Core-Extras).

@@ -82,6 +82,7 @@ A core that builds every vertex from `v<n>`, `localRight` and `localUp` needs no
 | `trafficTypes` | if lanes are used | List of lane types with a `name` and an RGB `color` (0-255) used to draw them. |
 | `trafficLanes` | no | Traffic lanes defined at road level (components can define more). |
 | `postProcess` | no | `<module>.<function>` of the [Lua scripts](Core-Lua-Scripts) of the core: edits the sections once they are computed, see [Post-processing](#post-processing). |
+| `extras` | no | Optional geometries made by [Lua scripts](Core-Lua-Scripts) while their conditions are true, e.g. decals along the road, see [Core Extras](Core-Extras). |
 | `geometryless` | no | Default false. If true, the roads of this type have no geometry, only their traffic, see [Roads without geometry](#roads-without-geometry). |
 | `widths` | no | Names of the float parameters that are widths. With low-poly curves (or *adjust low-poly width*), they are multiplied at each section by `1 / cos(half the turning angle)` so that the road keeps its width at the corners. |
 | `getters` | yes | Standard getters, see below. |

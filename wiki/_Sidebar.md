@@ -28,6 +28,7 @@
 - [Parameters and UI](Parameters-and-UI)
 - [Roads](Core-Roads)
 - [Intersections](Core-Intersections)
+- [Extras](Core-Extras)
 - [Terrain Patches](Core-Terrain-Patches)
 - [Buildings](Core-Buildings)
 - [Props and Objects](Core-Props-and-Objects)

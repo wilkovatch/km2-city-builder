@@ -170,7 +170,10 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         mc = GameEngine.Mesh.CreateCollider(GO.GetObject(this), m);
         GO.SetLayer(this, 7);
         genState = new GeneratorState(this);
+        extras = new ElementExtras(this);
     }
+
+    public ElementExtras extras; //made by the intersection (see Intersection.RebuildExtras)
 
     public CityElements.Types.Runtime.IntersectionType GetIntersectionType() {
         var dict = CityElements.Types.Parsers.TypeParser.GetIntersectionTypes();

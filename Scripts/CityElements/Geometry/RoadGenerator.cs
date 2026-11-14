@@ -102,6 +102,31 @@ public partial class RoadGenerator : PhysicsScriptable {
         GO.SetParent(lanesRenderersContainer, this);
         propsContainer = GO.Create("PropsContainer");
         GO.SetParent(propsContainer, this);
+        extras = new ElementExtras(this);
+    }
+
+    public ElementExtras extras; //made by the road (see Road.RebuildExtras), not by the pieces through the intersections
+
+    //the traffic lanes and the bounds of the prop lines, for the Lua scripts: {name, type (of a traffic lane), points}
+    public Lua.LuaTable LanesTable() {
+        var res = new Lua.LuaTable();
+        for (int i = 0; i < lanes.Count && i < lanesInfo.Count; i++) {
+            var lane = new Lua.LuaTable();
+            var name = lanesInfo[i].name;
+            lane["name"] = name;
+            var parts = name.Split('_');
+            if (parts[0] == "traffic" && parts.Length > 1 && int.TryParse(parts[1], out var type)) lane["type"] = type;
+            lane["points"] = CustomElements.CustomElementScripting.List(lanes[i]);
+            res[i + 1] = lane;
+        }
+        return res;
+    }
+
+    //the vertices of the sections, section by section
+    public Lua.LuaTable SectionsTable() {
+        var res = new Lua.LuaTable();
+        for (int i = 0; i < subGen.sectionVertices.Count; i++) res[i + 1] = CustomElements.CustomElementScripting.List(subGen.sectionVertices[i]);
+        return res;
     }
 
     public void ResetSubGen() {

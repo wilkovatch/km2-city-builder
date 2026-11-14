@@ -54,6 +54,7 @@ Built-in state properties (edited in `mainGroup`): `type`, `sidewalkSegments` (n
 | `defaultCrosswalkTexture` | Name of the intersection parameter holding the default crosswalk texture. |
 | `roadStartCrosswalkTexture`, `roadEndCrosswalkTexture` | Names of road **getters** returning the road's own crosswalk texture for its start and end (optional). A crosswalk at the start of a road uses the start one, a crosswalk at its end the end one; if that value is empty (or the getter isn't set), the default is used. The result is the `crosswalkTexture` of the [crosswalk mesh](#crosswalks). |
 | `extraTerrainPieces` | Optional list (default empty), see below. |
+| `extras` | Optional geometries made by [Lua scripts](Core-Lua-Scripts) while their conditions are true, from the intersection and its roads (e.g. decals across it), see [Core Extras](Core-Extras). |
 
 ## Junction files
 

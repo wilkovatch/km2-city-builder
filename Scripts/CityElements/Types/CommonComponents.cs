@@ -153,6 +153,14 @@ namespace CityElements.Types {
         public string condition;
     }
 
+    //an optional geometry of a road or intersection type (e.g. decals along it), made by a Lua function of the core while
+    //its condition is true, drawn with the element and exported in its fields (see the Core Extras page of the wiki)
+    public class ExtraInfo {
+        public string name;
+        public string condition; //a boolean expression over the variables of the element (always on if not set)
+        public string geometry; //"<module>.<function>" of the lua folder of the core
+    }
+
     public abstract class SubObjectWithLocalDefinitions {
         public Definition[] localDefinitions;
     }
@@ -162,6 +170,9 @@ namespace CityElements.Types {
         public float width;
         public float height; //only for the "label:" elements, the height of their row (0.4 if not set)
         public bool boundsOnly; //only for the props types: not shown where the props have no bounds (lineOnly directly on a prop placer)
+        //optional "<module>.<function>" of the lua folder: a predicate of the edited element and its neighbors (as the
+        //enabledWhen of the converters), the field is disabled while it is false
+        public string enabledWhen;
     }
 
     public struct Tab {

@@ -279,10 +279,20 @@ namespace CityEncoder {
                     }
                 }
                 baseData.fields.SetArray("lanes", lanes.ToArray());
+                baseData.fields.SetProperty("extras", GetExtras(generator.extras));
             }
             baseData.propLines = GetPropLines(generator.placements);
             elem.data = baseData;
             return elem;
+        }
+
+        //the extras made in the last rebuild of an element (see ElementExtras): their names and the data of their functions
+        static object[] GetExtras(ElementExtras extras) {
+            var res = new List<object>();
+            if (extras != null) {
+                foreach (var (name, export) in extras.built) res.Add(new Dictionary<string, object> { { "name", name }, { "export", export } });
+            }
+            return res.ToArray();
         }
 
         //the props placed by a prop rule (see PropPlacement), by props container
@@ -320,6 +330,7 @@ namespace CityEncoder {
             baseData.fields.SetArray("sortOrder", intersection.generator.sortOrder.ToArray());
             baseData.fields.SetArray("geometrySortOrder", intersection.generator.geometrySortOrder.ToArray());
             baseData.mesh = GetMeshData(GO.GetObject(intersection.generator));
+            baseData.fields.SetProperty("extras", GetExtras(intersection.generator.extras));
             elem.data = baseData;
             elem.b64v3_center = GetEncodedVector3(GO.GetPosition(intersection.point));
             var iRoadsArray = new int[intersection.roads.Count];

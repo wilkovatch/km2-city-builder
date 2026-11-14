@@ -41,6 +41,7 @@ This version of the program is written in C# on Godot 4.7 (.NET). Engine specifi
 5. [Core Roads](Core-Roads): road types, components, mesh description, lanes, props lines.
    - [Core Spline Types](Core-Splines): shared built-in and core-defined curves, element allowlists, Lua evaluation and road split/merge callbacks.
 6. [Core Intersections](Core-Intersections): intersection types, junctions, extra terrain pieces.
+   - [Core Extras](Core-Extras): optional geometry of the roads and intersections made by Lua scripts (e.g. the MM2 cable car rail decals), with data for the exporters.
 7. [Core Terrain Patches](Core-Terrain-Patches): terrain patch types.
 8. [Core Buildings](Core-Buildings): building types and building blocks.
 9. [Core Props and Objects](Core-Props-and-Objects): props types and their placement callbacks, mesh instances, parametric objects.

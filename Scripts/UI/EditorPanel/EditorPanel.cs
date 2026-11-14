@@ -43,6 +43,8 @@ public abstract partial class EditorPanel {
     bool initializedForActivation = false;
     //the buttons of the converters and of the checks of the core, enabled while they can run on the element
     readonly List<(EditorPanelElements.Button button, CoreElementTool tool)> conversionButtons = new();
+    //the fields with an enabledWhen predicate (see TabElement), checked again with the conversion buttons
+    readonly List<(EditorPanelElement field, string predicate, System.Func<IObjectWithState> getObject)> conditionalFields = new();
     internal bool IsInitialized => !initializationPending;
 
     //discard controls for the previous city without constructing the hidden panel for the next one
@@ -293,7 +295,12 @@ public abstract partial class EditorPanel {
                         break;
                 }
                 //presets never store instance specific values
-                if (prependstate && EditingPreset() && (param.instanceSpecific || (SingleStateParameters && param.type == "reference"))) field?.SetInteractable(false);
+                if (prependstate && EditingPreset() && (param.instanceSpecific || (SingleStateParameters && param.type == "reference"))) {
+                    field?.SetInteractable(false);
+                } else if (elem.enabledWhen != null && field != null) {
+                    conditionalFields.Add((field, elem.enabledWhen, getObject));
+                    field.SetInteractable(IsFieldEnabled(elem.enabledWhen, getObject));
+                }
                 break;
             }
         }
@@ -453,6 +460,7 @@ public abstract partial class EditorPanel {
 
     public virtual void Destroy() {
         conversionButtons.Clear();
+        conditionalFields.Clear();
         initializationPending = true;
         foreach (var page in pages) {
             page.Destroy();
@@ -525,6 +533,14 @@ public abstract partial class EditorPanel {
 
     public void UpdateConversionButtons() {
         foreach (var (button, tool) in conversionButtons) button.SetInteractable(tool.IsEnabled(getObject?.Invoke()));
+        foreach (var (field, predicate, getter) in conditionalFields) field.SetInteractable(IsFieldEnabled(predicate, getter));
+    }
+
+    //a field with an enabledWhen predicate is enabled when it is true for the edited element (always for a preset)
+    static bool IsFieldEnabled(string predicate, System.Func<IObjectWithState> getObject) {
+        var element = getObject?.Invoke();
+        if (element == null || !History.ElementSnapshot.IsAlive(element)) return true;
+        return CoreElementTool.Evaluate(predicate, element, predicate + " (enabledWhen)");
     }
 
     //the city element edited from the panel, recorded before each change made from it for undo/redo
