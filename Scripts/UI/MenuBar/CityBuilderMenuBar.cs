@@ -1495,6 +1495,12 @@ public partial class CityBuilderMenuBar : Control {
         if (!AlertActive()) alert = new Alert(this, title, message, okText, cancelText, okAction, cancelAction, height, leftAlign, width);
     }
 
+    public void CreateAlert(string title, string message, (string text, System.Action action)[] buttons,
+        float height = 180.0f, bool leftAlign = false, float width = 400.0f) {
+
+        if (!AlertActive()) alert = new Alert(this, title, message, buttons, height, leftAlign, width);
+    }
+
     public void CreateInput(string title, string placeholder, string buttonText, System.Action<string> genericAction = null) {
         if (!InputActive()) inputFieldPopup = new InputFieldPopup(this, title, placeholder, buttonText, genericAction);
     }

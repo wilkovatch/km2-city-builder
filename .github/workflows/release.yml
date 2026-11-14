@@ -1,5 +1,7 @@
 # Builds the Windows and Linux versions and publishes them as a GitHub release
 # whenever a push to main changes the files used by the program (wiki and documentation changes are ignored).
+# Each platform has two variants: one without Python (installed by the program when first needed)
+# and one that includes it (made by .github/scripts/bundle-python.sh).
 # The release is tagged v<Version>-<short commit hash>, with <Version> taken from the csproj,
 # and its description lists the commits since the previous release (version number increases excluded).
 name: Build and release
@@ -59,6 +61,12 @@ jobs:
         if: steps.version.outputs.exists == 'false'
         with:
           dotnet-version: 9.0.x
+
+      # installs the Python packages of the Windows variant that includes Python
+      - uses: actions/setup-python@v5
+        if: steps.version.outputs.exists == 'false'
+        with:
+          python-version: 3.x
 
       # pandoc and typst build the quickstart guide PDF, Carlito replaces Calibri (same metrics)
       - name: Install the quickstart guide tools
@@ -131,6 +139,14 @@ jobs:
           mv build/windows/km2-city-builder.zip "dist/km2-city-builder-$VERSION-$HASH-windows.zip"
           mv build/linux/km2-city-builder.zip "dist/km2-city-builder-$VERSION-$HASH-linux.zip"
 
+      - name: Make the variants that include Python
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          for platform in windows linux; do
+            zip="dist/km2-city-builder-$VERSION-$HASH-$platform"
+            bash .github/scripts/bundle-python.sh "$platform" "$zip.zip" "$zip-python.zip"
+          done
+
       # the export plugin only logs its errors, so the contents of the builds are checked here
       - name: Check the builds
         if: steps.version.outputs.exists == 'false'
@@ -149,6 +165,8 @@ jobs:
           failed=0
           check "dist/km2-city-builder-$VERSION-$HASH-windows.zip" km2-city-builder.exe
           check "dist/km2-city-builder-$VERSION-$HASH-linux.zip" km2-city-builder
+          check "dist/km2-city-builder-$VERSION-$HASH-windows-python.zip" km2-city-builder.exe python/python.exe python/LICENSE.txt
+          check "dist/km2-city-builder-$VERSION-$HASH-linux-python.zip" km2-city-builder python/bin/python3 python/licenses/LICENSE.openssl-3.txt
           exit $failed
 
       # commits that only change the version number in the csproj are left out
@@ -169,6 +187,10 @@ jobs:
             is_version_bump "$commit" || git log -1 --format='- %s (%h)' "$commit"
           done)
           {
+            echo "## Downloads"
+            echo "- \`km2-city-builder-$VERSION-$HASH-<platform>.zip\`: Python is set up on the first start (a compatible one already installed, or downloaded in the program's folder)."
+            echo "- \`km2-city-builder-$VERSION-$HASH-<platform>-python.zip\`: Python is included."
+            echo
             echo "## Changes"
             echo "${changes:-- No changes to the program}"
             if [ -n "$PREV" ]; then

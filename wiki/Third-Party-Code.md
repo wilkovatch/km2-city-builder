@@ -39,4 +39,11 @@ The program bundles or depends on the following code. The license texts are in t
 
 ## Python
 
-The embedded Python is the official Windows embeddable distribution (downloaded by `pythonInstaller/installer.ps1`). The base requirements (`pythonInstaller/requirements.txt`) only contain `psutil`, used by the server to detect when the program exits. Each core lists its own requirements and their licenses in `pythonInfo` (see [Core Structure](Core-Structure)).
+The embedded Python is the official Windows embeddable distribution (downloaded by `pythonInstaller/installer.ps1`), and on Linux a portable CPython build from python-build-standalone (downloaded by `PythonManager`). The base requirements (`pythonInstaller/requirements.txt`) only contain `psutil`, used by the server to detect when the program exits. Each core lists its own requirements and their licenses in `pythonInfo` (see [Core Structure](Core-Structure)).
+
+When the program downloads Python, the user gets it directly from its distributors, together with its license. The release variants that include Python redistribute it instead, so `.github/scripts/bundle-python.sh` keeps what its licenses require:
+
+* Python is under the PSF License Version 2, which requires keeping its license and copyright notice and including a summary of the changes made to it. The notice appended to `License.txt` points to the license files and lists the changes (the renamed `._pth` file on Windows, the removed module and stripped symbols on Linux, the added packages).
+* The libraries built into Python (OpenSSL, libffi, bzip2, zlib, sqlite, ...) are under their own permissive licenses. On Windows they are all in `python/LICENSE.txt`, which also holds the terms for the Microsoft runtime (`vcruntime140.dll`). On Linux they are in `python/licenses`, copied from the full python-build-standalone archive (the `install_only` one only has the CPython license).
+* Berkeley DB, linked into the `dbm.ndbm` module of the Linux build, is under the Sleepycat license, which requires offering its source code. Neither the program nor the cores use `dbm.ndbm`, so the module and its license are removed (`dbm` falls back to `dbm.sqlite3`).
+* The licenses of `pip` (including the packages it vendors) and of the base requirements are in their `*.dist-info` folders, which are kept.

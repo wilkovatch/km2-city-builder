@@ -23,7 +23,7 @@ The full documentation is in the [wiki](https://github.com/wilkovatch/km2-city-b
 
 ### Setup
 
-- **Python 3** is required. The city builder can manage its own Python installation, in which case the packages required by the cores are installed automatically. To use your own installation instead, set its path in *Settings→Preferences→Python* and install the packages required by the cores yourself.
+- **Python 3** is required. Each release has a variant that includes it (`-python` in the file name). Otherwise, on the first start the city builder offers to use a compatible Python already installed on the system (3.12 or later, with pip), if it finds one, or to download its own in its folder. Either way the packages required by the cores are installed with pip when needed. A different installation can be set in *Settings→Preferences→Python*.
 - **Cores**: on first launch, go to *Settings→Preferences→Cores*, select one of the listed cores and click *Install*. Other cores can be added with *Add from repository* and their Git URL. Cores can only be managed while no city is loaded.
 - **Assets**: textures and meshes are looked up in the city folder and in the paths added in *Settings→Preferences→Paths* (global paths for all cities, local paths for the current one). The stock assets of a game usually go in `Files/common/<core name>`. Supported formats are .bmp, .jpg, .png, .tga and .dds for textures and .obj for meshes; cores can add more (e.g. the native formats of the game) via Python.
 

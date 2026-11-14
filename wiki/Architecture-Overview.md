@@ -28,6 +28,8 @@ Exporting also generates `Quickstart guide.pdf` from the [Quickstart Guide](Quic
 
 There are export presets for Windows and Linux (x86_64), and either can be exported from either system once the Godot .NET export templates for that platform are installed. The Linux build leaves out the Windows-only Python installer scripts, because it downloads its Python itself the first time Python is needed.
 
+The release workflow (`.github/workflows/release.yml`) publishes two variants for each platform: the exported build, which sets up Python on the first start (see [PythonManager](Settings-Paths-and-Python#interpreter-selection-and-installation)), and a `-python` variant made by `.github/scripts/bundle-python.sh`, which adds to it the same Python the program would download, with `pip` and the base requirements, in the `python` folder. The script also appends the Python notices to `License.txt` (see [Third-Party Code](Third-Party-Code#python)).
+
 ## Scene tree and startup
 
 The main scene is `CityBuilder.tscn`:

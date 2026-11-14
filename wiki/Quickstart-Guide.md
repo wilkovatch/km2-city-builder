@@ -27,7 +27,7 @@ Try to finish the road network before placing terrain patches: changing the topo
 
 ### Python
 
-Python 3 is required to use the city builder. You can let the city builder manage its own Python installation, in this case the packages required by the cores are installed automatically. Alternatively you can use your own installation by setting its path in *Settings→Preferences→Python*, in that case you will have to install the packages required by the cores by yourself. The same tab also contains the port of the local Python server and its debug mode (see [Troubleshooting](#troubleshooting)).
+Python 3 is required to use the city builder. Each release has a variant that already includes it (the one with `-python` in the file name). With the other variant, on the first start the city builder asks how to set it up: if a compatible Python is already installed on the system (3.12 or later, with pip) you can choose between using it and downloading one in the city builder's folder, otherwise it offers the download. In both cases the packages required by the cores are installed with pip when a core needs them. You can also set the path of another installation in *Settings→Preferences→Python*. The same tab also contains the port of the local Python server and its debug mode (see [Troubleshooting](#troubleshooting)).
 
 ### Installing cores
 

@@ -3,7 +3,7 @@ using Godot;
 /// <summary>
 /// Alert popup: a light grey panel (matching the editor panels) centred on screen with a bold
 /// 20px title at the top, a 20px message and 160x30 buttons 10px above the bottom edge
-/// (a single centred button, or OK / Cancel at -90 / +90).
+/// (a single centred button, OK / Cancel at -90 / +90, or a row of any number of buttons 175px apart).
 /// </summary>
 public class Alert {
     private readonly Panel root;
@@ -20,6 +20,16 @@ public class Alert {
         root = Create(parent, title, message, width, height, leftAlign);
         AddButton(root, "OK", okText, -90, () => { okAction?.Invoke(); Close(); });
         AddButton(root, "Cancel", cancelText, 90, () => { cancelAction?.Invoke(); Close(); });
+    }
+
+    //one button for each (text, action) pair, from left to right; the alert must be wide enough for them (175px each)
+    public Alert(Control parent, string title, string message, (string text, System.Action action)[] buttons,
+        float height = 180, bool leftAlign = false, float width = 400) {
+        root = Create(parent, title, message, width, height, leftAlign);
+        for (int i = 0; i < buttons.Length; i++) {
+            var action = buttons[i].action;
+            AddButton(root, "Button" + i, buttons[i].text, (i - (buttons.Length - 1) * 0.5f) * 175, () => { action?.Invoke(); Close(); });
+        }
     }
 
     internal static Panel CreatePopupPanel(Control parent, string name, string title, float width, float height) {

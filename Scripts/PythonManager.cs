@@ -16,6 +16,12 @@ class PythonManager {
     //portable build used where there is no installer script (Linux), same Python minor version (3.15) as the Windows installer
     const string portablePythonUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.15.1%2B20261021-x86_64-unknown-linux-gnu-install_only.tar.gz";
 
+    //a Python installation of the system that can be used instead of downloading one
+    class SystemPython {
+        public string executable;
+        public string version;
+    }
+
     enum InstallationStatus {
         Valid,
         DefaultNotAvailable,
@@ -37,8 +43,9 @@ class PythonManager {
         }
     }
 
-    //only the interpreter in pythonPath (or in this program's "python" folder if not set) is used, never the
-    //system-wide one: if it is missing the returned path does not exist and the status check reports it
+    //only the interpreter in pythonPath (or in this program's "python" folder if not set) is used, the system-wide one
+    //only after the user chose it in CheckPython (which saves it in pythonPath): if it is missing the returned path
+    //does not exist and the status check reports it
     static string GetPythonExecutable() {
         return GetPythonExecutable(GetPythonPath());
     }
@@ -135,13 +142,13 @@ class PythonManager {
                     //nothing to do
                     return true;
                 case InstallationStatus.DefaultNotAvailable:
-                    menuBar.CreateAlert(SM.Get("WARNING"), SM.Get("PY_MANAGE_DEFAULT_NOT_AVAILABLE"), SM.Get("YES"), SM.Get("NO"), install, null, 350);
+                    AskInstall(menuBar, "PY_MANAGE_DEFAULT_NOT_AVAILABLE", install);
                     return false;
                 case InstallationStatus.DefaultNotValid:
-                    menuBar.CreateAlert(SM.Get("WARNING"), SM.Get("PY_MANAGE_DEFAULT_NOT_VALID"), SM.Get("YES"), SM.Get("NO"), install, null, 350);
+                    AskInstall(menuBar, "PY_MANAGE_DEFAULT_NOT_VALID", install);
                     return false;
                 case InstallationStatus.UserNotAvailable:
-                    menuBar.CreateAlert(SM.Get("WARNING"), SM.Get("PY_MANAGE_USER_NOT_AVAILABLE"), SM.Get("YES"), SM.Get("NO"), install, null, 350);
+                    AskInstall(menuBar, "PY_MANAGE_USER_NOT_AVAILABLE", install);
                     return false;
                 case InstallationStatus.UserNotValid:
                     menuBar.CreateAlert(SM.Get("WARNING"), SM.Get("PY_MANAGE_USER_NOT_VALID"), SM.Get("YES"), SM.Get("NO"), install, null, 350);
@@ -178,7 +185,8 @@ class PythonManager {
                     menuBar.CreateAlert(SM.Get("WARNING"), SM.Get("PY_MANAGE_DEFAULT_MODULES_NOT_VALID"), SM.Get("YES"), SM.Get("NO"), install, null, 300);
                     return false;
                 case InstallationStatus.UserNotValid:
-                    menuBar.CreateAlert(SM.Get("WARNING"), SM.Get("PY_MANAGE_USER_MODULES_NOT_VALID"), SM.Get("OK"), null, 300);
+                    //also offered for the user's installation, as it may be the system one chosen in CheckPython
+                    menuBar.CreateAlert(SM.Get("WARNING"), SM.Get("PY_MANAGE_USER_MODULES_NOT_VALID"), SM.Get("YES"), SM.Get("NO"), install, null, 300);
                     return false;
                 case InstallationStatus.UserNotAvailable:
                 case InstallationStatus.DefaultNotAvailable:
@@ -187,6 +195,108 @@ class PythonManager {
             }
         }
         return false;
+    }
+
+    //asks to download Python in this program's folder (the message of messageKey), or, if a compatible Python is
+    //installed on the system, to choose between using it and downloading one
+    static void AskInstall(CityBuilderMenuBar menuBar, string messageKey, Action install) {
+        var system = FindSystemPython();
+        if (system == null) {
+            menuBar.CreateAlert(SM.Get("WARNING"), SM.Get(messageKey), SM.Get("YES"), SM.Get("NO"), install, null, 350);
+            return;
+        }
+        var message = SM.Get(messageKey + "_REASON") + "\n" + SM.Get("PY_MANAGE_SYSTEM_CHOICE")
+            .Replace("{version}", system.version).Replace("{path}", system.executable);
+        menuBar.CreateAlert(SM.Get("WARNING"), message, new (string, Action)[] {
+            (SM.Get("PY_MANAGE_USE_SYSTEM"), delegate { UseSystemPython(menuBar, system); }),
+            (SM.Get("PY_MANAGE_DOWNLOAD"), install),
+            (SM.Get("CANCEL"), null)
+        }, 380, false, 560);
+    }
+
+    //the minimum version of a system Python to offer it, from pythonInstaller/minimumVersion.txt (the highest
+    //minimum Python version of the base and core requirements); null if the file is missing or not valid
+    static Version GetMinimumSystemVersion() {
+        var file = Path.Combine(PathHelper.BasePath(), "pythonInstaller", "minimumVersion.txt");
+        try {
+            if (Version.TryParse(File.ReadAllText(file).Trim(), out var res)) return res;
+            GameEngine.LogWarning("Not a valid Python version in " + file);
+        } catch (Exception e) {
+            GameEngine.LogWarning("Could not read the minimum Python version: " + e.Message);
+        }
+        return null;
+    }
+
+    //the first Python installation of the system (from the py launcher on Windows, or the PATH) with pip and at least
+    //the minimum version, other than the one already set; null if there is none
+    static SystemPython FindSystemPython() {
+        var minimum = GetMinimumSystemVersion();
+        if (minimum == null) return null;
+        var current = Path.GetFullPath(GetPythonExecutable());
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var commands = OperatingSystem.IsWindows()
+            ? new[] { new[] { "py", "-3" }, new[] { "python" }, new[] { "python3" } }
+            : new[] { new[] { "python3" }, new[] { "python" } };
+        foreach (var command in commands) {
+            var res = QueryPython(command);
+            if (res == null || !Version.TryParse(res.version, out var version) || version < minimum) continue;
+            if (string.Equals(Path.GetFullPath(res.executable), current, comparison)) continue;
+            return res;
+        }
+        return null;
+    }
+
+    //the executable and version of the Python started by the command, if it exists and has pip
+    static SystemPython QueryPython(string[] command) {
+        var startInfo = new ProcessStartInfo {
+            FileName = command[0],
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        for (int i = 1; i < command.Length; i++) startInfo.ArgumentList.Add(command[i]);
+        startInfo.ArgumentList.Add("-c");
+        startInfo.ArgumentList.Add("import sys, importlib.util; print(sys.executable); print('%d.%d.%d' % sys.version_info[:3]); print(importlib.util.find_spec('pip') is not None)");
+        try {
+            using var process = Process.Start(startInfo);
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            _ = process.StandardError.ReadToEndAsync(); //read, so that a full pipe can't block the process
+            if (!process.WaitForExit(5000)) {
+                process.Kill(true);
+                return null;
+            }
+            //e.g. the Windows Store placeholder for python.exe, which only prints how to install Python
+            if (process.ExitCode != 0) return null;
+            var lines = stdout.Result.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (lines.Length < 3 || lines[2] != "True" || !File.Exists(lines[0])) return null;
+            return new SystemPython { executable = lines[0], version = lines[1] };
+        } catch (Exception) {
+            return null; //not installed or not in the PATH
+        }
+    }
+
+    //sets the system Python as the one to use (pythonPath) and installs the base requirements in it if they are
+    //missing; if that fails the previous setting is restored
+    static void UseSystemPython(CityBuilderMenuBar menuBar, SystemPython system) {
+        var previous = GetPythonPath(true) ?? "";
+        SettingsManager.Set("pythonPath", system.executable);
+        SettingsManager.Save();
+        Action completed = delegate {
+            if (GetPythonStatus() == InstallationStatus.Valid) {
+                menuBar.CreateAlert(SM.Get("PY_MANAGE_INSTALL_OK_TITLE"), SM.Get("PY_MANAGE_SYSTEM_OK").Replace("{path}", system.executable), SM.Get("OK"), null, 200);
+            } else {
+                SettingsManager.Set("pythonPath", previous);
+                SettingsManager.Save();
+                menuBar.CreateAlert(SM.Get("ERROR"), SM.Get("PY_MANAGE_SYSTEM_ERROR"), SM.Get("OK"), null, 300);
+            }
+        };
+        if (GetPythonStatus() == InstallationStatus.Valid) {
+            //delayed, because the alert with the choice is still open while its button action runs
+            menuBar.DoDelayed(completed);
+        } else {
+            InstallRequirements(Path.Combine(PathHelper.BasePath(), "pythonInstaller", "requirements.txt"), completed, menuBar);
+        }
     }
 
     //the checks without the prompts of CheckPython and CheckPythonForCore
