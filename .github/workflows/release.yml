@@ -3,7 +3,8 @@
 # Each platform has two variants: one without Python (installed by the program when first needed)
 # and one that includes it (made by .github/scripts/bundle-python.sh).
 # The release is tagged v<Version>-<short commit hash>, with <Version> taken from the csproj,
-# and its description lists the commits since the previous release (version number increases excluded).
+# and its description lists the commits since the previous release (the first line of their messages, version number
+# increases excluded).
 name: Build and release
 
 on:
@@ -184,7 +185,8 @@ jobs:
             ! grep -Evq '^[+-][[:space:]]*<Version>[^<]*</Version>[[:space:]]*$' <<< "$lines"
           }
           changes=$(git log $RANGE --no-merges --format='%h' -- "${paths[@]}" | while read -r commit; do
-            is_version_bump "$commit" || git log -1 --format='- %s (%h)' "$commit"
+            # only the first line of the message (%s would join the lines of a first paragraph without a blank line after it)
+            is_version_bump "$commit" || printf -- '- %s (%s)\n' "$(git log -1 --format=%B "$commit" | head -n 1)" "$(git log -1 --format=%h "$commit")"
           done)
           {
             echo "## Downloads"
