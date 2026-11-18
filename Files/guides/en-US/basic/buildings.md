@@ -28,6 +28,18 @@ To make a single building with its own shape, check **Front only** and **Loop** 
 2. In the **Auto-Loop** tab, add the building presets to use, with **Add selected**. Each building uses one of them at random.
 3. Set **Building min length** and **Building max length**, then click **Auto-close loop**.
 
+## Reshaping a line
+
+- To add a point in the middle of a line, set **Point placement mode** to **Point** (or **Dividing point**) and click on the line, between two of its points.
+- To cut a line in two, click **Split**, then click a point that is not one of its ends, or anywhere on the line, where a point is added. Each building keeps its settings. Press Escape to cancel.
+- To join two lines, click **Join with...** and then click the other line, which is outlined in green if it can be joined. They are joined at their closest ends. If those ends are apart, a new building fills the gap.
+
+## Resizing a building
+
+While you edit a building, the outline of its top is drawn in light blue and the outline of its back in pink (faintly where the building covers it). Click the top or the back, or near its outline: the gizmo appears in its middle. Drag it: the top sets the **Height**, the back the **Depth**. The fields in the panel follow.
+
+The buildings of a line with **Front only** get their height from the line, so they can't be resized this way.
+
 ## Selecting parts of a building
 
 With nothing selected:

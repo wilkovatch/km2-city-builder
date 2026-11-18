@@ -6,7 +6,10 @@ using SelectionOutline = RuntimeGizmos.SelectionOutline;
 //the city, e.g. the checkpoints of a race. The lists are followed rather than notified, so what is deselected, or in a
 //list hidden with its panel or tab, or freed, stops being outlined.
 public class ListHighlight {
-    const uint Layer = 1u << 16;
+    //the render layer of the outline, shared with the outline of the element under the mouse of the element picker:
+    //there is no other free one, so the lists are not outlined while it is used
+    public const uint Layer = 1u << 16;
+    public static bool suspended = false;
     readonly List<(EditorPanelElements.ScrollList list, System.Func<int, Node> itemNode)> lists = new();
     SelectionOutline outline;
     List<GeometryInstance3D> outlined = new();
@@ -21,6 +24,10 @@ public class ListHighlight {
         foreach (var render in outlined) SelectionOutline.RemoveFromMask(render, Layer);
         outlined = new List<GeometryInstance3D>();
         lists.RemoveAll(x => x.list.IsFreed());
+        if (suspended) {
+            outline?.UpdateOutline(outlined);
+            return;
+        }
         foreach (var (list, itemNode) in lists) {
             if (list.IsShown() && list.Selected >= 0) outlined.AddRange(SelectionOutline.GetRenderers(itemNode(list.Selected)));
         }

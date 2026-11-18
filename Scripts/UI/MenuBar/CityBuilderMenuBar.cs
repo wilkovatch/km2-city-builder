@@ -36,6 +36,7 @@ public partial class CityBuilderMenuBar : Control {
     CustomExporterEditorPanel customExporterPanel = new CustomExporterEditorPanel();
     ScriptInputEditorPanel scriptInputEditorPanel = new ScriptInputEditorPanel();
     internal ValidationEditorPanel validationEditorPanel = new ValidationEditorPanel();
+    MultiSelectionEditorPanel multiSelectionEditorPanel = new MultiSelectionEditorPanel();
 
     ElementPlacer.RoadPlacer roadPlacer;
     ElementPlacer.TerrainPlacer terrainPlacer;
@@ -44,6 +45,9 @@ public partial class CityBuilderMenuBar : Control {
     public ElementPlacer.MeshPlacer meshPlacer;
     public ElementPlacer.ArrayPointPlacer arrayPointPlacer;
     public ElementPlacer.ReferencePicker referencePicker;
+    public ElementPlacer.ElementPicker elementPicker;
+    public ElementPlacer.OutlinePicker outlinePicker;
+    public ElementPlacer.MultiSelector multiSelector;
 
     public TerrainClick terrainClick;
     public FileBrowserHelper fileBrowser;
@@ -119,6 +123,9 @@ public partial class CityBuilderMenuBar : Control {
         meshPlacer = new ElementPlacer.MeshPlacer(helper.elementManager);
         arrayPointPlacer = new ElementPlacer.ArrayPointPlacer(this);
         referencePicker = new ElementPlacer.ReferencePicker(this);
+        elementPicker = new ElementPlacer.ElementPicker(this);
+        outlinePicker = new ElementPlacer.OutlinePicker(this);
+        multiSelector = new ElementPlacer.MultiSelector(this);
 
         /*fileBrowser = gameObject.AddComponent<FileBrowserHelper>();
         fileBrowser.builder = this;
@@ -160,7 +167,8 @@ public partial class CityBuilderMenuBar : Control {
             SM.Get("MANAGE_PRESETS"),
             SM.Get("VIEW_OBJ_LST"),
             SM.Get("BATCH_UPDATE"),
-            SM.Get("ROTATE_CITY")
+            SM.Get("ROTATE_CITY"),
+            SM.Get("SELECT_MULTIPLE")
         };
         actions = new List<System.Action> {
             ToggleCityProperties,
@@ -169,15 +177,16 @@ public partial class CityBuilderMenuBar : Control {
             OpenPresetList,
             OpenObjectList,
             OpenBatchUpdate,
-            RotateCity
+            RotateCity,
+            OpenMultiSelection
         };
         actions = Recorded(entries, actions);
         //undo and redo must not run inside a transaction
         entries.InsertRange(0, new List<string> { SM.Get("UNDO"), SM.Get("REDO"), MenuBar.Divider });
         actions.InsertRange(0, new List<System.Action> { Undo, Redo, null });
-        //an editing setting, not an undo step
-        entries.AddRange(new List<string> { MenuBar.Divider, SM.Get("SNAP_TO_GRID") });
-        actions.AddRange(new List<System.Action> { null, ToggleSnapping });
+        //starts a pick over the open editor (the copy is the undo step), and an editing setting
+        entries.AddRange(new List<string> { SM.Get("COPY_PROPERTIES_FROM"), MenuBar.Divider, SM.Get("SNAP_TO_GRID") });
+        actions.AddRange(new List<System.Action> { StartPropertyCopy, null, ToggleSnapping });
         var snapEntry = entries.Count - 1;
         menuBar.AddElement(SM.Get("EDIT"), entries, actions, GameEngine.Color.black);
         var editMenuIndex = menuBar.GetElementCount() - 1;
@@ -251,7 +260,8 @@ public partial class CityBuilderMenuBar : Control {
             cityPropertiesEditorPanel,
             scriptInputEditorPanel,
             validationEditorPanel,
-            customElementEditorPanel
+            customElementEditorPanel,
+            multiSelectionEditorPanel
         };
 
         menuBar.SetAsLastSibling();
@@ -493,7 +503,7 @@ public partial class CityBuilderMenuBar : Control {
         var standalonePanels = new List<EditorPanel> {
             cityPropertiesEditorPanel, newCityEditorPanel, heightmapEditorPanel, presetEditorPanel, cityTerrainEditorPanel,
             cityBuildingsEditorPanel, objectListEditorPanel, meshListEditorPanel, settingsEditorPanel,
-            batchUpdateEditorPanel, rotateCityPanel, customExporterPanel, scriptInputEditorPanel
+            batchUpdateEditorPanel, rotateCityPanel, customExporterPanel, scriptInputEditorPanel, multiSelectionEditorPanel
         };
         if (standalonePanels.Contains(root)) {
             return _ => {
@@ -846,6 +856,7 @@ public partial class CityBuilderMenuBar : Control {
         if (gizmo.mainTargetRoot != null && GodotObject.IsInstanceValid(gizmo.mainTargetRoot)) {
             Add(History.UndoManager.ResolveOwner(gizmo.mainTargetRoot));
         }
+        if (multiSelector.IsActive()) foreach (var element in multiSelector.Selection) Add(element);
         return res;
     }
 
@@ -1065,6 +1076,7 @@ public partial class CityBuilderMenuBar : Control {
         }
         if (GetActivePanel() is EditorPanels.ContainerContentsPanel contents) contents.Update(); //a child panel, not in the list
         if (GetActivePanel() is EditorPanels.CustomElementPickerPanel picker) picker.Update();
+        if (GetActivePanel() is EditorPanels.Buildings.BuildingEditorPanel buildingEditor) buildingEditor.Update();
     }
 
     void ToggleWireframe() {
@@ -1333,6 +1345,48 @@ public partial class CityBuilderMenuBar : Control {
 
     void RotateCity() {
         ShowPanel(rotateCityPanel);
+    }
+
+    void OpenMultiSelection() {
+        if (noCity) return;
+        DeselectAndCloseCurrentPanel();
+        ShowPanel(multiSelectionEditorPanel);
+    }
+
+    //the element of the open editor whose properties can be replaced with those of another one (see
+    //Operations.Properties): the element edited, or the building of the building editor
+    object GetPropertyCopyTarget() {
+        var buildingEditor = buildingLineEditorPanel.buildingEditor;
+        if (buildingEditor != null && buildingEditor.ActiveSelf() && buildingEditor.curBuilding != null) return buildingEditor.curBuilding;
+        var target = GetActivePanel()?.GetUndoTarget();
+        return target != null && !(target is Building) && Operations.Properties.Supports(target) && History.ElementSnapshot.IsAlive(target) ? target : null;
+    }
+
+    //the property eyedropper: the next click on an element of the same kind gives its properties to the element of
+    //the open editor (or to the selected elements of its kind, with the multiple selection)
+    void StartPropertyCopy() {
+        if (noCity) return;
+        if (elementPicker.IsActive()) {
+            elementPicker.Stop();
+            return;
+        }
+        if (multiSelectionEditorPanel.ActiveSelf()) {
+            multiSelectionEditorPanel.CopyProperties();
+            return;
+        }
+        var target = GetPropertyCopyTarget();
+        if (target == null) {
+            CreateAlert(SM.Get("COPY_PROPERTIES"), SM.Get("COPY_PROPERTIES_NO_ELEMENT"), SM.Get("OK"), null, 200);
+            return;
+        }
+        elementPicker.Start(
+            element => Operations.Properties.Check(element, target) == Operations.Properties.CopyResult.Copied,
+            element => History.UndoManager.Record(SM.Get("COPY_PROPERTIES"), () => {
+                if (Operations.Properties.Copy(element, target) != Operations.Properties.CopyResult.Copied) return;
+                NotifyChange(true);
+                RefreshActivePanelValues();
+            }),
+            null, target is Building);
     }
 
     public void OpenTextureSelector(Control panel, System.Func<object> valueGetter, System.Action<string> valueSetter, System.Action afterSetAction) {
@@ -1855,6 +1909,10 @@ public partial class CityBuilderMenuBar : Control {
                 customElementEditorPanel.Delete();
             }
         }
+        else if (multiSelectionEditorPanel.ActiveSelf()) {
+            multiSelectionEditorPanel.Delete(); //asks first
+            setSelectMode = false;
+        }
         else if (buildingLineEditorPanel.ActiveSelf()) {
             if (gizmo.mainTargetRoot != null) {
                 var point = GS.FindRecursive<TerrainPoint>(gizmo.mainTargetRoot);
@@ -1876,6 +1934,9 @@ public partial class CityBuilderMenuBar : Control {
         }
         if (setSelectMode) SetSelectObjectMode();
     }
+
+    //marks the handles moved with the gizmo that are not points of an element
+    public const string ToolHandleMeta = "toolHandle";
 
     public Node3D GetCurSelectedObject() {
         return gizmo.mainTargetRoot;
@@ -1899,6 +1960,7 @@ public partial class CityBuilderMenuBar : Control {
     void EditCurSelectedObjectTransform() {
         var obj = GetCurSelectedObject();
         if (obj == null || transformPropertiesEditorPanel.ActiveSelf()) return;
+        if (obj.HasMeta(ToolHandleMeta)) return; //a handle of a tool (the multiple selection, the size of a building), not a point
         if (gizmo.transformPanel == customElementEditorPanel) return;
         var roadEnd = GetEditedRoadEnd(obj);
         if (roadEnd != null) {
@@ -2018,7 +2080,9 @@ public partial class CityBuilderMenuBar : Control {
         if (Api.ScriptRunner.IsRunning) return; //the editor is locked while a script runs
         if (Input.GetInputStart(KeyCommand.Close)) {
             //Escape ends a picker first, keeping its panel open
-            if (referencePicker.IsActive()) referencePicker.Stop();
+            if (elementPicker.IsActive()) elementPicker.Stop();
+            else if (outlinePicker.IsActive()) outlinePicker.Stop();
+            else if (referencePicker.IsActive()) referencePicker.Stop();
             else if (!transformPropertiesEditorPanel.CancelAttachment() && !customElementEditorPanel.CancelPointAttachment()) History.UndoManager.Record(SM.Get("CLOSE"), DeselectAndCloseCurrentPanel);
         }
         else if (Input.GetInputStart(KeyCommand.CreateRoad)) {

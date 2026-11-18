@@ -50,6 +50,10 @@ namespace EditorPanels {
                 p.AddButton(SM.Get("TP_AUTOCLOSE"), AutoCloseLoop, 1.5f);
                 p.IncreaseRow();
 
+                p.AddButton(SM.Get("TP_SPLIT"), Split, 0.75f, SM.Get("TP_SPLIT_TOOLTIP"));
+                p.AddButton(SM.Get("TP_MERGE"), Merge, 0.75f, SM.Get("TP_MERGE_TOOLTIP"));
+                p.IncreaseRow();
+
                 p.AddFieldTextureField(builder, SM.Get("TEXTURE"), SM.Get("TEXTURE_PH"), GetCurPatch, "state.properties.texture", null, 1.5f, null, null, x => { PreferencesManager.Set("curTerrainTexture", x); });
                 p.IncreaseRow();
 
@@ -85,6 +89,49 @@ namespace EditorPanels {
                         break;
                 }
             }
+        }
+
+        //the patch is shown as edited again, after an operation that changed its points
+        void ReselectPatch() {
+            var patch = GetCurPatch(false);
+            if (patch == null || GetPlacer() == null) return;
+            patch.Select(true);
+            patch.SetActive(true, GetPlacer().placementMode == ElementPlacer.TerrainPlacer.PlacementMode.None);
+        }
+
+        //splits the patch along the line between the two places of its perimeter clicked next (points, or positions on
+        //its segments, where points are inserted)
+        void Split() {
+            var patch = GetCurPatch(false);
+            if (GetPlacer() == null || patch == null) return;
+            builder.outlinePicker.Start(() => patch.IsDeleted() ? null : patch.GetPerimeterPointsComponents(), true, 2,
+                (picked, place) => picked.Count == 0 || ElementPlacer.OutlinePicker.SeparatedOnLoop(picked[0], place, patch.GetPerimeterPointsComponents().Count),
+                places => History.UndoManager.Record(SM.Get("TP_SPLIT"), () => {
+                    if (GetCurPatch(false) != patch) return;
+                    var points = ElementPlacer.OutlinePicker.Resolve(places, (index, position) => Operations.TerrainPatches.InsertPerimeterPoint(patch, position, index));
+                    var newPatch = Operations.TerrainPatches.Split(builder.helper.elementManager, patch, points[0], points[1]);
+                    if (newPatch == null) return;
+                    GameEngine.Gizmo.ClearTargets();
+                    //the points of the new patch are hidden, the two it shares with this one are shown again with it
+                    newPatch.Select(false);
+                    newPatch.SetActive(false, false);
+                    ReselectPatch();
+                    builder.NotifyChange();
+                }));
+        }
+
+        //merges the patch clicked next into the patch
+        void Merge() {
+            var patch = GetCurPatch(false);
+            if (GetPlacer() == null || patch == null) return;
+            builder.elementPicker.Start(
+                element => element is TerrainPatch other && Operations.TerrainPatches.GetMergeError(patch, other) == null,
+                element => History.UndoManager.Record(SM.Get("TP_MERGE"), () => {
+                    if (GetCurPatch(false) != patch || !Operations.TerrainPatches.Merge(builder.helper.elementManager, patch, (TerrainPatch)element)) return;
+                    GameEngine.Gizmo.ClearTargets();
+                    ReselectPatch();
+                    builder.NotifyChange();
+                }));
         }
 
         void LoadPointPlacementMode(int mode) {

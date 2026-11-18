@@ -60,7 +60,10 @@ namespace ElementPlacer {
             switch (placementMode) {
                 case PlacementMode.Perimeter:
                     var pointOnly = !Input.GetInputPressed(KeyCommand.Modifier2);
-                    Operations.TerrainPatches.AddPerimeterPoint(patch, (Node3D)hit.collider, hit.point, pointOnly);
+                    //a click on a segment of the perimeter inserts a point in it, any other one adds a point at the end
+                    if (Operations.TerrainPatches.InsertOnClickedSegment(patch, (Node3D)hit.collider, hit.point) == null) {
+                        Operations.TerrainPatches.AddPerimeterPoint(patch, (Node3D)hit.collider, hit.point, pointOnly);
+                    }
                     break;
                 case PlacementMode.Internal:
                     Operations.TerrainPatches.AddInternalPoint(patch, (Node3D)hit.collider, hit.point);

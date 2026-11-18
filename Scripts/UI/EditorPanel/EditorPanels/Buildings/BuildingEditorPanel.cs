@@ -14,6 +14,7 @@ namespace EditorPanels {
             EditorPanelElements.Checkbox allSidesEqualCheckbox;
             public SideEditorPanel sideEditor;
             bool refreshingAllSidesCheckbox = false;
+            BuildingSizeHandles sizeHandles;
 
             public BuildingEditorPanel() {
                 AddComplexElement(new PresetSelector(this));
@@ -116,6 +117,18 @@ namespace EditorPanels {
                     curBuilding.SetOutline(active);
                 }
                 base.SetActive(active);
+                //the handles to change the height and the depth of the building in the city (not for the presets)
+                if (active && curBuilding != null && !pS.EditingPreset()) {
+                    sizeHandles ??= new BuildingSizeHandles(builder);
+                    sizeHandles.Show(curBuilding);
+                } else {
+                    sizeHandles?.Hide();
+                }
+            }
+
+            //after the updates of the city: the handles follow the building
+            public override void Update() {
+                if (ActiveSelf()) sizeHandles?.Update();
             }
 
             Building GetBuilding() {

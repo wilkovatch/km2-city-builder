@@ -13,6 +13,10 @@ public partial class TerrainClick : Control {
     public CityGroundHelper helper;
     RaycastHit hit, projectedHit;
     public TerrainAction modifier = null;
+    //a click mode used instead of the modifier while it is set, without replacing it: the editor panels get the element
+    //they edit from the modifier (see ElementPlacer.ElementPicker)
+    public TerrainAction overlay = null;
+    TerrainAction Current => overlay ?? modifier;
     bool isModifying = false;
     public bool uiEnabled = true;
     int strokeId = 0; //the changes made while the button is held (brush strokes, mesh painting) are a single undo step
@@ -36,19 +40,19 @@ public partial class TerrainClick : Control {
     }
 
     public override void _Process(double delta) {
-        if (!uiEnabled || modifier != rotationAction || !Input.GetInputPressed(KeyCommand.Select)) {
+        if (!uiEnabled || Current != rotationAction || !Input.GetInputPressed(KeyCommand.Select)) {
             rotationAction?.EndPlacementRotation();
             rotationAction = null;
         }
         ActionHandlerManager.HideGuideLine(); //until the click mode shows it again this frame
-        PlacementHeight.CheckSessionEnd(modifier);
+        PlacementHeight.CheckSessionEnd(Current);
         PlacementHeight.Active = false;
-        if (!uiEnabled || modifier == null || (!Input.GetInputPressed(KeyCommand.Select) && modifier is TerrainModifier.Null)) {
+        if (!uiEnabled || Current == null || (!Input.GetInputPressed(KeyCommand.Select) && Current is TerrainModifier.Null)) {
             UpdatePlacementHeight(false, null);
             ActionHandlerManager.HideHeightLine();
         }
         if (!uiEnabled) return;
-        if (modifier == null || (!Input.GetInputPressed(KeyCommand.Select) && modifier is TerrainModifier.Null)) {
+        if (Current == null || (!Input.GetInputPressed(KeyCommand.Select) && Current is TerrainModifier.Null)) {
             if (isModifying) GameEngine.Terrain.SyncHeightmap(helper.terrainObj);
             isModifying = false;
             return;
@@ -58,8 +62,8 @@ public partial class TerrainClick : Control {
             isModifying = false;
         }
         var ray = GameEngine.Raycast.GetRayFromScreen(GetViewport().GetCamera3D(), GameEngine.Input.MousePosition(GetViewport()));
-        var masks = modifier.GetLayerMasks();
-        var groundIndex = modifier.GroundHitIndex;
+        var masks = Current.GetLayerMasks();
+        var groundIndex = Current.GroundHitIndex;
         var onUI = OnUI();
         var hits = new List<RaycastHit?>();
         for (int i = 0; i < masks.Count; i++) {
@@ -73,7 +77,7 @@ public partial class TerrainClick : Control {
                     res = GetZeroPlaneHit(ray.origin, ray.direction);
                 }
                 if (res.HasValue) {
-                    if (Snapping.Enabled && modifier.SnapsToGrid) res = SnapToGrid(res.Value, mask);
+                    if (Snapping.Enabled && Current.SnapsToGrid) res = SnapToGrid(res.Value, mask);
                     isModifying = true;
                 }
             }
@@ -81,7 +85,7 @@ public partial class TerrainClick : Control {
         }
         ApplyPlacementHeight(hits, masks, groundIndex, onUI, ray.origin, ray.direction);
         if (Input.GetInputStart(KeyCommand.Select)) strokeId++;
-        var action = modifier; //applying it can change the click mode (selecting an intersection clears it)
+        var action = Current; //applying it can change the click mode (selecting an intersection clears it)
         History.UndoManager.Record(action.GetType().Name, () => {
             if (!action.UpdatePlacementRotation(GameEngine.Input.MousePosition(GetViewport()), ray.origin, ray.direction, onUI, () => helper.elementManager.FlagAsChanged())) action.Apply(hits);
             rotationAction = action.HasPlacementRotation ? action : null;
@@ -90,7 +94,7 @@ public partial class TerrainClick : Control {
 
     //the hit on the ground replaced by the raised point (PlacementHeight), with its line from the ground
     void ApplyPlacementHeight(List<RaycastHit?> hits, List<int> masks, int groundIndex, bool onUI, Vector3 rayOrigin, Vector3 rayDirection) {
-        var placing = groundIndex >= 0 && groundIndex < hits.Count && !onUI && modifier.SupportsPlacementHeight;
+        var placing = groundIndex >= 0 && groundIndex < hits.Count && !onUI && Current.SupportsPlacementHeight;
         Vector3? current = null;
         if (placing) current = PlacementHeight.Raised ? PlacementHeight.GetRaisedHit(rayOrigin, rayDirection)?.point : hits[groundIndex]?.point;
         UpdatePlacementHeight(placing && !TextInputFocused() && !NumericFieldDrag.IsDragging && !GizmoTransforming(), current);
@@ -200,6 +204,6 @@ public partial class TerrainClick : Control {
 
     //the terrain can't be clicked while it's hidden (View->Hide terrain grid)
     bool Raycast(Vector3 origin, Vector3 direction, out RaycastHit hit, float distance, int mask) {
-        return modifier.Raycast(helper, origin, direction, out hit, distance, CityGroundHelper.ExcludeHiddenTerrain(mask));
+        return Current.Raycast(helper, origin, direction, out hit, distance, CityGroundHelper.ExcludeHiddenTerrain(mask));
     }
 }

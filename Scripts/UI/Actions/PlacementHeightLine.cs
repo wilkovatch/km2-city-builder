@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 //The vertical line from the ground to a point placed above it (PlacementHeight): facing the camera, thin at any distance,
@@ -50,22 +51,44 @@ public class PlacementHeightLine {
 
     //a line between any two points (program coordinates), facing the camera, as thin at any distance, without ticks
     public void ShowSegment(Vector3 from, Vector3 to, Camera3D cam) {
-        var a = GameEngine.Vector3.DecodePosition(from);
-        var b = GameEngine.Vector3.DecodePosition(to);
-        var side = (b - a).Cross(-cam.GlobalBasis.Z);
-        side = side.LengthSquared() > 1e-8f ? side.Normalized() : cam.GlobalBasis.X;
-        Vector3 HalfWidth(Vector3 p) {
-            var across = cam.IsPositionBehind(p) ? 0 : cam.UnprojectPosition(p).DistanceTo(cam.UnprojectPosition(p + side));
-            return side * lineWidth * 0.5f / Mathf.Max(across, 1e-3f);
-        }
-        var ha = HalfWidth(a);
-        var hb = HalfWidth(b);
-        mesh.ClearSurfaces();
-        mesh.SurfaceBegin(Mesh.PrimitiveType.Triangles);
-        AddQuad(a - ha, a + ha, b + hb, b - hb);
-        mesh.SurfaceEnd();
-        node.Visible = true;
+        ShowSegments(new List<(Vector3, Vector3)> { (from, to) }, cam);
     }
+
+    //several such lines (width: in pixels)
+    public void ShowSegments(IEnumerable<(Vector3 from, Vector3 to)> segments, Camera3D cam, float width = lineWidth) {
+        mesh.ClearSurfaces();
+        var any = false;
+        foreach (var (from, to) in segments) {
+            var a = GameEngine.Vector3.DecodePosition(from);
+            var b = GameEngine.Vector3.DecodePosition(to);
+            if (a.DistanceSquaredTo(b) < 1e-8f) continue;
+            var side = (b - a).Cross(-cam.GlobalBasis.Z);
+            side = side.LengthSquared() > 1e-8f ? side.Normalized() : cam.GlobalBasis.X;
+            Vector3 HalfWidth(Vector3 p) {
+                var across = cam.IsPositionBehind(p) ? 0 : cam.UnprojectPosition(p).DistanceTo(cam.UnprojectPosition(p + side));
+                return side * width * 0.5f / Mathf.Max(across, 1e-3f);
+            }
+            var ha = HalfWidth(a);
+            var hb = HalfWidth(b);
+            if (!any) mesh.SurfaceBegin(Mesh.PrimitiveType.Triangles);
+            any = true;
+            AddQuad(a - ha, a + ha, b + hb, b - hb);
+        }
+        if (any) mesh.SurfaceEnd();
+        node.Visible = any;
+    }
+
+    //the same lines drawn by another material too (e.g. faintly where they are covered), sharing the mesh
+    public void AddLayer(Material material) {
+        node.AddChild(new MeshInstance3D {
+            Name = "Placement height line layer",
+            Mesh = mesh,
+            MaterialOverride = material,
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off
+        });
+    }
+
+    public MeshInstance3D Node => node;
 
     public void Hide() {
         node.Visible = false;

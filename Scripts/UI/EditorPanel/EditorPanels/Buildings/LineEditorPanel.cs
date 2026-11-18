@@ -62,10 +62,16 @@ namespace EditorPanels {
                     var b3 = p.AddButton(SM.Get("BL_DELETE_LAST_POINT"), DeleteLastPoint, w);
                     p.IncreaseRow();
 
+                    var b7 = p.AddButton(SM.Get("BL_SPLIT"), Split, w * 0.5f, SM.Get("BL_SPLIT_TOOLTIP"));
+                    var b8 = p.AddButton(SM.Get("BL_MERGE"), Merge, w * 0.5f, SM.Get("BL_MERGE_TOOLTIP"));
+                    p.IncreaseRow();
+
                     if (pS.EditingPreset()) {
                         pointPlacementModeDropdown.SetInteractable(false);
                         b2.SetInteractable(false);
                         b3.SetInteractable(false);
+                        b7.SetInteractable(false);
+                        b8.SetInteractable(false);
                     }
 
                 } else if (elem.name == "propertiesGroup") {
@@ -158,6 +164,57 @@ namespace EditorPanels {
                             break;
                     }
                 }
+            }
+
+            //the line is shown as edited again, after an operation that changed its points
+            void ReselectLine() {
+                var line = GetCurLine(false);
+                if (line == null || GetPlacer() == null) return;
+                line.Select(true);
+                line.SetActive(true, GetPlacer().placementMode == ElementPlacer.BuildingPlacer.PlacementMode.None);
+            }
+
+            //splits the line at the place clicked next: one of its points (not an end), or a position on one of its
+            //segments, where a point is inserted
+            void Split() {
+                var line = GetCurLine(false);
+                if (GetPlacer() == null || line == null) return;
+                if (line.IsLoop() || line.GetPointCount() < 2) {
+                    builder.CreateAlert(SM.Get("ERROR"), SM.Get("BL_SPLIT_ERROR"), SM.Get("OK"), null, 200);
+                    return;
+                }
+                builder.outlinePicker.Start(() => line.IsDeleted() ? null : line.GetPointsComponents(), false, 1,
+                    (picked, place) => place.point == null || (place.order > 0 && place.order < line.GetPointCount() - 1),
+                    places => History.UndoManager.Record(SM.Get("BL_SPLIT"), () => {
+                        if (GetCurLine(false) != line) return;
+                        var manager = builder.helper.elementManager;
+                        var point = ElementPlacer.OutlinePicker.Resolve(places, (index, position) => Operations.BuildingLines.InsertPoint(line, position, false, index))[0];
+                        //the buildings must match the points
+                        manager.worldChanged = true;
+                        manager.ProcessUpdate();
+                        var newLine = Operations.BuildingLines.Split(manager, line, point);
+                        if (newLine == null) return;
+                        GameEngine.Gizmo.ClearTargets();
+                        //the points of the new line are hidden, the one it shares with this one is shown again with it
+                        newLine.Select(false);
+                        newLine.SetActive(false, false);
+                        ReselectLine();
+                        builder.NotifyChange();
+                    }));
+            }
+
+            //joins the line clicked next to the line
+            void Merge() {
+                var line = GetCurLine(false);
+                if (GetPlacer() == null || line == null) return;
+                builder.elementPicker.Start(
+                    element => element is BuildingLine other && Operations.BuildingLines.GetMergeError(line, other) == null,
+                    element => History.UndoManager.Record(SM.Get("BL_MERGE"), () => {
+                        if (GetCurLine(false) != line || !Operations.BuildingLines.Merge(builder.helper.elementManager, line, (BuildingLine)element)) return;
+                        GameEngine.Gizmo.ClearTargets();
+                        ReselectLine();
+                        builder.NotifyChange();
+                    }));
             }
 
             void LoadPointPlacementMode(int mode) {

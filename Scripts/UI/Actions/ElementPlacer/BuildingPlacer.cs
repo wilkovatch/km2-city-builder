@@ -58,7 +58,11 @@ namespace ElementPlacer {
             var pointOnly = !Input.GetInputPressed(KeyCommand.Modifier2);
             var line = GetLine();
             var firstPoint = line.GetPointCount() == 0;
-            Operations.BuildingLines.AddPoint(line, (Node3D)hit.collider, hit.point, pointOnly, placementMode == PlacementMode.DividingPoint);
+            var dividing = placementMode == PlacementMode.DividingPoint;
+            //a click on a segment of the line inserts a point in it, any other one adds a point at the end
+            if (Operations.BuildingLines.InsertOnClickedSegment(line, (Node3D)hit.collider, hit.point, dividing) == null) {
+                Operations.BuildingLines.AddPoint(line, (Node3D)hit.collider, hit.point, pointOnly, dividing);
+            }
             //a raised point (on the ground hit), or a line started with the terrain hidden, would be put back on the ground
             if (PlacementHeight.TurnsOffProjection(firstPoint && line.GetPointCount() > 0, !hits[0].HasValue && !hits[1].HasValue) && line.IsProjectedToGround()) {
                 History.UndoManager.Touch(line);

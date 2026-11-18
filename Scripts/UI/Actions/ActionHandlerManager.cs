@@ -6,21 +6,25 @@ using GS = GameEngine.Scriptable;
 class ActionHandlerManager {
     public static ElementManager manager;
     static Node3D handle = null;
+    static Node3D markerHandle = null;
     static Node3D discHandle = null;
     static ShaderMaterial discHandleMaterial = null;
     static PlacementHeightLine heightLine = null;
     static PlacementHeightLine guideLine = null;
 
     static Node3D GetHandle() {
-        if (handle == null) {
-            handle = GameEngine.Resources.InstantiateObject("Handle", manager);
-            handle.Scale = GameEngine.Vector3.one;
-            // The preview handle sits under the cursor, so it must not intercept the editor raycasts.
-            var collider = GS.FindRecursive<CollisionShape3D>(handle);
-            if (collider != null) collider.Disabled = true;
-            GS.Cast<Handle>(handle).hideIfUnusedMode = true;
-        }
+        if (handle == null) handle = CreatePreviewHandle();
         return handle;
+    }
+
+    static Node3D CreatePreviewHandle() {
+        var res = GameEngine.Resources.InstantiateObject("Handle", manager);
+        res.Scale = GameEngine.Vector3.one;
+        // The preview handle sits under the cursor, so it must not intercept the editor raycasts.
+        var collider = GS.FindRecursive<CollisionShape3D>(res);
+        if (collider != null) collider.Disabled = true;
+        GS.Cast<Handle>(res).hideIfUnusedMode = true;
+        return res;
     }
 
     static Node3D GetDiscHandle() {
@@ -79,6 +83,18 @@ class ActionHandlerManager {
         GS.Cast<Handle>(handle).hideIfUnusedShow = true;
         GameEngine.GameObject.SetPosition(handle, position);
         var handleComp = GS.Cast<Handle>(handle);
+        handleComp.SetColor(color);
+        handleComp.SetScale(GameEngine.Vector3.one * size);
+    }
+
+    //a second handle, shown with the one under the cursor (e.g. on a place already picked), shown again every frame
+    public static void ShowMarkerHandle(Vector3 position, float size, Color color) {
+        if (float.IsNaN(position.X) || float.IsNaN(position.Y) || float.IsNaN(position.Z)) return;
+        if (markerHandle == null || !GodotObject.IsInstanceValid(markerHandle)) markerHandle = CreatePreviewHandle();
+        GameEngine.GameObject.SetEnabled(markerHandle, true);
+        var handleComp = GS.Cast<Handle>(markerHandle);
+        handleComp.hideIfUnusedShow = true;
+        GameEngine.GameObject.SetPosition(markerHandle, position);
         handleComp.SetColor(color);
         handleComp.SetScale(GameEngine.Vector3.one * size);
     }

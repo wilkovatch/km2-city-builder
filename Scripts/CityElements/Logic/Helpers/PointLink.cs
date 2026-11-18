@@ -40,6 +40,13 @@ public partial class PointLink : PhysicsScriptable, HandleUpdater.IUpdatable {
         return res;
     }
 
+    //removes the links of the element starting from the point (e.g. the last point of an open line has none)
+    public static void Remove(GameObject parent, IGroundable groundable) {
+        foreach (var link in GS.FindMultipleRecursive<PointLink>(parent)) {
+            if (!link.deleted && link.groundable == groundable) link.Delete();
+        }
+    }
+
     public void UpdateParams() {
         if (deleted) return;
         if (GO.IsNull(next)) {

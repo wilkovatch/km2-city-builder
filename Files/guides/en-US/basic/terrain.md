@@ -21,6 +21,14 @@ To connect a patch to the roads around it, click on their **anchor points**, sho
 
 To fill a loop of roads quickly, place the first point on an anchor of the loop and click **Auto-close loop**.
 
+## Reshaping a patch
+
+Click a patch to edit it. With **Point placement mode** set to **None**, click a point and move it with the gizmo.
+
+- To add a corner, set the mode to **Perimeter** and click on a side of the patch: a new point is added there, between the two points of that side.
+- To cut a patch in two, click **Split**, then click two places of its perimeter: a point, or anywhere on a side, where a point is added. The handle under the mouse is green where you can click, and red on a place next to the first one; the first place stays marked with a yellow handle. The patch is cut along the line between them, and the two patches stay joined along the cut. Press Escape to cancel.
+- To join two patches that share a side, click **Merge with...** and then click the other patch. The patch under the mouse is outlined in green if it can be merged, and in red if not. The patch you were editing keeps its texture and settings.
+
 ## Details
 
 To change the heightmap's vertical range, open **Scripts → Rescale heightmap**. **Range only** preserves elevations within the new float precision; **Rescale heights** scales hills and valleys around zero. Range-only shortcuts select **0.1 cm**, **1 cm** or **10 cm** positive height steps; negative heights have finer spacing. The custom maximum is ignored for shortcuts. A range that would clip terrain is refused, and the whole run is one undo step.

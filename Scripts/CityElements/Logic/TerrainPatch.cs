@@ -132,6 +132,37 @@ public partial class TerrainPatch : Scriptable, IGroundable, IObjectWithState {
         }
     }
 
+    //inserts a free point in the perimeter before the point at the index (at the end with the number of points)
+    public TerrainPoint InsertPerimeterPoint(int index, Vector3 position) {
+        if (deleted || index < 0 || index > perimeterPoints.Count) return null;
+        History.UndoManager.Touch(this);
+        var point = TerrainPoint.Create(position, this, container);
+        perimeterPoints.Insert(index, point);
+        generator.lr.enabled = perimeterPoints.Count > 2;
+        HighlightCurPerimeterPoint();
+        RecalculateBounds();
+        return point;
+    }
+
+    //the index to insert a point at to put it in the segment of the perimeter closest to the position (-1 with less
+    //than two points)
+    public int ClosestPerimeterInsertIndex(Vector3 position) {
+        return AddTerrainPointToSequence.ClosestSegmentInsertIndex(perimeterPoints, position, true);
+    }
+
+    //replaces the points (used to split and merge patches): the points given to another patch are kept, the ones left
+    //without any element are deleted
+    public void SetPoints(List<TerrainPoint> perimeter, List<TerrainPoint> internals) {
+        History.UndoManager.Touch(this);
+        var old = new List<TerrainPoint>(perimeterPoints);
+        old.AddRange(internalPoints);
+        RestoreFromSnapshot(perimeter, internals, state);
+        generator.lr.enabled = false; //shown again when the patch is selected
+        foreach (var point in old) {
+            if (!point.IsDeleted() && point.GetLinks().Count == 0) point.Delete();
+        }
+    }
+
     public void RemovePerimeterPoint() {
         if (perimeterPoints.Count < 1) return;
         History.UndoManager.Touch(this);

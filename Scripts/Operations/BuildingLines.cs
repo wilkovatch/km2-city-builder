@@ -63,6 +63,109 @@ namespace Operations {
             line.Delete();
         }
 
+        //inserts a free point in the line, in the segment closest to the position (or before the point at the index);
+        //null if the line has less than two points (or the index is out of range)
+        public static TerrainPoint InsertPoint(BuildingLine line, Vector3 position, bool dividing = false, int? index = null) {
+            var at = index ?? line.ClosestInsertIndex(position);
+            return at < 0 ? null : line.InsertPoint(at, position, dividing);
+        }
+
+        //a click on a segment of the line being edited (obj: what was clicked) inserts a free point there, giving the
+        //segment a new corner; null if the click is not on one (it is then a point to add, see AddPoint)
+        public static TerrainPoint InsertOnClickedSegment(BuildingLine line, Node3D obj, Vector3 point, bool dividing) {
+            var index = AddTerrainPointToSequence.ClickedSegmentInsertIndex(line.GetPointsComponents(), obj, ref point);
+            return index < 0 ? null : line.InsertPoint(index, point, dividing);
+        }
+
+        //null if the line can be split at the point, otherwise why not
+        public static string GetSplitError(BuildingLine line, TerrainPoint point) {
+            if (line == null || line.IsDeleted()) return "the building line was deleted";
+            if (line.IsLoop()) return "a looping building line can't be split";
+            var points = line.GetPointsComponents();
+            var index = points.IndexOf(point);
+            if (point == null || index < 0) return "the point is not part of the building line";
+            if (index == 0 || index == points.Count - 1) return "the point must not be an end of the building line";
+            return null;
+        }
+
+        //splits the line at one of its points: the line keeps the points up to it, a new line with the same properties
+        //gets the ones from it. The point is shared by both lines (they stay joined when it moves), and the buildings
+        //keep their properties (the two parts of a building cut by the split have the ones it had). Returns the new
+        //line (null if it can't be split, see GetSplitError)
+        public static BuildingLine Split(ElementManager manager, BuildingLine line, TerrainPoint point) {
+            if (GetSplitError(line, point) != null) return null;
+            var points = line.GetPointsComponents();
+            var index = points.IndexOf(point);
+            var kept = points.GetRange(0, index + 1);
+            var moved = points.GetRange(index, points.Count - index);
+            var keptStates = line.BuildingStatesFor(kept);
+            var movedStates = line.BuildingStatesFor(moved);
+            History.UndoManager.Touch(line);
+            var newLine = Create(manager);
+            newLine.state = (ObjectState)line.state.Clone();
+            newLine.instanceState = (ObjectState)line.instanceState.Clone();
+            newLine.stateForNewBuildings = (ObjectState)line.stateForNewBuildings.Clone();
+            //the new line first: the points it gets always belong to a line
+            newLine.SetPoints(moved, movedStates);
+            line.SetPoints(kept, keptStates);
+            manager.FlagAsChanged();
+            return newLine;
+        }
+
+        //null if the two lines can be joined, otherwise why not
+        public static string GetMergeError(BuildingLine line, BuildingLine other) {
+            if (line == null || other == null || line.IsDeleted() || other.IsDeleted()) return "a building line was deleted";
+            if (line == other) return "a building line can't be joined with itself";
+            if (line.IsLoop() || other.IsLoop()) return "a looping building line can't be joined";
+            if (line.GetPointCount() < 2 || other.GetPointCount() < 2) return "a building line has less than two points";
+            if (line.state.Str("type", null) != other.state.Str("type", null)) return "the building lines are of different types";
+            return null;
+        }
+
+        //joins the other line to the line, which keeps its properties: the ends of the two lines closest to each other
+        //are joined (the points of the other line are reversed if needed), into one point if they are at the same
+        //position (or are the same point), otherwise with a new building between them. The buildings keep their
+        //properties, and the other line is deleted. False if they can't be joined (see GetMergeError)
+        public static bool Merge(ElementManager manager, BuildingLine line, BuildingLine other) {
+            if (GetMergeError(line, other) != null) return false;
+            var a = line.GetPointsComponents();
+            var b = other.GetPointsComponents();
+            //the closest pair of ends: the other line goes after the line, or before it
+            float Distance(TerrainPoint p, TerrainPoint q) => p.GetPoint().DistanceSquaredTo(q.GetPoint());
+            var after = Mathf.Min(Distance(a[a.Count - 1], b[0]), Distance(a[a.Count - 1], b[b.Count - 1]));
+            var before = Mathf.Min(Distance(a[0], b[0]), Distance(a[0], b[b.Count - 1]));
+            var append = after <= before;
+            var joint = append ? a[a.Count - 1] : a[0];
+            //the other line starts from the joint when appended, and ends on it otherwise
+            var startsAtJoint = Distance(joint, b[0]) <= Distance(joint, b[b.Count - 1]);
+            if (startsAtJoint != append) b.Reverse();
+            var aStates = line.BuildingStatesFor(a);
+            var bStates = other.BuildingStatesFor(b);
+            var bJoint = append ? b[0] : b[b.Count - 1];
+            var samePoint = bJoint == joint || GeometryHelper.AreVectorsEqual(bJoint.GetPoint(), joint.GetPoint());
+            History.UndoManager.Touch(line);
+            History.UndoManager.Touch(other);
+            History.UndoManager.Touch(joint);
+            History.UndoManager.Touch(bJoint);
+            joint.dividing = true; //the buildings of the two lines stay apart
+            bJoint.dividing = true;
+            if (samePoint) b.Remove(bJoint);
+            var gap = new List<ObjectState>();
+            if (!samePoint && aStates.Count > 0) gap.Add((ObjectState)aStates[append ? aStates.Count - 1 : 0].Clone());
+            var points = new List<TerrainPoint>();
+            var states = new List<ObjectState>();
+            points.AddRange(append ? a : b);
+            points.AddRange(append ? b : a);
+            states.AddRange(append ? aStates : bStates);
+            states.AddRange(gap);
+            states.AddRange(append ? bStates : aStates);
+            //before the other line is deleted: the points it gives already belong to the line
+            line.SetPoints(points, states);
+            other.Delete();
+            manager.FlagAsChanged();
+            return true;
+        }
+
         public static void SetLineState(BuildingLine line, ObjectState state) {
             line.state = (ObjectState)state.Clone();
         }

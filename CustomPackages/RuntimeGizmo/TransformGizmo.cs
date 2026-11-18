@@ -85,6 +85,8 @@ namespace RuntimeGizmos {
 
         public Vector3 pivotPoint { get; private set; }
 
+        public IReadOnlyList<Node3D> targets => targetRootsOrdered;
+
         public Node3D mainTargetRoot { get { return targetRootsOrdered.Count > 0 ? targetRootsOrdered[0] : null; } }
 
         Camera3D myCamera;

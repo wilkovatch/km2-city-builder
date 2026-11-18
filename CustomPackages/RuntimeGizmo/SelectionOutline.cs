@@ -16,6 +16,7 @@ namespace RuntimeGizmos {
         SubViewport maskViewport;
         Camera3D maskCamera;
         MeshInstance3D quad;
+        ShaderMaterial material;
         bool active;
 
         public override void _Ready() {
@@ -39,7 +40,7 @@ namespace RuntimeGizmos {
             maskViewport.AddChild(maskCamera);
             maskCamera.MakeCurrent();
 
-            var material = GameEngine.Resources.LoadMaterial("Materials/SelectionOutline")?.Duplicate() as ShaderMaterial; //one per instance
+            material = GameEngine.Resources.LoadMaterial("Materials/SelectionOutline")?.Duplicate() as ShaderMaterial; //one per instance
             material?.SetShaderParameter("mask_texture", maskViewport.GetTexture());
             material?.SetShaderParameter("outline_color", outlineColor);
             quad = new MeshInstance3D {
@@ -78,6 +79,13 @@ namespace RuntimeGizmos {
             maskCamera.VOffset = mainCamera.VOffset;
             maskCamera.Near = mainCamera.Near;
             maskCamera.Far = mainCamera.Far;
+        }
+
+        // Changes the colour of the outline (e.g. one telling whether what is under the mouse can be picked)
+        public void SetColor(Color color) {
+            if (outlineColor == color) return;
+            outlineColor = color;
+            material?.SetShaderParameter("outline_color", color);
         }
 
         public static void RemoveFromMask(GeometryInstance3D render, uint layer = MaskLayer) {

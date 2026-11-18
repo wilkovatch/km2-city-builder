@@ -649,6 +649,86 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
             }, obj, point, pointOnly);
     }
 
+    //inserts a free point before the point at the index (at the end with the number of points)
+    public TerrainPoint InsertPoint(int index, Vector3 position, bool dividing = false) {
+        if (deleted || index < 0 || index > linePoints.Count) return null;
+        History.UndoManager.Touch(this);
+        var point = TerrainPoint.Create(position, this, container);
+        point.dividing = dividing;
+        linePoints.Insert(index, point);
+        lr.enabled = linePoints.Count > 1;
+        ReloadLine();
+        return point;
+    }
+
+    //the index to insert a point at to put it in the segment of the line closest to the position (-1 with less than
+    //two points)
+    public int ClosestInsertIndex(Vector3 position) {
+        return AddTerrainPointToSequence.ClosestSegmentInsertIndex(linePoints, position, IsLoop());
+    }
+
+    public bool IsLoop() {
+        return state.Bool("loop") && linePoints.Count > 2;
+    }
+
+    //the state of the building each building of a line with the points would get: the one of the building of this
+    //line they are part of (the first one for the parts outside every building, e.g. the gap between two joined lines)
+    public List<ObjectState> BuildingStatesFor(List<TerrainPoint> points) {
+        var res = new List<ObjectState>();
+        if (points.Count < 2) return res;
+        var ends = new List<TerrainPoint> { points[0] };
+        for (int i = 1; i < points.Count - 1; i++) {
+            if (points[i].dividing) ends.Add(points[i]);
+        }
+        ends.Add(points[points.Count - 1]);
+        for (int i = 0; i < ends.Count - 1; i++) {
+            var first = linePoints.IndexOf(ends[i]);
+            var last = linePoints.IndexOf(ends[i + 1]);
+            if (first > last) (first, last) = (last, first);
+            Building found = null;
+            foreach (var building in buildings) {
+                var start = linePoints.IndexOf(building.firstPoint);
+                var end = linePoints.IndexOf(building.lastPoint);
+                if (start > end) (start, end) = (end, start);
+                if (first >= 0 && start >= 0 && start <= first && last <= end) {
+                    found = building;
+                    break;
+                }
+            }
+            if (found == null && buildings.Count > 0) found = buildings[0];
+            res.Add((ObjectState)(found?.State ?? stateForNewBuildings).Clone());
+        }
+        return res;
+    }
+
+    //replaces the points and gives the buildings the states (used to split and merge lines): the points given to
+    //another line are kept, the ones left without any element are deleted
+    public void SetPoints(List<TerrainPoint> points, List<ObjectState> buildingStates) {
+        History.UndoManager.Touch(this);
+        var old = new List<TerrainPoint>(linePoints);
+        //the buildings are made again from the points, with the states given
+        foreach (var building in buildings) building.Delete();
+        buildings.Clear();
+        RestoreFromSnapshot(points, state, instanceState, buildingStates ?? new List<ObjectState>(), new List<ObjectState>());
+        foreach (var point in old) {
+            if (point.IsDeleted()) continue;
+            if (!linePoints.Contains(point)) PointLink.Remove(point.GetObject(), this);
+            if (point.GetLinks().Count == 0) point.Delete();
+        }
+    }
+
+    //the segments of the line can be clicked (to insert a point in them), as the ones of the terrain patches
+    void UpdatePointLinks() {
+        for (int i = 0; i < linePoints.Count; i++) {
+            var last = i == linePoints.Count - 1;
+            if (last && !IsLoop()) {
+                PointLink.Remove(linePoints[i].GetObject(), this);
+            } else {
+                PointLink.Create(linePoints[i].GetObject(), linePoints[last ? 0 : i + 1].GetObject(), 0.9f, this);
+            }
+        }
+    }
+
     public bool ContainsPoint(TerrainPoint p) {
         return linePoints.Contains(p);
     }
@@ -710,6 +790,7 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
 
     void ReloadLine() {
         ReloadType();
+        UpdatePointLinks();
         lr.positionCount = linePoints.Count;
         var points = new List<Vector3>();
         foreach (var p in linePoints) {
