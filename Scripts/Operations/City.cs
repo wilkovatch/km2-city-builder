@@ -87,6 +87,9 @@ namespace Operations {
                 foreach (var line in manager.buildings) {
                     foreach (var point in line.GetPointsComponents()) MoveTransform(point.GetObject());
                 }
+                foreach (var building in manager.polygonalBuildings) {
+                    foreach (var point in building.GetPointsComponents()) MoveTransform(point.GetObject());
+                }
 
                 var tRes = CityGroundHelper.heightmapResolution + 1;
                 var heights = GameEngine.Terrain.GetHeights(helper.terrainObj, 0, 0, tRes, tRes);
@@ -119,7 +122,8 @@ namespace Operations {
             BuildingLine = 3,
             Building = 4,
             BuildingSide = 5,
-            MeshInstance = 6
+            MeshInstance = 6,
+            PolygonalBuilding = 7
         }
 
         public class BatchException : System.Exception {
@@ -349,6 +353,16 @@ namespace Operations {
                             count++;
                         }
                         break;
+                    case BatchKind.PolygonalBuilding:
+                        foreach (var polygon in m.polygonalBuildings) {
+                            var pc = GetType(CityElements.Types.Parsers.TypeParser.GetPolygonalBuildingTypes(), polygon.state.Str("type", null))?.parameterContainer;
+                            System.Func<string, string> path = f => GetFieldPath(PolygonalBuildings.PresetCategory, pc, f);
+                            if (!CheckConditions(polygon, path, whereConditions)) continue;
+                            History.UndoManager.Touch(polygon);
+                            foreach (var info in updateInfo) FieldStatus.SetValue(polygon, info.value, path(info.field));
+                            count++;
+                        }
+                        break;
                     case BatchKind.Building:
                         foreach (var line in m.buildings) {
                             foreach (var building in line.buildings) {
@@ -449,6 +463,14 @@ namespace Operations {
                     foreach (var t in CityElements.Types.Parsers.TypeParser.GetBuildingLineTypes()) {
                         var subRes = new List<(string, string)>();
                         AddBuiltins("buildingLine", subRes);
+                        AddParameterContainer(t.Value.parameterContainer, subRes);
+                        res[t.Key] = subRes;
+                    }
+                    break;
+                case BatchKind.PolygonalBuilding:
+                    foreach (var t in CityElements.Types.Parsers.TypeParser.GetPolygonalBuildingTypes()) {
+                        var subRes = new List<(string, string)>();
+                        AddBuiltins(PolygonalBuildings.PresetCategory, subRes);
                         AddParameterContainer(t.Value.parameterContainer, subRes);
                         res[t.Key] = subRes;
                     }

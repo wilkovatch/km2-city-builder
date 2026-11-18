@@ -7,7 +7,7 @@ using System.IO;
 public abstract class CoreElementTool {
     public string name; //the folder
     public string folder;
-    public string[] sources; //the kinds accepted: road, intersection, terrainPatch, buildingLine, customElement, customElement/<type>
+    public string[] sources; //the kinds accepted: road, intersection, terrainPatch, buildingLine, polygonalBuilding, customElement, customElement/<type>
     public string[] types; //the procedural types accepted (all if null)
     public string script;
     public string enabledWhen; //optional Lua predicate, given detached snapshots of the element and its neighbors

@@ -270,11 +270,11 @@ By default a terrain patch is optimized for flat terrain. To make it follow a no
 
 ## Buildings
 
-There are two ways to place buildings: procedurally generated *building lines*, described here, or pre-made [meshes](#meshes-and-props).
+There are two ways to place buildings: procedurally generated *building lines* and *polygonal buildings*, described here, or pre-made [meshes](#meshes-and-props).
 
 ### Building lines
 
-To create a building line, select *Create→Building line* (or press Ctrl+E), then click on the ground to place the points of the line. Like for terrain patches, you can place these points on the anchors on the sides of roads and terrain patches.
+To create a building line, select *Create→Buildings→Building line* (or press Ctrl+E), then click on the ground to place the points of the line. Like for terrain patches, you can place these points on the anchors on the sides of roads and terrain patches.
 
 A building line is made of several buildings, separated by *dividing points* (a dividing point marks the end of a building and the start of the next one). You can place them directly (set the placement mode to *Dividing point*), or turn an existing point into a dividing point (set the placement mode to *None*, click on the point and click *Toggle dividing point*).
 
@@ -282,7 +282,11 @@ A building line is made of several buildings, separated by *dividing points* (a 
 
 If you move an anchor point connected to an edge containing a building point, the building point moves so that its relative position on the edge stays the same. Hold Ctrl while moving the anchor to keep the building point in place.
 
-To create a single building with a custom shape, check *Front only* and *Loop* in the *Properties* tab of the line, select a roof texture and set the building height.
+### Polygonal buildings
+
+A polygonal building is a single building with its own shape: select *Create→Buildings→Polygonal building* and click to place its corners around it, in either direction (on the ground, on anchors or on existing points). The outline goes through the points in their order and is always closed; it can have inward corners, and the facades always face outwards. Click on an edge to add a corner there. Set the height and the roof texture in the *Properties* tab; the height can also be set by dragging the roof (click it, or near its outline, and move the gizmo up or down).
+
+All the walls use the same facade: edit it with *Side properties*. To give each wall its own facade, check *Individual sides*, then choose the wall in the *Sides* list and click *Edit side*. Clicking a wall opens its facade, clicking the roof (or Shift-clicking a wall) opens the building.
 
 ### Automatic placement
 

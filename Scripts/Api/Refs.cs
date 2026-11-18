@@ -9,6 +9,10 @@ namespace Api {
     //  {"line": <ref>, "building": 0}                                         a building of a building line
     //  {"line": <ref>, "building": 0, "side": "front"}                        a side of a building
     //  {"line": <ref>, "building": 0, "side": "front", "block": 1}            a block of the dictionary of a side
+    //  {"polygon": <ref>, "wall": 2}                                         the side of a wall of a polygonal building (the
+    //                                                                         wall starting at its point 2; with one side for
+    //                                                                         every wall, any wall or none gives that side)
+    //  {"polygon": <ref>, "wall": 2, "block": 1}                             a block of the dictionary of that side
     //  {"road": <ref>, "container": "right"}                                  a props container of the prop rule of a road
     //  {"road": <ref>, "container": "right", "list": "props", "index": 0}     an element of a props container (no index:
     //                                                                         the single element of the list)
@@ -23,6 +27,8 @@ namespace Api {
         public string kind;
         public ElementRef line;
         public int? building;
+        public ElementRef polygon;
+        public int? wall;
         public string side;
         public int? block;
         public ElementRef road;
@@ -70,6 +76,8 @@ namespace Api {
                             case "name": res.name = v.Value<string>(); break;
                             case "kind": res.kind = v.Value<string>(); break;
                             case "line": res.line = Read(v); break;
+                            case "polygon": res.polygon = Read(v); break;
+                            case "wall": res.wall = v.Value<int?>(); break;
                             case "building": res.building = v.Value<int?>(); break;
                             case "side": res.side = v.Value<string>(); break;
                             case "block": res.block = v.Value<int?>(); break;
@@ -107,6 +115,8 @@ namespace Api {
             Add("kind", value.kind);
             Add("line", value.line);
             Add("building", value.building);
+            Add("polygon", value.polygon);
+            Add("wall", value.wall);
             Add("side", value.side);
             Add("block", value.block);
             Add("road", value.road);

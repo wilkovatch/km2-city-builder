@@ -121,6 +121,7 @@ namespace Operations {
             foreach (var e in manager.intersections) yield return e;
             foreach (var e in manager.patches) yield return e;
             foreach (var e in manager.buildings) yield return e;
+            foreach (var e in manager.polygonalBuildings) yield return e;
             foreach (var e in manager.customElements) yield return e;
         }
 

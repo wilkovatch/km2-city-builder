@@ -7,7 +7,7 @@ using B = CityElements.Types.Buildings;
 
 namespace EditorPanels {
     namespace Buildings {
-        public class BuildingEditorPanel : EditorPanel {
+        public class BuildingEditorPanel : EditorPanel, ISideEditorHost {
             public Building curBuilding = null;
             EditorPanelElements.Button frontBtn, leftBtn, rightBtn, backBtn;
             EditorPanelElements.TextureField topTex;
@@ -133,6 +133,27 @@ namespace EditorPanels {
 
             Building GetBuilding() {
                 return curBuilding;
+            }
+
+            public string GetSideBuildingType() {
+                var line = (parentPanel as LineEditorPanel)?.GetLine();
+                return line?.GetLineType().name;
+            }
+
+            public System.Func<EditorPanel, EditorPanel> CaptureSideReopen(BuildingSideGenerator curSide) {
+                var line = (parentPanel as LineEditorPanel)?.GetLine();
+                var building = curSide?.building;
+                if (line == null || building == null) return null;
+                var buildingIndex = line.buildings.IndexOf(building);
+                var sideName = Operations.BuildingLines.GetSideName(curSide);
+                if (buildingIndex < 0 || sideName == null) return null;
+                return parent => {
+                    if (parent is not BuildingEditorPanel buildingPanel) return null;
+                    var side = (buildingPanel.parentPanel as LineEditorPanel)?.GetBuildingSide(buildingIndex, sideName);
+                    if (side == null || buildingPanel.curBuilding != side.building) return null;
+                    buildingPanel.ShowSideEditor(side);
+                    return buildingPanel.sideEditor;
+                };
             }
 
             public override System.Func<EditorPanel, EditorPanel> CaptureReopen() {

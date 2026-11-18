@@ -15,13 +15,14 @@ public class TerrainSubmeshGenerator {
     public MeshCollider mc;
     Mesh mesh = null;
 
-    public TerrainSubmeshGenerator(BuildingLine line) {
-        Initialize(line);
+    //the collider is attached to the body (the element the roof belongs to)
+    public TerrainSubmeshGenerator(GameObject body) {
+        Initialize(body);
     }
 
-    public void Initialize(BuildingLine line) {
+    public void Initialize(GameObject body) {
         m = new SubMeshData();
-        mc = GameEngine.Mesh.CreateCollider(line, mesh);
+        mc = GameEngine.Mesh.CreateCollider(body, mesh);
     }
 
     public void Delete() {

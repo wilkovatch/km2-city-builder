@@ -21,6 +21,7 @@ public partial class CityBuilderMenuBar : Control {
     PresetEditorPanel presetEditorPanel = new PresetEditorPanel();
     TerrainPatchEditorPanel terrainPatchEditorPanel = new TerrainPatchEditorPanel();
     EditorPanels.Buildings.LineEditorPanel buildingLineEditorPanel = new EditorPanels.Buildings.LineEditorPanel();
+    EditorPanels.Buildings.PolygonalBuildingEditorPanel polygonalBuildingEditorPanel = new EditorPanels.Buildings.PolygonalBuildingEditorPanel();
     public EditorPanels.CustomElementEditorPanel customElementEditorPanel = new EditorPanels.CustomElementEditorPanel();
     WholeCityTerrainEditorPanel cityTerrainEditorPanel = new WholeCityTerrainEditorPanel();
     WholeCityBuildingsEditorPanel cityBuildingsEditorPanel = new WholeCityBuildingsEditorPanel();
@@ -41,6 +42,7 @@ public partial class CityBuilderMenuBar : Control {
     ElementPlacer.RoadPlacer roadPlacer;
     ElementPlacer.TerrainPlacer terrainPlacer;
     ElementPlacer.BuildingPlacer buildingPlacer;
+    ElementPlacer.PolygonalBuildingPlacer polygonalBuildingPlacer;
     public ElementPlacer.CustomElementPlacer customElementPlacer;
     public ElementPlacer.MeshPlacer meshPlacer;
     public ElementPlacer.ArrayPointPlacer arrayPointPlacer;
@@ -119,6 +121,7 @@ public partial class CityBuilderMenuBar : Control {
         roadPlacer = new ElementPlacer.RoadPlacer(helper.elementManager);
         terrainPlacer = new ElementPlacer.TerrainPlacer(helper.elementManager);
         buildingPlacer = new ElementPlacer.BuildingPlacer(helper.elementManager);
+        polygonalBuildingPlacer = new ElementPlacer.PolygonalBuildingPlacer(helper.elementManager);
         customElementPlacer = new ElementPlacer.CustomElementPlacer(helper.elementManager);
         meshPlacer = new ElementPlacer.MeshPlacer(helper.elementManager);
         arrayPointPlacer = new ElementPlacer.ArrayPointPlacer(this);
@@ -252,6 +255,7 @@ public partial class CityBuilderMenuBar : Control {
             meshListEditorPanel,
             transformPropertiesEditorPanel,
             buildingLineEditorPanel,
+            polygonalBuildingEditorPanel,
             settingsEditorPanel,
             propsEditorPanel,
             batchUpdateEditorPanel,
@@ -440,7 +444,7 @@ public partial class CityBuilderMenuBar : Control {
 
     bool IsElementEditor(EditorPanel panel) {
         return panel == roadEditorPanel || panel == intersectionEditorPanel || panel == terrainPatchEditorPanel || panel == buildingLineEditorPanel
-            || panel == customElementEditorPanel;
+            || panel == polygonalBuildingEditorPanel || panel == customElementEditorPanel;
     }
 
     System.Func<EditorPanel, EditorPanel> CaptureRootReopen(EditorPanel root) {
@@ -464,6 +468,11 @@ public partial class CityBuilderMenuBar : Control {
             if (editingPresets) return _ => { EditBuildingLinePresets(); return buildingLineEditorPanel; };
             var mode = (int)buildingPlacer.placementMode;
             return CaptureElementReopen((modifier as ElementPlacer.BuildingPlacer)?.GetLine(false), buildingLineEditorPanel, () => buildingLineEditorPanel.SetPointPlacementMode(mode));
+        }
+        if (root == polygonalBuildingEditorPanel) {
+            if (editingPresets) return _ => { EditPolygonalBuildingPresets(); return polygonalBuildingEditorPanel; };
+            var mode = (int)polygonalBuildingPlacer.placementMode;
+            return CaptureElementReopen((modifier as ElementPlacer.PolygonalBuildingPlacer)?.GetBuilding(false), polygonalBuildingEditorPanel, () => polygonalBuildingEditorPanel.SetPointPlacementMode(mode));
         }
         if (root == customElementEditorPanel) {
             var element = (modifier as ElementPlacer.CustomElementPlacer)?.GetElement();
@@ -719,8 +728,8 @@ public partial class CityBuilderMenuBar : Control {
     }
 
     public void ReloadCreateMenu() {
-        var entries = new List<string> { SM.Get("CREATE_ROAD"), SM.Get("CREATE_TERRAIN_PATCH"), SM.Get("CREATE_BUILDING_LINE") };
-        var actions = new List<System.Action> { CreateRoad, CreateTerrain, CreateBuildingLine };
+        var entries = new List<string> { SM.Get("CREATE_ROAD"), SM.Get("CREATE_TERRAIN_PATCH") };
+        var actions = new List<System.Action> { CreateRoad, CreateTerrain };
         var groups = new HashSet<string>();
         //the entries of the types with a createMenu submenu (a string key) are grouped in the submenu of that name
         var submenus = new Dictionary<int, MenuSubmenu>();
@@ -746,6 +755,11 @@ public partial class CityBuilderMenuBar : Control {
                 colors[index] = GameEngine.Color.blue;
                 submenus[index].colors[submenus[index].entries.Count - 1] = GameEngine.Color.blue;
             }
+        }
+        //the building lines and the polygonal buildings (if a building type of the core has them)
+        AddEntry(SM.Get("CREATE_BUILDING_LINE"), CreateBuildingLine, "CREATE_BUILDINGS_SUBMENU");
+        if (!noCity && PathHelper.CoreAvailable() && Operations.PolygonalBuildings.IsAvailable()) {
+            AddEntry(SM.Get("CREATE_POLYGONAL_BUILDING"), CreatePolygonalBuilding, "CREATE_BUILDINGS_SUBMENU");
         }
         if (!noCity && PathHelper.CoreAvailable()) {
             //the mesh instance types: their entries (or groups) open the mesh list to place a mesh as one of them
@@ -883,6 +897,7 @@ public partial class CityBuilderMenuBar : Control {
         roadPlacer.placementMode = ElementPlacer.RoadPlacer.PlacementMode.None;
         terrainPlacer.placementMode = ElementPlacer.TerrainPlacer.PlacementMode.None;
         buildingPlacer.placementMode = ElementPlacer.BuildingPlacer.PlacementMode.None;
+        polygonalBuildingPlacer.placementMode = ElementPlacer.PolygonalBuildingPlacer.PlacementMode.None;
         customElementPlacer.placementMode = ElementPlacer.CustomElementPlacer.PlacementMode.None;
         meshPlacer.placeEnabled = false;
         arrayPointPlacer.Stop();
@@ -1455,6 +1470,15 @@ public partial class CityBuilderMenuBar : Control {
         helper.elementManager.ShowAnchors(true);
     }
 
+    void CreatePolygonalBuilding() {
+        DisableAllPanels(polygonalBuildingEditorPanel);
+        polygonalBuildingPlacer.SetBuilding(null);
+        polygonalBuildingPlacer.placementMode = ElementPlacer.PolygonalBuildingPlacer.PlacementMode.Point;
+        terrainClick.modifier = polygonalBuildingPlacer;
+        polygonalBuildingEditorPanel.SetActive(true);
+        helper.elementManager.ShowAnchors(true);
+    }
+
     void CreateCustomElement() {
         StartCustomElementCreation(null);
     }
@@ -1632,6 +1656,7 @@ public partial class CityBuilderMenuBar : Control {
         var intersection = GS.FindRecursive<Intersection.IntersectionComponent>(selectedObject);
         var patch = GS.Cast<TerrainPatch>(selectedObject);
         var building = GS.Cast<BuildingLine>(selectedObject);
+        var polygon = GS.Cast<PolygonalBuilding>(selectedObject);
         if (road != null) {
             road.SetActive(false);
         }
@@ -1643,6 +1668,10 @@ public partial class CityBuilderMenuBar : Control {
         }
         else if (building != null) {
             building.SetActive(false, false);
+        }
+        else if (polygon != null) {
+            polygon.SetActive(false, false);
+            polygon.Select(false);
         }
         selectedObject = null;
         helper.elementManager.ShowAnchors(false);
@@ -1680,6 +1709,13 @@ public partial class CityBuilderMenuBar : Control {
         buildingLineEditorPanel.SetActive(true);
     }
 
+    public void EditPolygonalBuildingPresets() {
+        polygonalBuildingEditorPanel.Terminate();
+        DisableAllPanels(polygonalBuildingEditorPanel);
+        polygonalBuildingPlacer.SetBuilding(null);
+        polygonalBuildingEditorPanel.SetActive(true);
+    }
+
     public void ShowCustomExportDialog(FileBrowserHelper.CustomExporter exporter, string name) {
         DisableAllPanels(customExporterPanel);
         customExporterPanel.exporter = exporter;
@@ -1707,6 +1743,9 @@ public partial class CityBuilderMenuBar : Control {
         var buildingLine = GS.Cast<BuildingLine>(obj);
         var buildingSide = (buildingLine != null && c != null) ? buildingLine.GetColliderSide(c) : null;
         var building = (buildingLine != null && c != null) ? buildingLine.GetColliderBuilding(c) : null;
+        var polygon = GS.Cast<PolygonalBuilding>(obj);
+        if (polygon != null && polygon.IsDeleted()) polygon = null;
+        var polygonSide = (polygon != null && c != null) ? polygon.GetColliderSide(c) : null;
         var selector = GS.Cast<GenericSelector>(obj);
         var customElement = GS.Cast<CustomElement>(obj);
         if (customElement != null && customElement.IsDeleted()) customElement = null;
@@ -1807,6 +1846,18 @@ public partial class CityBuilderMenuBar : Control {
             buildingLine.SetActive(true, true);
             buildingLine.Select(true);
             if (withEditor) buildingLineEditorPanel.ShowWithStack(stack);
+        }
+        else if (polygon != null) {
+            //a wall opens its side (the shared one or its own), the roof or a wall with the first modifier the building
+            ReselectObjectPanelAndModifier(obj, withEditor, polygonalBuildingEditorPanel, polygonalBuildingPlacer);
+            if (withEditor) polygonalBuildingPlacer.SetBuilding(polygon);
+            helper.elementManager.ShowAnchors(true);
+            polygon.SetActive(true, true);
+            polygon.Select(true);
+            if (withEditor) {
+                polygonalBuildingEditorPanel.ShowWithStack(stack);
+                if (polygonSide != null && !Input.GetInputPressed(KeyCommand.Modifier1)) polygonalBuildingEditorPanel.EditSide(polygonSide);
+            }
         }
         else if (selector != null) {
             switch (selector.type) {
@@ -1912,6 +1963,23 @@ public partial class CityBuilderMenuBar : Control {
         else if (multiSelectionEditorPanel.ActiveSelf()) {
             multiSelectionEditorPanel.Delete(); //asks first
             setSelectMode = false;
+        }
+        else if (polygonalBuildingEditorPanel.ActiveSelf()) {
+            if (gizmo.mainTargetRoot != null) {
+                var point = GS.FindRecursive<TerrainPoint>(gizmo.mainTargetRoot);
+                if (point != null) {
+                    var building = polygonalBuildingEditorPanel.GetBuilding();
+                    if (building != null && Operations.PolygonalBuildings.RemovePoint(building, point)) {
+                        gizmo.RemoveTarget(gizmo.mainTargetRoot);
+                        point.Select(false);
+                        NotifyChange();
+                    }
+                }
+                setSelectMode = false;
+            }
+            else {
+                polygonalBuildingEditorPanel.Delete();
+            }
         }
         else if (buildingLineEditorPanel.ActiveSelf()) {
             if (gizmo.mainTargetRoot != null) {

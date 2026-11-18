@@ -7,7 +7,7 @@ using GS = GameEngine.Scriptable;
 namespace Api {
     //Reading the city
     public partial class CityApi {
-        public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "meshInstance", "terrainPoint", "cityProperties", "customElement" };
+        public static readonly string[] ElementKinds = { "road", "intersection", "terrainPatch", "buildingLine", "polygonalBuilding", "meshInstance", "terrainPoint", "cityProperties", "customElement" };
 
         internal static int IdOf(object element) {
             return element is CityProperties ? History.ElementRegistry.CityPropertiesId : History.ElementRegistry.GetId(element);
@@ -19,6 +19,7 @@ namespace Api {
                 case Intersection i: return i.state?.Str("type", null);
                 case TerrainPatch p: return p.state?.Str("type", null);
                 case BuildingLine l: return l.state?.Str("type", null);
+                case PolygonalBuilding b: return b.state?.Str("type", null);
                 case CustomElement e: return e.TypeName;
                 case MeshInstance m: return m.objectParameter == null ? m.TypeName : m.meshPath;
                 default: return null;
@@ -45,6 +46,7 @@ namespace Api {
                 intersections = CountAlive(M.intersections),
                 terrainPatches = CountAlive(M.patches),
                 buildingLines = CountAlive(M.buildings),
+                polygonalBuildings = CountAlive(M.polygonalBuildings),
                 meshInstances = CountAlive(M.meshes),
                 customElements = CountAlive(M.customElements),
                 terrainPoints = M.GetTerrainPoints().FindAll(p => p.anchorable).Count
@@ -243,6 +245,19 @@ namespace Api {
                     }
                     return new { points = PointsInfo(line.GetPointsComponents()), buildings };
                 }
+                case PolygonalBuilding polygon: {
+                    var points = polygon.GetPointsComponents();
+                    var walls = new List<object>();
+                    foreach (var w in polygon.walls) {
+                        walls.Add(new {
+                            point = points.IndexOf(w.firstPoint), //the wall of the side reference {polygon, wall}
+                            firstPoint = History.ElementRegistry.GetId(w.firstPoint),
+                            lastPoint = History.ElementRegistry.GetId(w.lastPoint),
+                            facing = w.front != null && w.front.facades.Count > 0 ? w.front.facades[0].forward : Vector3.Zero
+                        });
+                    }
+                    return new { points = PointsInfo(points), individualSides = polygon.IsIndividual(), selfIntersecting = polygon.IsSelfIntersecting(), walls };
+                }
                 case MeshInstance mesh: {
                     return new {
                         position = GO.GetPosition(mesh),
@@ -258,6 +273,7 @@ namespace Api {
                     var used = new List<int>();
                     foreach (var p in M.patches) if (p.GetPerimeterPointsComponents().Contains(point) || p.GetInternalPointsComponents().Contains(point)) used.Add(IdOf(p));
                     foreach (var l in M.buildings) if (l.ContainsPoint(point)) used.Add(IdOf(l));
+                    foreach (var b in M.polygonalBuildings) if (b.ContainsPoint(point)) used.Add(IdOf(b));
                     foreach (var l in M.customElements) if (l.HasPoint(point)) used.Add(IdOf(l));
                     return new { position = point.GetPoint(), dividing = point.dividing, usedBy = used };
                 }
@@ -307,7 +323,7 @@ namespace Api {
             }
         }
 
-        [ApiMethod("elements.geometry", "The generated geometry of a road, intersection, terrain patch, building line (with its buildings), mesh instance or parametric object, as in the export JSON (base64 arrays), with the materials and meshes it references")]
+        [ApiMethod("elements.geometry", "The generated geometry of a road, intersection, terrain patch, building line (with its buildings), polygonal building (with its walls), mesh instance or parametric object, as in the export JSON (base64 arrays), with the materials and meshes it references")]
         public object GetGeometry(ElementRef @ref) {
             var e = Resolve(@ref);
             using (var geometry = new CityEncoder.ExportGeometry(x => IdOf(x))) {
@@ -317,9 +333,10 @@ namespace Api {
                     case Intersection i: element = geometry.GetIntersection(i, IdOf(i)); break;
                     case TerrainPatch p: element = geometry.GetTerrainPatch(p, IdOf(p)); break;
                     case BuildingLine l: element = geometry.GetBuildingLine(l, IdOf(l)); break;
+                    case PolygonalBuilding b: element = geometry.GetPolygonalBuilding(b, IdOf(b)); break;
                     case CustomElement ll: element = geometry.GetCustomElement(ll, IdOf(ll)); break;
                     case MeshInstance m: element = geometry.GetMeshInstance(m, m.objectParameter == null ? IdOf(m) : -1); break;
-                    default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, meshInstance or parametricObject", KindOf(e));
+                    default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, polygonalBuilding, meshInstance or parametricObject", KindOf(e));
                 }
                 //serialized as in the export file
                 var token = JToken.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(element, Newtonsoft.Json.Formatting.None));

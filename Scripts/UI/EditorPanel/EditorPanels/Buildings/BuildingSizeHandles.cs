@@ -10,7 +10,10 @@ namespace EditorPanels {
         //moved up or down, its back sets its depth when moved towards or away from the front. Their contours are drawn in
         //their colors (faintly where something covers them), and a click on one of them (or near its contour) selects it,
         //with the gizmo at its middle. They are not points of the line: they are put back where the size of the building
-        //says after every change.
+        //says after every change. A polygonal building has only the top (its roof), which sets its height.
+        //The gizmo moves each of them only along the direction it changes the size in: the top up and down, the back
+        //towards and away from the front (its body is turned so that its local X axis goes towards the back, and the gizmo
+        //is in local space while one of them is its target).
         public class BuildingSizeHandles {
             const float MinSize = 0.1f;
             const float LineWidth = 3; //pixels
@@ -30,6 +33,12 @@ namespace EditorPanels {
 
             readonly CityBuilderMenuBar builder;
             Building building;
+            PolygonalBuilding polygon;
+            //the roof of the polygonal building: its edges and its triangles (at the base of the height)
+            List<(Vector3 from, Vector3 to)> roofEdges = new List<(Vector3, Vector3)>();
+            List<Vector3[]> roofTriangles = new List<Vector3[]>();
+            //the space of the gizmo before one of the sides became its target (null if none is)
+            RuntimeGizmos.TransformSpace? savedSpace = null;
             Side height, depth, dragged;
             bool hooked = false;
             //the front of the building, as when the drag started: its middle (at half its length), the direction to its
@@ -59,6 +68,17 @@ namespace EditorPanels {
 
             public void Show(Building building) {
                 this.building = building;
+                polygon = null;
+                Hook();
+            }
+
+            public void Show(PolygonalBuilding polygon) {
+                this.polygon = polygon;
+                building = null;
+                Hook();
+            }
+
+            void Hook() {
                 if (!hooked) {
                     builder.gizmo.onTransformStarted += OnTransformStarted;
                     builder.gizmo.onAnyChange += OnTransformChanged;
@@ -71,8 +91,10 @@ namespace EditorPanels {
 
             public void Hide() {
                 building = null;
+                polygon = null;
                 dragged = null;
                 SetShown(false);
+                RestoreGizmo();
                 if (hooked) {
                     builder.gizmo.onTransformStarted -= OnTransformStarted;
                     builder.gizmo.onAnyChange -= OnTransformChanged;
@@ -85,18 +107,24 @@ namespace EditorPanels {
             void SetShown(bool shown) {
                 foreach (var side in new[] { height, depth }) {
                     if (side == null || GO.IsNull(side.body)) continue;
-                    if (!shown && builder.gizmo.HasTarget(side.body)) builder.gizmo.ClearTargets();
-                    GO.SetEnabled(side.body, shown);
+                    var sideShown = shown && (side == height || polygon == null); //a polygonal building has no depth
+                    if (!sideShown && builder.gizmo.HasTarget(side.body)) builder.gizmo.ClearTargets();
+                    GO.SetEnabled(side.body, sideShown);
                 }
             }
 
             //the buildings of the lines with only the front get their height from the line, and have no depth
             bool Available() {
+                if (polygon != null) return GodotObject.IsInstanceValid(polygon) && !polygon.IsDeleted() && polygon.walls.Count >= 3 && polygon.roof != null;
                 return building != null && building.line != null && !building.line.IsDeleted() && building.line.buildings.Contains(building)
-                    && building.enabled && !building.line.state.Bool("frontOnly") && building.spline != null && building.spline.Count >= 2;
+                    && building.enabled && building.spline != null && building.spline.Count >= 2;
             }
 
             void ReadFront() {
+                if (polygon != null) {
+                    ReadRoof();
+                    return;
+                }
                 var spline = building.spline;
                 front = new List<(Vector3, Vector3)>(spline);
                 var length = 0.0f;
@@ -119,8 +147,59 @@ namespace EditorPanels {
                 baseHeight = building.height - building.state.Float("height");
             }
 
+            //the roof of the polygonal building: its outline, its triangles and the base of its height (the highest point),
+            //with the gizmo at the middle of its largest triangle (inside it also when it is concave)
+            void ReadRoof() {
+                roofEdges.Clear();
+                roofTriangles.Clear();
+                baseHeight = float.MinValue;
+                foreach (var wall in polygon.walls) {
+                    var a = wall.firstPoint.GetPoint();
+                    var b = wall.lastPoint.GetPoint();
+                    roofEdges.Add((a, b));
+                    baseHeight = Mathf.Max(baseHeight, Mathf.Max(a.Y, b.Y));
+                }
+                var roof = polygon.roof.GetSubmesh();
+                middle = roofEdges[0].from;
+                var largest = -1.0f;
+                if (roof.vertices != null && roof.indices != null) {
+                    foreach (var indices in roof.indices) {
+                        for (int t = 0; t + 2 < indices.Length; t += 3) {
+                            var triangle = new[] { roof.vertices[indices[t]], roof.vertices[indices[t + 1]], roof.vertices[indices[t + 2]] };
+                            roofTriangles.Add(triangle);
+                            var c1 = triangle[1] - triangle[0];
+                            var c2 = triangle[2] - triangle[0];
+                            var area = Mathf.Abs(c1.X * c2.Z - c1.Z * c2.X);
+                            if (area > largest) {
+                                largest = area;
+                                middle = (triangle[0] + triangle[1] + triangle[2]) / 3.0f;
+                            }
+                        }
+                    }
+                }
+                normal = Vector3.Zero;
+            }
+
+            //the roof of the polygonal building at its height
+            void PlaceRoof() {
+                var top = baseHeight + polygon.state.Float("height");
+                Vector3 Top(Vector3 p) => new Vector3(p.X, top, p.Z);
+                height.contour.Clear();
+                height.faces.Clear();
+                foreach (var (a, b) in roofEdges) height.contour.Add((Top(a), Top(b)));
+                //the faces have four corners: the third one twice
+                foreach (var t in roofTriangles) height.faces.Add(new[] { Top(t[0]), Top(t[1]), Top(t[2]), Top(t[2]) });
+                GO.SetPosition(height.body, Top(middle));
+                UpdateFaceShapes(height);
+                DrawContours();
+            }
+
             //the two sides where the size of the building puts them (as the building does, see Building.PreUpdateMesh)
             void Place() {
+                if (polygon != null) {
+                    PlaceRoof();
+                    return;
+                }
                 var top = baseHeight + building.state.Float("height");
                 var d = building.state.Float("depth");
                 Vector3 Top(Vector3 p) => new Vector3(p.X, top, p.Z);
@@ -154,14 +233,17 @@ namespace EditorPanels {
 
                 GO.SetPosition(height.body, Top(middle + normal * d * 0.5f));
                 GO.SetPosition(depth.body, new Vector3(0, (middle.Y + top) * 0.5f - middle.Y, 0) + middle + normal * d);
+                //the local X axis of the back goes towards the back (in Godot coordinates)
+                var towardsBack = GameEngine.Vector3.DecodePosition(normal);
+                depth.body.GlobalBasis = towardsBack.LengthSquared() > 1e-6f
+                    ? new Basis(towardsBack, Vector3.Up, towardsBack.Cross(Vector3.Up)).Orthonormalized() : Basis.Identity;
                 UpdateFaceShapes(height);
                 UpdateFaceShapes(depth);
                 DrawContours();
             }
 
-            //the colliders of the faces of a side (thin, as the faces of a building can be flat)
+            //the colliders of the faces of a side (thin, as the faces of a building can be flat), in the space of its body
             void UpdateFaceShapes(Side side) {
-                var origin = side.body.GlobalPosition;
                 while (side.faceShapes.Count < side.faces.Count) {
                     //its shape is given with its points (an empty convex shape fails to build its hull)
                     var shape = new CollisionShape3D { Disabled = true };
@@ -187,8 +269,8 @@ namespace EditorPanels {
                     thickness = thickness.Normalized() * 0.02f;
                     var points = new Vector3[face.Length * 2];
                     for (int j = 0; j < face.Length; j++) {
-                        points[j * 2] = GameEngine.Vector3.DecodePosition(face[j] + thickness) - origin;
-                        points[j * 2 + 1] = GameEngine.Vector3.DecodePosition(face[j] - thickness) - origin;
+                        points[j * 2] = side.body.ToLocal(GameEngine.Vector3.DecodePosition(face[j] + thickness));
+                        points[j * 2 + 1] = side.body.ToLocal(GameEngine.Vector3.DecodePosition(face[j] - thickness));
                     }
                     if (shape.Shape is ConvexPolygonShape3D convex) convex.Points = points;
                     else shape.Shape = new ConvexPolygonShape3D { Points = points };
@@ -208,7 +290,7 @@ namespace EditorPanels {
             }
 
             void UpdateEdgeShapes(Side side, Camera3D cam) {
-                var origin = side.body.GlobalPosition;
+                var toLocal = side.body.GlobalTransform.AffineInverse();
                 while (side.edgeShapes.Count < side.contour.Count) {
                     var shape = new CollisionShape3D { Shape = new CapsuleShape3D() };
                     side.body.AddChild(shape);
@@ -235,12 +317,38 @@ namespace EditorPanels {
                     capsule.Radius = radius;
                     capsule.Height = length + radius * 2;
                     var basis = direction.IsEqualApprox(Vector3.Up) ? Basis.Identity : new Basis(new Quaternion(Vector3.Up, direction));
-                    shape.Transform = new Transform3D(basis, mid - origin);
+                    shape.Transform = toLocal * new Transform3D(basis, mid);
                 }
             }
 
             void OnFrame() {
-                if (building != null && height != null && !GO.IsNull(height.body) && height.body.Visible) DrawContours();
+                if ((building != null || polygon != null) && height != null && !GO.IsNull(height.body) && height.body.Visible) DrawContours();
+                ApplyGizmoAxes();
+            }
+
+            //while a side is the target of the gizmo, it can only be moved along its axis (the gizmo allows every axis
+            //again when its targets change)
+            void ApplyGizmoAxes() {
+                var gizmo = builder.gizmo;
+                var target = gizmo.mainTargetRoot;
+                var onHeight = height != null && !GO.IsNull(height.body) && target == height.body;
+                var onDepth = polygon == null && depth != null && !GO.IsNull(depth.body) && target == depth.body;
+                if (!onHeight && !onDepth) {
+                    RestoreGizmo();
+                    return;
+                }
+                savedSpace ??= gizmo.space;
+                gizmo.space = RuntimeGizmos.TransformSpace.Local;
+                gizmo.posAxesAllowed = onHeight ? new[] { false, true, false } : new[] { true, false, false };
+                gizmo.rotAxesAllowed = new[] { false, false, false };
+                gizmo.scaleAxesAllowed = new[] { false, false, false };
+                if (!gizmo.isTransforming) gizmo.transformType = RuntimeGizmos.TransformType.Move;
+            }
+
+            void RestoreGizmo() {
+                if (savedSpace == null) return;
+                builder.gizmo.space = savedSpace.Value;
+                savedSpace = null;
             }
 
             //called after the updates of the city, and when the building edited changes
@@ -262,21 +370,24 @@ namespace EditorPanels {
                 dragged = null;
                 if (!Available() || targets.Count != 1 || height == null || depth == null) return;
                 if (targets[0] == height.body) dragged = height;
-                else if (targets[0] == depth.body) dragged = depth;
+                else if (targets[0] == depth.body && polygon == null) dragged = depth;
                 if (dragged == null) return;
                 ReadFront();
-                History.UndoManager.Touch(building.line); //inside the undo step of the gizmo
+                History.UndoManager.Touch(polygon != null ? polygon : building.line); //inside the undo step of the gizmo
             }
 
             void OnTransformChanged() {
-                if (dragged == null || building == null) return;
+                if (dragged == null || (building == null && polygon == null)) return;
                 var position = GO.GetPosition(dragged.body);
-                if (dragged == height) {
+                if (polygon != null) {
+                    polygon.state.SetFloat("height", Mathf.Max(MinSize, position.Y - baseHeight));
+                    polygon.state.FlagAsChanged();
+                } else if (dragged == height) {
                     building.State.SetFloat("height", Mathf.Max(MinSize, position.Y - baseHeight));
                 } else {
                     building.State.SetFloat("depth", Mathf.Max(MinSize, (position - middle).Dot(normal)));
                 }
-                building.State.FlagAsChanged();
+                if (building != null) building.State.FlagAsChanged();
                 Place(); //only the size moves the sides
                 builder.NotifyChange();
                 builder.RefreshActivePanelValues();

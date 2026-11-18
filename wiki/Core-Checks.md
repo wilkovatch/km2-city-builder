@@ -25,7 +25,7 @@ The difference from the other scripts of a core: a [converter](Core-Custom-Eleme
 | Key | Description |
 |---|---|
 | `label`, `tooltip` | String keys of the core: the text of the button and its tooltip, and the title of the results. |
-| `sources` | What it checks: `road`, `intersection`, `terrainPatch`, `buildingLine`, `customElement`, `customElement/<type>`, or `propertyContainer/<type>`: an object of the city properties of that [custom city properties type](Core-City-Properties) that is a property container (it has an `elementContainer`, e.g. a race). |
+| `sources` | What it checks: `road`, `intersection`, `terrainPatch`, `buildingLine`, `polygonalBuilding`, `customElement`, `customElement/<type>`, or `propertyContainer/<type>`: an object of the city properties of that [custom city properties type](Core-City-Properties) that is a property container (it has an `elementContainer`, e.g. a race). |
 | `types` | Only the procedural elements of these types (all if missing). |
 | `script` | The Python script, in the folder of the check (default `check.py`). |
 | `enabledWhen` | Optional `<module>.<function>` Lua predicate, as for the converters, enabling the button of an element. |

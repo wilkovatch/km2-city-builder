@@ -19,7 +19,8 @@ public class Building: IObjectWithState {
     public ObjectState state; //DO NOT MODIFY DIRECTLY UNLESS ABSOLUTELY NEEDED
     public BuildingSideGenerator front = null, left = null, right = null, back = null;
     bool deleted = false;
-    public BuildingLine line;
+    public IBuildingOwner owner;
+    public BuildingLine line => owner as BuildingLine; //null for the walls of a polygonal building
     bool outlined = false;
     bool highlighted = false;
     public GameObject container;
@@ -35,9 +36,9 @@ public class Building: IObjectWithState {
     CityElements.Types.Runtime.Buildings.BuildingType.Building curType;
     RC.VariableContainer variableContainer;
 
-    public void Initialize(BuildingLine line, ObjectState newState) {
+    public void Initialize(IBuildingOwner owner, ObjectState newState) {
         state = (ObjectState)newState.Clone();
-        this.line = line;
+        this.owner = owner;
     }
 
     public bool HasCollider(MeshCollider c) {
@@ -87,7 +88,7 @@ public class Building: IObjectWithState {
 
     public CityElements.Types.Runtime.Buildings.BuildingType.Building GetBuildingType() {
         var dict = CityElements.Types.Parsers.TypeParser.GetBuildingTypes();
-        return dict[line.state.Str("type", null)].building;
+        return dict[owner.GetBuildingTypeName()].building;
     }
 
     public void RefreshOutline() {
@@ -132,7 +133,7 @@ public class Building: IObjectWithState {
     TerrainSubmeshGenerator GetRoof(bool enabled, TerrainSubmeshGenerator current) {
         if (enabled) {
             if (current == null) {
-                var newSide = new TerrainSubmeshGenerator(line);
+                var newSide = new TerrainSubmeshGenerator(owner.GetBody());
                 return newSide;
             } else {
                 return current;

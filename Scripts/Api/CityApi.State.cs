@@ -324,8 +324,8 @@ namespace Api {
                 History.UndoManager.Touch(e);
                 switch (e) {
                     case Intersection i: GameEngine.GameObject.SetName(i.geo, name); break;
-                    case Road or TerrainPatch or BuildingLine or MeshInstance or CustomElement: GameEngine.GameObject.SetName((Godot.Node3D)e, name); break;
-                    default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, meshInstance or customElement", KindOf(e));
+                    case Road or TerrainPatch or BuildingLine or PolygonalBuilding or MeshInstance or CustomElement: GameEngine.GameObject.SetName((Godot.Node3D)e, name); break;
+                    default: throw ApiException.WrongKind("road, intersection, terrainPatch, buildingLine, polygonalBuilding, meshInstance or customElement", KindOf(e));
                 }
                 return name;
             });

@@ -14,6 +14,7 @@ public partial class ElementManager : Scriptable {
     public List<TerrainPatch> patches = new List<TerrainPatch>();
     public List<MeshInstance> meshes = new List<MeshInstance>();
     public List<BuildingLine> buildings = new List<BuildingLine>();
+    public List<PolygonalBuilding> polygonalBuildings = new List<PolygonalBuilding>();
     public List<CustomElement> customElements = new List<CustomElement>();
     public bool worldChanged = false;
     ulong splineTerrainVersion = ulong.MaxValue;
@@ -44,6 +45,7 @@ public partial class ElementManager : Scriptable {
     readonly List<Intersection> interactiveIntersections = new();
     readonly List<TerrainPatch> interactivePatches = new();
     readonly List<BuildingLine> interactiveBuildings = new();
+    readonly List<PolygonalBuilding> interactivePolygons = new();
     readonly List<CustomElement> interactiveCustomElements = new();
     readonly List<TerrainPoint> interactivePoints = new();
     internal (int patches, int buildings, int customElements) lastInteractiveDependencyVisits;
@@ -96,6 +98,10 @@ public partial class ElementManager : Scriptable {
             var preset = PresetManager.GetPreset("buildingLine", 0);
             return preset.Str("type", null) != null;
         }
+        else if (t == typeof(PolygonalBuilding)) {
+            var preset = PresetManager.GetPreset(Operations.PolygonalBuildings.PresetCategory, 0);
+            return preset.Str("type", null) != null;
+        }
         return false;
     }
 
@@ -117,6 +123,13 @@ public partial class ElementManager : Scriptable {
                 bl.AddPoint(null, new Vector3(0, 0, 0), true);
                 bl.AddPoint(null, new Vector3(1, 0, 0), true);
                 bl.UpdateLine();
+            }
+            else if (c is PolygonalBuilding pb) {
+                pb.Initialize(dummy);
+                pb.AddFreePoint(new Vector3(0, 0, 0));
+                pb.AddFreePoint(new Vector3(1, 0, 0));
+                pb.AddFreePoint(new Vector3(0, 0, 1));
+                pb.UpdateBuilding();
             }
             else if (c is CityProperties cp) {
                 cp.Initialize();
@@ -224,6 +237,11 @@ public partial class ElementManager : Scriptable {
         History.ElementRegistry.Register(line, id);
     }
 
+    public void AddPolygonalBuilding(PolygonalBuilding building, int id = -1) {
+        polygonalBuildings.Add(building);
+        History.ElementRegistry.Register(building, id);
+    }
+
     public void AddCustomElement(CustomElement element, int id = -1) {
         customElements.Add(element);
         History.ElementRegistry.Register(element, id);
@@ -269,6 +287,10 @@ public partial class ElementManager : Scriptable {
             if (line.IsDeleted()) continue;
             AddPoints(line.GetPointsComponents());
         }
+        foreach (var building in polygonalBuildings) {
+            if (building.IsDeleted()) continue;
+            AddPoints(building.GetPointsComponents());
+        }
         foreach (var element in customElements) {
             if (element.IsDeleted()) continue;
             AddPoints(element.GetAllPoints());
@@ -301,6 +323,9 @@ public partial class ElementManager : Scriptable {
         foreach (var building in buildings) {
             res.Add(GO.GetObject(building));
         }
+        foreach (var building in polygonalBuildings) {
+            res.Add(GO.GetObject(building));
+        }
         foreach (var element in customElements) {
             if (element.container == null && Operations.PropertyContainers.Owner(element.state) == "") res.Add(element);
         }
@@ -330,6 +355,9 @@ public partial class ElementManager : Scriptable {
             if (!active) patch.SetActive(false, false);
         }
         foreach (var building in buildings) {
+            if (!active) building.SetActive(false, false);
+        }
+        foreach (var building in polygonalBuildings) {
             if (!active) building.SetActive(false, false);
         }
         foreach (var element in customElements) {
@@ -381,6 +409,10 @@ public partial class ElementManager : Scriptable {
             patch.Select(false);
         }
         foreach (var building in buildings) {
+            building.SetActive(active, false);
+            building.Select(false);
+        }
+        foreach (var building in polygonalBuildings) {
             building.SetActive(active, false);
             building.Select(false);
         }
@@ -468,6 +500,7 @@ public partial class ElementManager : Scriptable {
         CleanupList(patches, patch => { return IsDestroyed(patch) || patch.IsDeleted(); });
         CleanupList(meshes, mesh => { return IsDestroyed(mesh); });
         CleanupList(buildings, building => { return IsDestroyed(building); });
+        CleanupList(polygonalBuildings, building => { return IsDestroyed(building) || building.IsDeleted(); });
         CleanupList(customElements, element => { return IsDestroyed(element) || element.IsDeleted(); });
     }
 
@@ -541,7 +574,7 @@ public partial class ElementManager : Scriptable {
         //A pending full-city projection pass may have started before this drag. Its other targets still need the
         //synchronized release update even if the drag itself ends without moving a road.
         deferredRoadSurfacesChanged |= splineProjectionPending;
-        interactiveMembership = (roads.Count, intersections.Count, patches.Count, buildings.Count, customElements.Count);
+        interactiveMembership = (roads.Count, intersections.Count, patches.Count, buildings.Count + polygonalBuildings.Count, customElements.Count);
         interactiveRoadEdit = interactiveRoads.Count + interactiveIntersections.Count + draggedPoints.Count > 0;
     }
 
@@ -568,6 +601,7 @@ public partial class ElementManager : Scriptable {
             Owns(patch, patch.GetInternalPointsComponents());
         }
         foreach (var line in buildings) Owns(line, line.GetPointsComponents());
+        foreach (var building in polygonalBuildings) Owns(building, building.GetPointsComponents());
         foreach (var element in customElements) {
             var type = element.GetCustomElementType();
             Owns(element, element.GetAllPoints(), type?.constraintsFunction != null || element.IsDerived);
@@ -598,6 +632,7 @@ public partial class ElementManager : Scriptable {
             switch (current) {
                 case TerrainPatch patch: interactivePatches.Add(patch); break;
                 case BuildingLine line: interactiveBuildings.Add(line); break;
+                case PolygonalBuilding building: interactivePolygons.Add(building); break;
                 case CustomElement element: interactiveCustomElements.Add(element); break;
                 case TerrainPoint point:
                     interactivePoints.Add(point);
@@ -615,6 +650,7 @@ public partial class ElementManager : Scriptable {
         interactiveIntersections.Clear();
         interactivePatches.Clear();
         interactiveBuildings.Clear();
+        interactivePolygons.Clear();
         interactiveCustomElements.Clear();
         interactivePoints.Clear();
     }
@@ -624,11 +660,12 @@ public partial class ElementManager : Scriptable {
         if (!worldChanged) return true;
         //A topology change or city-property edit during a drag requires the normal propagation/cleanup path.
         if (splitParts.Count > 0 || GetDummy<CityProperties>().state.HasChanged()
-            || interactiveMembership != (roads.Count, intersections.Count, patches.Count, buildings.Count, customElements.Count)
+            || interactiveMembership != (roads.Count, intersections.Count, patches.Count, buildings.Count + polygonalBuildings.Count, customElements.Count)
             || interactiveRoads.Exists(r => IsDestroyed(r) || r.deleted)
             || interactiveIntersections.Exists(i => IsDestroyed(i.geo))
             || interactivePatches.Exists(p => IsDestroyed(p) || p.IsDeleted())
             || interactiveBuildings.Exists(b => IsDestroyed(b) || b.IsDeleted())
+            || interactivePolygons.Exists(b => IsDestroyed(b) || b.IsDeleted())
             || interactiveCustomElements.Exists(e => IsDestroyed(e) || e.IsDeleted())
             || interactivePoints.Exists(p => p.IsDeleted())) {
             EndInteractiveRoadEdit();
@@ -640,6 +677,7 @@ public partial class ElementManager : Scriptable {
         var patchesRebuilt = 0;
         foreach (var patch in interactivePatches) patchesRebuilt += patch.UpdatePatch();
         foreach (var line in interactiveBuildings) line.UpdateLine();
+        foreach (var building in interactivePolygons) building.UpdateBuilding();
         if (counts.roads + counts.intersections + patchesRebuilt > 0) InvalidateInteractiveProjection();
         var customRebuilt = 0;
         for (int pass = 0; pass < MaxConstraintPasses; pass++) {
@@ -659,12 +697,13 @@ public partial class ElementManager : Scriptable {
         if (customRebuilt > 0) {
             foreach (var patch in interactivePatches) constrainedPatches += patch.UpdatePatch();
             foreach (var line in interactiveBuildings) line.UpdateLine();
+            foreach (var building in interactivePolygons) building.UpdateBuilding();
         }
         if (constrainedPatches > 0) InvalidateInteractiveProjection();
         deferredRoadSurfacesChanged |= counts.roads + counts.intersections + patchesRebuilt + constrainedPatches + customRebuilt > 0;
         foreach (var road in interactiveRoads) road.UpdateObjects();
         foreach (var element in interactiveCustomElements) element.UpdateObjects();
-        lastInteractiveDependencyVisits = (interactivePatches.Count, interactiveBuildings.Count, interactiveCustomElements.Count);
+        lastInteractiveDependencyVisits = (interactivePatches.Count, interactiveBuildings.Count + interactivePolygons.Count, interactiveCustomElements.Count);
         lastRebuildCounts = (counts.roads, counts.intersections, customRebuilt);
         builder?.NotifyUpdateCompleted();
         return true;
@@ -738,6 +777,9 @@ public partial class ElementManager : Scriptable {
         var buildingsRebuilt = 0;
         foreach (var building in buildings) {
             buildingsRebuilt += building.UpdateLine();
+        }
+        foreach (var building in polygonalBuildings) {
+            buildingsRebuilt += building.UpdateBuilding();
         }
         //Mesh type/layer changes must be applied before the projected splines read their colliders.
         var instancesUpdated = 0;
@@ -955,6 +997,11 @@ public partial class ElementManager : Scriptable {
         }
         buildings.Clear();
 
+        foreach (var elem in polygonalBuildings) {
+            elem.Delete();
+        }
+        polygonalBuildings.Clear();
+
         foreach (var elem in customElements) {
             elem.Delete();
         }
@@ -985,6 +1032,10 @@ public partial class ElementManager : Scriptable {
             line.Delete();
         }
         buildings.Clear();
+        foreach (var building in polygonalBuildings) {
+            building.Delete();
+        }
+        polygonalBuildings.Clear();
     }
 
     public (List<TerrainAnchor> anchors, List<TerrainAnchor> doneAnchors) InitRoadAnchorsListForCitywideGeneration<T>(List<T> list, Func<T, List<TerrainPoint>> pointGetter) {

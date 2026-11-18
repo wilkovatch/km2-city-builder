@@ -67,9 +67,12 @@ namespace Operations {
                 new Property("projectToGround", "bool", true),
                 new Property("invertDirection", "bool"),
                 new Property("loop", "bool"),
-                new Property("frontOnly", "bool"),
+            },
+            ["polygonalBuilding"] = new[] {
+                new Property("projectToGround", "bool", true),
                 new Property("height", "float"),
                 new Property("roofTex", "texture"),
+                new Property("individualSides", "bool"),
             },
             ["building"] = new[] {
                 new Property("front", "bool"),

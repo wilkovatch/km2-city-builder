@@ -6,6 +6,15 @@ using SM = StringManager;
 
 namespace EditorPanels {
     namespace Buildings {
+        //The panel the side editor is a child of: the building editor (for the building lines) or the polygonal
+        //building editor
+        public interface ISideEditorHost {
+            //the building type of the sides edited (null if there is nothing to edit)
+            string GetSideBuildingType();
+            //how to reopen the side editor on the side from the host as reopened (see EditorPanel.CaptureReopen)
+            System.Func<EditorPanel, EditorPanel> CaptureSideReopen(BuildingSideGenerator side);
+        }
+
         public class SideEditorPanel : EditorPanel {
             public BuildingSideGenerator curSide = null;
             public BlockEditorPanel blockEditor;
@@ -21,9 +30,8 @@ namespace EditorPanels {
             }
 
             public override void Initialize(GameObject canvas) {
-                var line = ((LineEditorPanel)((BuildingEditorPanel)parentPanel).parentPanel).GetLine();
-                if (line == null) return;
-                var type = line.GetLineType().name;
+                var type = (parentPanel as ISideEditorHost)?.GetSideBuildingType();
+                if (type == null) return;
                 InitializeWithCustomParameters<CityElements.Types.Runtime.Buildings.BuildingType.Side, CityElements.Types.Buildings.BuildingSideType>(canvas, GetSide, null,
                     type, CityElements.Types.Parsers.TypeParser.GetBuildingSideTypes, ProcessCustomParts, true, 1.5f, false);
 
@@ -91,31 +99,10 @@ namespace EditorPanels {
                 return curSide;
             }
 
-            //the side editor is opened from the building editor, or directly from the line editor for front-only lines
+            //the side editor is opened from the building editor of a line, or from the polygonal building editor
             public override System.Func<EditorPanel, EditorPanel> CaptureReopen() {
-                var linePanel = parentPanel as LineEditorPanel ?? parentPanel?.parentPanel as LineEditorPanel;
-                var line = linePanel?.GetLine();
-                var building = curSide?.building;
-                if (line == null || building == null) return null;
-                var buildingIndex = line.buildings.IndexOf(building);
-                string sideName = null;
-                if (building.front == curSide) sideName = "front";
-                else if (building.left == curSide) sideName = "left";
-                else if (building.right == curSide) sideName = "right";
-                else if (building.back == curSide) sideName = "back";
-                if (buildingIndex < 0 || sideName == null) return null;
-                return parent => {
-                    var parentLinePanel = parent as LineEditorPanel ?? parent?.parentPanel as LineEditorPanel;
-                    var side = parentLinePanel?.GetBuildingSide(buildingIndex, sideName);
-                    if (side == null) return null;
-                    if (parent is BuildingEditorPanel buildingPanel) {
-                        if (buildingPanel.curBuilding != side.building) return null;
-                        buildingPanel.ShowSideEditor(side);
-                        return buildingPanel.sideEditor;
-                    }
-                    parentLinePanel.EditSide(side);
-                    return parentLinePanel.buildingEditor.sideEditor;
-                };
+                if (curSide == null) return null;
+                return (parentPanel as ISideEditorHost)?.CaptureSideReopen(curSide);
             }
 
             public EditorPanel OpenFloor(bool ground, int i) {

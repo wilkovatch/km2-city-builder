@@ -531,28 +531,7 @@ namespace CityEncoder {
 
             var elemBuildings = new IO.ExportedCity.Building[line.buildings.Count];
             for (int j = 0; j < line.buildings.Count; j++) {
-                var elemJ = new IO.ExportedCity.Building();
-                var b = line.buildings[j];
-                var baseDataJ = new IO.ExportedCity.BaseData();
-                baseDataJ.fields = States.Utils.GetFieldsAsState(b);
-                elemJ.data = baseDataJ;
-                var tmpSpline = new Vector3[b.spline.Count];
-                var tmpSplineNormals = new Vector3[b.spline.Count];
-                var tmpSpline2Normals = new Vector3[b.spline.Count];
-                for (int k = 0; k < b.spline.Count; k++) {
-                    tmpSpline[k] = b.spline[k].point;
-                    tmpSplineNormals[k] = b.spline[k].normal;
-                    tmpSpline2Normals[k] = b.splineActualNormals[k];
-                }
-                elemJ.b64v3a_spline = GetEncodedVector3s(tmpSpline);
-                elemJ.b64v3a_splineNormals = GetEncodedVector3s(tmpSplineNormals);
-                elemJ.b64v3a_splineActualNormals = GetEncodedVector3s(tmpSpline2Normals);
-                if (b.roof != null) elemJ.roof = GetMeshData(b.roof.GetSubmesh());
-                if (b.front != null) elemJ.front = GetSide(b.front);
-                if (b.left != null) elemJ.left = GetSide(b.left);
-                if (b.right != null) elemJ.right = GetSide(b.right);
-                if (b.back != null) elemJ.back = GetSide(b.back);
-                elemBuildings[j] = elemJ;
+                elemBuildings[j] = GetBuilding(line.buildings[j]);
             }
             elem.buildings = elemBuildings;
 
@@ -562,7 +541,58 @@ namespace CityEncoder {
             }
             elem.sides = elemSides;
 
-            if (line.roof != null) elem.roof = GetMeshData(line.roof.GetSubmesh());
+            elem.id = id;
+            return elem;
+        }
+
+        IO.ExportedCity.Building GetBuilding(Building b) {
+            var elemJ = new IO.ExportedCity.Building();
+            var baseDataJ = new IO.ExportedCity.BaseData();
+            baseDataJ.fields = States.Utils.GetFieldsAsState(b);
+            elemJ.data = baseDataJ;
+            var spline = b.spline ?? new List<(Vector3 point, Vector3 normal)>();
+            var tmpSpline = new Vector3[spline.Count];
+            var tmpSplineNormals = new Vector3[spline.Count];
+            var tmpSpline2Normals = new Vector3[spline.Count];
+            for (int k = 0; k < spline.Count; k++) {
+                tmpSpline[k] = spline[k].point;
+                tmpSplineNormals[k] = spline[k].normal;
+                tmpSpline2Normals[k] = k < b.splineActualNormals.Count ? b.splineActualNormals[k] : Vector3.Zero;
+            }
+            elemJ.b64v3a_spline = GetEncodedVector3s(tmpSpline);
+            elemJ.b64v3a_splineNormals = GetEncodedVector3s(tmpSplineNormals);
+            elemJ.b64v3a_splineActualNormals = GetEncodedVector3s(tmpSpline2Normals);
+            if (b.roof != null) elemJ.roof = GetMeshData(b.roof.GetSubmesh());
+            if (b.front != null) elemJ.front = GetSide(b.front);
+            if (b.left != null) elemJ.left = GetSide(b.left);
+            if (b.right != null) elemJ.right = GetSide(b.right);
+            if (b.back != null) elemJ.back = GetSide(b.back);
+            return elemJ;
+        }
+
+        public IO.ExportedCity.PolygonalBuilding GetPolygonalBuilding(PolygonalBuilding building, int id) {
+            var elem = new IO.ExportedCity.PolygonalBuilding();
+            var baseData = new IO.ExportedCity.BaseData();
+            baseData.name = GO.GetName(building);
+            baseData.fields = States.Utils.GetFieldsAsState(building);
+            baseData.mesh = GetMeshData(GO.GetObject(building));
+            WarnIfMeshEmpty(GO.GetObject(building), "Polygonal building", baseData.name);
+            baseData.collider = GetMeshColliderData(GO.GetObject(building));
+            elem.data = baseData;
+
+            var points = building.GetPointsComponents();
+            var elemPoints = new Vector3[points.Count];
+            for (int j = 0; j < points.Count; j++) {
+                elemPoints[j] = points[j].GetPoint();
+            }
+            elem.b64v3a_points = GetEncodedVector3s(elemPoints);
+            elem.wallPoints = building.GetWallPoints().ToArray();
+            elem.selfIntersecting = building.IsSelfIntersecting();
+            elem.walls = new IO.ExportedCity.Building[building.walls.Count];
+            for (int j = 0; j < building.walls.Count; j++) {
+                elem.walls[j] = GetBuilding(building.walls[j]);
+            }
+            if (building.roof != null) elem.roof = GetMeshData(building.roof.GetSubmesh());
             elem.id = id;
             return elem;
         }

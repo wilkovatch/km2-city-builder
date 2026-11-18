@@ -88,12 +88,14 @@ A reference (`ref` in the method reference) is one of:
 | `{"line": <ref>, "building": 0}` | a building of a building line |
 | `{"line": <ref>, "building": 0, "side": "front"}` | a side of a building (`front`, `left`, `right`, `back`) |
 | `{"line": <ref>, "building": 0, "side": "front", "block": 1}` | a block of the block dictionary of a side |
+| `{"polygon": <ref>, "wall": 2}` | the side of a wall of a polygonal building: the wall whose edge starts at its point 2 (the index in its points, see `walls` in `elements.get` with `derived`); when the walls share one side, any wall, or no `wall`, gives that side |
+| `{"polygon": <ref>, "wall": 2, "block": 1}` | a block of the block dictionary of that side |
 | `{"road": <ref>, "container": "right"}` | a props container of the prop rule of a road |
 | `{"road": <ref>, "container": "right", "list": "elements", "index": 0}` | a props element of a list of the container |
 | `{"parent": <ref>, "param": "trafficCars", "index": 0}` | an element of an array parameter (no `index`: a custom city properties parameter) |
 | `{"owner": <ref>, "object": "trafficLight", "path": ["races.0"]}` | a parametric object (an `objectInstance` parameter) of a road or of the city properties; `path` lists the array elements leading to it, from the owner |
 
-The kinds are `road`, `intersection`, `terrainPatch`, `buildingLine`, `meshInstance`, `terrainPoint`, `cityProperties`, `customElement`, and for the parts of elements `building`, `buildingSide`, `buildingBlock`, `props`, `arrayElement`, `customCityProperties`, `parametricObject`.
+The kinds are `road`, `intersection`, `terrainPatch`, `buildingLine`, `polygonalBuilding`, `meshInstance`, `terrainPoint`, `cityProperties`, `customElement`, and for the parts of elements `building`, `buildingSide`, `buildingBlock`, `props`, `arrayElement`, `customCityProperties`, `parametricObject`.
 
 ### Points
 
@@ -250,7 +252,7 @@ A road ending on the middle of another road, a terrain patch along it, then the 
 | `city.batchParameters` | `kind: string` | object | The fields the batch update can use for a kind, by type of element |
 | `city.batchUpdate` | `kind: string`<br>`update: string`<br>`where: string = ''` | int | Sets fields of every element of a kind satisfying the where expression (like Edit > Batch update), returns how many were updated |
 | `city.close` | - | - | Closes the city (the unsaved changes are lost) |
-| `city.eraseBuildings` | - | - | Deletes every building line |
+| `city.eraseBuildings` | - | - | Deletes every building line and polygonal building |
 | `city.eraseTerrain` | - | - | Deletes every terrain patch |
 | `city.export` | `path: string`<br>`exporter: string`<br>`flags: {id: bool} = null`<br>`showConsole: bool = false` | object | Exports the city with an exporter of the core (by one of its formats, see exporters.list), with the given flags (the others keep their default, the ones with a format are set by it) |
 | `city.exportJson` | `path: string` | object | Writes the export JSON of the city (with the generated geometry, as read by the exporters of the cores) |
@@ -297,7 +299,7 @@ Custom element types opt in with `settings.json` `presets: true`. Their category
 |---|---|---|---|
 | `presets.delete` | `category: string`<br>`name: string` | - | Deletes a preset (not the default one); linked elements, including enabled custom element types, are unlinked from it |
 | `presets.get` | `category: string`<br>`name: string` | state | The values of a preset |
-| `presets.list` | `category: string` | string[] | The names of the presets of a category (road, intersection, buildingLine, building, buildingSide, buildingBlock, props/<type> for the props types, roadPropRule, or a container such as rail); the first one is the default |
+| `presets.list` | `category: string` | string[] | The names of the presets of a category (road, intersection, buildingLine, polygonalBuilding, building, buildingSide, buildingBlock, props/<type> for the props types, roadPropRule, or a container such as rail); the first one is the default |
 | `presets.save` | `category: string`<br>`name: string`<br>`values: state` | - | Saves a preset with the given values (overwriting the one with the same name) |
 | `presets.sync` | `category: string`<br>`name: string` | - | Gives the current values of a preset to linked roads, intersections, building parts or enabled custom element types |
 
@@ -318,9 +320,9 @@ Custom element types opt in with `settings.json` `presets: true`. Their category
 | Method | Parameters | Result | Description |
 |---|---|---|---|
 | `elements.check` | `check: string`<br>`elements: ref[] = null`<br>`containers: string[] = null` | object | Checks elements and property containers (their identities, e.g. races) with a check of the core (checks.list), without changing anything: the warnings, errors and infos it reported (level, message, element {name, kind}, code, position, overlay); ok: no errors. See [Core Checks](Core-Checks) |
-| `elements.copyProperties` | `from: ref`<br>`to: ref[]` | int | Gives the elements (to) the properties of another element of the same kind (from), as the property eyedropper of the editor: what a preset of the element would hold, without saving one. Roads, intersections, terrain patches, building lines, buildings (`{line, building}`), custom elements and mesh instances (the last two only between elements of the same type). The points, the instance specific values (e.g. the values of the spline of a road), the references and the container of each element are kept. Returns the number of elements changed |
+| `elements.copyProperties` | `from: ref`<br>`to: ref[]` | int | Gives the elements (to) the properties of another element of the same kind (from), as the property eyedropper of the editor: what a preset of the element would hold, without saving one. Roads, intersections, terrain patches, building lines, buildings (`{line, building}`), polygonal buildings, custom elements and mesh instances (the last two only between elements of the same type). The points, the instance specific values (e.g. the values of the spline of a road), the references and the container of each element are kept. Returns the number of elements changed |
 | `elements.convert` | `elements: ref[]`<br>`converter: string` | object | Converts elements to custom elements with a converter of the core (converters.list): the converter replaces them (roads and intersections become ghosts: hidden, not exported, kept for the elements connected to them; the other elements are deleted; some converters change existing elements instead). Returns the ids of the custom elements created, then of the elements changed |
-| `elements.geometry` | `ref: ref` | object | The generated geometry of a road, intersection, terrain patch, building line (with its buildings), mesh instance or parametric object, as in the export JSON (base64 arrays), with the materials and meshes it references |
+| `elements.geometry` | `ref: ref` | object | The generated geometry of a road, intersection, terrain patch, building line (with its buildings), polygonal building (with its walls), mesh instance or parametric object, as in the export JSON (base64 arrays), with the materials and meshes it references |
 | `elements.get` | `ref: ref`<br>`derived: bool = false` | object | An element as stored in the saved city (ids as references); derived: also the data computed from it (curve, anchors, buildings..., and the values of the generators of the core with whether new ones are pending) |
 | `elements.list` | `kind: string = null`<br>`name: string = null`<br>`type: string = null` | list | The elements of the city (optionally of a kind, with a name or of a type): id, kind, name, type |
 | `elements.rename` | `ref: ref`<br>`name: string` | object | Renames an element |
@@ -419,6 +421,18 @@ Custom element types opt in with `settings.json` `presets: true`. Their category
 | `lines.removePoint` | `line: ref`<br>`point: int` | object | Removes a point from a building line (the line is deleted if left with one point) |
 | `lines.split` | `line: ref`<br>`point: int` | int | Splits a building line at one of its points (a terrain point id, not an end; not for looping lines): the line keeps the points up to it, a new line with the same properties gets the ones from it. Both lines share the point, and the buildings keep their properties. Returns the id of the new line |
 | `lines.toggleDividing` | `line: ref`<br>`point: int` | bool | Switches a point of a building line between dividing two buildings or not |
+
+### `polygonalBuildings.*`
+
+| Method | Parameters | Result | Description |
+|---|---|---|---|
+| `polygonalBuildings.addPoint` | `building: ref`<br>`point: point`<br>`followAnchors: bool = false` | int or null | Adds a point at the end of the outline of a polygonal building (between its last and first points), returns the terrain point id (null if not added) |
+| `polygonalBuildings.create` | `points: point[]`<br>`preset: string = null`<br>`type: string = null`<br>`followAnchors: bool = false`<br>`details: bool = false` | object | Creates a polygonal building (a building on the closed outline through its points, in their order, which can be concave: a wall on each edge, always facing outwards, and a flat roof). followAnchors: follow the anchors between two anchors, like with the modifier key. Returns the id, or with details {id, points: the point id given by each target} |
+| `polygonalBuildings.delete` | `building: ref` | - | Deletes a polygonal building |
+| `polygonalBuildings.insertPoint` | `building: ref`<br>`position: vec3`<br>`index: int = null`<br>`onGround: bool = false` | int | Inserts a free point in a polygonal building, in the edge closest to the position (or before the point at the index), as a click on an edge of the building being edited. With individual sides, the new wall gets a copy of the side of the wall it splits. Returns the terrain point id |
+| `polygonalBuildings.removeLastPoint` | `building: ref` | object | Removes the last point of a polygonal building (the building is deleted if left with less than three points) |
+| `polygonalBuildings.removePoint` | `building: ref`<br>`point: int` | object | Removes a point from a polygonal building (the building is deleted if left with less than three points) |
+| `polygonalBuildings.setIndividualSides` | `building: ref`<br>`individual: bool` | - | One side for every wall of a polygonal building, or one each (each wall starts with a copy of the shared one); the side of a wall is {polygon, wall: the index of the point it starts at} |
 
 ### `buildings.*`
 

@@ -115,12 +115,23 @@ namespace IO.ExportedCity {
         public int id;
         public BaseData data;
         public BuildingSide[] sides;
-        public MeshData roof;
         public string b64v3a_linePoints; //Vector3[]
         public Building[] buildings;
     }
 
-    //a reference to another element of the city (kind: road, intersection, terrainPatch, buildingLine, customElement)
+    //a polygonal building: its walls are buildings with only the front side, one for each edge of its closed outline
+    [System.Serializable]
+    public class PolygonalBuilding {
+        public int id;
+        public BaseData data;
+        public string b64v3a_points; //Vector3[], the points of the outline, in its order
+        public int[] wallPoints; //for each wall, the index of the point its edge starts at (the edge goes to the next point)
+        public bool selfIntersecting; //the outline crosses itself
+        public MeshData roof;
+        public Building[] walls;
+    }
+
+    //a reference to another element of the city (kind: road, intersection, terrainPatch, buildingLine, polygonalBuilding, customElement)
     [System.Serializable]
     public class ElementReference {
         public string kind;
@@ -176,6 +187,7 @@ namespace IO.ExportedCity {
         public Intersection[] intersections;
         public TerrainPatch[] terrainPatches;
         public BuildingLine[] buildingLines;
+        public PolygonalBuilding[] polygonalBuildings;
         public MeshInstance[] meshInstances;
         public CustomElement[] customElements;
 

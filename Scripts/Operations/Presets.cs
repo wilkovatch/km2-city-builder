@@ -6,7 +6,7 @@ namespace Operations {
         public const string DefaultName = "Default";
 
         //the categories whose elements can be synced with their preset and unlinked from it
-        static readonly HashSet<string> linkedCategories = new HashSet<string> { "road", "intersection", "buildingLine", "building", "buildingSide", "buildingBlock" };
+        static readonly HashSet<string> linkedCategories = new HashSet<string> { "road", "intersection", "buildingLine", "building", "buildingSide", "buildingBlock", PolygonalBuildings.PresetCategory };
 
         static readonly string[] sideStates = { "frontState", "leftState", "rightState", "backState" };
 
@@ -88,6 +88,7 @@ namespace Operations {
                     }
                     return true;
                 case "buildingLine":
+                case PolygonalBuildings.PresetCategory:
                 case "building":
                 case "buildingSide":
                 case "buildingBlock":
@@ -119,6 +120,7 @@ namespace Operations {
                     }
                     break;
                 case "buildingLine":
+                case PolygonalBuildings.PresetCategory:
                 case "building":
                 case "buildingSide":
                 case "buildingBlock":
@@ -133,6 +135,8 @@ namespace Operations {
         //replaces the states linked to the preset with the result of change: the lines, the buildings,
         //or the sides and the blocks inside the buildings (the lines changed are recorded for undo)
         static void ChangeLinkedBuildingParts(ElementManager manager, string category, string name, System.Func<ObjectState, ObjectState> change) {
+            PolygonalBuildings.ChangeLinked(manager, category, name, change, ChangeLinkedSide);
+            if (category == PolygonalBuildings.PresetCategory) return;
             foreach (var line in manager.buildings) {
                 if (category == "buildingLine") {
                     if (line.state.Name == name) {
@@ -162,29 +166,30 @@ namespace Operations {
             foreach (var key in sideStates) {
                 var side = buildingState.State(key);
                 if (side == null) continue;
-                if (category == "buildingSide") {
-                    if (side.Name == name) {
-                        buildingState.SetState(key, change(side));
-                        res = true;
-                    }
-                    continue;
-                }
-                var blocks = side.Array<ObjectState>("blockDict");
-                if (blocks == null) continue;
-                var newBlocks = (ObjectState[])blocks.Clone();
-                var changed = false;
-                for (int i = 0; i < newBlocks.Length; i++) {
-                    if (newBlocks[i].Name == name) {
-                        newBlocks[i] = change(newBlocks[i]);
-                        changed = true;
-                    }
-                }
-                if (changed) {
-                    side.SetArray("blockDict", newBlocks);
-                    res = true;
-                }
+                var newSide = ChangeLinkedSide(side, category, name, change);
+                if (newSide == null) continue;
+                if (newSide != side) buildingState.SetState(key, newSide);
+                res = true;
             }
             return res;
+        }
+
+        //a side linked to the preset (buildingSide), or with blocks linked to it (buildingBlock), changed; null if none was
+        static ObjectState ChangeLinkedSide(ObjectState side, string category, string name, System.Func<ObjectState, ObjectState> change) {
+            if (category == "buildingSide") return side.Name == name ? change(side) : null;
+            var blocks = side.Array<ObjectState>("blockDict");
+            if (blocks == null) return null;
+            var newBlocks = (ObjectState[])blocks.Clone();
+            var changed = false;
+            for (int i = 0; i < newBlocks.Length; i++) {
+                if (newBlocks[i].Name == name) {
+                    newBlocks[i] = change(newBlocks[i]);
+                    changed = true;
+                }
+            }
+            if (!changed) return null;
+            side.SetArray("blockDict", newBlocks);
+            return side;
         }
     }
 }

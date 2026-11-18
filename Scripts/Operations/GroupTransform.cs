@@ -39,6 +39,7 @@ namespace Operations {
                 case Intersection intersection: return !intersection.IsDeleted() && !intersection.ghost;
                 case TerrainPatch patch: return !patch.IsDeleted();
                 case BuildingLine line: return !line.IsDeleted();
+                case PolygonalBuilding building: return !building.IsDeleted();
                 case CustomElement custom: return !custom.IsDeleted();
                 case MeshInstance mesh: return mesh.objectParameter == null && GodotObject.IsInstanceValid(mesh);
                 default: return false;
@@ -91,6 +92,9 @@ namespace Operations {
                         break;
                     case BuildingLine line:
                         foreach (var point in line.GetPointsComponents()) AddPoint(point, false);
+                        break;
+                    case PolygonalBuilding building:
+                        foreach (var point in building.GetPointsComponents()) AddPoint(point, false);
                         break;
                     case CustomElement custom:
                         foreach (var point in CustomElements.PointsWithContents(manager, custom)) AddPoint(point, true);
@@ -161,6 +165,7 @@ namespace Operations {
                     case Intersection intersection: Intersections.Delete(intersection); break;
                     case TerrainPatch patch: TerrainPatches.Delete(patch); break;
                     case BuildingLine line: BuildingLines.Delete(line); break;
+                    case PolygonalBuilding building: PolygonalBuildings.Delete(building); break;
                     case CustomElement custom: CustomElements.Delete(manager, custom); break;
                     case MeshInstance mesh: Meshes.Delete(mesh); break;
                 }

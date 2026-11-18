@@ -19,6 +19,10 @@ namespace EditorPanels {
             p.IncreaseRow();
             p.AddButton(SM.Get("EDIT_BUILDING_PRESETS"), builder.EditBuildingLinePresets, w);
             p.IncreaseRow();
+            if (Operations.PolygonalBuildings.IsAvailable()) {
+                p.AddButton(SM.Get("EDIT_POLYGONAL_BUILDING_PRESETS"), builder.EditPolygonalBuildingPresets, w);
+                p.IncreaseRow();
+            }
             foreach (var type in CityElements.Types.Parsers.TypeParser.GetCustomElementTypes()) {
                 if (!type.Value.typeData.settings.presets) continue;
                 var name = type.Key;

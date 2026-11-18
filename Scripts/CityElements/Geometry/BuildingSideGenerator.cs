@@ -83,12 +83,12 @@ public class BuildingSideGenerator : IObjectWithState {
     public void Initialize(ObjectState state, Side side, bool outline = false) {
         m = new SubMeshData();
         colliderMesh = new Mesh();
-        mc = GameEngine.Mesh.CreateCollider(building.line, colliderMesh);
+        mc = GameEngine.Mesh.CreateCollider(building.owner.GetBody(), colliderMesh);
 
         orangeMat = MaterialManager.GetHandleMaterial((GameEngine.Color.red + GameEngine.Color.yellow) * 0.5f);
         greenMat = MaterialManager.GetHandleMaterial(GameEngine.Color.green);
 
-        lr = GO.CreateLineRenderer(building.line);
+        lr = GO.CreateLineRenderer(building.owner.GetBody());
         lineContainer = GO.GetObject(lr);
         GO.SetName(lineContainer, "Line container");
         lr.material = greenMat;
@@ -658,7 +658,7 @@ public class BuildingSideGenerator : IObjectWithState {
     void UpdateOutlineWidth() {
         if (deleted) return;
         if (lr.enabled) {
-            var cam = GameEngine.Camera.Get(building.line);
+            var cam = GameEngine.Camera.Get(building.owner.GetBody());
             var bounds = GameEngine.Bounds.GetFromMesh(colliderMesh);
             var boundsCenter = GameEngine.Bounds.GetCenter(bounds);
             boundsCenter = GameEngine.Vector3.EncodePosition(boundsCenter); //the mesh bounds are in godot space, the camera position in program space
@@ -700,6 +700,7 @@ public class BuildingSideGenerator : IObjectWithState {
                     break;
             }
         }
+        if (side == Side.Front) building.owner?.OnFrontStateSet(building, newState);
         building.changed = true;
     }
 

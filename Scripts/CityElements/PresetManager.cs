@@ -11,6 +11,7 @@ static class PresetManager {
             if (customElementType != null && !presets.ContainsKey(type)) presets[type] = new[] { Operations.CustomElementPresets.DefaultPreset(customElementType) };
             var propsType = Operations.Props.TypeOfCategory(type);
             if (propsType != null && !presets.ContainsKey(type)) presets[type] = new[] { Operations.Props.DefaultPreset(propsType) };
+            if (type == Operations.PolygonalBuildings.PresetCategory && !presets.ContainsKey(type)) presets[type] = new[] { Operations.PolygonalBuildings.DefaultPreset() };
             if (!presets.ContainsKey(type)) presets[type] = new ObjectState[1] { new ObjectState() { Name = Operations.Presets.DefaultName } }; //an empty name is an element without preset
             return presets[type];
         }

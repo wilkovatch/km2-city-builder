@@ -79,6 +79,10 @@ namespace Operations {
                 if (line.IsDeleted()) continue;
                 foreach (var p in line.GetPointsComponents()) AddUser(res, line, p);
             }
+            foreach (var building in manager.polygonalBuildings) {
+                if (building.IsDeleted()) continue;
+                foreach (var p in building.GetPointsComponents()) AddUser(res, building, p);
+            }
             return res;
         }
 

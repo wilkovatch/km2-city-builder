@@ -22,7 +22,7 @@ namespace Api {
 
     //Images of the city: offscreen renders (Rendering.CityRenderer) and the view of the editor
     public partial class CityApi {
-        static readonly string[] LabelKinds = { "roads", "intersections", "patches", "lines", "meshes" };
+        static readonly string[] LabelKinds = { "roads", "intersections", "patches", "lines", "polygonalBuildings", "meshes" };
 
         void RequireRenderer() {
             if (!CityRenderer.Available) throw new ApiException("no_renderer", "rendering needs a window: run the program without --headless");
@@ -138,7 +138,7 @@ namespace Api {
             "camera: top (orthogonal, x right and z up in the image), orbit (pitch and yaw in degrees, distance), custom (position, target, fov) or editor. " +
             "The area shown: the elements, bounds [minX, minZ, maxX, maxZ], center and size, or the whole city. " +
             "layers: buildings, terrain, geometry (roads, intersections, patches), meshes, props, helpers (default: all but helpers). " +
-            "labels: roads, intersections, patches, lines, meshes or all, labeled with name and id. highlight: elements tinted with highlightColor. " +
+            "labels: roads, intersections, patches, lines, polygonalBuildings, meshes or all, labeled with name and id. highlight: elements tinted with highlightColor. " +
             "overlays: {type: label|marker|polyline, text, position or points or element, color, size, closed}. grid: line spacing in meters. " +
             "wireframe: the meshes as wireframe, on a plain background unless background or transparent. Needs a window (not --headless)")]
         public async Task<object> Render(string camera = "top", List<ElementRef> elements = null, List<float> bounds = null, Vector3? center = null, float? size = null,
@@ -229,6 +229,7 @@ namespace Api {
                 Add("intersections", M.intersections);
                 Add("patches", M.patches);
                 Add("lines", M.buildings);
+                Add("polygonalBuildings", M.polygonalBuildings);
                 Add("meshes", M.meshes);
             }
 

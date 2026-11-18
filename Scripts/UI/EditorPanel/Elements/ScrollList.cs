@@ -23,6 +23,7 @@ namespace EditorPanelElements {
         static readonly StyleBoxEmpty focusStyle = new StyleBoxEmpty();
         int selected = -1;
         int revealIndex = -1;
+        bool interactable = true; //not interactable: its items can't be selected (and none is), and it is greyed out
         float height;
         float rowHeight = 25.0f;
         int paddingRows = 4;
@@ -154,6 +155,7 @@ namespace EditorPanelElements {
             UILayout.SetRect(rowLabel, 0, 0, 1, 1, withImages ? 15 : 2.5f, 0, withImages ? -30 : -5, 0);
             rowButton.AddChild(rowLabel);
             TextFit.Apply(rowLabel, TextFit.DefaultFontSize, 8);
+            rowButton.Disabled = !interactable;
             rowButton.Pressed += () => SelectItem(rowID);
             content.AddChild(rowButton);
             rows.Add((rowButton, rowID));
@@ -195,6 +197,7 @@ namespace EditorPanelElements {
         }
 
         void SelectItemManual(int index) {
+            if (!interactable) return;
             Deselect();
             selected = index;
             SetRowHighlight(index, true);
@@ -208,7 +211,7 @@ namespace EditorPanelElements {
         }
 
         void SelectItem(int rowID) {
-            if (rowID == -1) return;
+            if (rowID == -1 || !interactable) return;
             var index = curRowsValues[rowID];
             if (index == -1) return;
             Deselect();
@@ -229,6 +232,19 @@ namespace EditorPanelElements {
             if (!changed) return;
             lastFirstIndex = -1;
             UpdateRows();
+        }
+
+        public override void SetInteractable(bool interactable) {
+            this.interactable = interactable;
+            if (!interactable) Deselect();
+            foreach (var (row, _) in rows) {
+                if (row is Godot.Button rowButton && GodotObject.IsInstanceValid(rowButton)) rowButton.Disabled = !interactable;
+            }
+            if (GodotObject.IsInstanceValid(scroll)) scroll.Modulate = interactable ? Colors.White : new Color(UILayout.DisabledColor, 0.6f);
+        }
+
+        public override bool GetInteractable() {
+            return interactable;
         }
 
         public void SetItems(List<string> newItems, List<string> newImages = null, List<Color> newColors = null) {

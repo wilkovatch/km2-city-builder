@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Godot;
 using Scriptable = Godot.Node3D;
-using PhysicsScriptable = Godot.StaticBody3D; //the side and roof colliders are attached to the line
+using PhysicsScriptable = Godot.StaticBody3D; //the side and roof colliders of the buildings are attached to the line
 using GameObject = Godot.Node3D;
 using LineRenderer = GameEngine.LineRenderer;
 using Mesh = Godot.ArrayMesh;
@@ -15,13 +15,12 @@ using SubMeshData = GeometryHelpers.SubMesh.SubMeshData;
 using RC = RuntimeCalculator;
 using V3 = GameEngine.Vector3;
 
-public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithState {
+public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithState, IBuildingOwner {
     List<TerrainPoint> linePoints = new List<TerrainPoint>();
     public List<Building> buildings = new List<Building>();
     public List<BuildingSideGenerator> buildingSides = new List<BuildingSideGenerator>();
     public ObjectState state, instanceState;
     bool deleted = false;
-    public TerrainSubmeshGenerator roof;
     public ObjectState stateForNewBuildings;
 
     public MeshRenderer mr;
@@ -54,6 +53,18 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
 
     public ObjectState GetState() {
         return state;
+    }
+
+    public GameObject GetBody() {
+        return this;
+    }
+
+    public string GetBuildingTypeName() {
+        return state.Str("type", null);
+    }
+
+    public void OnFrontStateSet(Building building, ObjectState newState) {
+        //the buildings keep their own states
     }
 
     void ReloadType() {
@@ -131,7 +142,6 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
         History.UndoManager.Touch(this);
         Clear();
         GO.Destroy(this);
-        if (roof != null) roof.Delete();
         deleted = true;
     }
 
@@ -149,7 +159,6 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
         buildings.Clear();
         lr.enabled = false;
         GO.Destroy(this);
-        if (roof != null) roof.Delete();
         deleted = true;
     }
 
@@ -287,20 +296,6 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
         return res;
     }
 
-    TerrainSubmeshGenerator GetRoof(bool enabled, TerrainSubmeshGenerator current) {
-        if (enabled) {
-            if (current == null) {
-                var newSide = new TerrainSubmeshGenerator(this);
-                return newSide;
-            } else {
-                return current;
-            }
-        } else {
-            if (current != null) current.Delete();
-            return null;
-        }
-    }
-
     int UpdateBuildings(bool force) {
         if (linePoints.Count == 0) return 0;
         //nothing changed (most lines at every update of the city): the splines are not needed
@@ -310,42 +305,8 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
         var fullSpline = splineParts.Item1;
         var splineMap = splineParts.Item2;
         var reversed = splineParts.Item3;
-        roof = GetRoof(state.Bool("frontOnly"), roof);
-        var forcedHeight = 0.0f;
-        var forcedMaxHeight = 0.0f;
-        if (state.Bool("frontOnly")) {
-            var roofSpline = new List<Vector3>();
-            var maxH = float.MinValue;
-            for (int i = 0; i < fullSpline.Count; i++) {
-                var p = fullSpline[i].Item1;
-                if (p[1] > maxH) maxH = p[1];
-            }
-            forcedHeight = maxH + state.Float("height");
-            forcedMaxHeight = maxH;
-            for (int i = 0; i < fullSpline.Count; i++) {
-                var p = fullSpline[i].Item1;
-                var p2 = new Vector3(p[0], forcedHeight, p[2]);
-                roofSpline.Add(p2);
-            }
-
-            var vc = variableContainer;
-            if (roof != null && fullSpline.Count > 2) {
-                try {
-                    roof.UpdateMesh(roofSpline, state.Str("roofTex"), vc.floats[vc.floatIndex["uMult"]], vc.floats[vc.floatIndex["vMult"]]);
-                } catch (System.Exception e) {
-                    GameEngine.LogWarning("Error during mesh generation on building line" + GO.GetName(this) + ": " + e.StackTrace.ToString());
-                }
-            }
-        }
         for (int i = 0; i < buildings.Count; i++) {
             var elem = buildings[i];
-            if (state.Bool("frontOnly")) {
-                elem.state.SetBool("back", false);
-                elem.state.SetBool("left", false);
-                elem.state.SetBool("right", false);
-                elem.state.SetBool("top", false);
-                elem.state.SetFloat("height", state.Float("height"));
-            }
             if (force) elem.spline = GetBuildingSpline(linePoints.IndexOf(elem.firstPoint), linePoints.IndexOf(elem.lastPoint), fullSpline, splineMap, reversed);
         }
         for (int i = 0; i < buildings.Count; i++) {
@@ -354,7 +315,7 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
             } else if (forcedSideStates != null && forcedSideStates.Count == buildings.Count) {
                 buildings[i].state.SetState("frontState", forcedSideStates[i]);
             }
-            buildings[i].PreUpdateMesh(state.Bool("frontOnly"), forcedHeight, forcedMaxHeight, force);
+            buildings[i].PreUpdateMesh(false, 0, 0, force);
         }
 
         //Check if clockwise (to reverse the previous and next if needed)
@@ -800,7 +761,6 @@ public partial class BuildingLine : PhysicsScriptable, IGroundable, IObjectWithS
         foreach (var b in buildings) {
             meshes.AddRange(b.GetSubmesh());
         }
-        if (roof != null) meshes.Add(roof.GetSubmesh());
         GameEngine.Mesh.Clear(m);
         if (meshes.Count > 0) {
             var smd = GeometryHelpers.SubMesh.MergeSubmeshes(meshes, V3.zero, V3.one, 0);

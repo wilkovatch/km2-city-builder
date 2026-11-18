@@ -62,6 +62,7 @@ namespace Api {
                 case Road r: Operations.Roads.Delete(r); break;
                 case TerrainPatch p: Operations.TerrainPatches.Delete(p); break;
                 case BuildingLine l: Operations.BuildingLines.Delete(l); break;
+                case PolygonalBuilding b: Operations.PolygonalBuildings.Delete(b); break;
             }
             M.FlagAsChanged();
             return true;
@@ -272,6 +273,12 @@ namespace Api {
             var l = Resolve<BuildingLine>(r, "buildingLine");
             History.UndoManager.Touch(l);
             return l;
+        }
+
+        PolygonalBuilding EditPolygon(ElementRef r) {
+            var b = Resolve<PolygonalBuilding>(r, "polygonalBuilding");
+            History.UndoManager.Touch(b);
+            return b;
         }
 
         MeshInstance EditMesh(ElementRef r) {
@@ -561,6 +568,88 @@ namespace Api {
             ApplyChange("delete building line", () => Operations.BuildingLines.Delete(EditLine(line)));
         }
 
+        // Polygonal buildings
+
+        [ApiMethod("polygonalBuildings.create", "Creates a polygonal building (a building on the closed outline through its points, in their order, which can be concave: a wall on each edge, always facing outwards, and a flat roof). followAnchors: follow the anchors between two anchors, like with the modifier key. Returns the id, or with details {id, points: the point id given by each target}")]
+        public object CreatePolygonalBuilding(List<PointTarget> points, string preset = null, string type = null, bool followAnchors = false, bool details = false) {
+            if (points == null || points.Count == 0) throw ApiException.InvalidParam("missing points");
+            return ApplyChange("create polygonal building", () => {
+                if (!Operations.PolygonalBuildings.IsAvailable()) throw ApiException.InvalidOperation("no building type of the core has polygonal buildings");
+                var building = Operations.PolygonalBuildings.Create(M);
+                if (preset != null) {
+                    var p = Operations.Presets.Get(Operations.PolygonalBuildings.PresetCategory, preset);
+                    if (p == null) throw ApiException.NotFound("polygonal building preset '" + preset + "'");
+                    Operations.PolygonalBuildings.SetState(building, p);
+                }
+                Operations.States.EnsureType(building.state, TP.GetPolygonalBuildingTypes());
+                if (type != null) {
+                    if (!TP.GetPolygonalBuildingTypes().ContainsKey(type)) throw ApiException.InvalidValue("unknown building type '" + type + "' (or without polygonal buildings)");
+                    Operations.States.SetType(building.state, type);
+                }
+                var ids = new List<int?>();
+                foreach (var target in points) {
+                    var (obj, pos) = ResolvePoint(target);
+                    ids.Add(PointId(Operations.PolygonalBuildings.AddPoint(building, obj, pos, !followAnchors)));
+                    if (followAnchors) {
+                        M.worldChanged = true;
+                        M.ProcessUpdate();
+                    }
+                }
+                if (Operations.PolygonalBuildings.IsIncomplete(building)) throw ApiException.InvalidValue("a polygonal building needs at least three points");
+                M.worldChanged = true;
+                M.ProcessUpdate();
+                return details ? CreationDetails(building, ids, null) : IdOf(building);
+            });
+        }
+
+        [ApiMethod("polygonalBuildings.addPoint", "Adds a point at the end of the outline of a polygonal building (between its last and first points), returns the terrain point id (null if not added)")]
+        public int? AddPolygonalBuildingPoint(ElementRef building, PointTarget point, bool followAnchors = false) {
+            return ApplyChange("add polygonal building point", () => {
+                var b = EditPolygon(building);
+                var (obj, pos) = ResolvePoint(point);
+                var res = Operations.PolygonalBuildings.AddPoint(b, obj, pos, !followAnchors);
+                return res != null ? History.ElementRegistry.GetId(res) : (int?)null;
+            });
+        }
+
+        [ApiMethod("polygonalBuildings.insertPoint", "Inserts a free point in a polygonal building, in the edge closest to the position (or before the point at the index), as a click on an edge of the building being edited. With individual sides, the new wall gets a copy of the side of the wall it splits. Returns the terrain point id")]
+        public int InsertPolygonalBuildingPoint(ElementRef building, Vector3 position, int? index = null, bool onGround = false) {
+            return ApplyChange("insert polygonal building point", () => {
+                var b = EditPolygon(building);
+                var point = Operations.PolygonalBuildings.InsertPoint(b, onGround ? GeometryHelper.ProjectPoint(position) : position, index);
+                if (point == null) throw ApiException.InvalidOperation(index.HasValue ? "the index is out of range" : "the polygonal building has less than two points");
+                return History.ElementRegistry.GetId(point);
+            });
+        }
+
+        [ApiMethod("polygonalBuildings.removePoint", "Removes a point from a polygonal building (the building is deleted if left with less than three points)")]
+        public object RemovePolygonalBuildingPoint(ElementRef building, int point) {
+            return ApplyChange("remove point", () => {
+                var b = EditPolygon(building);
+                if (!Operations.PolygonalBuildings.RemovePoint(b, ResolveTerrainPoint(point))) throw ApiException.InvalidOperation("the point is not part of the polygonal building");
+                return Result(b, DeleteIfIncomplete(b));
+            });
+        }
+
+        [ApiMethod("polygonalBuildings.removeLastPoint", "Removes the last point of a polygonal building (the building is deleted if left with less than three points)")]
+        public object RemovePolygonalBuildingLastPoint(ElementRef building) {
+            return ApplyChange("remove point", () => {
+                var b = EditPolygon(building);
+                Operations.PolygonalBuildings.RemoveLastPoint(b);
+                return Result(b, DeleteIfIncomplete(b));
+            });
+        }
+
+        [ApiMethod("polygonalBuildings.setIndividualSides", "One side for every wall of a polygonal building, or one each (each wall starts with a copy of the shared one); the side of a wall is {polygon, wall: the index of the point it starts at}")]
+        public void SetPolygonalBuildingIndividualSides(ElementRef building, bool individual) {
+            ApplyChange("individual sides", () => Operations.PolygonalBuildings.SetIndividualSides(EditPolygon(building), individual));
+        }
+
+        [ApiMethod("polygonalBuildings.delete", "Deletes a polygonal building")]
+        public void DeletePolygonalBuilding(ElementRef building) {
+            ApplyChange("delete polygonal building", () => Operations.PolygonalBuildings.Delete(EditPolygon(building)));
+        }
+
         // Buildings and their sides
 
         [ApiMethod("buildings.setEnabled", "Enables or disables a building of a line")]
@@ -585,7 +674,7 @@ namespace Api {
 
         BuildingSideGenerator ResolveSide(ElementRef side) {
             var s = Resolve<BuildingSideGenerator>(side, "buildingSide");
-            History.UndoManager.Touch(s.building.line);
+            History.UndoManager.Touch(s.building.owner);
             return s;
         }
 

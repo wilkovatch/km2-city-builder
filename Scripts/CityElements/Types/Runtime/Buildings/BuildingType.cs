@@ -57,16 +57,32 @@ namespace CityElements.Types.Runtime.Buildings {
             }
         }
 
+        public class Polygon: RuntimeType<Types.Buildings.PolygonalBuildingType> {
+            public Polygon(Types.Buildings.PolygonalBuildingType type, string name) : base(type, type.parameters, null, GetEmptyVarLists(), name) {
+                SetIndices();
+            }
+
+            protected void SetIndices() {
+                SetBaseIndices();
+            }
+
+            public void FillInitialVariables(RC.VariableContainer variableContainer, ObjectState state, ObjectState instanceState) {
+                FillBaseInitialVariables(variableContainer, state, instanceState);
+            }
+        }
+
         public Types.Buildings.BuildingType dataType;
         public Side side;
         public Building building;
         public Line line;
+        public Polygon polygon; //null when the type can't be used for polygonal buildings
 
         public BuildingType(Types.Buildings.BuildingType type, string name) {
             dataType = type;
             side = new Side(type.sideType, name);
             building = new Building(type.buildingType, name);
             line = new Line(type.lineType, name);
+            if (type.polygonType != null) polygon = new Polygon(type.polygonType, name);
         }
     }
 }

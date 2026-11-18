@@ -12,8 +12,7 @@ namespace EditorPanels {
             EditorPanelElements.ScrollList buildingList, loopPresetList;
             EditorPanelElements.Dropdown pointPlacementModeDropdown;
             public BuildingEditorPanel buildingEditor;
-            EditorPanelElements.InputField heightField, minLoopLengthField, maxLoopLengthField;
-            EditorPanelElements.TextureField topTex;
+            EditorPanelElements.InputField minLoopLengthField, maxLoopLengthField;
             int curI = -1;
             int curLoopPresetI = -1;
 
@@ -77,7 +76,7 @@ namespace EditorPanels {
                 } else if (elem.name == "propertiesGroup") {
                     //Line properties tab
                     tS.AddTypeDropdown(p, SM.Get("BUILDING_TYPE"), w);
-                    pS.AddPresetLoadAndSaveDropdown(p, SM.Get("BUILDING_LINE_PRESET"), true, "buildingLine", SetCurLineState, delegate { return GetCurLine(true).state; }, false, null, null, CheckIfFrontOnly);
+                    pS.AddPresetLoadAndSaveDropdown(p, SM.Get("BUILDING_LINE_PRESET"), true, "buildingLine", SetCurLineState, delegate { return GetCurLine(true).state; }, false, null, null, null);
 
                     var projectField = p.AddFieldCheckbox(SM.Get("BL_PROJECT_TO_GROUND"), GetCurLine, "instanceState.properties.projectToGround", null, w * 0.5f, null, null, PlacementHeight.OnProjectionToggled);
                     if (pS.EditingPreset()) projectField.SetInteractable(false); //presets never store instance specific values
@@ -85,11 +84,6 @@ namespace EditorPanels {
                     p.IncreaseRow();
 
                     p.AddFieldCheckbox(SM.Get("BL_LOOP"), GetCurLine, "state.properties.loop", null, w * 0.5f);
-                    p.AddFieldCheckbox(SM.Get("BL_FRONTONLY"), GetCurLine, "state.properties.frontOnly", null, w * 0.5f, null, null, x => { CheckIfFrontOnly(); });
-                    p.IncreaseRow();
-
-                    heightField = p.AddFieldInputField(SM.Get("BLDG_HEIGHT"), SM.Get("BLDG_HEIGHT_PH"), GameEngine.InputContentType.Decimal, GetCurLine, "state.properties.height", null, w * 0.5f);
-                    topTex = p.AddFieldTextureField(builder, SM.Get("BLDG_ROOF_TEX"), SM.Get("BLDG_ROOF_TEX_PH"), GetCurLine, "state.properties.roofTex", null, w * 0.5f);
                     p.IncreaseRow();
 
                 } else if (elem.name == "loopGroup") {
@@ -239,10 +233,6 @@ namespace EditorPanels {
                 buildingEditor.curBuilding = bList[curI];
                 Hide(true);
                 buildingEditor.SetActive(true);
-                if (GetCurLine(false).state.Bool("frontOnly")) {
-                    buildingEditor.sideEditor.parentPanel = this;
-                    buildingEditor.ShowSideEditor(bList[curI].front);
-                }
             }
 
             void SelectBuilding(int i) {
@@ -254,11 +244,6 @@ namespace EditorPanels {
                 var bList = GetCurLine(false).buildings;
                 SelectBuilding(bList.IndexOf(side.building));
                 EditSelected();
-                if (GetCurLine(false) != null && GetCurLine(false).state.Bool("frontOnly")) {
-                    buildingEditor.sideEditor.parentPanel = this;
-                } else {
-                    buildingEditor.sideEditor.parentPanel = buildingEditor;
-                }
                 buildingEditor.ShowSideEditor(side);
             }
 
@@ -284,12 +269,6 @@ namespace EditorPanels {
 
             public void SetPointPlacementMode(int mode) {
                 LoadPointPlacementMode(mode);
-            }
-
-            void CheckIfFrontOnly() {
-                var frontOnly = GetCurLine(false) != null && GetCurLine(false).state.Bool("frontOnly");
-                heightField.SetInteractable(frontOnly);
-                topTex.SetInteractable(frontOnly);
             }
 
             /*void AutoCloseLoop() {
@@ -404,7 +383,6 @@ namespace EditorPanels {
                     TS().ReadCurValues(); //a new line only gets its state now
                     ReloadList(true);
                     ReloadLoopPresetsList(true);
-                    CheckIfFrontOnly();
 
                     if (pS.EditingPreset()) {
                         SetTitle(SM.Get("PRESET"), false);

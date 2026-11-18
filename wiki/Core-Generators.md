@@ -23,7 +23,7 @@ The difference from a [converter](Core-Custom-Elements#converters): a converter 
 
 | Key | Description |
 |---|---|
-| `sources` | The elements it runs on: `road`, `intersection`, `terrainPatch`, `buildingLine`, `customElement` or `customElement/<type>`. |
+| `sources` | The elements it runs on: `road`, `intersection`, `terrainPatch`, `buildingLine`, `polygonalBuilding`, `customElement` or `customElement/<type>`. |
 | `types` | Only the procedural elements of these types (all if missing). |
 | `script` | The Python script, in the folder of the generator (default `generate.py`). |
 | `enabledWhen` | Optional `<module>.<function>` Lua predicate, as for the converters: `ctx.element` and `ctx.neighbors` contain detached `{kind, id, state}` snapshots. Usually it checks the flag of the element that asks for the files (and what they need, e.g. a point on a road). Without it, the generator runs on every element it accepts. |

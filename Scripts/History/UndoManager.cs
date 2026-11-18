@@ -510,6 +510,7 @@ namespace History {
             foreach (var point in manager.GetTerrainPoints()) Touch(point, false);
             foreach (var patch in manager.patches) Touch(patch, false);
             foreach (var line in manager.buildings) Touch(line, false);
+            foreach (var building in manager.polygonalBuildings) Touch(building, false);
             foreach (var element in manager.customElements) Touch(element, false);
         }
 
@@ -737,6 +738,7 @@ namespace History {
             if (element is Road road) return road.points.Count < 2;
             if (element is TerrainPatch patch) return patch.GetPerimeterPointCount() < 3;
             if (element is BuildingLine line) return line.GetPointCount() < 2;
+            if (element is PolygonalBuilding building) return Operations.PolygonalBuildings.IsIncomplete(building);
             if (element is CustomElement custom) return Operations.CustomElements.IsIncomplete(custom);
             return false;
         }
@@ -744,7 +746,7 @@ namespace History {
         // Application
 
         static readonly ElementKind[] removalOrder = {
-            ElementKind.CustomElement, ElementKind.BuildingLine, ElementKind.TerrainPatch, ElementKind.TerrainPoint,
+            ElementKind.CustomElement, ElementKind.BuildingLine, ElementKind.PolygonalBuilding, ElementKind.TerrainPatch, ElementKind.TerrainPoint,
             ElementKind.Intersection, ElementKind.Road, ElementKind.Mesh
         };
 
@@ -817,6 +819,7 @@ namespace History {
                 var hasTerrainElements = false;
                 foreach (var (change, _) in updates) {
                     if (change.kind == ElementKind.TerrainPoint || change.kind == ElementKind.TerrainPatch || change.kind == ElementKind.BuildingLine
+                        || change.kind == ElementKind.PolygonalBuilding
                         || change.kind == ElementKind.CustomElement) {
                         hasTerrainElements = true;
                         break;
@@ -831,7 +834,7 @@ namespace History {
                     }
                 }
                 ApplyKinds(updates, ElementKind.TerrainPoint);
-                ApplyKinds(updates, ElementKind.TerrainPatch, ElementKind.BuildingLine, ElementKind.CustomElement);
+                ApplyKinds(updates, ElementKind.TerrainPatch, ElementKind.BuildingLine, ElementKind.PolygonalBuilding, ElementKind.CustomElement);
             } finally {
                 applying = false;
             }

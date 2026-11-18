@@ -394,7 +394,7 @@ Projected spline sections refresh after a target mesh is created, moved, rotated
 | Key | Description |
 |---|---|
 | `label`, `tooltip` | String keys of the conversion button. |
-| `sources` | What it converts: `road`, `intersection`, `terrainPatch`, `buildingLine`, `customElement` or `customElement/<type>`. |
+| `sources` | What it converts: `road`, `intersection`, `terrainPatch`, `buildingLine`, `polygonalBuilding`, `customElement` or `customElement/<type>`. |
 | `types` | Only the procedural elements of these types (all if missing). |
 | `script` | The Python script, in the folder of the converter (default `convert.py`). |
 | `enabledWhen` | Optional `<module>.<function>` Lua predicate. Called as `function(_, ctx)`: `ctx.element` and `ctx.neighbors` contain detached `{kind, id, state}` snapshots (roads of an intersection, intersections of a road, roads and intersections the points of a custom element are attached to). Returning false disables an accepted button; availability is rechecked before and after running the converter. |

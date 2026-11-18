@@ -144,6 +144,18 @@ namespace CityEncoder {
             }
             savedCity.buildingLines = linesArray;
 
+            var polygonsArray = new IO.SavedCity.PolygonalBuilding[manager.polygonalBuildings.Count];
+            for (int i = 0; i < manager.polygonalBuildings.Count; i++) {
+                try {
+                    polygonsArray[i] = History.ElementSnapshot.CapturePolygonalBuilding(manager.polygonalBuildings[i], i, p => GetTerrainPoint(p, pointsList, manager));
+                } catch (System.Exception e) {
+                    GameEngine.LogError(e.ToString());
+                    progressBar.SetActive(false);
+                    return e.Message;
+                }
+            }
+            savedCity.polygonalBuildings = polygonsArray;
+
             //the elements are referenced by their index in their list
             int IndexOf(object element) {
                 switch (element) {
@@ -151,6 +163,7 @@ namespace CityEncoder {
                     case Intersection i: return manager.intersections.IndexOf(i);
                     case TerrainPatch p: return manager.patches.IndexOf(p);
                     case BuildingLine l: return manager.buildings.IndexOf(l);
+                    case PolygonalBuilding b: return manager.polygonalBuildings.IndexOf(b);
                     case CustomElement e: return manager.customElements.IndexOf(e);
                     default: return -1;
                 }

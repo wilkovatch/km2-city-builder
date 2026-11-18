@@ -30,6 +30,39 @@ namespace CityElements.Types.Buildings {
 
 
 
+    //Polygonal building (optional files: a type without them can't be used for polygonal buildings)
+    public class PolygonalBuildingSettings {
+        public bool projectToGround; //the initial value of a new polygonal building (kept in its instance state)
+    }
+
+    public class PolygonalBuildingType : ITypeWithUI {
+        public Panel ui;
+        public ParameterContainer parameters;
+        public PolygonalBuildingSettings settings;
+
+        public PolygonalBuildingType(string folder) {
+            ui = Parsers.TypeInheritance.Load<Panel>(folder, "polygon_ui.json");
+            parameters = Parsers.TypeInheritance.Load<ParameterContainer>(folder, "polygon_parameters.json");
+            settings = Parsers.TypeInheritance.Exists(folder, "polygon_settings.json")
+                ? Parsers.TypeInheritance.Load<PolygonalBuildingSettings>(folder, "polygon_settings.json")
+                : new PolygonalBuildingSettings();
+        }
+
+        public static bool IsDefined(string folder) {
+            return Parsers.TypeInheritance.Exists(folder, "polygon_ui.json") && Parsers.TypeInheritance.Exists(folder, "polygon_parameters.json");
+        }
+
+        public ParameterContainer GetParameters() {
+            return parameters;
+        }
+
+        public Panel GetUI() {
+            return ui;
+        }
+    }
+
+
+
     //Building
     public class BuildingBuildingSettings {
         //TODO
@@ -141,11 +174,13 @@ namespace CityElements.Types.Buildings {
         public BuildingLineType lineType;
         public BuildingBuildingType buildingType;
         public BuildingSideType sideType;
+        public PolygonalBuildingType polygonType; //null when the type has no polygon_* files
 
         public BuildingType(string folder) {
             lineType = new BuildingLineType(folder);
             buildingType = new BuildingBuildingType(folder);
             sideType = new BuildingSideType(folder);
+            if (PolygonalBuildingType.IsDefined(folder)) polygonType = new PolygonalBuildingType(folder);
         }
     }
 }

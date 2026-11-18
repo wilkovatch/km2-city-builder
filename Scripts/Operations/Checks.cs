@@ -44,6 +44,7 @@ namespace Operations {
                 Intersection i => manager.intersections.IndexOf(i),
                 TerrainPatch p => manager.patches.IndexOf(p),
                 BuildingLine l => manager.buildings.IndexOf(l),
+                PolygonalBuilding b => manager.polygonalBuildings.IndexOf(b),
                 CustomElement c => manager.customElements.IndexOf(c),
                 _ => -1
             };

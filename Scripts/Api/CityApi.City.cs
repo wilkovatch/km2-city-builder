@@ -334,7 +334,8 @@ namespace Api {
                 case "building": return Operations.City.BatchKind.Building;
                 case "buildingSide": return Operations.City.BatchKind.BuildingSide;
                 case "meshInstance": return Operations.City.BatchKind.MeshInstance;
-                default: throw ApiException.InvalidValue("kind must be road, intersection, terrainPatch, buildingLine, building, buildingSide or meshInstance");
+                case "polygonalBuilding": return Operations.City.BatchKind.PolygonalBuilding;
+                default: throw ApiException.InvalidValue("kind must be road, intersection, terrainPatch, buildingLine, building, buildingSide, meshInstance or polygonalBuilding");
             }
         }
 

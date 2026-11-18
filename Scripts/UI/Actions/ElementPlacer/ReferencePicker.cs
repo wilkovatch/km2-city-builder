@@ -118,6 +118,8 @@ namespace ElementPlacer {
                 if (patch != null) return patch;
                 var line = GS.Cast<BuildingLine>(obj);
                 if (line != null) return line;
+                var polygon = GS.Cast<PolygonalBuilding>(obj);
+                if (polygon != null) return polygon;
             }
             return null;
         }

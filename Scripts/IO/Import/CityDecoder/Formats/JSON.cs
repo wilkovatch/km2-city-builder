@@ -207,6 +207,7 @@ namespace CityDecoder {
             if (loadedCity.intersections == null) loadedCity.intersections = new IO.SavedCity.Intersection[0];
             if (loadedCity.terrainPatches == null) loadedCity.terrainPatches = new IO.SavedCity.TerrainPatch[0];
             if (loadedCity.buildingLines == null) loadedCity.buildingLines = new IO.SavedCity.BuildingLine[0];
+            if (loadedCity.polygonalBuildings == null) loadedCity.polygonalBuildings = new IO.SavedCity.PolygonalBuilding[0];
             if (loadedCity.terrainPoints == null) loadedCity.terrainPoints = new IO.SavedCity.TerrainPoint[0];
             loadedCity.customElements = (loadedCity.customElements ?? new IO.SavedCity.CustomElement[0])
                 .Concat(loadedCity.lowLevelElements ?? new IO.SavedCity.CustomElement[0]).ToArray();
@@ -214,7 +215,7 @@ namespace CityDecoder {
 
             float totalNum = loadedCity.meshes.Length + loadedCity.roads.Length +
                 loadedCity.intersections.Length + loadedCity.terrainPatches.Length
-                + loadedCity.buildingLines.Length + loadedCity.customElements.Length;
+                + loadedCity.buildingLines.Length + loadedCity.polygonalBuildings.Length + loadedCity.customElements.Length;
 
             int reachedNum = 0;
             int n = 0;
@@ -370,6 +371,30 @@ namespace CityDecoder {
                 reachedNum++;
             }
 
+            var loadedPolygons = new List<PolygonalBuilding>();
+            n = 0;
+            foreach (var b in loadedCity.polygonalBuildings) {
+                n++;
+                var building = Operations.PolygonalBuildings.Create(manager, string.IsNullOrEmpty(b.name) ? "Polygonal building " + n : b.name);
+                var points = new List<TerrainPoint>();
+                var wallStates = new List<ObjectState>();
+                var ids = b.points ?? new int[0];
+                for (int i = 0; i < ids.Length; i++) {
+                    var tp = GetTerrainPoint(loadedTerrainPoints[ids[i]], pointDict, loadedTerrainPoints);
+                    if (points.Contains(tp)) continue;
+                    points.Add(tp);
+                    wallStates.Add(b.wallStates != null && i < b.wallStates.Length ? b.wallStates[i] : null);
+                }
+                building.RestoreFromSnapshot(points, b.state ?? building.state, b.instanceState ?? new ObjectState(), wallStates.ToArray());
+                loadedPolygons.Add(building);
+                if (batchWatch.ElapsedMilliseconds >= LoadBatchMilliseconds) {
+                    progressBar.SetProgress(0.8f + 0.2f * (reachedNum / totalNum));
+                    await caller.ToSignal(caller.GetTree(), "process_frame");
+                    batchWatch.Restart();
+                }
+                reachedNum++;
+            }
+
             //custom elements (their containers, sources and references once they all exist)
             var loadedCustomElements = new Dictionary<int, CustomElement>();
             var loadedPatches = manager.patches;
@@ -401,6 +426,7 @@ namespace CityDecoder {
                     case "intersection": return loadedIntersections.TryGetValue(id, out var i) ? i.Item1 : null;
                     case "terrainPatch": return id >= 0 && id < loadedPatches.Count ? loadedPatches[id] : null;
                     case "buildingLine": return id >= 0 && id < manager.buildings.Count ? manager.buildings[id] : null;
+                    case "polygonalBuilding": return id >= 0 && id < loadedPolygons.Count ? loadedPolygons[id] : null;
                     case "lowLevel": //saved before the rename
                     case "customElement": return loadedCustomElements.TryGetValue(id, out var l) ? l : null;
                     default: return null;

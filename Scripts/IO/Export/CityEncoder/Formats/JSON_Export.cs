@@ -59,6 +59,7 @@ namespace CityEncoder {
                         case Intersection i: return manager.intersections.IndexOf(i);
                         case TerrainPatch p: return manager.patches.IndexOf(p);
                         case BuildingLine l: return manager.buildings.IndexOf(l);
+                        case PolygonalBuilding b: return manager.polygonalBuildings.IndexOf(b);
                         case CustomElement e: return manager.customElements.IndexOf(e);
                         default: return -1;
                     }
@@ -151,6 +152,14 @@ namespace CityEncoder {
                     await caller.ToSignal(caller.GetTree(), "process_frame");
                 }
             }
+            var polygonsArray = new IO.ExportedCity.PolygonalBuilding[manager.polygonalBuildings.Count];
+            for (int i = 0; i < manager.polygonalBuildings.Count; i++) {
+                try {
+                    polygonsArray[i] = geometry.GetPolygonalBuilding(manager.polygonalBuildings[i], i);
+                } catch (System.Exception e) {
+                    return Fail(e);
+                }
+            }
             //Custom elements
             var customElementArray = new IO.ExportedCity.CustomElement[manager.customElements.Count];
             for (int i = 0; i < manager.customElements.Count; i++) {
@@ -169,6 +178,7 @@ namespace CityEncoder {
 
             try {
                 savedCity.buildingLines = linesArray;
+                savedCity.polygonalBuildings = polygonsArray;
 
                 savedCity.cityProperties = manager.GetDummy<CityProperties>().GetState();
 

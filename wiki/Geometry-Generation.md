@@ -80,7 +80,7 @@ The node of a terrain patch: mesh, collider and outline. `RebuildMesh` calls `Te
 
 ### `TerrainSubmeshGenerator` (`Geometry/TerrainSubmeshGenerator.cs`)
 
-A flat polygon mesh with a collider, used for the roofs of buildings and building lines.
+A flat polygon mesh with a collider, used for the roofs of the buildings and of the polygonal buildings.
 
 ## Buildings
 

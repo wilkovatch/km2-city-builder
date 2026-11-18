@@ -65,7 +65,8 @@ A preset contains the values of the core's parameters and of the program's built
 | `<container>` | Container presets (`PRESET_<container>` UI element) | One category per container name, for example `rail` in MM2. The keys are the parameter names **without** the container prefix (`type`, `height`...). |
 | `roadPropRule` | Road props rules | One state per props container name of the road type, plus `type` (a road type, to filter rules by road type). |
 | `props/<type>` | A [props type](Core-Props-and-Objects) | One category per type, with matching `type`, and the parameters of the type. The first preset is the state of a new element of the type. |
-| `buildingLine` | Building lines | `type` must be a building type; `height`, `frontOnly`, `loop`, ... |
+| `buildingLine` | Building lines | `type` must be a building type; `loop`, `invertDirection`, ... |
+| `polygonalBuilding` | Polygonal buildings | `type` must be a building type with the `polygon_*` files; `height`, `roofTex`, `individualSides`, `sideState` (the side of the walls). If missing, the program makes a default one with the type of the default building line preset (or the first such type), the default building side and the roof texture (`topTexture`) of the default building preset |
 | `building` | Buildings | `type`, enabled sides, `height`, `depth`, and the side states (`frontState`, `leftState`, `rightState`, `backState`). |
 | `buildingSide` | Building sides | `type`, floors and block dictionary (see [Core Buildings](Core-Buildings#side)). |
 | `buildingBlock` | Blocks of the block dictionary | `type` (a block type) and its parameters. |

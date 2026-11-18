@@ -261,6 +261,8 @@ namespace Operations {
                 case Road road: return road.deleted;
                 case Intersection intersection: return intersection.IsDeleted();
                 case TerrainPatch patch: return patch.IsDeleted();
+                case BuildingLine line: return line.IsDeleted();
+                case PolygonalBuilding building: return building.IsDeleted();
                 case CustomElement customElement: return customElement.IsDeleted();
                 default: return false;
             }

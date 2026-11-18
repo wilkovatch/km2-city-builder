@@ -18,7 +18,7 @@ Static entry point. Every getter reads its folder of the current core (`Files/co
 | `GetRoadTypes` | `roads/<name>/` (+ `sharedComponents/`) | `Runtime.RoadType` |
 | `GetIntersectionTypes` | `intersections/<name>/` (+ `sharedComponents/`) | `Runtime.IntersectionType` |
 | `GetTerrainPatchTypes` | `terrainPatches/terrainPatches/<name>/` | `Runtime.TerrainPatchType` |
-| `GetBuildingTypes` | `buildings/<name>/` | `Runtime.Buildings.BuildingType` (with `GetBuildingLineTypes`, `GetBuildingBuildingTypes`, `GetBuildingSideTypes` returning its parts) |
+| `GetBuildingTypes` | `buildings/<name>/` | `Runtime.Buildings.BuildingType` (with `GetBuildingLineTypes`, `GetBuildingBuildingTypes`, `GetBuildingSideTypes` returning its parts, and `GetPolygonalBuildingTypes` the polygon part of the types that have one) |
 | `GetBuildingBlockTypes` | `buildingBlocks/<name>/` | `Runtime.Buildings.BlockType` |
 | `GetPropsTypes` | `props/types/<name>.json` | `Runtime.PropsType` |
 | `GetMeshInstanceTypes` | `customElements/<name>/` with `meshInstance` (loaded with the custom element types, kept apart) | `Runtime.MeshInstanceType` |
@@ -59,7 +59,7 @@ A type can extend another type of its category (see [Core Type Inheritance](Core
 
 * **Roads and intersections** (`RoadComponents.cs`): `RoadType` (reads `ui.json`, `parameters.json`, `settings.json` and the component files, looking in `components/` first and then in the shared components folder), `RoadSettings`, `RoadComponent`, `RoadComponentMesh`, `PropLine`, `TrafficType`, `TrafficLane`; `IntersectionType` (reads every file in `junctions/` and the components they use), `IntersectionSettings`, `JunctionType`, `ImportedParameter`, `ImportedPropContainer`, `ImportedTrafficType`, `TextureDefinition`, `ExtraTerrainSpline`, `ExtraTerrainPiece`.
 * **Terrain patches** (`TerrainPatchComponents.cs`): `TerrainPatchType`, `TerrainPatchSettings`.
-* **Buildings** (`BuildingComponents.cs`): `BuildingType` (container of `BuildingLineType`, `BuildingBuildingType` and `BuildingSideType`, read from the `line_*`, `building_*` and `side_*` files of one folder), `BlockType`, `BlockSettings`, `BlockComponent`, `BuildingSideSettings`.
+* **Buildings** (`BuildingComponents.cs`): `BuildingType` (container of `BuildingLineType`, `BuildingBuildingType`, `BuildingSideType` and the optional `PolygonalBuildingType`, read from the `line_*`, `building_*`, `side_*` and `polygon_*` files of one folder), `BlockType`, `BlockSettings`, `BlockComponent`, `BuildingSideSettings`.
 * **Props** (`PropsComponents.cs`): `PropsType`, `PropsPlacementRules`, `MeshInstanceSettings`, `MeshInstancePlacementRules`.
 * **City** (`CitySettings.cs`): `CitySettings`, `Settings`, `ParameterInjection`.
 

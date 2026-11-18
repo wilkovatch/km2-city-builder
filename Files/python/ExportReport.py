@@ -17,7 +17,7 @@ as "Warning: ..." and "Error: ...".
     sys.exit(1 if report.has_errors() else 0)
 
 element and kind identify the element as the scripting API does ({"name": ..., "kind": ...}: road, intersection,
-terrainPatch, buildingLine, meshInstance, customElement); position is [x, y, z] in the program coordinates. overlay is
+terrainPatch, buildingLine, polygonalBuilding, meshInstance, customElement); position is [x, y, z] in the program coordinates. overlay is
 drawn over the city while the item is listed: a list of {"type": "polyline", "points": [[x, y, z], ...], "color": "#rrggbb"}
 (e.g. the path of a vehicle), in the program coordinates.
 

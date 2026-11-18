@@ -96,10 +96,20 @@ namespace IO.SavedCity {
         public ObjectState[] sides;
     }
 
+    [System.Serializable]
+    public struct PolygonalBuilding {
+        public int id;
+        public string name;
+        public ObjectState state; //with the shared side state of the walls (sideState)
+        public ObjectState instanceState;
+        public int[] points; //references to terrain points
+        public ObjectState[] wallStates; //the side states of the walls starting at the points (null for none)
+    }
+
     //a reference to an element of the city (a parameter of a custom element, or the element it replaces)
     [System.Serializable]
     public struct ElementReference {
-        public string kind; //road, intersection, terrainPatch, buildingLine, customElement
+        public string kind; //road, intersection, terrainPatch, buildingLine, polygonalBuilding, customElement
         public int id;
     }
 
@@ -133,6 +143,8 @@ namespace IO.SavedCity {
         public TerrainPoint[] terrainPoints;
         public TerrainPatch[] terrainPatches;
         public BuildingLine[] buildingLines;
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public PolygonalBuilding[] polygonalBuildings;
         public CustomElement[] customElements;
 
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]

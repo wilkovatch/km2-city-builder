@@ -8,7 +8,7 @@ using TP = CityElements.Types.Parsers.TypeParser;
 namespace Api {
     //The parts of the elements that are not elements themselves
     public class BlockPart {
-        public BuildingLine line;
+        public IBuildingOwner owner; //the building line or polygonal building
         public BuildingSideGenerator side;
         public int index;
     }
@@ -66,7 +66,7 @@ namespace Api {
                 case TerrainPoint: return "terrainPoint";
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
-
+                case PolygonalBuilding: return "polygonalBuilding";
                 case CustomElement: return "customElement";
                 case Building: return "building";
                 case BuildingSideGenerator: return "buildingSide";
@@ -91,6 +91,7 @@ namespace Api {
             foreach (var e in m.intersections) yield return e;
             foreach (var e in m.patches) yield return e;
             foreach (var e in m.buildings) yield return e;
+            foreach (var e in m.polygonalBuildings) yield return e;
             foreach (var e in m.meshes) yield return e;
             foreach (var e in m.customElements) yield return e;
         }
@@ -135,7 +136,15 @@ namespace Api {
                 if (side == null) throw ApiException.NotFound("side " + r.side + " of building " + i);
                 if (!r.block.HasValue) return side;
                 if (Operations.BuildingLines.GetBlock(side, r.block.Value) == null) throw ApiException.NotFound("block " + r.block.Value);
-                return new BlockPart { line = line, side = side, index = r.block.Value };
+                return new BlockPart { owner = line, side = side, index = r.block.Value };
+            }
+            if (r.polygon != null) {
+                var polygon = Resolve<PolygonalBuilding>(r.polygon, "polygonalBuilding");
+                var side = Operations.PolygonalBuildings.GetWallSide(polygon, r.wall);
+                if (side == null) throw ApiException.NotFound(r.wall.HasValue ? "wall " + r.wall.Value : "wall");
+                if (!r.block.HasValue) return side;
+                if (Operations.BuildingLines.GetBlock(side, r.block.Value) == null) throw ApiException.NotFound("block " + r.block.Value);
+                return new BlockPart { owner = polygon, side = side, index = r.block.Value };
             }
             if (r.road != null) {
                 var road = Resolve<IObjectWithState>(r.road, null);
@@ -307,6 +316,14 @@ namespace Api {
                     t.applyPreset = x => Operations.BuildingLines.SetLineState(line, x);
                     t.types = () => TP.GetBuildingLineTypes().Keys;
                     break;
+                case PolygonalBuilding polygon:
+                    t.state = polygon.state;
+                    t.instanceState = polygon.instanceState;
+                    t.parameters = Params(TypeOf(TP.GetPolygonalBuildingTypes(), polygon.state.Str("type", null))?.parameterContainer);
+                    t.presetCategory = Operations.PolygonalBuildings.PresetCategory;
+                    t.applyPreset = x => Operations.PolygonalBuildings.SetState(polygon, x);
+                    t.types = () => TP.GetPolygonalBuildingTypes().Keys;
+                    break;
                 case Building building:
                     t.owner = building.line;
                     t.state = building.State;
@@ -315,14 +332,14 @@ namespace Api {
                     t.applyPreset = x => Operations.BuildingLines.SetBuildingState(building, x);
                     break;
                 case BuildingSideGenerator side:
-                    t.owner = side.building.line;
+                    t.owner = side.building.owner;
                     t.state = side.State;
-                    t.parameters = Params(TypeOf(TP.GetBuildingSideTypes(), side.building.line.state.Str("type", null))?.parameterContainer);
+                    t.parameters = Params(TypeOf(TP.GetBuildingSideTypes(), side.building.owner.GetBuildingTypeName())?.parameterContainer);
                     t.presetCategory = "buildingSide";
                     t.applyPreset = x => Operations.BuildingLines.SetSideState(side, x);
                     break;
                 case BlockPart block:
-                    t.owner = block.line;
+                    t.owner = block.owner;
                     t.state = Operations.BuildingLines.GetBlock(block.side, block.index);
                     t.parameters = Params(TypeOf(TP.GetBuildingBlockTypes(), t.state.Str("type", null))?.parameterContainer);
                     t.presetCategory = "buildingBlock";

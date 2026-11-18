@@ -14,7 +14,8 @@ namespace History {
         TerrainPoint,
         TerrainPatch,
         BuildingLine,
-        CustomElement
+        CustomElement,
+        PolygonalBuilding
     }
 
     //Captures single elements in the IO.SavedCity format (shared with the city encoder, with a different id resolution),
@@ -29,6 +30,7 @@ namespace History {
                 case TerrainPoint: return ElementKind.TerrainPoint;
                 case TerrainPatch: return ElementKind.TerrainPatch;
                 case BuildingLine: return ElementKind.BuildingLine;
+                case PolygonalBuilding: return ElementKind.PolygonalBuilding;
                 case CustomElement: return ElementKind.CustomElement;
                 default: return null;
             }
@@ -47,6 +49,7 @@ namespace History {
                 case TerrainPoint point: return !point.IsDeleted() && IsNodeAlive(point);
                 case TerrainPatch patch: return !patch.IsDeleted() && IsNodeAlive(patch);
                 case BuildingLine line: return !line.IsDeleted() && IsNodeAlive(line);
+                case PolygonalBuilding building: return !building.IsDeleted() && IsNodeAlive(building);
                 case CustomElement customElement: return !customElement.IsDeleted() && IsNodeAlive(customElement);
                 default: return false;
             }
@@ -260,6 +263,29 @@ namespace History {
             return elem;
         }
 
+        public static IO.SavedCity.PolygonalBuilding CapturePolygonalBuilding(PolygonalBuilding building, int id, System.Func<TerrainPoint, int> pointId) {
+            building.SyncSharedSideEdits(); //an edit of a wall not read by the building yet
+            var elem = new IO.SavedCity.PolygonalBuilding();
+            elem.id = id;
+            elem.name = GO.GetName(building);
+            elem.state = building.state;
+            elem.instanceState = building.instanceState;
+            var points = building.GetPointsComponents();
+            elem.points = new int[points.Count];
+            for (int j = 0; j < points.Count; j++) {
+                elem.points[j] = pointId(points[j]);
+            }
+            var wallStates = building.GetWallStatesArray();
+            var any = false;
+            for (int j = 0; j < wallStates.Length; j++) {
+                if (wallStates[j] == null) continue;
+                wallStates[j] = (ObjectState)wallStates[j].Clone();
+                any = true;
+            }
+            elem.wallStates = any ? wallStates : null;
+            return elem;
+        }
+
         //a point of a custom element whose definition lets it be rotated
         static bool IsRotatable(TerrainPoint p) {
             foreach (var link in p.GetLinks()) {
@@ -291,7 +317,7 @@ namespace History {
                 case Intersection: return "intersection";
                 case TerrainPatch: return "terrainPatch";
                 case BuildingLine: return "buildingLine";
-
+                case PolygonalBuilding: return "polygonalBuilding";
                 case CustomElement: return "customElement";
                 default: return null;
             }
@@ -374,6 +400,9 @@ namespace History {
                 case ElementKind.BuildingLine:
                     data = CaptureBuildingLine((BuildingLine)element, id, RegistryId);
                     break;
+                case ElementKind.PolygonalBuilding:
+                    data = CapturePolygonalBuilding((PolygonalBuilding)element, id, RegistryId);
+                    break;
                 case ElementKind.CustomElement:
                     data = CaptureCustomElement((CustomElement)element, id, RegistryId, RegistryId, (kind, refId) => refId);
                     break;
@@ -442,6 +471,14 @@ namespace History {
                     line.Initialize(manager.GetTerrainPointContainer());
                     manager.AddBuildingLine(line, id);
                     return line;
+                }
+                case ElementKind.PolygonalBuilding: {
+                    var b = Deserialize<IO.SavedCity.PolygonalBuilding>(json);
+                    var building = GS.Create<PolygonalBuilding>(null, manager.GetBuildingContainer());
+                    GO.SetName(building, NameOrDefault(b.name, "Polygonal building"));
+                    building.Initialize(manager.GetTerrainPointContainer());
+                    manager.AddPolygonalBuilding(building, id);
+                    return building;
                 }
                 case ElementKind.CustomElement: {
                     var e = Deserialize<IO.SavedCity.CustomElement>(json);
@@ -575,6 +612,13 @@ namespace History {
                     line.RestoreFromSnapshot(GetPoints(l.linePoints), Changed(l.state), Changed(l.instanceState), buildingStates, sideStates);
                     return line;
                 }
+                case ElementKind.PolygonalBuilding: {
+                    var b = Deserialize<IO.SavedCity.PolygonalBuilding>(json);
+                    var building = (PolygonalBuilding)element;
+                    if (!string.IsNullOrEmpty(b.name)) GO.SetName(building, b.name);
+                    building.RestoreFromSnapshot(GetPoints(b.points), Changed(b.state), Changed(b.instanceState), b.wallStates);
+                    return building;
+                }
                 case ElementKind.CustomElement: {
                     var e = Deserialize<IO.SavedCity.CustomElement>(json);
                     var customElement = (CustomElement)element;
@@ -671,6 +715,9 @@ namespace History {
                     break;
                 case ElementKind.BuildingLine:
                     ((BuildingLine)element).RemoveForUndo();
+                    break;
+                case ElementKind.PolygonalBuilding:
+                    ((PolygonalBuilding)element).RemoveForUndo();
                     break;
                 case ElementKind.CustomElement:
                     ((CustomElement)element).RemoveForUndo();

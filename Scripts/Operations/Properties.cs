@@ -21,9 +21,11 @@ namespace Operations {
                 case Intersection:
                 case TerrainPatch:
                 case BuildingLine:
-                case Building:
+                case PolygonalBuilding:
                 case CustomElement:
                     return true;
+                case Building building: //the walls of the polygonal buildings are not buildings to the user
+                    return building.line != null;
                 case MeshInstance mesh:
                     return mesh.objectParameter == null;
                 default:
@@ -66,6 +68,10 @@ namespace Operations {
                     History.UndoManager.Touch(line);
                     BuildingLines.SetLineState(line, ((BuildingLine)source).state);
                     line.state.FlagAsChanged();
+                    break;
+                case PolygonalBuilding polygon:
+                    History.UndoManager.Touch(polygon);
+                    PolygonalBuildings.SetState(polygon, ((PolygonalBuilding)source).state);
                     break;
                 case Building building:
                     History.UndoManager.Touch(building.line);

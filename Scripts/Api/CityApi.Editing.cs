@@ -29,7 +29,7 @@ namespace Api {
             });
         }
 
-        [ApiMethod("elements.copyProperties", "Gives the elements (to) the properties of another element of the same kind (from), as the property eyedropper of the editor: what a preset of the element would hold, without saving one. Roads, intersections, terrain patches, building lines, buildings ({line, building}), custom elements and mesh instances (the last two only between elements of the same type). The points, the instance specific values (e.g. the values of the spline of a road), the references and the container of each element are kept. Returns the number of elements changed")]
+        [ApiMethod("elements.copyProperties", "Gives the elements (to) the properties of another element of the same kind (from), as the property eyedropper of the editor: what a preset of the element would hold, without saving one. Roads, intersections, terrain patches, building lines, buildings ({line, building}), polygonal buildings, custom elements and mesh instances (the last two only between elements of the same type). The points, the instance specific values (e.g. the values of the spline of a road), the references and the container of each element are kept. Returns the number of elements changed")]
         public int CopyProperties(ElementRef from, List<ElementRef> to) {
             if (to == null || to.Count == 0) throw ApiException.InvalidParam("missing elements");
             return ApplyChange("copy properties", () => {

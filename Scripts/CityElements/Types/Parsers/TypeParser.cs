@@ -163,6 +163,16 @@ namespace CityElements.Types.Parsers {
             return res;
         }
 
+        //only the building types with the polygon_* files
+        public static Dictionary<string, Runtime.Buildings.BuildingType.Polygon> GetPolygonalBuildingTypes(bool reload = false) {
+            var tmp = GetBuildingTypes(reload);
+            var res = new Dictionary<string, Runtime.Buildings.BuildingType.Polygon>();
+            foreach (var elem in tmp) {
+                if (elem.Value.polygon != null) res.Add(elem.Key, elem.Value.polygon);
+            }
+            return res;
+        }
+
         public static Dictionary<string, Runtime.Buildings.BuildingType.Side> GetBuildingSideTypes(bool reload = false) {
             var tmp = GetBuildingTypes(reload);
             var res = new Dictionary<string, Runtime.Buildings.BuildingType.Side>();

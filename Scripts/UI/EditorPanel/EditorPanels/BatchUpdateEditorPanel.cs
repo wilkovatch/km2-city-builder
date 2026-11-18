@@ -20,7 +20,8 @@ namespace EditorPanels {
                 SM.Get("BATCH_TYPE_BUILDING_LINE"),
                 SM.Get("BATCH_TYPE_BUILDING"),
                 SM.Get("BATCH_TYPE_BUILDING_SIDE"),
-                SM.Get("BATCH_TYPE_MESH_INSTANCE")
+                SM.Get("BATCH_TYPE_MESH_INSTANCE"),
+                SM.Get("BATCH_TYPE_POLYGONAL_BUILDING")
             };
             p0.AddDropdown(SM.Get("BATCH_TYPE"), objTypes, x => curType = x, 1.5f);
             p0.IncreaseRow();

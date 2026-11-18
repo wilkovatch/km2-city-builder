@@ -83,6 +83,7 @@ namespace Operations {
             var intersections = new JArray();
             var patches = new JArray();
             var lines = new JArray();
+            var polygons = new JArray();
             var customElements = new JArray();
             using (var geometry = new CityEncoder.ExportGeometry(Id)) {
                 foreach (var e in GetContext(manager, elements)) {
@@ -91,6 +92,7 @@ namespace Operations {
                         case Intersection i: intersections.Add(JToken.FromObject(geometry.GetIntersection(i, Id(i)))); break;
                         case TerrainPatch p: patches.Add(JToken.FromObject(geometry.GetTerrainPatch(p, Id(p)))); break;
                         case BuildingLine l: lines.Add(JToken.FromObject(geometry.GetBuildingLine(l, Id(l)))); break;
+                        case PolygonalBuilding b: polygons.Add(JToken.FromObject(geometry.GetPolygonalBuilding(b, Id(b)))); break;
                         case CustomElement l: customElements.Add(JToken.FromObject(geometry.GetCustomElement(l, Id(l)))); break;
                     }
                 }
@@ -101,6 +103,7 @@ namespace Operations {
             res["intersections"] = intersections;
             res["terrainPatches"] = patches;
             res["buildingLines"] = lines;
+            res["polygonalBuildings"] = polygons;
             res["customElements"] = customElements;
             res["meshInstances"] = new JArray();
             res["cityProperties"] = JToken.FromObject(manager.GetDummy<CityProperties>().GetState());
@@ -465,6 +468,9 @@ namespace Operations {
                     break;
                 case BuildingLine l:
                     BuildingLines.Delete(l);
+                    break;
+                case PolygonalBuilding b:
+                    PolygonalBuildings.Delete(b);
                     break;
                 case CustomElement l:
                     //the elements replacing a custom element take its place in its container
