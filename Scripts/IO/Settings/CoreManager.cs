@@ -308,7 +308,7 @@ public class CoreManager {
         return mergeBase != null && mergeBase.Id == ancestor.Id;
     }
 
-    //the changes of a release: the message of its annotated tag, or the commit subjects since the previous release
+    //the changes of a release: the message of its annotated tag, or the first lines of the commit messages since the previous release
     static string ReleaseChanges(Repository repo, Tag tag, Commit commit, Commit previous) {
         if (tag.IsAnnotated && !string.IsNullOrWhiteSpace(tag.Annotation.Message)) return tag.Annotation.Message.Trim();
         var filter = new CommitFilter { IncludeReachableFrom = commit, SortBy = CommitSortStrategies.Topological | CommitSortStrategies.Time };
@@ -320,7 +320,9 @@ public class CoreManager {
                 lines.Add("- ...");
                 break;
             }
-            lines.Add("- " + c.MessageShort + " (" + c.Sha.Substring(0, 7) + ")");
+            //only the first line of the message, like the release workflows (MessageShort joins the lines of the first paragraph)
+            var subject = c.Message.TrimStart('\r', '\n').Split('\n')[0].TrimEnd('\r');
+            lines.Add("- " + subject + " (" + c.Sha.Substring(0, 7) + ")");
         }
         return string.Join("\n", lines);
     }
