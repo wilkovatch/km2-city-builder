@@ -51,7 +51,7 @@ namespace EditorPanels {
                 p.IncreaseRow();
 
                 p.AddButton(SM.Get("TP_SPLIT"), Split, 0.75f, SM.Get("TP_SPLIT_TOOLTIP"));
-                p.AddButton(SM.Get("TP_MERGE"), Merge, 0.75f, SM.Get("TP_MERGE_TOOLTIP"));
+                p.AddButton(SM.Get("TP_MERGE_PATCH"), Merge, 0.75f, SM.Get("TP_MERGE_PATCH_TOOLTIP"));
                 p.IncreaseRow();
 
                 p.AddFieldTextureField(builder, SM.Get("TEXTURE"), SM.Get("TEXTURE_PH"), GetCurPatch, "state.properties.texture", null, 1.5f, null, null, x => { PreferencesManager.Set("curTerrainTexture", x); });
@@ -126,7 +126,7 @@ namespace EditorPanels {
             if (GetPlacer() == null || patch == null) return;
             builder.elementPicker.Start(
                 element => element is TerrainPatch other && Operations.TerrainPatches.GetMergeError(patch, other) == null,
-                element => History.UndoManager.Record(SM.Get("TP_MERGE"), () => {
+                element => History.UndoManager.Record(SM.Get("TP_MERGE_PATCH"), () => {
                     if (GetCurPatch(false) != patch || !Operations.TerrainPatches.Merge(builder.helper.elementManager, patch, (TerrainPatch)element)) return;
                     GameEngine.Gizmo.ClearTargets();
                     ReselectPatch();
