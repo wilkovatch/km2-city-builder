@@ -443,7 +443,9 @@ namespace RuntimeGizmos {
                         foreach (var target in targetRootsOrdered) {
                             target.GlobalRotate(normalizedAxis, angle);
                         }
-                        totalRotationAmount = totalRotationAmount * new Quaternion(normalizedAxis, angle);
+                        //GlobalRotate pre-multiplies, so the total does too; renormalize, as the float error of many small steps
+                        //makes the product drift off unit length and Quaternion * Vector3 throws in GetAxisInfo.
+                        totalRotationAmount = (new Quaternion(normalizedAxis, angle) * totalRotationAmount).Normalized();
                     }
                     onAnyChange?.Invoke();
                 }
