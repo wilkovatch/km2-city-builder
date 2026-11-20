@@ -64,10 +64,29 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         public bool usesRoadTexture; //false if it has the default texture of the intersection
     }
 
+    //a sidewalk of the intersection (between two consecutive roads with geometry, clockwise), for the editor
+    public class SidewalkInfo {
+        public Road roadI, roadJ;
+        public int road; //index in Intersection.roads of roadI, the key of its override (see Intersection.SetSidewalkOverride)
+        public int innerSegments, outerSegments; //actual (see the actualSegments of the junction type)
+        public bool outerSkipsCrosswalks;
+        public bool sidesMatch; //the inner and outer sides have the same sections (no repeated vertices)
+        public bool innerLocked; //beside a road through: its inner segments are those of the intersection
+        public bool overridden;
+        public int sections; //of its mesh (pairs of stations of the two sides)
+        public List<Vector3> outline = new List<Vector3>(); //outer side, then inner side back (closed)
+    }
+
+    public List<SidewalkInfo> sidewalks = new List<SidewalkInfo>(); //one per junction (index swi of partsInfo)
+
     public class GeneratorState {
         public GeometryHelpers.SubroadManager srManager = new GeometryHelpers.SubroadManager();
         public List<List<Vector3>> sidewalkVertices = new List<List<Vector3>>();
         public List<(Road, Road)> sidewalkEnds = new List<(Road, Road)>();
+        //the segments of the inner side given to the junction (the "segments" variable before actualSegments) and whether
+        //the two sides match (the "sidewalkSidesMatch" variable), one per junction
+        public List<int> sidewalkSegments = new List<int>();
+        public List<bool> sidewalkSidesMatch = new List<bool>();
         public List<Crosswalk> crosswalks = new List<Crosswalk>();
         public List<string> crosswalkTextures = new List<string>(); //of the crosswalk submeshes, in order (see IntersectionGroup)
         public List<List<float>> groundHeights = new List<List<float>>();
@@ -86,6 +105,8 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             srManager.Clear();
             sidewalkVertices.Clear();
             sidewalkEnds.Clear();
+            sidewalkSegments.Clear();
+            sidewalkSidesMatch.Clear();
             crosswalks.Clear();
             crosswalkTextures.Clear();
             groundHeights.Clear();
@@ -151,10 +172,12 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             tempState.SetBool("selfIntersectingSpline", selfIntersectingSplines[i]);
             tempState.SetBool("convex", convexes[i]);
             tempState.SetBool("notDefaultTex", notDefaultTexes[i]);
+            tempState.SetBool("sidewalkSidesMatch", i >= sidewalkSidesMatch.Count || sidewalkSidesMatch[i]);
             foreach (var param in junction.typeData.importedParameters) {
                 ImportRoadParameter(tempState, param, param.fromStart ? ends.Item1 : ends.Item2);
             }
-            junction.FillInitialVariables(junction.variableContainer, tempState, tempIState, 0, tempState.Int("sidewalkSegments"), ends.Item1.generator.subGen, ends.Item2.generator.subGen);
+            var segments = i < sidewalkSegments.Count ? sidewalkSegments[i] : tempState.Int("sidewalkSegments");
+            junction.FillInitialVariables(junction.variableContainer, tempState, tempIState, 0, segments, ends.Item1.generator.subGen, ends.Item2.generator.subGen);
             foreach (var d in junction.textureDefinitions) {
                 var index = (int)d.Value.index.GetValue(junction.variableContainer);
                 var trueName = d.Value.options[index];
@@ -347,6 +370,7 @@ public partial class IntersectionGenerator : PhysicsScriptable {
 
         partsInfo.Clear();
         geometrySortOrder = new List<int>();
+        sidewalks = new List<SidewalkInfo>();
     }
 
     void CalculateVerticesAndCenters() {
@@ -588,18 +612,23 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         var IsMainRoad = isThroughRoad && ((startRoads.Contains(trueI) && trueJ == endRoad) || (startRoads.Contains(trueJ) && trueI == endRoad));
         var isEnd = trueI == endRoad;
 
-        var thisSidewalk = new List<Vector3>();
-        var thisGroundHeights = new List<float>();
+        //the sections along the inner side (all the section vertices, at the stations of the inner side) and their ground
+        //heights; the outer vertices are replaced below if the outer side has other stations
+        var innerSections = new List<List<Vector3>>();
+        var innerGrounds = new List<float>();
 
+        var section0 = new List<Vector3>();
         foreach (var sv in leftIs) {
-            thisSidewalk.Add(Bank(trueI, centerI + sv));
+            section0.Add(Bank(trueI, centerI + sv));
         }
+        var section1 = new List<Vector3>();
         foreach (var sv in leftIs) {
-            thisSidewalk.Add(Bank(trueI, centerI2 + sv));
+            section1.Add(Bank(trueI, centerI2 + sv));
         }
-
-        thisGroundHeights.Add(upFactors2[trueI][1]);
-        thisGroundHeights.Add(upFactors2[trueI][1]);
+        innerSections.Add(section0);
+        innerSections.Add(section1);
+        innerGrounds.Add(upFactors2[trueI][1]);
+        innerGrounds.Add(upFactors2[trueI][1]);
         var ILeftPoint = Bank(trueI, centerI2 + leftIRoad - upFactors2[trueI]);
         var IRightPoint = Bank(trueI, centerI2 - leftIRoad - upFactors2[trueI]);
 
@@ -649,16 +678,42 @@ public partial class IntersectionGenerator : PhysicsScriptable {
 
         var notDefault = (!texIIsDefault && texI != "") || (!texJIsDefault && texJ != "");
         genState.notDefaultTexes.Add(notDefault);
+        //the segments of the two sides: those of the intersection, or the override of the sidewalk (the inner ones not
+        //beside a road through, whose sections are shared by the two sidewalks along it), through the actualSegments of
+        //the junction type
+        var istate = parentIntersection.state;
+        var swOverride = parentIntersection.GetSidewalkOverride(trueI);
+        var innerLocked = IsMainRoad;
+        var requestedInner = istate.Int("sidewalkSegments", 1);
+        var requestedOuter = istate.Int("sidewalkOuterSegments");
+        var outerSkips = istate.Bool("sidewalkOuterSkipsCrosswalks");
+        if (swOverride != null) {
+            if (!innerLocked) requestedInner = swOverride.Int("innerSegments", requestedInner);
+            requestedOuter = swOverride.Int("outerSegments", requestedOuter);
+            outerSkips = swOverride.Bool("outerSkipsCrosswalks", outerSkips);
+        }
         var junc = genState.GetJunctionType(curType, i);
+        genState.sidewalkSegments.Add(requestedOuter);
+        int outerSegments = -1;
+        if (requestedOuter > 0) {
+            genState.GetJunctionState(curType, i); //for initialization
+            outerSegments = (int)junc.segmentsCalculator.GetValue(junc.variableContainer);
+        }
+        genState.sidewalkSegments[i] = requestedInner;
         genState.GetJunctionState(curType, i); //for initialization
         var thisSidewalkSegments = (int)junc.segmentsCalculator.GetValue(junc.variableContainer);
+        if (outerSegments < 0) outerSegments = thisSidewalkSegments;
+        var roadSplineVertex = junction.typeData.roadSplineVertex;
+        //the section vertices of the outer side: those before the road spline vertex (on the outer side of the curb)
+        var sidesMatch = roadSplineVertex == 0 || (thisSidewalkSegments == outerSegments && !outerSkips);
+        genState.sidewalkSidesMatch.Add(sidesMatch);
 
         System.Func<int, float, Vector3> sectionCenterK = (vi, alpha) => {
             return GeometryHelper.GetPointOnCurve(centerI2 + leftIs[vi], curveControlPoints[vi], centerJ2 - leftJs[vi], alpha, 0, GeometryHelper.CurveType.Bezier);
         };
 
         for (int k = 1; k < thisSidewalkSegments; k++) {
-            var alpha = ((float)k) / parentIntersection.state.Int("sidewalkSegments", 1);
+            var alpha = ((float)k) / thisSidewalkSegments;
 
             var sectionCenters = new List<Vector3>();
             for (int vi = 0; vi < leftIs.Count; vi++) {
@@ -678,8 +733,8 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             var upFactor2K = GameEngine.Vector3.Lerp(upFactors2[trueI], upFactors2[trueJ], alpha);
             var centerInsideKGround = centerInsideK - upFactor2K;
 
-            thisSidewalk.AddRange(sectionCenters);
-            thisGroundHeights.Add(upFactor2K[1]);
+            innerSections.Add(sectionCenters);
+            innerGrounds.Add(upFactor2K[1]);
             sidewalkRoadSegment.Add(centerInsideKGround);
 
             if (isThroughRoad && IsMainRoad && indexInList != -1) {
@@ -758,15 +813,40 @@ public partial class IntersectionGenerator : PhysicsScriptable {
             }
         }
 
+        var sectionJ2 = new List<Vector3>();
         foreach (var sv in leftJs) {
-            thisSidewalk.Add(Bank(trueJ, centerJ2 - sv));
+            sectionJ2.Add(Bank(trueJ, centerJ2 - sv));
         }
+        var sectionJ = new List<Vector3>();
         foreach (var sv in leftJs) {
-            thisSidewalk.Add(Bank(trueJ, centerJ - sv));
+            sectionJ.Add(Bank(trueJ, centerJ - sv));
         }
+        innerSections.Add(sectionJ2);
+        innerSections.Add(sectionJ);
+        innerGrounds.Add(upFactors2[trueJ][1]);
+        innerGrounds.Add(upFactors2[trueJ][1]);
 
-        thisGroundHeights.Add(upFactors2[trueJ][1]);
-        thisGroundHeights.Add(upFactors2[trueJ][1]);
+        var thisSidewalk = new List<Vector3>();
+        var thisGroundHeights = new List<float>();
+        if (sidesMatch) {
+            foreach (var section in innerSections) thisSidewalk.AddRange(section);
+            thisGroundHeights.AddRange(innerGrounds);
+        } else {
+            //the outer side has its own stations: the sections join them to those of the inner side with repeated vertices
+            //(a strip of triangles), advancing on the side with the closest next station
+            var outerStations = GetOuterStations(trueI, trueJ, centerI, centerI2, centerJ, centerJ2, leftIs, leftJs, curveControlPoints, roadSplineVertex,
+                outerSegments, outerSkips, sectionCenterK);
+            var innerParams = outerSkips ? ArcLengthParams(innerSections, roadSplineVertex) : StationParams(thisSidewalkSegments);
+            var outerParams = outerSkips ? ArcLengthParams(outerStations, 0) : StationParams(outerSegments);
+            foreach (var (a, b) in ZipStations(innerParams, outerParams)) {
+                var section = new List<Vector3>(innerSections[a]);
+                for (int vi = 0; vi < roadSplineVertex; vi++) section[vi] = outerStations[b][vi];
+                thisSidewalk.AddRange(section);
+                thisGroundHeights.Add(innerGrounds[a]);
+            }
+        }
+        AddSidewalkInfo(roadI, roadJ, trueI, thisSidewalk, leftIs.Count, roadSplineVertex, thisSidewalkSegments, outerSegments, outerSkips, sidesMatch,
+            innerLocked, swOverride != null);
 
         var JLeftPoint = Bank(trueJ, centerJ2 - leftJRoad - upFactors2[trueJ]);
         sidewalkRoadSegment.Add(JLeftPoint);
@@ -831,5 +911,145 @@ public partial class IntersectionGenerator : PhysicsScriptable {
         lastTex = texI;
         lastTexIsDefault = texIIsDefault;
         lastI = trueI;
+    }
+
+    // Sidewalks with different inner and outer segments
+
+    //the vertices of the outer side (the section vertices before the road spline vertex) at its own stations: as the
+    //inner ones (the road ends, the crosswalk edges and the curve between them), or, skipping the crosswalks, the road
+    //ends and a curve between them
+    List<List<Vector3>> GetOuterStations(int trueI, int trueJ, Vector3 centerI, Vector3 centerI2, Vector3 centerJ, Vector3 centerJ2,
+        List<Vector3> leftIs, List<Vector3> leftJs, List<List<Vector3>> curveControlPoints, int outerVertices, int segments, bool skipCrosswalks,
+        System.Func<int, float, Vector3> sectionCenterK) {
+
+        var res = new List<List<Vector3>>();
+        System.Func<System.Func<int, Vector3>, List<Vector3>> station = f => {
+            var s = new List<Vector3>();
+            for (int vi = 0; vi < outerVertices; vi++) s.Add(f(vi));
+            return s;
+        };
+        res.Add(station(vi => Bank(trueI, centerI + leftIs[vi])));
+        if (skipCrosswalks) {
+            for (int k = 1; k < segments; k++) {
+                var alpha = ((float)k) / segments;
+                res.Add(station(vi => {
+                    var start = centerI + leftIs[vi];
+                    var end = centerJ - leftJs[vi];
+                    var p = GeometryHelper.GetPointOnCurve(start, curveControlPoints[vi], end, alpha, 0, GeometryHelper.CurveType.Bezier);
+                    var heightI = BankHeight(trueI, start);
+                    var heightJ = BankHeight(trueJ, end);
+                    if (heightI != 0 || heightJ != 0) p += GameEngine.Vector3.up * Mathf.Lerp(heightI, heightJ, alpha);
+                    return p;
+                }));
+            }
+        } else {
+            res.Add(station(vi => Bank(trueI, centerI2 + leftIs[vi])));
+            for (int k = 1; k < segments; k++) {
+                var alpha = ((float)k) / segments;
+                res.Add(station(vi => {
+                    var p = sectionCenterK(vi, alpha);
+                    var heightI = BankHeight(trueI, centerI2 + leftIs[vi]);
+                    var heightJ = BankHeight(trueJ, centerJ2 - leftJs[vi]);
+                    if (heightI != 0 || heightJ != 0) p += GameEngine.Vector3.up * Mathf.Lerp(heightI, heightJ, alpha);
+                    return p;
+                }));
+            }
+            res.Add(station(vi => Bank(trueJ, centerJ2 - leftJs[vi])));
+        }
+        res.Add(station(vi => Bank(trueJ, centerJ - leftJs[vi])));
+        return res;
+    }
+
+    //the positions of the stations of a side with the crosswalks: 0 and 1 at the start, 1 to 2 along the curve, 2 and 3 at
+    //the end (the crosswalk edges of the two sides are paired)
+    static List<float> StationParams(int segments) {
+        var res = new List<float> { 0, 1 };
+        for (int k = 1; k < segments; k++) res.Add(1 + ((float)k) / segments);
+        res.Add(2);
+        res.Add(3);
+        return res;
+    }
+
+    //the positions of the stations of a side as the fraction of its length on the ground
+    static List<float> ArcLengthParams(List<List<Vector3>> stations, int vertex) {
+        var res = new List<float> { 0 };
+        var total = 0.0f;
+        for (int i = 1; i < stations.Count; i++) {
+            var d = stations[i][vertex] - stations[i - 1][vertex];
+            total += Mathf.Sqrt(d[0] * d[0] + d[2] * d[2]);
+            res.Add(total);
+        }
+        for (int i = 0; i < res.Count; i++) {
+            res[i] = total > GeometryHelper.epsilon ? res[i] / total : (res.Count > 1 ? ((float)i) / (res.Count - 1) : 0);
+        }
+        return res;
+    }
+
+    //the pairs of stations (inner, outer) of the sections: from the first ones to the last ones, advancing on the side with
+    //the closest next station (on both if they are at the same position)
+    static List<(int, int)> ZipStations(List<float> inner, List<float> outer) {
+        var res = new List<(int, int)> { (0, 0) };
+        int a = 0, b = 0;
+        while (a < inner.Count - 1 || b < outer.Count - 1) {
+            if (a == inner.Count - 1) {
+                b++;
+            } else if (b == outer.Count - 1) {
+                a++;
+            } else {
+                var nextA = inner[a + 1];
+                var nextB = outer[b + 1];
+                if (Mathf.Abs(nextA - nextB) < 1e-4f) {
+                    a++;
+                    b++;
+                } else if (nextA < nextB) {
+                    a++;
+                } else {
+                    b++;
+                }
+            }
+            res.Add((a, b));
+        }
+        return res;
+    }
+
+    void AddSidewalkInfo(Road roadI, Road roadJ, int road, List<Vector3> vertices, int vn, int roadSplineVertex, int innerSegments,
+        int outerSegments, bool outerSkips, bool sidesMatch, bool innerLocked, bool overridden) {
+
+        var info = new SidewalkInfo() {
+            roadI = roadI, roadJ = roadJ, road = road, innerSegments = innerSegments, outerSegments = outerSegments,
+            outerSkipsCrosswalks = outerSkips, sidesMatch = sidesMatch, innerLocked = innerLocked, overridden = overridden
+        };
+        var inner = roadSplineVertex > 0 ? roadSplineVertex : vn - 1;
+        var sections = vn > 0 ? vertices.Count / vn : 0;
+        info.sections = sections;
+        var innerSide = new List<Vector3>();
+        for (int s = 0; s < sections; s++) {
+            AddDistinct(info.outline, vertices[s * vn]);
+            AddDistinct(innerSide, vertices[s * vn + inner]);
+        }
+        innerSide.Reverse();
+        foreach (var p in innerSide) AddDistinct(info.outline, p);
+        sidewalks.Add(info);
+    }
+
+    static void AddDistinct(List<Vector3> list, Vector3 p) {
+        if (list.Count == 0 || GameEngine.Vector3.Distance(list[list.Count - 1], p) >= 0.01f) list.Add(p);
+    }
+
+    //the sidewalk containing a point (on the ground plane), or the closest one within a distance; -1 if none
+    public int FindSidewalk(Vector3 point, float maxDistance = 1.0f) {
+        var best = -1;
+        var bestDistance = maxDistance * maxDistance;
+        for (int i = 0; i < sidewalks.Count; i++) {
+            var outline = sidewalks[i].outline;
+            if (outline.Count < 3) continue;
+            if (GeometryHelper.IsPointInsidePolygon(point, outline)) return i;
+            var d = GeometryHelper.PointPolygonSquaredDistance(point, outline);
+            if (d < bestDistance) {
+                bestDistance = d;
+                best = i;
+            }
+        }
+        return best;
     }
 }

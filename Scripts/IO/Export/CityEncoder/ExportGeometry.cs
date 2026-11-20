@@ -329,6 +329,9 @@ namespace CityEncoder {
             baseData.fields.SetArray("partsInfo", intersection.generator.partsInfo.ToArray());
             baseData.fields.SetArray("sortOrder", intersection.generator.sortOrder.ToArray());
             baseData.fields.SetArray("geometrySortOrder", intersection.generator.geometrySortOrder.ToArray());
+            //for each junction (partsInfo "junction_<texture>.<index>"): whether its sidewalk has the same sections on both
+            //sides (otherwise its outer side repeats vertices, see IntersectionGenerator.ZipStations)
+            baseData.fields.SetArray("sidewalksMatch", intersection.generator.sidewalks.ConvertAll(s => s.sidesMatch).ToArray());
             baseData.mesh = GetMeshData(GO.GetObject(intersection.generator));
             baseData.fields.SetProperty("extras", GetExtras(intersection.generator.extras));
             elem.data = baseData;

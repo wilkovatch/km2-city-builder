@@ -485,6 +485,11 @@ public abstract partial class EditorPanel {
         return pages[i];
     }
 
+    //the index of a page (tab), -1 if it is not one of this panel
+    protected int GetPageIndex(EditorPanelPage page) {
+        return pages.IndexOf(page);
+    }
+
     protected virtual void ReadCurValues() {
         for (int i = 0; i < pages.Count; i++) {
             pages[i].ReadCurValues();

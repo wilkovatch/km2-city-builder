@@ -505,8 +505,61 @@ public partial class Intersection: IObjectWithState {
 
     public void RemoveRoad(Road road) {
         History.UndoManager.Touch(this);
+        var index = roads.IndexOf(road);
         roads.Remove(road);
+        if (index >= 0) RemapSidewalkOverrides(index);
         if (roads.Count <= 1) Delete();
+    }
+
+    // Sidewalk overrides: the sidewalks with their own segments, in the instance state as the array "sidewalks", each
+    // with the index in roads of the first road of the sidewalk (clockwise, see IntersectionGenerator.sidewalks); the
+    // roads are only appended or replaced in place, so the indices change only when one is removed
+
+    public ObjectState GetSidewalkOverride(int road) {
+        var arr = instanceState.Array<ObjectState>("sidewalks");
+        if (arr == null) return null;
+        foreach (var s in arr) {
+            if (s != null && s.Int("road", -1) == road) return s;
+        }
+        return null;
+    }
+
+    //values null: the sidewalk takes the segments of the intersection again
+    public void SetSidewalkOverride(int road, ObjectState values) {
+        var list = new List<ObjectState>();
+        var arr = instanceState.Array<ObjectState>("sidewalks");
+        if (arr != null) {
+            foreach (var s in arr) {
+                if (s != null && s.Int("road", -1) != road) list.Add((ObjectState)s.Clone());
+            }
+        }
+        if (values != null) {
+            var entry = (ObjectState)values.Clone();
+            entry.SetInt("road", road);
+            list.Add(entry);
+            list.Sort((a, b) => a.Int("road").CompareTo(b.Int("road")));
+        }
+        if (list.Count > 0) instanceState.SetArray("sidewalks", list.ToArray());
+        else instanceState.RemoveProperty("sidewalks");
+        instanceState.FlagAsChanged();
+    }
+
+    //after the removal of the road at the given index: its sidewalk override goes, the following ones shift
+    void RemapSidewalkOverrides(int removed) {
+        var arr = instanceState.Array<ObjectState>("sidewalks");
+        if (arr == null) return;
+        var list = new List<ObjectState>();
+        foreach (var s in arr) {
+            if (s == null) continue;
+            var road = s.Int("road", -1);
+            if (road == removed) continue;
+            var entry = (ObjectState)s.Clone();
+            if (road > removed) entry.SetInt("road", road - 1);
+            list.Add(entry);
+        }
+        if (list.Count > 0) instanceState.SetArray("sidewalks", list.ToArray());
+        else instanceState.RemoveProperty("sidewalks");
+        instanceState.FlagAsChanged();
     }
 
     public bool IsDeleted() {

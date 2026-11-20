@@ -33,6 +33,28 @@ namespace Operations {
             intersection.instanceState.SetBool("seamless", seamless);
         }
 
+        //the own segments of the sidewalk starting at a road (index in intersection.roads, see
+        //IntersectionGenerator.SidewalkInfo.road): innerSegments, outerSegments, outerSkipsCrosswalks; null if it has
+        //those of the intersection
+        public static ObjectState GetSidewalkOverride(Intersection intersection, int road) {
+            return intersection.GetSidewalkOverride(road);
+        }
+
+        //values null: back to the segments of the intersection
+        public static void SetSidewalkOverride(Intersection intersection, int road, ObjectState values) {
+            History.UndoManager.Touch(intersection);
+            intersection.SetSidewalkOverride(road, values);
+        }
+
+        //a new override with the current segments of the intersection
+        public static ObjectState SidewalkOverrideFromIntersection(Intersection intersection) {
+            var s = new ObjectState();
+            s.SetInt("innerSegments", intersection.state.Int("sidewalkSegments", 1));
+            s.SetInt("outerSegments", intersection.state.Int("sidewalkOuterSegments"));
+            s.SetBool("outerSkipsCrosswalks", intersection.state.Bool("sidewalkOuterSkipsCrosswalks"));
+            return s;
+        }
+
         //intersections are not created on their own, but by connecting roads (see RoadDrawing)
         public static void Move(Intersection intersection, Godot.Vector3 position) {
             History.UndoManager.Touch(intersection);

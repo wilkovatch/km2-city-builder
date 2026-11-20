@@ -222,7 +222,19 @@ namespace Api {
                         sizes = intersection.sizes,
                         seamless = Operations.Intersections.IsSeamless(intersection),
                         seamlessActive = intersection.IsSeamless(), //only with two roads
-                        anchors = AnchorsOf(intersection.anchorManager)
+                        anchors = AnchorsOf(intersection.anchorManager),
+                        //between each road with geometry and the next one clockwise, with their actual segments
+                        sidewalks = intersection.generator.sidewalks.ConvertAll(s => new {
+                            road = IdOf(s.roadI),
+                            nextRoad = IdOf(s.roadJ),
+                            s.innerSegments,
+                            s.outerSegments,
+                            s.outerSkipsCrosswalks,
+                            s.sidesMatch,
+                            s.innerLocked,
+                            s.overridden,
+                            s.sections
+                        })
                     };
                 }
                 case TerrainPatch patch: {

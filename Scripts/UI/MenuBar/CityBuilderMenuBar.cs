@@ -49,6 +49,7 @@ public partial class CityBuilderMenuBar : Control {
     public ElementPlacer.ReferencePicker referencePicker;
     public ElementPlacer.ElementPicker elementPicker;
     public ElementPlacer.OutlinePicker outlinePicker;
+    public ElementPlacer.SidewalkPicker sidewalkPicker; //the click mode while an intersection is edited
     public ElementPlacer.MultiSelector multiSelector;
 
     public TerrainClick terrainClick;
@@ -128,6 +129,7 @@ public partial class CityBuilderMenuBar : Control {
         referencePicker = new ElementPlacer.ReferencePicker(this);
         elementPicker = new ElementPlacer.ElementPicker(this);
         outlinePicker = new ElementPlacer.OutlinePicker(this);
+        sidewalkPicker = new ElementPlacer.SidewalkPicker(() => intersectionEditorPanel.intersection, intersectionEditorPanel.PickSidewalk);
         multiSelector = new ElementPlacer.MultiSelector(this);
 
         /*fileBrowser = gameObject.AddComponent<FileBrowserHelper>();
@@ -1775,7 +1777,7 @@ public partial class CityBuilderMenuBar : Control {
             if (withEditor) roadEditorPanel.ShowWithStack(stack);
         }
         else if (intersection != null && GO.GetParent(GO.GetParent(intersection)) == obj) {
-            ReselectObjectPanelAndModifier(obj, withEditor, intersectionEditorPanel, null); //todo: make work wirh nullModifier (or rework altogether)
+            ReselectObjectPanelAndModifier(obj, withEditor, intersectionEditorPanel, sidewalkPicker); //clicking a sidewalk selects it in the panel
             helper.elementManager.ShowIntersections(false);
             intersectionEditorPanel.intersection = intersection.intersection;
             intersection.intersection.SetActive(true, true, true);

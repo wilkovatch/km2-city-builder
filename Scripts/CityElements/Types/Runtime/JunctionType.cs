@@ -15,7 +15,7 @@ namespace CityElements.Types.Runtime {
         static (List<string> floatVars, List<string> vec2Vars, List<string> vec3Vars) GetVarLists(Types.JunctionType type) {
             var floatVars = new List<string>() {
                 "z", "totalLength", "segment", "segments", "ground",
-                "thisIsEndA", "thisIsEndB", "convex", "selfIntersectingSpline", "notDefaultTex"
+                "thisIsEndA", "thisIsEndB", "convex", "selfIntersectingSpline", "notDefaultTex", "sidewalkSidesMatch"
             };
             var vec2Vars = new List<string>();
             var vec3Vars = new List<string>() {
@@ -209,6 +209,8 @@ namespace CityElements.Types.Runtime {
             FillBool(variableContainer, "thisIsEndA", state.Bool("thisIsEndA"));
             FillBool(variableContainer, "thisIsEndB", state.Bool("thisIsEndB"));
             FillBool(variableContainer, "notDefaultTex", state.Bool("notDefaultTex"));
+            //the inner and outer sides of the sidewalk have the same sections (see IntersectionGenerator.ZipStations)
+            FillBool(variableContainer, "sidewalkSidesMatch", state.Bool("sidewalkSidesMatch", true));
             foreach (var param in typeData.importedParameters) {
                 var generator = param.fromStart ? startGenerator : endGenerator;
                 var vc = generator.variableContainer;

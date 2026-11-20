@@ -55,8 +55,15 @@ namespace Operations {
                 new Property("startConnectionHeightAuto", "bool", true),
             },
             ["intersection"] = new[] {
-                new Property("sidewalkSegments", "int"),
+                new Property("sidewalkSegments", "int"), //of the inner side (along the road) of the sidewalks
+                new Property("sidewalkOuterSegments", "int"), //0: as the inner side
+                new Property("sidewalkOuterSkipsCrosswalks", "bool"),
                 new Property("sizeIncrease", "float"),
+                //the sidewalks with their own segments (see Intersections.SetSidewalkOverride)
+                new Property("sidewalks.#.road", "int", true),
+                new Property("sidewalks.#.innerSegments", "int", true),
+                new Property("sidewalks.#.outerSegments", "int", true),
+                new Property("sidewalks.#.outerSkipsCrosswalks", "bool", true),
             },
             ["terrainPatch"] = new[] {
                 new Property("smooth", "int"),

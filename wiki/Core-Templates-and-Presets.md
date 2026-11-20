@@ -61,7 +61,7 @@ A preset contains the values of the core's parameters and of the program's built
 | Category | Used for | Notes |
 |---|---|---|
 | `road` | Roads | `type` must be a road type. Should set the built-in road properties (`startCrosswalkSize`, `endCrosswalkSize`, ...). The values of the spline (`segments`, `curveType`, `project`, ...) are not part of the presets: their initial values are in the settings of the road type (see [Core Roads](Core-Roads#built-in-parameters)). |
-| `intersection` | Intersections | `type` must be an intersection type; `sidewalkSegments`, `sizeIncrease`. New intersections copy the last intersection state used. |
+| `intersection` | Intersections | `type` must be an intersection type; `sidewalkSegments`, `sidewalkOuterSegments`, `sidewalkOuterSkipsCrosswalks`, `sizeIncrease`. New intersections copy the last intersection state used. |
 | `<container>` | Container presets (`PRESET_<container>` UI element) | One category per container name, for example `rail` in MM2. The keys are the parameter names **without** the container prefix (`type`, `height`...). |
 | `roadPropRule` | Road props rules | One state per props container name of the road type, plus `type` (a road type, to filter rules by road type). |
 | `props/<type>` | A [props type](Core-Props-and-Objects) | One category per type, with matching `type`, and the parameters of the type. The first preset is the state of a new element of the type. |

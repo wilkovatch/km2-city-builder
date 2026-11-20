@@ -249,6 +249,28 @@ namespace Api {
             });
         }
 
+        [ApiMethod("intersections.setSidewalkOverride", "Gives the sidewalk of an intersection starting at a road (the one between it and the next road clockwise, see sidewalks in elements.get) its own segments: innerSegments (of the side along the road surface; ignored beside a road through the intersection), outerSegments (of the side away from the road, 0 for the same as the inner side) and outerSkipsCrosswalks (the outer side curves from road end to road end). The values not given are kept, or taken from the intersection (its sidewalkSegments, sidewalkOuterSegments and sidewalkOuterSkipsCrosswalks). clear: the sidewalk takes the segments of the intersection again. Not stored in the presets")]
+        public void SetIntersectionSidewalkOverride(ElementRef intersection, ElementRef road, int? innerSegments = null, int? outerSegments = null,
+            bool? outerSkipsCrosswalks = null, bool clear = false) {
+
+            ApplyChange("sidewalk segments", () => {
+                var i = Resolve<Intersection>(intersection, "intersection");
+                var r = Resolve<Road>(road, "road");
+                var index = i.roads.IndexOf(r);
+                if (index < 0) throw ApiException.InvalidOperation("the road is not connected to the intersection");
+                if (clear) {
+                    Operations.Intersections.SetSidewalkOverride(i, index, null);
+                    return;
+                }
+                var values = Operations.Intersections.GetSidewalkOverride(i, index);
+                values = values != null ? (ObjectState)values.Clone() : Operations.Intersections.SidewalkOverrideFromIntersection(i);
+                if (innerSegments.HasValue) values.SetInt("innerSegments", innerSegments.Value);
+                if (outerSegments.HasValue) values.SetInt("outerSegments", outerSegments.Value);
+                if (outerSkipsCrosswalks.HasValue) values.SetBool("outerSkipsCrosswalks", outerSkipsCrosswalks.Value);
+                Operations.Intersections.SetSidewalkOverride(i, index, values);
+            });
+        }
+
         [ApiMethod("intersections.mergeRoads", "Merges the two roads of an intersection into one road, deleting the intersection (keep: the road whose settings are kept, by default the first one; the end on the intersection gets the properties of the far end of the other road). The other road is reversed if needed, only its geometry: its left and right properties are not swapped. The merged road keeps the curve type of the kept road: the merge is exact for roads with the same curve (two Bézier roads only if they are the two parts of a curve, as after a split), otherwise its curve follows both roads as closely as its type allows. Returns the id of the merged road")]
         public int MergeIntersectionRoads(ElementRef intersection, ElementRef keep = null) {
             return ApplyChange("merge roads", () => {

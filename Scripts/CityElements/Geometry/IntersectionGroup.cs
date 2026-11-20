@@ -82,7 +82,11 @@ namespace RoadParts {
                         var spline = new List<Vector3>();
                         for (int i = 0; i < junctionInfo.segments; i++) {
                             subGen.InitSection(i);
-                            spline.Add(junctionInfo.junction.GetExtraTerrainSplinesVertex(piece.name, subGen.variableContainer));
+                            var splinePoint = junctionInfo.junction.GetExtraTerrainSplinesVertex(piece.name, subGen.variableContainer);
+                            //the outer vertices repeat where the sides have different sections: no pieces of zero length
+                            if (g.sidewalkSidesMatch[swi] || spline.Count == 0 || GameEngine.Vector3.Distance(spline[spline.Count - 1], splinePoint) >= 0.01f) {
+                                spline.Add(splinePoint);
+                            }
                         }
                         g.srManager.AddSegmentToSubroad(pieceSubroad, spline, g.planes[swi], false);
                     }

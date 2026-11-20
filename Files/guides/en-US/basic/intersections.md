@@ -19,6 +19,15 @@ Click on an intersection to open its panel, where the core's settings for it are
 
 While you edit a road, its ends on intersections are shown as big points. Moving one moves the whole intersection, and the other connected roads follow.
 
+## Sidewalks
+
+The **Sidewalks** tab of the intersection panel sets how smooth the sidewalk corners are:
+
+- **Inner segments** is the number of segments of the curve along the road, **Outer segments** the one of the other side of the sidewalk (0 for the same). With fewer outer segments the outer corner is simpler, for example a sharp corner with 2.
+- **Outer side skips the crosswalk segments** makes the outer side curve from road end to road end, instead of running straight along the crosswalks first. With 1 outer segment the corner is cut straight.
+
+Below them is the list of the sidewalks of the intersection. Select one, or click on it in the view, to see it outlined in green. Tick **Override** to give it its own segments, which are kept only for that intersection, not in the presets.
+
 ## Joining two roads again
 
 An intersection with exactly two roads has two extra options:

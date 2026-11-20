@@ -204,7 +204,7 @@ Built-in groups insert the program's own controls (type and preset selectors, pl
 | Element type | Groups |
 |---|---|
 | Road | `mainGroup` (type, preset, point placement, projection, segments, smoothing, low-poly width, curve type), `intersectionGroup` (crosswalk sizes, intersection size increase and textures, road through intersection flags), `propsGroup` (props rule preset and one enable checkbox + edit button per props container) |
-| Intersection | `mainGroup` (type, preset, sidewalk segments, size increase) |
+| Intersection | `mainGroup` (type, preset, size increase, seamless, merge buttons), `sidewalksGroup` (inner and outer segments of the sidewalks, the outer side skipping the crosswalks), `sidewalkListGroup` (list of the sidewalks, the overridden segments of the selected one) |
 | Terrain patch | `mainGroup` (type, point placement, smoothing, projection, auto-close, texture) |
 | Building line | `mainGroup` (type, preset, building list), `propertiesGroup` (loop, inverted direction, projection), `loopGroup` (automatic closing with presets) |
 | Polygonal building | `mainGroup` (point placement, individual sides, the side of the walls or the list of the walls), `propertiesGroup` (type, preset, projection, height, roof texture) |
