@@ -2169,7 +2169,8 @@ public partial class CityBuilderMenuBar : Control {
         }
         else if (!TextInputFocused()) {
             if (Input.GetInputStart(KeyCommand.Undo)) {
-                Undo();
+                //while a line is drawn with the outline picker, its last place is removed instead
+                if (!outlinePicker.RemoveLast()) Undo();
             }
             else if (Input.GetInputStart(KeyCommand.Redo)) {
                 Redo();

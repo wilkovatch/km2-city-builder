@@ -61,16 +61,37 @@ namespace Api {
             });
         }
 
-        [ApiMethod("patches.split", "Splits a terrain patch along the line between two points of its perimeter (terrain point ids, not next to each other): the patch keeps the perimeter from the second point to the first one, a new patch with the same properties gets the rest. Both patches share the two points, and each internal point goes to the patch it is in. Returns the id of the new patch")]
-        public int SplitPatch(ElementRef patch, int from, int to) {
+        [ApiMethod("patches.split", "Splits a terrain patch along the line from a point of its perimeter to another one (terrain point ids; not next to each other for a straight line), through the positions inside it (through; free points are added there). The line must stay inside the patch without crossing itself. The patch keeps the perimeter from the second point to the first one, a new patch with the same properties gets the rest. Both patches share the points of the line, and each internal point goes to the patch it is in. Returns the id of the new patch")]
+        public int SplitPatch(ElementRef patch, int from, int to, List<Vector3> through = null, bool onGround = false) {
             return ApplyChange("split terrain patch", () => {
                 var p = EditPatch(patch);
                 var a = ResolveTerrainPoint(from);
                 var b = ResolveTerrainPoint(to);
-                var error = Operations.TerrainPatches.GetSplitError(p, a, b);
+                var positions = OnGround(through, onGround);
+                var error = Operations.TerrainPatches.GetSplitError(p, a, b, positions);
                 if (error != null) throw ApiException.InvalidOperation(error);
-                return IdOf(Operations.TerrainPatches.Split(M, p, a, b));
+                return IdOf(Operations.TerrainPatches.Split(M, p, a, b, positions));
             });
+        }
+
+        [ApiMethod("patches.carve", "Carves the polygon of the outline (positions inside a terrain patch, at least three; with at, a point of its perimeter it starts and ends on, two) out of the patch: a new patch with the same properties gets the polygon, and the ring left around it is split in two along cuts from the polygon to the perimeter, chosen by the program (two, or one with at). The patch keeps one half of the ring, a new patch gets the other one. Free points are added at the positions, and where a cut ends on a side of the perimeter; the patches share the points of the polygon and of the cuts, and each internal point goes to the patch it is in. Returns {polygon, ring: the id of the new patch with the other half of the ring}")]
+        public object CarvePatch(ElementRef patch, List<Vector3> outline, int? at = null, bool onGround = false) {
+            return ApplyChange<object>("carve terrain patch", () => {
+                var p = EditPatch(patch);
+                var start = at.HasValue ? ResolveTerrainPoint(at.Value) : null;
+                var positions = OnGround(outline, onGround);
+                var error = Operations.TerrainPatches.GetCarveError(p, positions, start);
+                if (error != null) throw ApiException.InvalidOperation(error);
+                var created = Operations.TerrainPatches.Carve(M, p, positions, start);
+                return new { polygon = IdOf(created[0]), ring = IdOf(created[1]) };
+            });
+        }
+
+        static List<Vector3> OnGround(List<Vector3> positions, bool onGround) {
+            if (positions == null || !onGround) return positions;
+            var res = new List<Vector3>();
+            foreach (var position in positions) res.Add(GeometryHelper.ProjectPoint(position));
+            return res;
         }
 
         [ApiMethod("patches.merge", "Merges a terrain patch (other) into another one (patch), which keeps its properties: the two patches must share one continuous side (two or more perimeter points that are the same points, on the same anchors or at the same positions), which is removed. The internal points of both are kept, the other patch is deleted")]

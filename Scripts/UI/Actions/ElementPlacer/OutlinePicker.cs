@@ -12,22 +12,30 @@ namespace ElementPlacer {
     //and the place picked before it has a yellow handle, joined to it with a line. Like the ElementPicker it works over the
     //click mode there is (see TerrainClick.overlay), and ends with the last place picked, when that click mode changes or
     //with Escape (see CityBuilderMenuBar).
+    //A line (StartLine) can also have free places, anywhere else on the ground (or on a terrain patch), and a place
+    //picked before can be picked again (to close the line): it ends when the line is complete, the places picked are
+    //joined with a line, and Ctrl+Z removes the last one (RemoveLast).
     public class OutlinePicker : TerrainAction {
-        //a place on the outline: an existing point, or a position on the segment from the point at the index segment
+        //a place on the outline: an existing point, or a position on the segment from the point at the index segment;
+        //or a free place (a line only: segment -1)
         public class Place {
             public TerrainPoint point;
             public int segment;
             public Vector3 position;
             public float order; //along the outline: the index of the point, or the one of the segment plus the fraction
+            public bool free;
         }
 
         const float PointSnap = 14; //pixels from a point to pick it
         const float SegmentSnap = 40; //pixels from the outline to pick a place on it
+        const float LineSegmentSnap = 20; //the same for a line, where a place farther away is a free one
         const float EndFraction = 0.001f; //a place on a segment as close to one of its points is that point
         CityBuilderMenuBar builder;
         System.Func<List<TerrainPoint>> points;
         bool loop;
         int count;
+        bool line;
+        System.Func<IReadOnlyList<Place>, bool> complete;
         System.Func<IReadOnlyList<Place>, Place, bool> accepts;
         System.Action<List<Place>> onPick;
         System.Action onEnd;
@@ -52,11 +60,24 @@ namespace ElementPlacer {
         //onEnd: after the pick or its end
         public void Start(System.Func<List<TerrainPoint>> points, bool loop, int count, System.Func<IReadOnlyList<Place>, Place, bool> accepts,
             System.Action<List<Place>> onPick, System.Action onEnd = null) {
+            Start(points, loop, count, false, null, accepts, onPick, onEnd);
+        }
+
+        //a line of places on the outline and free places, ended when complete says so (after each place picked)
+        public void StartLine(System.Func<List<TerrainPoint>> points, bool loop, System.Func<IReadOnlyList<Place>, Place, bool> accepts,
+            System.Func<IReadOnlyList<Place>, bool> complete, System.Action<List<Place>> onPick, System.Action onEnd = null) {
+            Start(points, loop, int.MaxValue, true, complete, accepts, onPick, onEnd);
+        }
+
+        void Start(System.Func<List<TerrainPoint>> points, bool loop, int count, bool line, System.Func<IReadOnlyList<Place>, bool> complete,
+            System.Func<IReadOnlyList<Place>, Place, bool> accepts, System.Action<List<Place>> onPick, System.Action onEnd) {
             Stop();
             builder.elementPicker.Stop(); //one tool over the click mode at a time
             this.points = points;
             this.loop = loop;
             this.count = count;
+            this.line = line;
+            this.complete = complete;
             this.accepts = accepts;
             this.onPick = onPick;
             this.onEnd = onEnd;
@@ -76,6 +97,7 @@ namespace ElementPlacer {
             active = false;
             points = null;
             accepts = null;
+            complete = null;
             onPick = null;
             onEnd = null;
             hovered = null;
@@ -90,14 +112,26 @@ namespace ElementPlacer {
         public bool Pick(Place place) {
             if (!IsActive() || place == null || !accepts(picked, place)) return false;
             picked.Add(place);
-            if (picked.Count < count) return true;
+            if (picked.Count < count && (complete == null || !complete(picked))) return true;
             var res = new List<Place>(picked);
             var pick = onPick;
             End(() => pick?.Invoke(res));
             return true;
         }
 
+        //removes the last place picked, false if there is none
+        public bool RemoveLast() {
+            if (!IsActive() || picked.Count == 0) return false;
+            picked.RemoveAt(picked.Count - 1);
+            return true;
+        }
+
         // Places
+
+        //a free place at the position (program coordinates)
+        public static Place FreePlace(Vector3 position) {
+            return new Place { segment = -1, position = position, order = -1, free = true };
+        }
 
         Place PointPlace(List<TerrainPoint> outline, int i) {
             return new Place { point = outline[i], segment = i, position = outline[i].GetPoint(), order = i };
@@ -137,8 +171,10 @@ namespace ElementPlacer {
             return best;
         }
 
-        //the place under the mouse: a point close to it on screen, otherwise the closest position of a segment
-        Place PlaceUnderMouse() {
+        //the place under the mouse: a point close to it on screen, or (for a line) a place picked before closer to it,
+        //otherwise the closest position of a segment, otherwise (for a line) a free place where the mouse
+        //is on a terrain patch or on the ground (hits, see GetLayerMasks)
+        Place PlaceUnderMouse(List<RaycastHit?> hits) {
             var outline = points?.Invoke();
             var cam = builder.GetViewport().GetCamera3D();
             if (outline == null || outline.Count < 2 || cam == null) return null;
@@ -155,10 +191,18 @@ namespace ElementPlacer {
                 bestDistance = screen.Value.DistanceTo(mouse);
                 best = PointPlace(outline, i);
             }
+            if (line) {
+                foreach (var place in picked) {
+                    var screen = Screen(place.position);
+                    if (!screen.HasValue || screen.Value.DistanceTo(mouse) >= bestDistance) continue;
+                    bestDistance = screen.Value.DistanceTo(mouse);
+                    best = place;
+                }
+            }
             if (best != null) return best;
             //on each segment, the position closest to the ray of the mouse
             var ray = GameEngine.Raycast.GetRayFromScreen(cam, mouse);
-            bestDistance = SegmentSnap;
+            bestDistance = line ? LineSegmentSnap : SegmentSnap;
             for (int i = 0; i < SegmentCount(outline); i++) {
                 var a = outline[i].GetPoint();
                 var u = outline[(i + 1) % outline.Count].GetPoint() - a;
@@ -172,7 +216,11 @@ namespace ElementPlacer {
                 bestDistance = screen.Value.DistanceTo(mouse);
                 best = SegmentPlace(outline, i, t);
             }
-            return best;
+            if (best != null || !line || hits == null) return best;
+            foreach (var hit in hits) {
+                if (hit.HasValue) return FreePlace(hit.Value.point);
+            }
+            return null;
         }
 
         //the points of the places (in the same order), inserting the ones on a segment with insert(index, position):
@@ -187,17 +235,6 @@ namespace ElementPlacer {
             order.Sort((x, y) => places[y].order.CompareTo(places[x].order));
             foreach (var i in order) res[i] = insert(places[i].segment + 1, places[i].position);
             return new List<TerrainPoint>(res);
-        }
-
-        //whether two places of a looping outline of the count of points have points between them on both sides (as the
-        //two ends of a cut in two parts with three points or more each)
-        public static bool SeparatedOnLoop(Place a, Place b, int count) {
-            if (Mathf.Abs(a.order - b.order) < 1e-4f) return false;
-            bool PointBetween(float from, float to) {
-                var end = to > from ? to : to + count;
-                return Mathf.Floor(from) + 1 < end - 1e-4f;
-            }
-            return PointBetween(a.order, b.order) && PointBetween(b.order, a.order);
         }
 
         // Clicks
@@ -217,18 +254,22 @@ namespace ElementPlacer {
         public override void ShowOnMap(List<RaycastHit?> hits) {
             hovered = null;
             if (picked.Count > 0) ActionHandlerManager.ShowMarkerHandle(picked[picked.Count - 1].position, 1.0f, GameEngine.Color.yellow);
-            if (UIDetection.OnUI()) return;
-            var place = PlaceUnderMouse();
-            if (place == null) return;
-            var ok = accepts(picked, place);
+            var segments = new List<(Vector3, Vector3)>();
+            for (int i = 1; i < picked.Count; i++) segments.Add((picked[i - 1].position, picked[i].position));
+            var place = UIDetection.OnUI() ? null : PlaceUnderMouse(hits);
+            var ok = place != null && accepts(picked, place);
             if (ok) hovered = place;
-            if (picked.Count > 0) ActionHandlerManager.ShowGuideLine(picked[picked.Count - 1].position, place.position);
-            ActionHandlerManager.ShowHandle(place.position, 1.0f, ok ? GameEngine.Color.green : GameEngine.Color.red);
+            if (place != null && picked.Count > 0) segments.Add((picked[picked.Count - 1].position, place.position));
+            ActionHandlerManager.ShowGuideLines(segments);
+            if (place != null) ActionHandlerManager.ShowHandle(place.position, 1.0f, ok ? GameEngine.Color.green : GameEngine.Color.red);
         }
 
+        //where a free place of a line is: on a terrain patch, otherwise on the ground
         public override List<int> GetLayerMasks() {
-            return new List<int> { ~(1 << 3) };
+            return new List<int> { 1 << 7, 1 << 3 };
         }
+
+        public override int GroundHitIndex => 1;
 
         public override bool SnapsToGrid => false;
     }

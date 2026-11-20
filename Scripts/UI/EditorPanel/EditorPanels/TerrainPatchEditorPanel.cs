@@ -99,22 +99,67 @@ namespace EditorPanels {
             patch.SetActive(true, GetPlacer().placementMode == ElementPlacer.TerrainPlacer.PlacementMode.None);
         }
 
-        //splits the patch along the line between the two places of its perimeter clicked next (points, or positions on
-        //its segments, where points are inserted)
+        static bool SamePlace(ElementPlacer.OutlinePicker.Place a, ElementPlacer.OutlinePicker.Place b) {
+            return a == b || (!a.free && !b.free && new Godot.Vector2(a.position.X - b.position.X, a.position.Z - b.position.Z).LengthSquared() < 1e-4f);
+        }
+
+        //null if the place can follow the ones picked in the line cutting the patch (see Split), otherwise why not
+        public static string CutError(TerrainPatch patch, IReadOnlyList<ElementPlacer.OutlinePicker.Place> picked, ElementPlacer.OutlinePicker.Place place) {
+            var line = new List<Godot.Vector3>();
+            foreach (var p in picked) line.Add(p.position);
+            if (picked.Count == 0) {
+                return place.free ? Operations.TerrainPatches.GetCutError(patch, new List<Godot.Vector3> { place.position }, false, false, false) : null;
+            }
+            var fromPerimeter = !picked[0].free;
+            if (SamePlace(place, picked[0])) {
+                //back to the first place: the polygon of the line is carved
+                return Operations.TerrainPatches.GetCutError(patch, line, fromPerimeter, true);
+            }
+            line.Add(place.position);
+            if (place.free) return Operations.TerrainPatches.GetCutError(patch, line, fromPerimeter, false, false);
+            if (!fromPerimeter) return "a line started inside the terrain patch can only end on its first point";
+            return Operations.TerrainPatches.GetCutError(patch, line, true, false);
+        }
+
+        //cuts the patch along the line through the places clicked next: it starts on the perimeter (on a point, or on a
+        //side, where a point is inserted) or inside the patch, and goes through places inside it. When it reaches the
+        //perimeter again the patch is split in two along it, when it comes back to its first place the polygon it makes
+        //is carved out of the patch (see Operations.TerrainPatches.Split and Carve)
         void Split() {
             var patch = GetCurPatch(false);
             if (GetPlacer() == null || patch == null) return;
-            builder.outlinePicker.Start(() => patch.IsDeleted() ? null : patch.GetPerimeterPointsComponents(), true, 2,
-                (picked, place) => picked.Count == 0 || ElementPlacer.OutlinePicker.SeparatedOnLoop(picked[0], place, patch.GetPerimeterPointsComponents().Count),
+            builder.outlinePicker.StartLine(() => patch.IsDeleted() ? null : patch.GetPerimeterPointsComponents(), true,
+                (picked, place) => CutError(patch, picked, place) == null,
+                picked => picked.Count >= 2 && (!picked[picked.Count - 1].free || picked[picked.Count - 1] == picked[0]),
                 places => History.UndoManager.Record(SM.Get("TP_SPLIT"), () => {
                     if (GetCurPatch(false) != patch) return;
-                    var points = ElementPlacer.OutlinePicker.Resolve(places, (index, position) => Operations.TerrainPatches.InsertPerimeterPoint(patch, position, index));
-                    var newPatch = Operations.TerrainPatches.Split(builder.helper.elementManager, patch, points[0], points[1]);
-                    if (newPatch == null) return;
+                    var manager = builder.helper.elementManager;
+                    var first = places[0];
+                    var last = places[places.Count - 1];
+                    var inside = new List<Godot.Vector3>();
+                    for (int i = 0; i < places.Count - 1; i++) {
+                        if (places[i].free) inside.Add(places[i].position);
+                    }
+                    if (last.free && last != first) inside.Add(last.position);
+                    TerrainPoint Insert(int index, Godot.Vector3 position) => Operations.TerrainPatches.InsertPerimeterPoint(patch, position, index);
+                    var created = new List<TerrainPatch>();
+                    if (first.free) {
+                        created = Operations.TerrainPatches.Carve(manager, patch, inside);
+                    } else if (SamePlace(first, last)) {
+                        var at = ElementPlacer.OutlinePicker.Resolve(new List<ElementPlacer.OutlinePicker.Place> { first }, Insert)[0];
+                        created = Operations.TerrainPatches.Carve(manager, patch, inside, at);
+                    } else {
+                        var points = ElementPlacer.OutlinePicker.Resolve(new List<ElementPlacer.OutlinePicker.Place> { first, last }, Insert);
+                        var newPatch = Operations.TerrainPatches.Split(manager, patch, points[0], points[1], inside);
+                        created = newPatch == null ? null : new List<TerrainPatch> { newPatch };
+                    }
+                    if (created == null) return;
                     GameEngine.Gizmo.ClearTargets();
-                    //the points of the new patch are hidden, the two it shares with this one are shown again with it
-                    newPatch.Select(false);
-                    newPatch.SetActive(false, false);
+                    //the points of the new patches are hidden, the ones they share with this one are shown again with it
+                    foreach (var newPatch in created) {
+                        newPatch.Select(false);
+                        newPatch.SetActive(false, false);
+                    }
                     ReselectPatch();
                     builder.NotifyChange();
                 }));

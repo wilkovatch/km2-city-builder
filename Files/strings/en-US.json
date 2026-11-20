@@ -781,7 +781,7 @@
 	"COPY_PROPERTIES": "Copy properties",
 	"COPY_PROPERTIES_NO_ELEMENT": "Open the editor of an element first (or select several with Edit > Select multiple elements), then use this to click the element to copy the properties from.",
 	"TP_SPLIT": "Split",
-	"TP_SPLIT_TOOLTIP": "Click two places of the perimeter, not next to each other: points, or anywhere on a side (a point is added there). The patch is split in two along the line between them. Press Escape to cancel.",
+	"TP_SPLIT_TOOLTIP": "Draw a line to cut the patch: click places of the perimeter (points, or anywhere on a side, where a point is added) or inside the patch. A line from the perimeter to the perimeter again splits the patch in two; a line back to its first place carves the polygon out of the patch, and the ring left around it is split in two. Ctrl+Z removes the last place, Escape cancels.",
 	"TP_MERGE_PATCH": "Merge with...",
 	"TP_MERGE_PATCH_TOOLTIP": "Click another terrain patch sharing a side with this one (two or more points that are the same, on the same anchors or at the same positions): it is merged into this one. Press Escape to cancel.",
 	"BL_SPLIT": "Split",

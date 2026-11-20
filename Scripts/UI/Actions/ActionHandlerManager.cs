@@ -66,6 +66,20 @@ class ActionHandlerManager {
         guideLine.ShowSegment(from + lift, to + lift, cam);
     }
 
+    //several guide lines at once (e.g. a line being drawn, with the segment to the mouse)
+    public static void ShowGuideLines(List<(Vector3 from, Vector3 to)> segments) {
+        var cam = GameEngine.Camera.Get(manager);
+        if (cam == null) return;
+        var lift = Vector3.Up * 0.2f;
+        var shown = new List<(Vector3, Vector3)>();
+        foreach (var (from, to) in segments) {
+            if (!float.IsNaN(from.Y) && !float.IsNaN(to.Y) && from.DistanceSquaredTo(to) >= 1e-6f) shown.Add((from + lift, to + lift));
+        }
+        if (shown.Count == 0) return;
+        if (guideLine == null || !guideLine.Valid) guideLine = new PlacementHeightLine(manager, MaterialManager.GetHandleMaterial(GameEngine.Color.yellow));
+        guideLine.ShowSegments(shown, cam);
+    }
+
     public static void HideGuideLine() {
         if (guideLine != null && guideLine.Valid) guideLine.Hide();
     }

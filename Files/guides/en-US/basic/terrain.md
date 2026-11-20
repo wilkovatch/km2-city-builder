@@ -26,7 +26,10 @@ To fill a loop of roads quickly, place the first point on an anchor of the loop 
 Click a patch to edit it. With **Point placement mode** set to **None**, click a point and move it with the gizmo.
 
 - To add a corner, set the mode to **Perimeter** and click on a side of the patch: a new point is added there, between the two points of that side.
-- To cut a patch in two, click **Split**, then click two places of its perimeter: a point, or anywhere on a side, where a point is added. The handle under the mouse is green where you can click, and red on a place next to the first one; the first place stays marked with a yellow handle. The patch is cut along the line between them, and the two patches stay joined along the cut. Press Escape to cancel.
+- To cut a patch, click **Split**, then draw the cut by clicking places one after the other: points of the perimeter, anywhere on a side (a point is added there), or anywhere inside the patch. The handle under the mouse is green where you can click, and red where the line would leave the patch or cross itself; the line drawn so far is shown in yellow.
+  - A line from the perimeter to the perimeter again cuts the patch in two. With no places inside, the two places must not be next to each other.
+  - A line back to its first place (inside the patch, or on the perimeter) carves the shape it encloses out of the patch, as a new patch. A patch can't have holes, so the ring left around the shape is also cut in two, along straight lines from the shape to the perimeter.
+  - The patches stay joined along the cuts. Ctrl+Z removes the last place clicked, Escape cancels the cut.
 - To join two patches that share a side, click **Merge with...** and then click the other patch. The patch under the mouse is outlined in green if it can be merged, and in red if not. The patch you were editing keeps its texture and settings.
 
 ## Details
